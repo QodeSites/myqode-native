@@ -39,7 +39,7 @@ export default function Success({ V }) {
         style={{ height: '44%', alignItems: 'center', justifyContent: 'center' }}>
         <DrawnCheck />
         <Tx f="play" w={600} s={22} c={C.cream} style={{ marginTop: 18 }}>{V.successTitle}</Tx>
-        <Amt s={30} c={C.gold} noHide style={{ marginTop: 8 }}>{V.successAmt}</Amt>
+        <Amt s={30} c={C.gold} style={{ marginTop: 8 }}>{V.successAmt}</Amt>
       </LinearGradient>
       <View style={{ flex: 1, marginTop: -46 }}>
         <CurveCap height={46} />
@@ -54,7 +54,7 @@ export default function Success({ V }) {
               ].map(([k, v, mono], i) => (
                 <View key={k} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 11, borderBottomWidth: i < 3 ? 1 : 0, borderColor: C.hairline }}>
                   <Tx s={12} c={C.muted}>{k}</Tx>
-                  {mono ? <Amt s={12} noHide>{v}</Amt> : <Tx w={700} s={12}>{v}</Tx>}
+                  {mono ? <Amt s={12}>{v}</Amt> : <Tx w={700} s={12}>{v}</Tx>}
                 </View>
               ))}
             </Card>

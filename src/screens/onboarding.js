@@ -419,7 +419,7 @@ export default function Onboarding({ V }) {
               <Card big style={{ marginTop: -28, paddingVertical: 24, paddingHorizontal: 22, alignItems: 'center' }}>
                 <Tx w={700} s={10} ls={0.18} c={C.muted}>YOUR ACCOUNT CODE</Tx>
                 <Pressable onPress={V.obCopy}>
-                  <Amt s={30} c={C.green} noHide style={{ marginTop: 10 }}>PMS 00891</Amt>
+                  <Amt s={30} c={C.green} style={{ marginTop: 10 }}>PMS 00891</Amt>
                 </Pressable>
                 <Pressable onPress={V.obCopy} style={{
                   flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
@@ -461,7 +461,7 @@ export default function Onboarding({ V }) {
               {[['Account name', 'Rohan Mehta — PMS'], ['Bank', 'HDFC Bank, Fort, Mumbai'], ['Account no.', '50100 4821 0891'], ['IFSC', 'HDFC0000060']].map(([k, v], i) => (
                 <View key={k} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: i < 3 ? 1 : 0, borderColor: C.hairline }}>
                   <Tx s={12} c={C.muted}>{k}</Tx>
-                  {k === 'Account no.' ? <Amt s={12} noHide>{v}</Amt> : <Tx w={700} s={12}>{v}</Tx>}
+                  {k === 'Account no.' ? <Amt s={12}>{v}</Amt> : <Tx w={700} s={12}>{v}</Tx>}
                 </View>
               ))}
             </View>
@@ -477,7 +477,7 @@ export default function Onboarding({ V }) {
               <Check s={28} c={C.gold} w={2.2} />
             </View>
             <Tx f="play" w={600} s={20} style={{ marginTop: 16 }}>Transfer noted</Tx>
-            <Amt s={26} c={C.green} noHide style={{ marginTop: 6 }}>{V.obAmtFmt}</Amt>
+            <Amt s={26} c={C.green} style={{ marginTop: 6 }}>{V.obAmtFmt}</Amt>
             <Tx s={12} c={C.muted} lh={1.55} center style={{ marginTop: 12 }}>
               We'll confirm once funds clear and invest at the next NAV.{'\n'}A receipt follows to your registered email.
             </Tx>

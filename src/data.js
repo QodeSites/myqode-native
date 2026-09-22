@@ -34,7 +34,7 @@ export const FYS = [
   { label: 'FY 2024-25', m: [['March 2025', 198400, 1.32], ['February 2025', -142800, -0.94], ['January 2025', 176500, 1.19], ['December 2024', 243700, 1.68], ['November 2024', 88900, 0.61], ['October 2024', -178200, -1.21], ['September 2024', 312400, 2.18], ['August 2024', 154800, 1.09], ['July 2024', 201300, 1.44], ['June 2024', -94600, -0.67], ['May 2024', 167200, 1.21], ['April 2024', 139800, 1.03]] },
 ];
 
-export const QUARTER_LABELS = [['Q1', 'Apr – Jun'], ['Q2', 'Jul – Sep'], ['Q3', 'Oct – Dec'], ['Q4', 'Jan – Mar']];
+export const QUARTER_LABELS = [['Q1', 'Jan – Mar'], ['Q2', 'Apr – Jun'], ['Q3', 'Jul – Sep'], ['Q4', 'Oct – Dec']];
 
 export const HOLD = [
   { name: 'Qode All Weather', tag: 'Multi-asset · Low volatility', alloc: 41, gain: 19.4, color: '#008455', xirr: '+26.1%', mdd: '−9.2%', hasM: true },

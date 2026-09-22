@@ -1,10 +1,10 @@
 // Shared design system: colors, typography, and primitives ported from the
-// myQode Curtain design. Text scaling / high contrast / reduced motion /
-// privacy-hide all flow through UICtx.
-import React, { createContext, useContext, useEffect, useRef } from 'react';
+// myQode Curtain design. Text scaling / high contrast / reduced motion
+// all flow through UICtx.
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, Pressable, Animated, Easing, Modal,
-  ScrollView, Dimensions, KeyboardAvoidingView, Platform,
+  ScrollView, Dimensions, Keyboard, Platform,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -17,6 +17,7 @@ export const C = {
   muted: '#37584F',
   gray: '#9CA3AF',
   red: '#EF4444',
+  pos: '#16A34A',   // positive figures — the web's green-600; C.green is the dark brand green and reads as black on numbers
   cream40: 'rgba(239,236,211,0.4)',
   cream55: 'rgba(239,236,211,0.55)',
   cream60: 'rgba(239,236,211,0.6)',
@@ -33,7 +34,7 @@ export const C = {
   darkGrad: ['#02422B', '#002017', '#000000'],
 };
 
-export const UICtx = createContext({ z: 1, hc: false, rm: false, hidden: false });
+export const UICtx = createContext({ z: 1, hc: false, rm: false });
 export const useUI = () => useContext(UICtx);
 
 const FAM = {
@@ -63,18 +64,14 @@ export function Tx({ f = 'lato', w = 400, s = 13, c = C.ink, ls = 0, lh, center,
   );
 }
 
-// Tabular-numeral amount; blurs via the text-shadow trick when privacy is on.
-export function Amt({ w = 600, s = 13, c = C.ink, noHide, center, style, children, ...rest }) {
-  const { z, hidden } = useUI();
-  const size = s * z;
-  const blur = hidden && !noHide
-    ? { color: 'transparent', textShadowColor: c, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: Math.max(6, size * 0.4) }
-    : null;
+// Tabular-numeral amount.
+export function Amt({ w = 600, s = 13, c = C.ink, center, style, children, ...rest }) {
+  const { z } = useUI();
   return (
     <Text {...rest} style={[{
-      fontFamily: FAM.inter[w], fontSize: size, color: c,
+      fontFamily: FAM.inter[w], fontSize: s * z, color: c,
       fontVariant: ['tabular-nums'], textAlign: center ? 'center' : undefined,
-    }, blur, style]}>{children}</Text>
+    }, style]}>{children}</Text>
   );
 }
 
@@ -165,7 +162,7 @@ export function Toggle({ on, onPress }) {
 }
 
 // Underline text field with tiny uppercase label (the design's input style).
-export function Field({ label, value, onChangeText, placeholder, secure, numeric, s = 15, style, prefix, autoFocus }) {
+export function Field({ label, value, onChangeText, placeholder, secure, numeric, s = 15, style, prefix, autoFocus, autoCapitalize, multiline, keyboardType }) {
   const { z } = useUI();
   return (
     <View style={style}>
@@ -178,11 +175,15 @@ export function Field({ label, value, onChangeText, placeholder, secure, numeric
           placeholder={placeholder}
           placeholderTextColor={C.gray}
           secureTextEntry={secure}
-          keyboardType={numeric ? 'number-pad' : 'default'}
+          keyboardType={keyboardType || (numeric ? 'number-pad' : 'default')}
+          multiline={multiline}
           autoFocus={autoFocus}
+          autoCapitalize={autoCapitalize}
+          autoCorrect={false}
           style={{
             flex: 1, fontFamily: 'Lato_400Regular', fontSize: s * z, color: C.ink,
             paddingVertical: 8, paddingHorizontal: 0, minWidth: 0,
+            ...(multiline ? { minHeight: 84, textAlignVertical: 'top' } : null),
           }}
         />
       </View>
@@ -297,6 +298,16 @@ export function Sheet({ visible, onClose, children, maxH = 0.86 }) {
   const H = Dimensions.get('window').height;
   const y = useRef(new Animated.Value(H)).current;
   const fade = useRef(new Animated.Value(0)).current;
+  // Keyboard height: inside a Modal the window is not resized for the keyboard (Android especially), so the
+  // sheet is lifted by hand and its max height reduced so the field being typed into stays visible.
+  const [kb, setKb] = useState(0);
+  useEffect(() => {
+    const showEv = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEv = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const a = Keyboard.addListener(showEv, e => setKb(e.endCoordinates ? e.endCoordinates.height : 0));
+    const b = Keyboard.addListener(hideEv, () => setKb(0));
+    return () => { a.remove(); b.remove(); };
+  }, []);
   useEffect(() => {
     if (visible) {
       y.setValue(H); fade.setValue(0);
@@ -309,24 +320,24 @@ export function Sheet({ visible, onClose, children, maxH = 0.86 }) {
   if (!visible) return null;
   return (
     <Modal transparent visible onRequestClose={onClose} statusBarTranslucent>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>
         <Animated.View style={[{ flex: 1, backgroundColor: 'rgba(0,32,23,0.55)', opacity: fade }]}>
-          <Pressable style={{ flex: 1 }} onPress={onClose} />
+          <Pressable style={{ flex: 1 }} onPress={() => { Keyboard.dismiss(); onClose(); }} />
         </Animated.View>
         <Animated.View style={{
-          position: 'absolute', left: 0, right: 0, bottom: 0,
+          position: 'absolute', left: 0, right: 0, bottom: kb,
           backgroundColor: C.card, borderTopLeftRadius: 16, borderTopRightRadius: 16,
-          maxHeight: H * maxH, transform: [{ translateY: y }],
+          maxHeight: Math.max(220, H * maxH - kb), transform: [{ translateY: y }],
           shadowColor: C.ink, shadowOpacity: 0.3, shadowRadius: 16, shadowOffset: { width: 0, height: -8 }, elevation: 16,
         }}>
           <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 2 }}>
             <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: C.mutedBorder }} />
           </View>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 24 }}>
+          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ paddingBottom: 24 }}>
             {children}
           </ScrollView>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

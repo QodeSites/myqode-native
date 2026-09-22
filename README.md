@@ -23,8 +23,6 @@ platforms.
   and payment-success screen, family account switcher (incl. combined
   "Entire Family" view), "For your attention" notifications, Display &
   accessibility settings
-- **Privacy eye** — blurs every amount app-wide (RN text-shadow blur, works on
-  both platforms)
 - **Accessibility settings that actually apply** — text-size S/M/L/XL scales
   all type, high contrast deepens muted tones, reduced motion disables
   animations
@@ -34,8 +32,8 @@ platforms.
   financial profile (SEBI questions + PEP definition) → nominees with
   allocation validation & SEBI opt-out declaration → document uploads →
   review & submit → application tracker → account opened → fund the account
-- Native touches: real status bar + safe areas (no fake device frame), native
-  pull-to-refresh on the dashboard, parallax on the dark header, Animated
+- Native touches: real status bar + safe areas (no fake device frame), a refresh
+  button in the header, parallax on the dark header, Animated
   transitions throughout
 
 ## Run
@@ -58,7 +56,7 @@ Expo's cloud, so no Mac is needed).
 | --- | --- |
 | `App.js` | Root: loads Playfair Display / Lato / Inter, safe-area provider |
 | `src/main.js` | State machine + computed values, ported from the design's logic class |
-| `src/ui.js` | Design system: colors, `Tx`/`Amt` typography (scaling, high contrast, privacy blur), buttons, chips, fields, OTP row, curved "curtain" cap, sheets, skeletons |
+| `src/ui.js` | Design system: colors, `Tx`/`Amt` typography (scaling, high contrast), buttons, chips, fields, OTP row, curved "curtain" cap, sheets, skeletons |
 | `src/icons.js` | All design SVGs via react-native-svg |
 | `src/data.js` | Static demo data (no backend) |
 | `src/screens/` | splash, carousel, login/OTP, onboarding, curtain lift, app shell, tab content, sheets, success |
@@ -68,5 +66,3 @@ Expo's cloud, so no Mac is needed).
 - The web design's elliptical CSS curves are drawn as SVG caps (`CurveCap`).
 - The shimmer skeleton is an opacity pulse; SVG line draw-in animations are
   kept where lengths are known (success ring/check, onboarding progress arc).
-- Privacy blur uses the `textShadowRadius` technique instead of CSS
-  `filter: blur()`.

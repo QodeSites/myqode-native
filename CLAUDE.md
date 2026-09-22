@@ -1,1 +1,56 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 @AGENTS.md
+
+## What this is
+
+A plain-JavaScript (no TypeScript, no Expo Router) Expo SDK 57 / React Native 0.86 app for myQode investors. Every `/api/mobile/*` route of the `myQode` backend is consumed (`src/api/index.js`; contract in `myQode/docs/mobile-prompts/`). Onboarding is still a static design demo. The distributor portal is out of scope. `More → Developer → Data requirements` (`REQS` in `src/screens/pages.js`) lists what each screen still lacks and how to bring it.
+
+Sibling repos under `..`: `myQode/` (web + API backend) and `../../Qode_mobile_app/mobile-app` (a different, working Expo app for the separate `qode-oneview` product, used as a structural template only).
+
+## Modes (`.env`, read in `src/api/config.js`)
+
+- `EXPO_PUBLIC_API_BASE_URL` — server base URL (LAN IP + port 2069 for a local `myQode` dev server).
+- `EXPO_PUBLIC_TEST_MODE=1` — **we test with real clients.** `guarded()` in `src/api/index.js` rejects with `BlockedError` anything that could reach the client: setup-OTP and reset emails, password change, push-token registration, Cashfree orders, SIP setup/pause/resume/cancel. Service requests still go through because they email Investor Relations only. A red "TEST MODE" tag shows in the app. Must be `0` for production builds.
+- `EXPO_PUBLIC_DEV_BYPASS=1` — shows the passwordless sign-in (`auth.loginBypass` posts `/auth/login` without a password, plus a client picker from `/dev/clients`). Only works when the server runs with `NODE_ENV=development`.
+- Update banner: driven by the server's `APP_MIN_VERSION` / `APP_LATEST_VERSION` against the app's `app.json` → `expo.version` (read at runtime through `expo-constants`; there is no separate version constant). Hidden while `EXPO_PUBLIC_TEST_MODE=1`. **Bump `expo.version` in `app.json` for every store build** and keep the server's `APP_LATEST_VERSION` in step.
+- Demo mode (login screen link) answers every call from `src/api/demo.js` with a generated Mehta family; nothing hits the network.
+
+**The `myQode/` directory is read-only reference.** Do not change its existing logic. Only touch it when a change is strictly needed to support this mobile app (e.g. a new `/api/mobile/*` endpoint), and keep such changes additive.
+
+## Commands
+
+```sh
+npm install
+npm start            # expo dev server; scan QR with Expo Go (must match SDK 57) — phone on the same Wi-Fi
+npm run start:tunnel # phone on mobile data: Cloudflare tunnel for Metro (`expo start --tunnel` fails here: ngrok is blocked). API needs scripts/api-tunnel.cmd too — see docs/run-and-release.md
+EXPO_PUBLIC_API_BASE_URL=http://<lan-ip>:2069 npm start   # point at a local myQode dev server (default: https://myqode.qodeinvest.com; dev servers allow passwordless login)
+npm run android | ios | web
+npx expo-doctor      # dependency/SDK sanity check
+npx expo install --fix   # realign package versions after changing SDK/deps
+```
+
+No lint, typecheck, or test tooling is configured. If a "project is incompatible with Expo Go" error appears, the SDK in `package.json` doesn't match the installed Expo Go version.
+
+## Architecture
+
+Everything is driven by one class component, `src/main.js` (`MyQode`), which holds **all app state in a single `this.state`** and passes values and handlers down to presentational screens in `src/screens/` through the `V` object built by `vals()`. It is a port of the design's `DCLogic` class, so state keys are terse (`ob` = onboarding, `cu` = count-up progress, `hc` = high contrast, `rm` = reduced motion, `ts` = text scale, `acct` = selected scope).
+
+- **Phase machine**: `state.phase` (`splash` → `carousel` → `login` → [`otp` → `setpw` for first-time password setup] → `app`; `ob` is the onboarding flow, a static demo). Back-button behaviour lives in `handleBack()`. Developer docs are in `docs/`. `boot()` restores a saved token, validates it with `auth/me`, and skips straight to the app. Within `app`, `state.tab` picks the tab and `state.sheet` the bottom sheet. No navigation library.
+- **API layer** (`src/api/`): `client.js` (fetch wrapper, Bearer token, `ApiError`, 401 → `onUnauthorized` → sign-out or exit impersonation), `session.js` (token in expo-secure-store, localStorage on web), `index.js` (`auth`, `meta`, `portfolio`, `documents`, `engagement`, `experience`, `services`, `payments`, `admin`), `track.js` (batched screen analytics → `engagement/analytics`). Token lasts 30 days with no refresh endpoint. Super-admin impersonation keeps the admin token in `this.origToken` on the root component.
+- **Scopes**: `/portfolio/snapshot` → `buildScopes()` (`src/adapt.js`) gives an optional family scope (group id) plus one scope per owner. `state.acct === -1` is the family scope, otherwise an index into owners. Each scope has `kind`: `account` (single strategy code → standard routes), `owner`/`family` (owner or group id → `combined-*` routes). An owner scope uses the owner id even with one active account (falling back to a single account only when the login isn't authorised for the owner id, or the aggregate has no rows): the owner aggregate carries the full history (incl. closed accounts) and is what the web's "All Strategies" shows. A single strategy account is selected as `state.acct = 'a:<code>'`. `buildScopes(snap, accountCodes)` only offers a scope whose id is in the user's JWT `accountCodes` (the API answers 403 otherwise) and uses the backend's group row for "Entire Family" only when the login may read it and every owner shown belongs to that one group; otherwise (not head of family, or one email spanning several groups) Entire Family is a `local-family` scope built by `combineFamily()` in `webcalc.js` from the members' own rows, using the backend's own aggregation rule (NAV_t = NAV_(t-1) × V_t / (V_(t-1) + CF_t), verified against a real group row). Every login with 2+ owners therefore gets Entire Family — one email can span several groups, and `snapshot.isHeadOfFamily/groupId` are NOT proof of access. `loadScope()` treats performance as required and everything else as optional, steps down family → owner → account on 403/404 (`stepDown`), and `openPortfolio()` keeps a snapshot failure from blocking sign-in. `scripts/compare-web.mjs <clientCode>` checks every code's numbers against the web's formulas. `loadScope()` fetches performance/nav/cashflow/monthly-pl for the scope; a `seq` counter discards stale responses. Holdings are the scope's accounts, each enriched with its own `performance` call.
+- **Legacy Orbis accounts** (`src/webcalc.js`): 14 client codes have pre-Nuvama history in `orbis_master_sheet`. For those single accounts the web offers three views — Nuvama, Orbis (Legacy), Orbis + Nuvama (Combined) — computed in the browser. The app does the same: `GET /api/mobile/portfolio/history` returns raw Nuvama, Orbis and benchmark rows, `webcalc.js` is a line-for-line port of the web maths that returns objects in the mobile API's shapes, and `applyView()` swaps them in (`state.hist`, `state.dv`). Owner/family views are Nuvama-only on the web too. Do not "fix" odd-looking results there (e.g. since-inception anchored at NAV 10 on a rebased Orbis series) — they reproduce the web.
+- **UCC notice** (`src/screens/ucc.js`): the web's Nuvama primary-UCC banner, from `GET /api/mobile/primary-ucc` (same logic as the web route, JWT instead of cookie). Shown as a one-time pop-up (`Modal`) over Home once the dashboard has loaded, **once per sign-in** (`state.uccSeen`, reset by `signOut`) — deliberately different from the web, which dismisses per set of codes in localStorage and never re-shows it. More tab has a test-mode "show the UCC pop-up again" button. The Documents tab also has the web's four Policies PDFs (`/policies/*.pdf` on the server).
+- **Payments** (`src/screens/pay.js`): one-time top-ups via Razorpay hosted Checkout opened in the SYSTEM BROWSER (`expo-web-browser` auth session; real UPI apps and bank OTP pages work there, unlike a WebView). Razorpay posts the result to `payments/razorpay/return`, which bounces to the app's return URL (`Linking.createURL('payment-return')`: `myqode://…` in a build, `exp://<dev host>/--/payment-return` in Expo Go); the auth session closes the browser and the app re-verifies the order. Because Expo Go may reload the project on that link, the order in progress is saved on the device (`myqode.pendingPayment`) and `resumePayment()` in `src/main.js` reopens the Add Funds sheet in recovery mode (`payRecover`) on the next start or deep link. `react-native-webview` is installed but no longer used for payments. Backend: `myQode/lib/razorpay.ts` + `app/api/mobile/payments/razorpay/{create-order,checkout,return,verify,webhook}`; rows go into `payment_transactions` with `gateway='razorpay'` so `investment-status` shows them. With `rzp_test_` keys the server never sends the client's real email/phone to the gateway and never notifies the client. `payments.razorpay.*` are deliberately not TEST_MODE-guarded. The Cashfree routes are untouched (web).
+- **Switch requests** (`src/screens/switch.js`): mirrors the Zoho Forms/CRM flow — Full Switch (tick strategies out/in) or Partial Switch (rupee amounts out/in; totals must match; From ≤ invested from the investor's Zoho record; no strategy on both sides; one Pending at a time). Backend `app/api/mobile/services/switch-request` (GET info, POST create in `Strategy_Switch_Requests`). NOT production → dry run only, unless the backend has `SWITCH_REQUEST_LIVE=1`: then the record is created with Zoho triggers off (`trigger: []`, nobody notified) for an end-to-end test — delete it from the CRM afterwards. RM notification belongs to a CRM workflow, not this code.
+- **Adapters** (`src/adapt.js`): API shapes → view data (P&L grouped by **calendar year** with Q1 = Jan–Mar and year totals taken from the API, to match the web table exactly — do not regroup into fiscal years; chart paths from the rebased NAV and drawdown series; trailing-return rows).
+- **Screens**: `tabs.js` (home/portfolio/holdings), `docs.js`, `services.js` (requests, SIP list, config-driven `FormBody`), `more.js`, `pages.js` (full-screen pages incl. family, insights, static copy from `content.js`, Developer pages), `sheets.js`, `kit.js` (`useLoad`, loading/error/empty pieces). The API has no XIRR/Sharpe/day-change data, so those design elements were replaced or removed.
+- **Design system** (`src/ui.js`): colors `C`, and `UICtx` carrying `{ z, hc, rm }`. Text must go through `Tx`, and money through `Amt`, so accessibility scaling applies app-wide. Refresh is the header button (plus an automatic refresh when the app returns to the foreground); there is no pull-to-refresh.
+- **Icons** in `src/icons.js`; charts in `src/screens/charts.js`. Fonts load in `App.js`.
+
+## Notes
+
+- `README.md` documents the design-fidelity choices (SVG curve caps, opacity-pulse skeleton) — preserve them rather than "fixing" them with CSS-style approaches that don't exist in RN.
+- Currency formatting uses `en-IN` locale via `fmt`/`fmt0`/`sfmt` on the root component.
