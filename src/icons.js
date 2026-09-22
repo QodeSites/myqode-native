@@ -3,24 +3,16 @@ import React from 'react';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { C } from './ui';
 
-export const Eye = ({ s = 19, c = C.cream }) => (
-  <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
-    <Path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z" stroke={c} strokeWidth={1.6} />
-    <Circle cx={12} cy={12} r={2.6} stroke={c} strokeWidth={1.6} />
-  </Svg>
-);
-
-export const EyeOff = ({ s = 19, c = C.gold }) => (
-  <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
-    <Path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z" stroke={c} strokeWidth={1.6} />
-    <Path d="M4 4l16 16" stroke={c} strokeWidth={1.6} strokeLinecap="round" />
-  </Svg>
-);
-
 export const Bell = ({ s = 18, c = C.cream }) => (
   <Svg width={s} height={s + 1} viewBox="0 0 24 24" fill="none">
     <Path d="M6 9a6 6 0 1112 0c0 5 2 6 2 6H4s2-1 2-6z" stroke={c} strokeWidth={1.6} strokeLinejoin="round" />
     <Path d="M10 18a2 2 0 004 0" stroke={c} strokeWidth={1.6} strokeLinecap="round" />
+  </Svg>
+);
+
+export const Refresh = ({ s = 18, c = C.cream }) => (
+  <Svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M20 11a8 8 0 1 0-2.3 5.7" /><Path d="M20 4v7h-7" />
   </Svg>
 );
 
@@ -106,6 +98,12 @@ export const DocIcon = ({ s = 19, c = C.green, w = 1.6 }) => (
   </Svg>
 );
 
+export const Swap = ({ s = 20, c = C.green, w = 1.8 }) => (
+  <Svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M4 7h13M13 3l4 4-4 4" /><Path d="M20 17H7M11 13l-4 4 4 4" />
+  </Svg>
+);
+
 export const Bars = ({ s = 19, c = C.green }) => (
   <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
     <Path d="M4 20V10M10 20V4M16 20v-8M22 20H2" stroke={c} strokeWidth={1.6} strokeLinecap="round" />
@@ -168,12 +166,6 @@ export const CarGrid = ({ s = 30 }) => (
     <Rect x={16.5} y={4} width={9.5} height={9.5} rx={2} stroke={C.gold} strokeWidth={1.5} />
     <Rect x={4} y={16.5} width={9.5} height={9.5} rx={2} stroke={C.gold} strokeWidth={1.5} />
     <Rect x={16.5} y={16.5} width={9.5} height={9.5} rx={2} stroke={C.gold} strokeWidth={1.5} />
-  </Svg>
-);
-export const CarEye = ({ s = 32 }) => (
-  <Svg width={s} height={s} viewBox="0 0 32 32" fill="none">
-    <Path d="M4 16s4.5-8 12-8 12 8 12 8-4.5 8-12 8-12-8-12-8z" stroke={C.gold} strokeWidth={1.5} />
-    <Circle cx={16} cy={16} r={3.4} stroke={C.gold} strokeWidth={1.5} />
   </Svg>
 );
 export const CarDoc = ({ s = 30 }) => (

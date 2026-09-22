@@ -1,15 +1,18 @@
 // Main app frame: scrolling dark-curtain header + cream zone per tab,
 // fixed bottom nav with sliding gold thread, sheets, and success overlay.
 import React, { useRef, useEffect } from 'react';
-import { View, Pressable, Animated, RefreshControl, Dimensions, Easing } from 'react-native';
+import { View, Pressable, Animated, Dimensions, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, Tx, Amt, Chip, CurveCap, Fade, GoldThreads, useUI } from '../ui';
-import { Eye, EyeOff, Bell, ChevronDown, ChevronRight, TabHome, TabPortfolio, TabDocs, TabServices, TabMore } from '../icons';
+import { Bell, Refresh, ChevronDown, ChevronRight, TabHome, TabPortfolio, TabDocs, TabServices, TabMore } from '../icons';
 import { PerfChart } from './charts';
-import { HomeCream, PortfolioCream, HoldingsCream, DocsCream, ServicesCream, MoreCream, HomeSkeleton, OtherSkeleton } from './tabs';
-import { MoneySheet, SwitchSheet, SettingsSheet, NotifsSheet } from './sheets';
-import Success from './success';
+import { HomeCream, PortfolioCream, HoldingsCream, HomeSkeleton, OtherSkeleton } from './tabs';
+import { DocsCream } from './docs';
+import { ServicesCream, RequestSheets } from './services';
+import { MoreCream } from './more';
+import { PageHost } from './pages';
+import { SwitchSheet, SettingsSheet, NotifsSheet } from './sheets';
 
 function Header({ V, insets }) {
   return (
@@ -25,8 +28,8 @@ function Header({ V, insets }) {
         {V.multiAcct && <ChevronDown />}
       </Pressable>
       <View style={{ flex: 1 }} />
-      <Pressable onPress={V.toggleHide} style={{ width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: 'rgba(239,236,211,0.22)', alignItems: 'center', justifyContent: 'center' }}>
-        {V.hideOn ? <EyeOff /> : <Eye />}
+      <Pressable onPress={V.refresh} accessibilityLabel="Refresh" style={{ width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: 'rgba(239,236,211,0.22)', alignItems: 'center', justifyContent: 'center', opacity: V.refreshing ? 0.45 : 1 }}>
+        <Refresh />
       </Pressable>
       <Pressable onPress={V.openNotifs} style={{ width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: 'rgba(239,236,211,0.22)', alignItems: 'center', justifyContent: 'center' }}>
         <Bell />
@@ -39,10 +42,36 @@ function Header({ V, insets }) {
 function DarkZone({ V }) {
   return (
     <>
-      {V.isFamily && (
+      {V.testMode && (
         <View style={{ paddingTop: 10, paddingHorizontal: 22, flexDirection: 'row' }}>
-          <View style={{ borderWidth: 1, borderColor: C.gold45, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 }}>
-            <Tx w={700} s={9.5} ls={0.18} c={C.gold}>VIEWING: ENTIRE FAMILY</Tx>
+          <View style={{ borderWidth: 1, borderColor: C.red, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 }}>
+            <Tx w={700} s={9.5} ls={0.18} c={C.red}>TEST MODE · CLIENT CONTACT BLOCKED{V.impersonated ? ' · IMPERSONATING' : ''}</Tx>
+          </View>
+        </View>
+      )}
+      {!!V.update && (
+        <Pressable onPress={V.update.force ? undefined : V.dismissUpdate} style={{ marginTop: 10, marginHorizontal: 22, borderWidth: 1, borderColor: C.gold35, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12 }}>
+          <Tx w={700} s={11} c={C.gold}>{V.update.force ? 'Update required' : 'Update available'} · v{V.update.latestVersion}</Tx>
+          {!!V.update.message && <Tx s={11} c={C.cream80} lh={1.4} style={{ marginTop: 3 }}>{V.update.message}</Tx>}
+          {!V.update.force && <Tx s={10} c={C.cream60} style={{ marginTop: 3 }}>Tap to dismiss</Tx>}
+        </Pressable>
+      )}
+      {V.isDemo && (
+        <View style={{ paddingTop: 10, paddingHorizontal: 22, flexDirection: 'row' }}>
+          <View style={{ backgroundColor: C.gold, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 }}>
+            <Tx w={700} s={9.5} ls={0.18} c={C.ink}>DEMO · SAMPLE DATA</Tx>
+          </View>
+        </View>
+      )}
+      {V.hasViews && (
+        <View style={{ marginTop: 12, marginHorizontal: 22 }}>
+          <Tx w={700} s={9.5} ls={0.14} c={C.cream60}>DATA SOURCE</Tx>
+          <View style={{ marginTop: 6, flexDirection: 'row', borderWidth: 1, borderColor: 'rgba(239,236,211,0.25)', borderRadius: 999, padding: 3 }}>
+            {V.viewChips.map(ch => (
+              <Pressable key={ch.label} onPress={ch.pick} style={{ flex: 1, paddingVertical: 7, borderRadius: 999, alignItems: 'center', backgroundColor: ch.active ? C.gold : 'transparent' }}>
+                <Tx w={700} s={10.5} c={ch.active ? C.ink : C.cream60} numberOfLines={1}>{ch.label}</Tx>
+              </Pressable>
+            ))}
           </View>
         </View>
       )}
@@ -51,10 +80,7 @@ function DarkZone({ V }) {
           <Tx w={700} s={11} ls={0.14} c={C.gold}>TOTAL PORTFOLIO VALUE</Tx>
           <Amt s={36} c={C.cream} numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 8, letterSpacing: -0.5 }}>{V.heroValue}</Amt>
           <View style={{ width: 52, height: 2, backgroundColor: C.gold, marginTop: 12, marginBottom: 10 }} />
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap' }}>
-            <Amt s={12} c={C.gold}>{V.dayChange}</Amt>
-            <Tx s={12} c={C.cream60}> today · As of 14 Jul 2026</Tx>
-          </View>
+          {!!V.asOf && <Tx s={12} c={C.cream60}>As of {V.asOf}</Tx>}
           {V.needsYou && (
             <Pressable onPress={V.goServices} style={{
               flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 16,
@@ -81,42 +107,43 @@ function DarkZone({ V }) {
         <Fade style={{ paddingTop: 16, paddingHorizontal: 22 }}>
           <Tx w={700} s={11} ls={0.14} c={C.gold}>PERFORMANCE</Tx>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 6 }}>
-            <Tx f="play" w={600} s={24} c={C.cream}>Growth of ₹1 Cr</Tx>
+            <Tx f="play" w={600} s={24} c={C.cream}>NAV performance</Tx>
             <Amt s={15} c={C.gold}>{V.growthNow}</Amt>
           </View>
           <View style={{ marginTop: 10 }}>
-            <PerfChart line={V.perfLine} bench={V.perfBench} />
+            <PerfChart line={V.perfLine} bench={V.perfBench} tip={V.perfTip} yTicks={V.yTicks} xDates={V.xDates} />
           </View>
           <View style={{ flexDirection: 'row', gap: 14, marginTop: 10, alignItems: 'center' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <View style={{ width: 14, height: 2, backgroundColor: C.gold }} />
               <Tx s={10.5} c={C.cream60}>Your portfolio</Tx>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <View style={{ width: 14, borderTopWidth: 2, borderStyle: 'dashed', borderColor: C.gray }} />
-              <Tx s={10.5} c={C.cream60}>Nifty 50</Tx>
-            </View>
+            {V.hasBench && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ width: 14, height: 2, backgroundColor: C.gray }} />
+                <Tx s={10.5} c={C.cream60}>{V.benchName}</Tx>
+              </View>
+            )}
             <View style={{ flex: 1 }} />
-            <Tx s={10.5} c={C.cream40}>As of 14 Jul 2026</Tx>
+            <Tx s={10.5} c={C.cream40}>As of {V.asOf}</Tx>
           </View>
-          <Tx s={11} c={C.cream60} style={{ marginTop: 8 }}>{V.perfSummary}</Tx>
         </Fade>
       )}
       {V.isHoldings && (
         <Fade style={{ paddingTop: 16, paddingHorizontal: 22 }}>
           <Tx w={700} s={11} ls={0.14} c={C.gold}>HOLDINGS</Tx>
-          <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>4 strategies</Tx>
+          <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>{V.holdCount} {V.holdCount === 1 ? 'strategy' : 'strategies'}</Tx>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 6 }}>
             <Amt s={12} c={C.cream60}>{V.heroValue}</Amt>
-            <Tx s={12} c={C.cream60}> · As of 14 Jul 2026</Tx>
+            <Tx s={12} c={C.cream60}> · As of {V.asOf}</Tx>
           </View>
         </Fade>
       )}
       {V.isDocs && (
         <Fade style={{ paddingTop: 22, paddingHorizontal: 22 }}>
           <Tx w={700} s={11} ls={0.14} c={C.gold}>DOCUMENTS</Tx>
-          <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>Your records</Tx>
-          <Tx s={12} c={C.cream60} style={{ marginTop: 6 }}>Statements, factsheets and agreements</Tx>
+          <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>Account documents</Tx>
+          <Tx s={12} c={C.cream60} style={{ marginTop: 6 }}>Agreement, account opening documents and CML</Tx>
         </Fade>
       )}
       {V.isServices && (
@@ -139,7 +166,7 @@ function DarkZone({ V }) {
           </View>
           <View style={{ flex: 1 }}>
             <Tx f="play" w={600} s={22} c={C.cream}>{V.acctName}</Tx>
-            <Tx s={11.5} c={C.cream60} style={{ marginTop: 3 }}>{V.acctCode} · Client since 2021</Tx>
+            <Tx s={11.5} c={C.cream60} style={{ marginTop: 3 }}>{V.acctCode}{V.sinceLbl ? ' · ' + V.sinceLbl : ''}</Tx>
           </View>
         </Fade>
       )}
@@ -168,8 +195,8 @@ function BottomNav({ V, insets }) {
   }, [V.navIdx]);
   return (
     <LinearGradient colors={['#02422B', '#001008']} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingBottom: Math.max(insets.bottom, 16) }}>
-      <Animated.View style={{ position: 'absolute', top: 0, width: 30, height: 2, backgroundColor: C.gold, transform: [{ translateX: x }] }} />
-      <View style={{ flexDirection: 'row' }}>
+      
+      <View style={{ flexDirection: 'row', paddingBottom: 8 }}>
         {NAV.map((n, i) => {
           const active = V.navIdx === i;
           const col = active ? C.gold : C.cream55;
@@ -181,6 +208,7 @@ function BottomNav({ V, insets }) {
           );
         })}
       </View>
+      <Animated.View style={{ width: 30, height: 2, borderRadius: 1, backgroundColor: C.gold, transform: [{ translateX: x }] }} />
     </LinearGradient>
   );
 }
@@ -195,7 +223,6 @@ export default function AppShell({ V }) {
       <Animated.ScrollView
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
         scrollEventThrottle={16}
-        refreshControl={<RefreshControl refreshing={false} onRefresh={V.refresh} tintColor={C.gold} colors={[C.green]} progressViewOffset={insets.top + 40} />}
         contentContainerStyle={{ paddingBottom: 130 }}
       >
         <LinearGradient colors={C.darkGrad} locations={[0, 0.62, 1]} start={{ x: 0.1, y: 0 }} end={{ x: 0.6, y: 1 }} style={{ paddingBottom: 106 }}>
@@ -209,6 +236,15 @@ export default function AppShell({ V }) {
           <CurveCap height={46} />
         </View>
         <View style={{ backgroundColor: C.cream, paddingHorizontal: 20, minHeight: 420 }}>
+          {!V.loading && !V.hasData && ['home', 'portfolio', 'holdings'].includes(V.tab) && (
+            <View style={{ marginTop: -14, padding: 20, borderRadius: 10, backgroundColor: '#fff', alignItems: 'center' }}>
+              <Tx w={700} s={14} center>We couldn’t load your portfolio</Tx>
+              <Tx s={12} c={C.muted} center lh={1.5} style={{ marginTop: 6 }}>{V.dataErr || 'Please try again in a moment.'}</Tx>
+              <Pressable onPress={V.retry} style={{ marginTop: 14, paddingVertical: 11, paddingHorizontal: 22, borderRadius: 8, backgroundColor: C.green }}>
+                <Tx w={700} s={12} ls={0.08} c={C.gold}>TRY AGAIN</Tx>
+              </Pressable>
+            </View>
+          )}
           {V.isHome && V.loading && <HomeSkeleton />}
           {V.isHome && V.ready && (
             <Animated.View style={{ transform: [{ translateY: strY }] }}>
@@ -228,11 +264,11 @@ export default function AppShell({ V }) {
       <LinearGradient colors={['rgba(0,16,8,0.9)', 'rgba(0,16,8,0)']}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top + 14, pointerEvents: 'none' }} />
       <BottomNav V={V} insets={insets} />
-      <MoneySheet V={V} />
+      <RequestSheets V={V} />
       <SwitchSheet V={V} />
       <SettingsSheet V={V} />
       <NotifsSheet V={V} />
-      {V.isSuccess && <Success V={V} />}
+      {!!V.page && <PageHost V={V} />}
     </View>
   );
 }

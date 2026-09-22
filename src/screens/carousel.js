@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { C, Tx, Amt, Fade, CTA } from '../ui';
-import { ChevronLeft, ChevronRight, CarGrid, CarEye, CarDoc, Download } from '../icons';
+import { ChevronLeft, ChevronRight, CarGrid, CarSliders, CarDoc, Download } from '../icons';
 
 function Rings({ children }) {
   return (
@@ -44,31 +44,28 @@ export default function Carousel({ V }) {
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 28 }}>
               <View style={{ width: 110, backgroundColor: C.card, borderRadius: 8, padding: 11 }}>
                 <Tx w={700} s={7.5} ls={0.12} c={C.muted}>TOTAL RETURNS</Tx>
-                <Amt s={13} c={C.green} noHide style={{ marginTop: 5 }}>+₹64,52,300</Amt>
+                <Amt s={13} c={C.green} style={{ marginTop: 5 }}>+₹64,52,300</Amt>
               </View>
               <View style={{ width: 110, backgroundColor: C.card, borderRadius: 8, padding: 11 }}>
                 <Tx w={700} s={7.5} ls={0.12} c={C.muted}>XIRR (SI)</Tx>
-                <Amt s={13} c={C.green} noHide style={{ marginTop: 5 }}>+24.3%</Amt>
+                <Amt s={13} c={C.green} style={{ marginTop: 5 }}>+24.3%</Amt>
               </View>
             </View>
           </Slide>
         )}
         {i === 1 && (
-          <Slide key={1} icon={<CarEye />} title="Private by design" body="Face ID sign-in, and a privacy eye that hides every amount with one tap.">
+          <Slide key={1} icon={<CarSliders />} title="Your whole family, one view" body="Switch between family members and strategies, or see everyone’s portfolio combined.">
             <View style={{ marginTop: 28, width: 210, backgroundColor: C.card, borderRadius: 8, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <Tx w={700} s={7.5} ls={0.12} c={C.muted}>PORTFOLIO VALUE</Tx>
-                <Amt s={14} c={C.ink} noHide style={{
-                  marginTop: 5, color: 'transparent', textShadowColor: C.ink,
-                  textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6,
-                }}>₹1,84,52,300</Amt>
+                <Tx w={700} s={7.5} ls={0.12} c={C.muted}>ENTIRE FAMILY</Tx>
+                <Amt s={14} c={C.ink} style={{ marginTop: 5 }}>₹6,17,71,630</Amt>
               </View>
-              <CarEye s={18} />
+              <CarSliders s={18} />
             </View>
           </Slide>
         )}
         {i === 2 && (
-          <Slide key={2} icon={<CarDoc />} title="Documents, one tap away" body="Statements, capital gains and agreements — downloaded instantly, ready for tax season.">
+          <Slide key={2} icon={<CarDoc />} title="Documents, one tap away" body="Your agreement, account papers and disclosures, kept securely and one tap away.">
             <View style={{ marginTop: 28, width: 230, backgroundColor: C.card, borderRadius: 8, paddingVertical: 13, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={{ flex: 1 }}>
                 <Tx w={700} s={7.5} ls={0.12} c={C.muted}>CAPITAL GAINS STATEMENT</Tx>

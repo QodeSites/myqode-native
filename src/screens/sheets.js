@@ -51,7 +51,7 @@ export function MoneySheet({ V }) {
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
           {V.amtChips.map(ch => (
             <Pressable key={ch.label} onPress={ch.pick} style={{ borderWidth: 1, borderColor: C.greenBorder, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 }}>
-              <Amt s={12} c={C.green} noHide>{ch.label}</Amt>
+              <Amt s={12} c={C.green}>{ch.label}</Amt>
             </Pressable>
           ))}
         </View>
@@ -72,7 +72,8 @@ export function SwitchSheet({ V }) {
         <Tx s={12} c={C.muted} style={{ marginTop: 3 }}>Switch between linked PMS accounts</Tx>
         <View style={{ marginTop: 18, borderWidth: 1, borderColor: 'rgba(55,88,79,0.2)', borderRadius: 8, overflow: 'hidden' }}>
           {V.acctList.map((a, i) => (
-            <Pressable key={a.code} onPress={a.pick} style={{
+            <View key={a.id}>
+            <Pressable onPress={a.pick} style={{
               flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14,
               borderBottomWidth: i < V.acctList.length - 1 ? 1 : 0, borderColor: C.hairline,
               backgroundColor: a.active ? 'rgba(2,66,43,0.06)' : 'transparent',
@@ -94,12 +95,28 @@ export function SwitchSheet({ V }) {
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Amt s={13}>{a.value}</Amt>
-                <Tx s={10} c={C.gray} style={{ marginTop: 2 }}>{a.code}</Tx>
+                <Tx s={10} c={C.gray} style={{ marginTop: 2 }}>{a.code} · all strategies</Tx>
               </View>
             </Pressable>
+            {a.subs.map(x => (
+              <Pressable key={x.id} onPress={x.pick} style={{
+                flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11, paddingRight: 14, paddingLeft: 62, minHeight: 44,
+                borderBottomWidth: 1, borderColor: C.hairline,
+                backgroundColor: x.active ? 'rgba(2,66,43,0.06)' : 'transparent',
+                borderLeftWidth: 2, borderLeftColor: x.active ? C.gold : 'transparent',
+              }}>
+                <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: x.color }} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Tx w={700} s={12}>{x.name}</Tx>
+                  <Tx s={10} c={C.gray} style={{ marginTop: 1 }}>{x.code}</Tx>
+                </View>
+                <Amt s={12}>{x.value}</Amt>
+              </Pressable>
+            ))}
+            </View>
           ))}
         </View>
-        <Pressable onPress={V.pickFamily} style={{
+        {V.hasFamily && <Pressable onPress={V.pickFamily} style={{
           marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14,
           borderWidth: 1, borderRadius: 8,
           borderColor: V.famActive ? C.gold : 'rgba(55,88,79,0.2)',
@@ -110,10 +127,10 @@ export function SwitchSheet({ V }) {
           </View>
           <View style={{ flex: 1 }}>
             <Tx w={700} s={13}>Entire Family</Tx>
-            <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>Combined view of 3 accounts</Tx>
+            <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>Combined view of all family members</Tx>
           </View>
           <Amt s={13}>{V.familyTotal}</Amt>
-        </Pressable>
+        </Pressable>}
       </View>
     </Sheet>
   );
