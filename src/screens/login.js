@@ -84,6 +84,24 @@ export function Login({ V }) {
           <Pressable onPress={V.startDemo} style={{ marginTop: 14 }}>
             <Tx w={700} s={12} c={C.green} center>Explore a demo with sample data</Tx>
           </Pressable>
+          {V.hasResume && (
+            <Card style={{ marginTop: 18, padding: 16, borderWidth: 1, borderColor: C.gold45 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ backgroundColor: C.gold, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 8 }}>
+                  <Tx w={700} s={9} ls={0.14} c={C.ink}>{V.resumeInfo.status === 'submitted' ? 'SUBMITTED' : 'IN PROGRESS'}</Tx>
+                </View>
+                <Tx w={700} s={12} style={{ flex: 1 }}>{V.resumeInfo.name ? 'Welcome back, ' + V.resumeInfo.name.split(' ')[0] : 'Your application'}</Tx>
+              </View>
+              <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 8 }}>{V.resumeInfo.stepText}{V.resumeInfo.pct ? ' · ' + V.resumeInfo.pct + '% complete' : ''}</Tx>
+              <View style={{ marginTop: 10, height: 4, borderRadius: 2, backgroundColor: 'rgba(55,88,79,0.15)' }}>
+                <View style={{ width: Math.max(4, V.resumeInfo.pct) + '%', height: 4, borderRadius: 2, backgroundColor: C.gold }} />
+              </View>
+              <CTA label={V.resumeInfo.status === 'submitted' ? 'TRACK MY APPLICATION' : 'CONTINUE MY APPLICATION'} onPress={V.resumeGo} style={{ marginTop: 14 }} />
+              <Pressable onPress={V.resumeDiscard} style={{ marginTop: 10, minHeight: 32, justifyContent: 'center' }}>
+                <Tx s={11} c={C.muted} center>Not you? Remove this from the device</Tx>
+              </Pressable>
+            </Card>
+          )}
           <Pressable onPress={V.startOb} style={{ marginTop: 14 }}>
             <Tx s={12} c={C.muted} center>New to Qode? <Tx w={700} s={12} c={C.green}>Begin your journey</Tx></Tx>
           </Pressable>

@@ -6,11 +6,14 @@ import React from 'react';
 import { View, StatusBar, BackHandler, AppState, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
+import * as Network from 'expo-network';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { C, UICtx, Tx } from './ui';
 import { readPendingPayment, hintFromReturnUrl } from './screens/pay';
 import {
   QUARTER_LABELS,
-  QS, TYPES, FEES, RES, DOC_META, DOC_FILE, TRACK,
+  QS, TYPES, FEES, RES,
 } from './data';
 import { BASE_URL, auth, portfolio, meta, admin, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
 import { trackStart, trackStop, screen } from './api/track';
@@ -19,9 +22,23 @@ import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trai
 import Splash from './screens/splash';
 import Carousel from './screens/carousel';
 import { Login, OtpScreen, SetPassword } from './screens/login';
-import Onboarding from './screens/onboarding';
+import Onboarding, { ResumeScreen } from './screens/onboarding';
 import AppShell from './screens/appshell';
 import Curtain from './screens/curtain';
+// Onboarding (account opening) — a separate, unauthenticated backend; see src/onboarding/config.js.
+import OnboardingStore from './onboarding/store';
+import * as obApi from './onboarding/api';
+import * as obStorage from './onboarding/storage';
+import {
+  accountTypeFor, accountLabelFor, accountTypeToOb, toBackendData, fromBackendData, stepIndexFor, resumeStepFor,
+  lockedFieldsFor, verifiedSummary, maskAccount, docSlotsFor, resolveDocs, riskProfileFor, formatDobInput,
+  isValidEmail, isValidMobile, validateBegin, validateIdentity, validateNominees, validateDocs, validateForSubmit,
+  ENTITY_LABELS,
+} from './onboarding/mapping';
+import { API_BASE, RESUME_HOSTS, UPLOAD } from './onboarding/config';
+
+const MIME_BY_EXT = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
+const guessMime = name => MIME_BY_EXT[(String(name || '').split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
 
 const PERIOD = { '1M': '1M', '6M': '6M', '1Y': '1Y', '3Y': '3Y', All: 'ALL' };
 
@@ -37,6 +54,8 @@ export default class MyQode extends React.Component {
     refreshing: false, rk: 0, toast: '',
     hist: null, dv: 'nuvama',   // hist = raw rows of an account with legacy Orbis data; dv = which of the web's three views
     update: null, devOpen: false, devClients: null, devErr: '', devQ: '',
+    resume: null,      // { token, source, loading, error, code } while a resume link / saved draft is being opened
+    distributor: null, // ?d=<code> from a distributor link
   };
 
   go(t) {
@@ -49,16 +68,23 @@ export default class MyQode extends React.Component {
 
   obDefault() {
     return {
-      step: 'begin', name: '', email: '', mobile: '', dob: '', addr: '', otp: ['', '', '', '', '', ''], err: '',
-      type: 0, subRes: 0, pw: '', res: 0, gender: 0, marital: 0, mobBel: 0, emailBel: 0, pep: 1,
-      occ: 1, src: 1, income: 2, edu: 2, h2: false, h2Name: '', mode: 0,
-      noms: [{ name: '', rel: '', mob: '', alloc: '100', minor: false, guardian: '' }], nomErr: '',
+      step: 'begin', name: '', email: '', mobile: '', dob: '', addr: '', pan: '', fatherName: '', aadhaar: '', err: '',
+      type: 0, subRes: 0, entitySub: 0, res: 0, gender: 0, marital: 0, mobBel: 0, emailBel: 0, pep: 1,
+      occ: 1, src: 1, income: 2, edu: 2, h2: false, h2Name: '', h2Email: '', h2Mobile: '', h2Pan: '', h2Dob: '', mode: 0,
+      noms: [{ name: '', rel: '', mob: '', alloc: '100', minor: false, guardian: '' }], nomErr: '', nomOptOut: false,
       fee: 0, qi: 0, ans: [null, null, null, null, null, null],
-      docs: { pan: 'done', af: 'pending', ab: 'error', cheque: 'pending' },
+      manual: {}, verify: null, docErr: '',
       copied: false, fundOpen: false, fundDone: false, amt: 5000000,
     };
   }
-  setOb(p) { this.setState({ ob: { ...this.state.ob, ...p } }); }
+  setOb(p) { this.setState({ ob: { ...this.state.ob, ...p } }, () => this.syncOb()); }
+  // Push the current form state to the autosave queue (diffed in the store).
+  syncOb() {
+    const OB = this.state.ob;
+    if (!OB || !this.store || this.state.phase !== 'ob') return;
+    if (!this.store.hasSubmission() && !this.store.wantCreate) return;
+    this.store.sync(toBackendData(OB, this.store.s.server), stepIndexFor(OB.step));
+  }
   chips(list, cur, on) {
     return list.map((l, i) => ({ label: l, pick: () => on(i), active: cur === i }));
   }
@@ -72,6 +98,12 @@ export default class MyQode extends React.Component {
     // Razorpay's return page deep-links to …/payment-return. Normally the payment sheet's auth session consumes
     // it; this catches the link when the sheet is gone (project reloaded, app relaunched) and resumes the order.
     this.linkSub = Linking.addEventListener('url', ({ url }) => this.onDeepLink(url));
+    // Onboarding store: lazy draft creation, autosave with offline retry, Digio polling, uploads, resume.
+    this.store = new OnboardingStore({ api: obApi, storage: obStorage, onChange: () => { if (!this.unmounted) this.forceUpdate(); } });
+    Network.getNetworkStateAsync().then(st => this.store.setOffline(!(st.isConnected && st.isInternetReachable !== false))).catch(() => {});
+    this.netSub = Network.addNetworkStateListener(st => this.store.setOffline(!(st.isConnected && st.isInternetReachable !== false)));
+    Linking.getInitialURL().then(url => { if (url) this.handleResumeUrl(url); }).catch(() => {});
+    this.store.loadSaved().then(saved => (saved && saved.resumeToken ? this.store.peekProgress(saved.resumeToken) : null)).catch(() => {});
     // Browser back button (web build): keep one history entry ahead so "back" comes to us instead of leaving the app.
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.history) {
       window.history.pushState({ myqode: 1 }, '');
@@ -80,6 +112,7 @@ export default class MyQode extends React.Component {
     }
     this.appSub = AppState.addEventListener('change', st => {
       if (st === 'active' && this.state.phase === 'app' && Date.now() - (this.lastLoad || 0) > 60000) this.refresh();
+      if (this.store) { if (st === 'active') this.store.onForeground(); else if (st === 'background') this.store.onBackground(); }
     });
     this.boot();
   }
@@ -90,6 +123,8 @@ export default class MyQode extends React.Component {
     if (this.onPop) window.removeEventListener('popstate', this.onPop);
     clearTimeout(this.toastT);
     if (this.appSub) this.appSub.remove();
+    if (this.netSub) this.netSub.remove();
+    if (this.store) this.store.dispose();
     clearTimeout(this.splashT); clearTimeout(this.goT);
     if (this.raf) cancelAnimationFrame(this.raf);
   }
@@ -106,6 +141,7 @@ export default class MyQode extends React.Component {
       if (S.tab !== 'home') { this.go('home'); return true; }
       return this.confirmExit();
     }
+    if (S.phase === 'resume') { this.setState({ phase: 'login', resume: null }); return true; }
     if (S.phase === 'ob') { this.obVals().obBack(); return true; }
     if (S.phase === 'otp' || S.phase === 'setpw') { this.setState({ phase: 'login', authErr: '', authInfo: '', busy: false }); return true; }
     if (S.phase === 'carousel' && S.car > 0) { this.setState({ car: S.car - 1 }); return true; }
@@ -523,9 +559,80 @@ export default class MyQode extends React.Component {
     this.setState({ sheet: 'r-add', payRecover: { order: { orderId: p.orderId }, hint: /payment-return/.test(initial) ? hintFromReturnUrl(initial) : '' } });
   };
   onDeepLink = url => {
+    if (this.handleResumeUrl(url)) return;
     if (!/payment-return/.test(url || '') || this.state.phase !== 'app' || this.state.sheet === 'r-add') return;
     this.resumePayment(url);
   };
+
+  // Onboarding resume links: https://onboarding.qodeinvest.com/onboard/{token} and myqode://onboard/{token}.
+  // Returns true when the url was an onboarding link (consumed here).
+  handleResumeUrl(url) {
+    let parsed;
+    if (!url) return false;
+    try { parsed = Linking.parse(url); } catch (e) { return false; }
+    const host = (parsed.hostname || '').toLowerCase();
+    const path = (parsed.path || '').replace(/^\/+|\/+$/g, '');
+    const q = parsed.queryParams || {};
+    // myqode://onboard/{token} parses as hostname "onboard", path "{token}".
+    let token = null;
+    if (host === 'onboard' && path) token = path.split('/')[0];
+    else if (/^onboard\//.test(path)) token = path.split('/')[1];
+    if (q.d) this.setState({ distributor: String(q.d) });
+    if (token && (host === 'onboard' || RESUME_HOSTS.includes(host) || !host)) { this.resumeFrom(token, 'link'); return true; }
+    return false;
+  }
+
+  async resumeFrom(token, source) {
+    clearTimeout(this.splashT);
+    this.setState({ phase: 'resume', resume: { token, source, loading: true, error: null } });
+    try {
+      const sub = await this.store.hydrate(token);
+      const server = sub.data || {};
+      let ob = fromBackendData(server, this.obDefault());
+      ob = accountTypeToOb(sub.accountType, ob);
+      ob.step = resumeStepFor(server, sub.currentStep, sub.status);
+      ob.qi = 0;
+      this.store.setBaseline(toBackendData(ob, server));
+      this.setState({ phase: 'ob', ob, resume: null });
+    } catch (e) {
+      this.setState({ resume: { token, source, loading: false, error: e.message, code: e.code } });
+    }
+  }
+
+  // ---- document pickers (all in-app system sheets) -------------------------
+  async pickFile(kind) {
+    const S = this.store;
+    try {
+      if (kind === 'file') {
+        const r = await DocumentPicker.getDocumentAsync({ type: UPLOAD.allowedMime, copyToCacheDirectory: true, multiple: false });
+        if (r.canceled || !r.assets || !r.assets[0]) return null;
+        const a = r.assets[0];
+        return { uri: a.uri, name: a.name || 'document', mimeType: a.mimeType || guessMime(a.name), size: a.size };
+      }
+      if (kind === 'camera') {
+        const p = await ImagePicker.requestCameraPermissionsAsync();
+        if (!p.granted) { S.notice('warn', 'Camera access is off. Allow it in Settings, or choose a photo from your library.'); return null; }
+        const r = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
+        if (r.canceled || !r.assets || !r.assets[0]) return null;
+        const a = r.assets[0];
+        return { uri: a.uri, name: a.fileName || `photo_${Date.now()}.jpg`, mimeType: a.mimeType || 'image/jpeg', size: a.fileSize };
+      }
+      const p = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!p.granted) { S.notice('warn', 'Photo access is off. Allow it in Settings, or take a photo with the camera.'); return null; }
+      const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+      if (r.canceled || !r.assets || !r.assets[0]) return null;
+      const a = r.assets[0];
+      return { uri: a.uri, name: a.fileName || `photo_${Date.now()}.jpg`, mimeType: a.mimeType || 'image/jpeg', size: a.fileSize };
+    } catch (e) {
+      S.notice('err', 'We couldn’t open that picker. Please try another option.');
+      return null;
+    }
+  }
+  async pickAndUpload(fieldKey, kind) {
+    const file = await this.pickFile(kind);
+    if (!file) return;
+    await this.store.upload(fieldKey, file);
+  }
 
   otpBoxSet(otp, refs, i, t, done) {
     const d = t.replace(/\D/g, '').slice(-1);
@@ -626,9 +733,11 @@ export default class MyQode extends React.Component {
     const owners = S.scopes ? S.scopes.owners : [];
     const family = S.scopes ? S.scopes.family : null;
 
+    const saved = this.store ? this.store.s.saved : null;
+    const savedProg = this.store ? this.store.s.progress : null;
     return {
       isSplash: S.phase === 'splash', isLogin: S.phase === 'login', isOtp: S.phase === 'otp', isSetPw: S.phase === 'setpw', isApp: S.phase === 'app',
-      isCarousel: S.phase === 'carousel',
+      isCarousel: S.phase === 'carousel', isResume: S.phase === 'resume',
       carIdx: S.car,
       carNext: () => set({ car: Math.min(S.car + 1, 2) }), carPrev: () => set({ car: Math.max(S.car - 1, 0) }),
       carSkip: () => set({ phase: 'login' }), carDone: () => set({ phase: 'login' }),
@@ -653,6 +762,22 @@ export default class MyQode extends React.Component {
       backToLogin: () => set({ phase: 'login', authErr: '', authInfo: '', busy: false }),
       np: S.np, np2: S.np2, onNp: t => set({ np: t, authErr: '' }), onNp2: t => set({ np2: t, authErr: '' }),
       savePassword: this.savePassword,
+      // Saved application banner on sign-in
+      hasResume: !!(saved && saved.resumeToken && S.phase === 'login'),
+      resumeInfo: savedProg ? {
+        name: savedProg.primaryName || '', status: savedProg.status,
+        stepText: savedProg.status === 'submitted' ? 'Submitted · track your application' : `Step ${(savedProg.currentStep || 0) + 1} of ${savedProg.totalSteps || 6}`,
+        pct: Math.max(0, Math.min(100, Math.round(savedProg.progressPct || 0))),
+      } : { name: '', status: 'draft', stepText: 'Pick up where you left off', pct: 0 },
+      resumeGo: () => { if (saved && saved.resumeToken) this.resumeFrom(saved.resumeToken, 'saved'); },
+      resumeDiscard: () => { this.store.forget(); },
+      // Resume screen (from a link or the banner)
+      resumeLoading: !!(S.resume && S.resume.loading),
+      resumeError: S.resume ? S.resume.error : null,
+      resumeErrorCode: S.resume ? S.resume.code : null,
+      resumeRetry: () => { if (S.resume) this.resumeFrom(S.resume.token, S.resume.source); },
+      resumeStartNew: () => { this.store.forget(); set({ phase: 'ob', ob: this.obDefault(), resume: null }); },
+      resumeToLogin: () => set({ phase: 'login', resume: null }),
       startApp: this.startApp,
       lifting: S.lifting, liftDone: () => set({ lifting: false }),
       loading: busy, ready: !busy && hasData,
@@ -785,10 +910,19 @@ export default class MyQode extends React.Component {
     const S = this.state, set = p => this.setState(p);
     const OB = S.ob || this.obDefault();
     const setOb = p => this.setOb(p);
-    const st = OB.step;
+    const store = this.store;
+    const SS = store ? store.s : null;
+    const server = SS ? SS.server : {};
+    const locked = !!(SS && SS.locked);
+    // A submitted application is read-only: every form step collapses to the tracker.
+    const st = locked && OB.step !== 'opened' ? 'tracker' : OB.step;
+    const accountType = (SS && SS.accountType) || accountTypeFor(OB);
+    const individual = OB.type === 0;
+    const nri = individual && OB.subRes > 0;
+    const risk = riskProfileFor(OB.ans) || 'Moderate-Aggressive';
+    const refShort = SS && SS.id ? SS.id.slice(-8).toUpperCase() : '';
     const TITLES = {
       begin: ['Begin your journey', 'STEP 1 OF 8 · DETAILS'],
-      otp: ['Verify your mobile', 'STEP 1 OF 8 · DETAILS'],
       type: ['Choose your account', 'STEP 1 OF 8 · DETAILS'],
       identity: ['Identity details', 'STEP 2 OF 8 · IDENTITY'],
       q: [QS[OB.qi].q, 'STEP 3 OF 8 · QUESTION ' + (OB.qi + 1) + ' OF 6'],
@@ -798,18 +932,89 @@ export default class MyQode extends React.Component {
       noms: ['Nominees', 'STEP 6 OF 8 · NOMINEES · OPTIONAL'],
       docs: ['Documents', 'STEP 7 OF 8 · DOCUMENTS'],
       review: ['Review & submit', 'STEP 8 OF 8 · REVIEW'],
-      tracker: ['Your journey is underway', 'APPLICATION QD-2026-08921'],
-      opened: ['Your account is open, ' + ((OB.name || 'Rohan').split(' ')[0]), 'WELCOME TO QODE'],
+      tracker: ['Your journey is underway', refShort ? 'APPLICATION ' + refShort : 'APPLICATION SUBMITTED'],
+      opened: ['Your account is open, ' + ((OB.name || 'there').split(' ')[0]), 'WELCOME TO QODE'],
     };
-    const PROG = { begin: 0.04, otp: 0.08, type: 0.125, identity: 0.25, q: 0.3 + OB.qi * 0.018, result: 0.42, fee: 0.5, fin: 0.625, noms: 0.75, docs: 0.875, review: 0.96, tracker: 1, opened: 1 };
-    const BACK = { otp: 'begin', type: 'otp', identity: 'type', result: 'q', fee: 'result', fin: 'fee', noms: 'fin', docs: 'noms', review: 'docs' };
-    const pwScore = (OB.pw.length >= 8 ? 1 : 0) + (/[A-Z]/.test(OB.pw) ? 1 : 0) + (/[0-9]/.test(OB.pw) ? 1 : 0) + (/[^A-Za-z0-9]/.test(OB.pw) ? 1 : 0);
-    const segColor = i => i >= pwScore ? 'rgba(55,88,79,0.18)' : (pwScore <= 1 ? C.red : pwScore <= 3 ? C.gold : C.green);
+    const PROG = { begin: 0.04, type: 0.125, identity: 0.25, q: 0.3 + OB.qi * 0.018, result: 0.42, fee: 0.5, fin: 0.625, noms: 0.75, docs: 0.875, review: 0.96, tracker: 1, opened: 1 };
+    const BACK = { type: 'begin', identity: 'type', result: 'q', fee: 'result', fin: 'fee', noms: 'fin', docs: 'noms', review: 'docs' };
     const allocSum = OB.noms.reduce((s, n) => s + (parseInt(n.alloc, 10) || 0), 0);
     const upd = (i, f) => t => { const noms = OB.noms.map((n, j) => j === i ? { ...n, [f]: t } : n); setOb({ noms, nomErr: '' }); };
+
+    // ---- verification helpers ----------------------------------------------
+    const lockedP = lockedFieldsFor(server, 'primary');
+    const lockedS = lockedFieldsFor(server, 'second');
+    const verP = verifiedSummary(server, 'primary');
+    const verS = verifiedSummary(server, 'second');
+    const digioOn = !SS || SS.digio !== 'disabled';
+    const checkOf = (subject, purpose) => (store ? store.check(subject, purpose) : null);
+    const checkView = (subject, purpose, verified) => {
+      const ch = checkOf(subject, purpose);
+      const active = ch && ch.checkId && !ch.done && !ch.failed && !ch.timedOut;
+      let status = 'NOT VERIFIED', tone = 'muted';
+      if (verified || (ch && ch.done)) { status = 'VERIFIED'; tone = 'gold'; }
+      else if (ch && ch.starting) { status = 'STARTING'; tone = 'muted'; }
+      else if (active) { status = ch.slow ? 'TAKING A WHILE' : 'IN PROGRESS'; tone = 'muted'; }
+      else if (ch && (ch.failed || ch.timedOut || ch.error || ch.sdkError)) { status = 'NEEDS ATTENTION'; tone = 'red'; }
+      return { status, tone, active: !!active, done: verified || !!(ch && ch.done), error: ch ? (ch.error || ch.sdkError) : null, manual: !!OB.manual[subject + '_' + purpose] };
+    };
+    const contactOk = subject => (subject === 'primary' ? (isValidEmail(OB.email) || isValidMobile(OB.mobile)) : (isValidEmail(OB.h2Email) || isValidMobile(OB.h2Mobile)));
+    const startCheck = async (subject, purpose) => {
+      if (!contactOk(subject)) { setOb({ err: `Add a valid email or mobile for ${subject === 'primary' ? 'holder 1' : 'the second holder'} before verifying.` }); return; }
+      const existing = checkOf(subject, purpose);
+      setOb({ verify: { subject, purpose }, err: '' });
+      if (existing && (existing.done || (existing.checkId && !existing.failed && !existing.timedOut))) { store.resumePolling(); return; }
+      if (purpose === 'identity') {
+        // Selfie liveness needs the camera; ask up front so the web window can use it.
+        try { await ImagePicker.requestCameraPermissionsAsync(); } catch (e) { /* the window will prompt again */ }
+      }
+      if (existing && (existing.failed || existing.timedOut || existing.error)) store.retryVerification(subject, purpose);
+      else store.startVerification(subject, purpose);
+    };
+    const verifyOpen = !!OB.verify;
+    const verifyCheck = OB.verify ? checkOf(OB.verify.subject, OB.verify.purpose) : null;
+    const verifyPurpose = OB.verify ? OB.verify.purpose : 'identity';
+
+    // ---- documents ---------------------------------------------------------
+    const slots = docSlotsFor({ accountType, nri, holders: OB.h2 ? 2 : 1, holderNames: [OB.name || 'Holder 1', OB.h2Name || 'Holder 2'] });
+    const docRows = resolveDocs(slots, SS ? SS.uploads : [], SS ? SS.satisfied : []).map(r => ({
+      ...r,
+      uploading: !!(SS && SS.uploading[r.key]),
+      err: SS ? SS.uploadErrors[r.key] : null,
+      fileName: r.upload ? r.upload.originalName : '',
+      sizeText: r.upload && r.upload.sizeBytes ? (r.upload.sizeBytes / (1024 * 1024)).toFixed(1) + ' MB' : '',
+      pickCamera: () => this.pickAndUpload(r.key, 'camera'),
+      pickPhotos: () => this.pickAndUpload(r.key, 'library'),
+      pickFile: () => this.pickAndUpload(r.key, 'file'),
+      dismissErr: () => store && store.clearUploadError(r.key),
+    }));
+    const docGroups = [];
+    docRows.forEach(r => { let g = docGroups.find(x => x.holder === r.holder); if (!g) { g = { holder: r.holder, rows: [] }; docGroups.push(g); } g.rows.push(r); });
+    const docCounts = { fetched: docRows.filter(r => r.state === 'fetched').length, uploaded: docRows.filter(r => r.state === 'uploaded').length, waived: docRows.filter(r => r.state === 'waived').length, pending: docRows.filter(r => r.state === 'pending' && r.required).length };
+
+    // ---- save status -------------------------------------------------------
+    const saveLabels = { idle: '', dirty: 'UNSAVED', saving: 'SAVING…', saved: 'SAVED', offline: 'OFFLINE · WILL SAVE', error: 'SAVE FAILED · RETRYING' };
+    const saveState = SS ? SS.saveState : 'idle';
+    const inForm = !['begin', 'type', 'tracker', 'opened'].includes(st);
+    const tracker = (() => {
+      if (!SS) return [];
+      const sub = SS.submittedAt ? new Date(SS.submittedAt) : null;
+      const when = sub ? sub.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'Just now';
+      const idV = verP && verP.verified;
+      const bankV = !!(verP && verP.bank);
+      const esign = checkOf('primary', 'esign');
+      return [
+        { title: 'Application submitted', sub: when, state: 'done' },
+        { title: idV ? 'Identity verified' : 'Identity documents received', sub: idV ? 'DigiLocker · PAN and Aadhaar fetched' : 'Uploaded by you · under review', state: 'done' },
+        { title: bankV ? 'Bank account verified' : 'Bank details received', sub: bankV ? `${verP.bank.bankName || 'Bank'} · ₹1 penny drop matched` : 'From your cancelled cheque', state: 'done' },
+        { title: 'Under review by Qode', sub: 'Usually within 1 working day', state: 'active' },
+        { title: 'Sign your PMS agreement', sub: esign && esign.done ? 'Signed' : 'We’ll notify you when it’s ready', state: esign && esign.done ? 'done' : 'pending' },
+        { title: 'Account opened', sub: 'Custodian confirmation', state: 'pending' },
+      ];
+    })();
+
     return {
       isOb: S.phase === 'ob',
-      startOb: () => set({ phase: 'ob', ob: this.obDefault() }),
+      startOb: () => { if (this.store) this.store.reset(); set({ phase: 'ob', ob: this.obDefault() }); },
       obStep: st,
       obTitle: TITLES[st] ? TITLES[st][0] : '', obStepLabel: TITLES[st] ? TITLES[st][1] : '',
       obTitleSize: st === 'q' ? 22 : 26,
@@ -819,10 +1024,18 @@ export default class MyQode extends React.Component {
       obBack: () => {
         if (st === 'begin') { set({ phase: 'login' }); return; }
         if (st === 'q') { OB.qi > 0 ? setOb({ qi: OB.qi - 1 }) : setOb({ step: 'identity' }); return; }
-        setOb({ step: BACK[st] || 'begin' });
+        setOb({ step: BACK[st] || 'begin', err: '' });
       },
-      obSaveExit: () => set({ phase: 'login' }),
-      obBegin: st === 'begin', obOtpStep: st === 'otp', obType: st === 'type', obIdentity: st === 'identity', obFin: st === 'fin',
+      obSaveExit: () => { if (store) store.flush(); set({ phase: 'login' }); },
+      obSaveLabel: inForm ? saveLabels[saveState] || '' : '',
+      obOffline: !!(SS && SS.offline),
+      obOfflineMsg: 'You’re offline. Keep going — everything is kept on this device and saved the moment you’re back online.',
+      obCreateError: SS && !SS.id && SS.createError && !SS.offline ? SS.createError : null,
+      obRetrySave: () => store && store.kick(),
+      obNotice: SS ? SS.notice : null,
+      obDismissNotice: () => store && store.clearNotice(),
+      obLocked: locked,
+      obBegin: st === 'begin', obType: st === 'type', obIdentity: st === 'identity', obFin: st === 'fin',
       obNoms: st === 'noms', obFeeStep: st === 'fee', obQ: st === 'q', obResult: st === 'result',
       obDocsStep: st === 'docs', obReview: st === 'review', obTracker: st === 'tracker', obOpened: st === 'opened',
       obName: OB.name, obEmail: OB.email, obMobile: OB.mobile,
@@ -831,29 +1044,27 @@ export default class MyQode extends React.Component {
       onObMobile: t => setOb({ mobile: t.replace(/\D/g, '').slice(0, 10), err: '' }),
       obHasErr: !!OB.err, obErr: OB.err,
       obBeginNext: () => {
-        if (!OB.name.trim()) return setOb({ err: 'Please add your name so we know what to call you.' });
-        if (!/.+@.+\..+/.test(OB.email)) return setOb({ err: 'That email doesn’t look complete — mind checking it?' });
-        if (OB.mobile.length !== 10) return setOb({ err: 'Your mobile number should be 10 digits.' });
-        setOb({ step: 'otp', err: '' });
+        const err = validateBegin(OB);
+        if (err) return setOb({ err });
+        setOb({ step: 'type', err: '' });
       },
-      obMobileMask: OB.mobile ? '•••••' + OB.mobile.slice(5) : '•••••98801',
-      obOtpBoxes: OB.otp.map((v, i) => ({
-        val: v, ref: this.obRefs ? this.obRefs[i] : null,
-        change: t => this.setOb({ otp: this.otpBoxSet(OB.otp, this.obRefs, i, t, () => this.setOb({ step: 'type' })) }),
-        back: () => { if (!OB.otp[i] && i > 0 && this.obRefs[i - 1].current) this.obRefs[i - 1].current.focus(); },
-      })),
-      obOtpNext: () => setOb({ step: 'type' }),
-      obEditNum: () => setOb({ step: 'begin' }),
       obTypes: TYPES.map((t, i) => ({
         name: t.name, sub: t.sub, pick: () => setOb({ type: i }),
-        active: OB.type === i, showRes: i === 0 && OB.type === 0,
+        active: OB.type === i, showRes: i === 0 && OB.type === 0, showEntity: i === 2 && OB.type === 2,
       })),
-      obResChips: this.chips(RES, OB.subRes, i => setOb({ subRes: i })),
-      obPw: OB.pw, onObPw: t => setOb({ pw: t }),
-      obSegs: [segColor(0), segColor(1), segColor(2), segColor(3)],
-      obPwLabel: OB.pw ? (pwScore <= 1 ? 'WEAK' : pwScore <= 3 ? 'FAIR' : 'STRONG') : '',
-      obTypeNext: () => setOb({ step: 'identity' }),
-      obResidency: this.chips(['RESIDENT', 'NRI / OCI / PIO'], OB.res, i => setOb({ res: i })),
+      obResChips: this.chips(RES, OB.subRes, i => setOb({ subRes: i, res: i > 0 ? 1 : 0 })),
+      obEntityChips: this.chips(ENTITY_LABELS, OB.entitySub, i => setOb({ entitySub: i })),
+      obTypeNote: OB.type === 0
+        ? 'Individual accounts can verify identity and bank details online in a couple of minutes.'
+        : 'For this account type we collect documents for the entity and its signatories. Our team completes verification with you.',
+      obTypeNext: () => {
+        const at = accountTypeFor(OB);
+        const next = { ...OB, step: 'identity', err: '' };
+        if (store) store.requestCreate(at, toBackendData(next, server));
+        set({ ob: next }, () => this.syncOb());
+      },
+      obIsIndividual: individual,
+      obResidency: this.chips(['RESIDENT', 'NRI / OCI / PIO'], OB.res, i => setOb({ res: i, subRes: i === 0 ? 0 : Math.max(1, OB.subRes) })),
       obGender: this.chips(['Female', 'Male', 'Other'], OB.gender, i => setOb({ gender: i })),
       obMarital: this.chips(['Single', 'Married', 'Other'], OB.marital, i => setOb({ marital: i })),
       obMobBelongs: this.chips(['Self', 'Spouse'], OB.mobBel, i => setOb({ mobBel: i })),
@@ -863,12 +1074,52 @@ export default class MyQode extends React.Component {
       obSrc: this.chips(['Salary', 'Business income', 'Investments', 'Inheritance'], OB.src, i => setOb({ src: i })),
       obIncome: this.chips(['Under ₹25 L', '₹25 L – 1 Cr', '₹1 – 5 Cr', 'Over ₹5 Cr'], OB.income, i => setOb({ income: i })),
       obEdu: this.chips(['Graduate', 'Post-graduate', 'Professional', 'Other'], OB.edu, i => setOb({ edu: i })),
-      obDob: OB.dob, onObDob: t => setOb({ dob: t }),
-      obAddr: OB.addr, onObAddr: t => setOb({ addr: t }),
-      obNoH2: !OB.h2, obH2: OB.h2, obAddH2: () => setOb({ h2: true }), obRemoveH2: () => setOb({ h2: false }),
-      obH2Name: OB.h2Name, onObH2Name: t => setOb({ h2Name: t }),
+      obDob: OB.dob, onObDob: t => setOb({ dob: formatDobInput(t), err: '' }),
+      obAddr: OB.addr, onObAddr: t => setOb({ addr: t, err: '' }),
+      obPan: OB.pan, onObPan: t => setOb({ pan: t.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10), err: '' }),
+      // Verified (locked) fields for holder 1
+      obLockedFields: lockedP,
+      obVerified: verP && verP.verified ? verP : null,
+      obVerifiedRows: verP && verP.verified ? [
+        ['NAME AS PER PAN', verP.fullName], ['PAN', verP.pan], ['AADHAAR', verP.aadhaar], ['DATE OF BIRTH', verP.dob],
+        ['GENDER', verP.gender ? verP.gender[0].toUpperCase() + verP.gender.slice(1) : ''], ['FATHER’S NAME', verP.fatherName], ['ADDRESS AS PER AADHAAR', verP.address],
+      ].filter(r => r[1]) : [],
+      obFaceMatch: verP && verP.faceMatch != null ? String(verP.faceMatch) + '%' : '',
+      obBank: verP && verP.bank ? { ...verP.bank, masked: maskAccount(verP.bank.accountNumber) } : null,
+      obDigioOn: digioOn && individual,
+      obDigioOffMsg: SS && SS.digio === 'disabled' ? 'Online verification isn’t switched on at ' + API_BASE.split('//').pop() + ' right now. Fill in your details below and upload documents on the Documents step — our team verifies them for you.' : null,
+      obIdCheck: checkView('primary', 'identity', !!(verP && verP.verified)),
+      obBankCheck: checkView('primary', 'bank', !!(verP && verP.bank)),
+      obH2Check: checkView('second', 'identity', !!(verS && verS.verified)),
+      obStartIdentity: () => startCheck('primary', 'identity'),
+      obStartBank: () => startCheck('primary', 'bank'),
+      obStartH2Identity: () => startCheck('second', 'identity'),
+      obSkipVerify: (subject, purpose) => setOb({ manual: { ...OB.manual, [subject + '_' + purpose]: true }, verify: null }),
+      // Verification sheet
+      obVerifyOpen: verifyOpen,
+      obVerifyCheck: verifyCheck,
+      obVerifyTitle: verifyPurpose === 'bank' ? 'Verify your bank account' : 'Verify with DigiLocker',
+      obVerifySub: verifyPurpose === 'bank' ? 'Secure ₹1 penny drop by Digio' : 'Secure window from Digio · stays inside myQode',
+      obVerifyClose: () => setOb({ verify: null }),
+      obVerifyManual: () => { if (OB.verify) setOb({ manual: { ...OB.manual, [OB.verify.subject + '_' + OB.verify.purpose]: true }, verify: null }); },
+      obVerifyRetry: () => { if (OB.verify) store.retryVerification(OB.verify.subject, OB.verify.purpose); },
+      obVerifyKeepWaiting: () => { if (OB.verify) store.keepWaiting(OB.verify.subject, OB.verify.purpose); },
+      obVerifyEvent: msg => { if (OB.verify) store.sdkEvent(OB.verify.subject, OB.verify.purpose, msg); },
+      // Holder 2
+      obNoH2: !OB.h2 && individual, obH2: OB.h2, obAddH2: () => setOb({ h2: true }), obRemoveH2: () => setOb({ h2: false }),
+      obH2Name: OB.h2Name, onObH2Name: t => setOb({ h2Name: t, err: '' }),
+      obH2Email: OB.h2Email, onObH2Email: t => setOb({ h2Email: t, err: '' }),
+      obH2Mobile: OB.h2Mobile, onObH2Mobile: t => setOb({ h2Mobile: t.replace(/\D/g, '').slice(0, 10), err: '' }),
+      obH2Pan: OB.h2Pan, onObH2Pan: t => setOb({ h2Pan: t.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10), err: '' }),
+      obH2Dob: OB.h2Dob, onObH2Dob: t => setOb({ h2Dob: formatDobInput(t), err: '' }),
+      obH2Locked: lockedS,
+      obH2Verified: verS && verS.verified ? verS : null,
       obMode: this.chips(['Single', 'Jointly'], OB.mode, i => setOb({ mode: i })),
-      obIdentityNext: () => setOb({ step: 'q', qi: 0 }),
+      obIdentityNext: () => {
+        const err = validateIdentity(OB, server);
+        if (err) return setOb({ err });
+        setOb({ step: 'q', qi: 0, err: '' });
+      },
       obFinNext: () => setOb({ step: 'noms' }),
       obNomList: OB.noms.map((n, i) => ({
         n: i + 1, name: n.name, rel: n.rel, mob: n.mob, alloc: n.alloc, guardian: n.guardian,
@@ -878,16 +1129,18 @@ export default class MyQode extends React.Component {
         remove: () => setOb({ noms: OB.noms.filter((x, j) => j !== i), nomErr: '' }),
       })),
       obCanAddNom: OB.noms.length < 3,
-      obAddNom: () => setOb({ noms: OB.noms.concat({ name: '', rel: '', mob: '', alloc: '0', minor: false, guardian: '' }) }),
+      obAddNom: () => setOb({ noms: OB.noms.concat({ name: '', rel: '', mob: '', alloc: '0', minor: false, guardian: '' }), nomOptOut: false }),
       obNomErr: !!OB.nomErr, obNomErrMsg: OB.nomErr,
       obNomsNext: () => {
-        if (OB.noms.length && allocSum !== 100) return setOb({ nomErr: 'Allocations should add up to 100%. They’re at ' + allocSum + '% now.' });
-        setOb({ step: 'docs', nomErr: '' });
+        const err = validateNominees(OB);
+        if (err) return setOb({ nomErr: err });
+        setOb({ step: 'docs', nomErr: '', nomOptOut: false });
       },
-      obOptOut: () => setOb({ noms: [], step: 'docs', nomErr: '' }),
+      obOptOut: () => setOb({ noms: [], nomOptOut: true, step: 'docs', nomErr: '' }),
       obSkipNoms: () => setOb({ step: 'docs', nomErr: '' }),
       obFees: FEES.map((f, i) => ({ name: f.name, sub: f.sub, pick: () => setOb({ fee: i }), active: OB.fee === i })),
       obFeeNext: () => setOb({ step: 'fin' }),
+      obRiskLabel: risk,
       obAnswers: QS[OB.qi].a.map((a, i) => ({
         label: a,
         pick: () => {
@@ -899,29 +1152,60 @@ export default class MyQode extends React.Component {
         active: OB.ans[OB.qi] === i,
       })),
       obResultNext: () => setOb({ step: 'fee' }),
-      obDocRows: ['pan', 'af', 'ab', 'cheque'].map(kk => ({
-        label: DOC_META[kk], file: DOC_FILE[kk] + ' · Uploaded',
-        err: 'Image was blurry — please retake in good light.',
-        isDone: OB.docs[kk] === 'done', isErr: OB.docs[kk] === 'error', isPend: OB.docs[kk] === 'pending',
-        act: () => setOb({ docs: { ...OB.docs, [kk]: 'done' } }),
-      })),
-      obIsNri: OB.res === 1 || OB.subRes > 0,
-      obDocsNext: () => setOb({ step: 'review' }),
+      // Documents
+      obDocGroups: docGroups,
+      obDocErr: OB.docErr,
+      obIsNri: nri,
+      obDocsNext: () => {
+        const err = validateDocs(docRows);
+        if (err) return setOb({ docErr: err });
+        setOb({ step: 'review', docErr: '' });
+      },
+      obDocsSkipToReview: () => setOb({ step: 'review', docErr: '' }),
+      // Review
       obReviewGroups: [
-        { title: 'DETAILS', edit: () => setOb({ step: 'begin' }), rows: [{ k: 'Name', v: OB.name || 'Rohan Mehta' }, { k: 'Account', v: TYPES[OB.type].name + (OB.type === 0 ? ' · ' + RES[OB.subRes] : '') }] },
-        { title: 'IDENTITY', edit: () => setOb({ step: 'identity' }), rows: [{ k: 'Residency', v: OB.res === 0 ? 'Resident' : 'NRI / OCI / PIO' }, { k: 'Holders', v: OB.h2 ? '2 · ' + ['Single', 'Jointly'][OB.mode] : '1' }] },
-        { title: 'NOMINEES', edit: () => setOb({ step: 'noms' }), rows: OB.noms.length ? OB.noms.map(n => ({ k: n.name || 'Nominee', v: (n.rel || '—') + ' · ' + (parseInt(n.alloc, 10) || 0) + '%' })) : [{ k: 'None added', v: '—' }] },
-        { title: 'RISK & FEE', edit: () => setOb({ step: 'fee' }), rows: [{ k: 'Fee structure', v: FEES[OB.fee].name }, { k: 'Risk profile', v: 'Moderate-Aggressive' }] },
-        { title: 'DOCUMENTS', edit: () => setOb({ step: 'docs' }), rows: [{ k: 'Uploaded', v: Object.values(OB.docs).filter(x => x === 'done').length + ' of 4' }] },
+        { title: 'DETAILS', edit: () => setOb({ step: 'begin' }), rows: [
+          { k: 'Name', v: OB.name || '—' },
+          { k: 'Account', v: accountLabelFor(accountType) + (individual ? ' · ' + RES[OB.subRes] : '') },
+          { k: 'Contact', v: (OB.mobile ? '+91 ' + OB.mobile : '') + (OB.email ? (OB.mobile ? ' · ' : '') + OB.email : '') || '—' },
+        ] },
+        { title: 'IDENTITY', edit: () => setOb({ step: 'identity' }), badge: verP && verP.verified ? 'VERIFIED VIA DIGILOCKER' : null, rows: [
+          { k: 'PAN', v: (verP && verP.pan) || OB.pan || '—' },
+          ...(verP && verP.aadhaar ? [{ k: 'Aadhaar', v: verP.aadhaar }] : []),
+          { k: 'Date of birth', v: (verP && verP.dob) || OB.dob || '—' },
+          { k: 'Holders', v: OB.h2 ? '2 · ' + ['Single', 'Jointly'][OB.mode] : '1' },
+        ] },
+        ...(verP && verP.bank ? [{ title: 'BANK', edit: () => setOb({ step: 'identity' }), badge: 'PENNY DROP VERIFIED', rows: [
+          { k: 'Bank', v: (verP.bank.bankName || 'Bank') + ' · ' + maskAccount(verP.bank.accountNumber) },
+          { k: 'Name on account', v: verP.bank.beneficiary || '—' },
+        ] }] : []),
+        { title: 'NOMINEES', edit: () => setOb({ step: 'noms' }), rows: OB.noms.length ? OB.noms.map(n => ({ k: n.name || 'Nominee', v: (n.rel || '—') + ' · ' + (parseInt(n.alloc, 10) || 0) + '%' })) : [{ k: OB.nomOptOut ? 'Opted out (SEBI declaration)' : 'None added', v: '—' }] },
+        { title: 'RISK & FEE', edit: () => setOb({ step: 'fee' }), rows: [{ k: 'Fee structure', v: FEES[OB.fee].name }, { k: 'Risk profile', v: risk }] },
+        { title: 'DOCUMENTS', edit: () => setOb({ step: 'docs' }), rows: [
+          { k: 'Fetched automatically', v: String(docCounts.fetched) },
+          { k: 'Uploaded by you', v: String(docCounts.uploaded) },
+          ...(docCounts.waived ? [{ k: 'Waived (bank verified)', v: String(docCounts.waived) }] : []),
+          ...(docCounts.pending ? [{ k: 'Still needed', v: String(docCounts.pending) }] : []),
+        ] },
       ],
-      obSubmit: () => setOb({ step: 'tracker' }),
-      obTrack: TRACK.map((t, i, arr) => ({
+      obSubmitting: !!(SS && SS.submitting),
+      obSubmitError: SS ? SS.submitError : null,
+      obSubmit: async () => {
+        if (!store || SS.submitting) return;
+        const err = validateForSubmit(OB, server, docRows);
+        if (err) return setOb({ err });
+        const ok = await store.submit({ appStep: 'tracker', submittedFrom: 'myqode-native' });
+        if (ok) setOb({ step: 'tracker', err: '' });
+      },
+      obTrack: tracker.map((t, i, arr) => ({
         title: t.title, sub: t.sub,
         done: t.state === 'done', active: t.state === 'active', pending: t.state === 'pending',
         titleColor: t.state === 'pending' ? C.muted : C.ink,
         notLast: i < arr.length - 1,
         railColor: t.state === 'done' ? C.green : (t.state === 'active' ? C.gold : 'rgba(55,88,79,0.25)'),
       })),
+      obTrackNote: 'Your details are locked now that they’re submitted. Need a correction? Your relationship manager can request changes.',
+      obRefresh: () => store && store.refreshProgress(),
       obToOpened: () => setOb({ step: 'opened', copied: false }),
       obCopy: () => { Clipboard.setStringAsync('PMS 00891').catch(() => {}); setOb({ copied: true }); },
       obCopyLabel: OB.copied ? 'COPIED' : 'TAP TO COPY',
@@ -933,6 +1217,7 @@ export default class MyQode extends React.Component {
       obAmtFmt: this.fmt(OB.amt || 0),
       obFundConfirm: () => setOb({ fundDone: true }),
       obFinish: () => set({ ob: null, phase: 'login' }),
+      obExitToLogin: () => set({ phase: 'login' }),
     };
   }
 
@@ -951,6 +1236,7 @@ export default class MyQode extends React.Component {
           {V.isLogin && <Login V={V} />}
           {V.isOtp && <OtpScreen V={V} />}
           {V.isSetPw && <SetPassword V={V} />}
+          {V.isResume && <ResumeScreen V={V} />}
           {V.isOb && <Onboarding V={V} />}
           {V.isApp && <AppShell V={V} />}
           {V.lifting && <Curtain onDone={V.liftDone} rm={this.state.rm} />}

@@ -7,7 +7,13 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "associatedDomains": ["applinks:onboarding.qodeinvest.com"],
+      "infoPlist": {
+        "NSCameraUsageDescription": "myQode uses the camera for the selfie check during identity verification and to photograph your documents.",
+        "NSPhotoLibraryUsageDescription": "myQode lets you choose photos of your documents from your library.",
+        "NSMicrophoneUsageDescription": "Some verification steps record a short video and need the microphone."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -15,7 +21,16 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": ["android.permission.CAMERA", "android.permission.RECORD_AUDIO", "android.permission.MODIFY_AUDIO_SETTINGS"],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "onboarding.qodeinvest.com", "pathPrefix": "/onboard" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -24,7 +39,15 @@
       "expo-font",
       "expo-status-bar",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "myQode uses the camera for the selfie check during identity verification and to photograph your documents.",
+          "photosPermission": "myQode lets you choose photos of your documents from your library.",
+          "microphonePermission": "Some verification steps record a short video and need the microphone."
+        }
+      ]
     ],
     "scheme": "myqode"
   }
