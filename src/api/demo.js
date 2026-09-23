@@ -247,7 +247,20 @@ export const demo = {
     return { accountId: 'QAW0412', active: [sip], completed: [oneTime], oneTime: { active: [], completed: [oneTime] }, sip: { active: [sip], completed: [] }, totalCount: 2, lastUpdated: new Date().toISOString() };
   },
   verifySip(subscriptionId) {
-    return { subscriptionId, cfSubscriptionStatus: 'ACTIVE', investmentStatus: 'SIP_ACTIVE', isActive: true, isMandatePending: false, isFailed: false, amount: 100000, frequency: 'monthly', nextChargeDate: '2026-08-05' };
+    return { subscriptionId, razorpaySubscriptionStatus: 'active', investmentStatus: 'SIP_ACTIVE', isActive: true, isMandatePending: false, isFailed: false, amount: 100000, frequency: 'monthly', nextChargeDate: '2026-08-05' };
+  },
+  setupSip(body) {
+    const subscriptionId = 'sub_demo_' + Date.now().toString().slice(-8);
+    return { subscriptionId, status: 'created', amount: body.amount, frequency: body.frequency, startDate: body.startDate, endDate: body.endDate || null, totalInstallments: body.totalInstallments || null, environment: 'test', checkoutPath: null, checkoutUrl: null, demo: true };
+  },
+  registeredBank() {
+    return { bank: { last4: '4021', ifsc: 'HDFC0000060', bankCode: 'HDFC', holderName: 'Rohan Mehta', verified: true } };
+  },
+  pauseResumeSip(action) {
+    return { success: true, message: `SIP ${action}d successfully`, data: { new_status: action === 'pause' ? 'SIP_PAUSED' : 'SIP_ACTIVE' } };
+  },
+  cancelSip() {
+    return { success: true, message: 'SIP cancelled successfully', data: { new_status: 'SIP_CANCELLED' } };
   },
   verifyOrder(orderId) {
     return { orderId, orderStatus: 'PAID', orderAmount: 500000, orderCurrency: 'INR', paymentStatus: 'SUCCESS', isSuccess: true, payment: { cfPaymentId: 'demo', amount: 500000, time: '2026-06-12T09:31:00Z', method: 'upi', bankReference: 'DEMO', message: 'ok' } };

@@ -9,12 +9,13 @@ import { services, payments, isDemo } from '../api';
 import { titleCase } from '../adapt';
 import { useLoad, SectionLabel, AccountChips, Loading, ErrorBox } from './kit';
 import { PayOnline } from './pay';
+import { SetupSip } from './sip';
 import { SwitchForm } from './switch';
 
 const STRATS = [['QAW', 'All Weather'], ['QTF', 'Tactical'], ['QGF', 'Growth']];
 
 const ITEMS = [
-  { key: 'r-add', title: 'Add funds', sub: 'Pay online (UPI, cards, net banking) or by bank transfer' },
+  { key: 'r-add', title: 'Add funds', sub: 'One-time online payment, SIP, or bank transfer' },
   { key: 'r-withdraw', title: 'Request a withdrawal', sub: 'Redeem part of your portfolio' },
   { key: 'r-switch', title: 'Switch strategy', sub: 'Move capital between strategies' },
   { key: 'r-strategy', title: 'Ask about a strategy', sub: 'Send a question to the investment team' },
@@ -83,7 +84,13 @@ function Investments({ V }) {
   const inv = useLoad(() => (accountId ? Promise.all([payments.investmentStatus(accountId), services.transactions(accountId)]) : Promise.resolve(null)), [accountId, V.rk]);
   const [act, setAct] = useState({ busy: '', msg: '', err: '' });
   const status = inv.data && inv.data[0];
-  const items = status ? [...(status.active || []), ...(status.completed || [])] : [];
+  const [kind, setKind] = useState('all');   // all | one-time | sip
+  const all = status ? [...(status.active || []), ...(status.completed || [])] : [];
+  const items = all
+    .filter(it => kind === 'all' || (kind === 'sip') === (it.paymentType === 'SIP'))
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  const when = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+  const counts = { all: all.length, 'one-time': all.filter(i => i.paymentType !== 'SIP').length, sip: all.filter(i => i.paymentType === 'SIP').length };
 
   const sipAction = async (it, action) => {
     if (act.busy) return;
@@ -99,15 +106,29 @@ function Investments({ V }) {
     <>
       <SectionLabel>ONLINE INVESTMENTS & SIPs</SectionLabel>
       {opts.length > 1 && <View style={{ marginTop: -6, marginBottom: 10 }}><AccountChips options={opts} value={accountId} onPick={setSel} /></View>}
+      {all.length > 0 && (
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+          {[['all', 'All'], ['one-time', 'One-time'], ['sip', 'SIP']].map(([k, l]) => (
+            <Pressable key={k} onPress={() => setKind(k)} style={{ flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: kind === k ? C.green : C.mutedBorder35, backgroundColor: kind === k ? C.green : 'transparent' }}>
+              <Tx w={700} s={11} c={kind === k ? C.cream : C.muted}>{l} · {counts[k]}</Tx>
+            </Pressable>
+          ))}
+        </View>
+      )}
       {inv.loading && <Loading rows={1} h={72} />}
       {!!inv.err && <ErrorBox msg={inv.err} onRetry={inv.reload} />}
-      {inv.data && items.length === 0 && (
+      {inv.data && all.length === 0 && (
         <Card style={{ padding: 16 }}>
           <Tx s={12.5} c={C.muted} lh={1.6}>No online payments or SIP mandates on this account yet. Payments made by bank transfer appear under contributions below.</Tx>
         </Card>
       )}
+      {inv.data && all.length > 0 && items.length === 0 && <Tx s={12} c={C.muted} style={{ marginBottom: 12 }}>Nothing of this type yet.</Tx>}
       {items.map(it => {
         const sip = it.paymentType === 'SIP', st = it.investmentStatus || '';
+        // Razorpay can pause only a subscription whose first instalment has been charged (`active`); one that
+        // is only `authenticated` (mandate registered, first charge ahead) can be cancelled but not paused.
+        // SIP_AUTHORISED = mandate registered, first instalment ahead (cancel only);
+        // SIP_ACTIVE = charged at least once (pause available).
         const canPause = sip && st === 'SIP_ACTIVE', canResume = sip && st === 'SIP_PAUSED';
         const canCancel = sip && !it.isTerminal;
         return (
@@ -132,7 +153,21 @@ function Investments({ V }) {
                 ))}
               </View>
             )}
-            <Tx s={10} c={C.gray} style={{ marginTop: 8 }}>Ref {it.orderId}</Tx>
+            <Tx s={10.5} c={C.gray} style={{ marginTop: 8 }}>{sip ? 'Set up ' : 'Placed '}{when(it.createdAt)}{it.paymentTime ? ' · paid ' + when(it.paymentTime) : ''}</Tx>
+            <Tx s={10} c={C.gray} style={{ marginTop: 2 }}>Ref {it.orderId}</Tx>
+            {sip && (it.chargeHistory || (it.sip && it.sip.charges) || []).length > 0 && (
+              <View style={{ marginTop: 10, borderTopWidth: 1, borderColor: C.hairline, paddingTop: 8 }}>
+                <Tx w={700} s={10} ls={0.1} c={C.muted}>INSTALMENTS</Tx>
+                {(it.chargeHistory || it.sip.charges).map((ch, i) => (
+                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: ch.status === 'SUCCESS' ? C.pos : ch.status === 'FAILED' ? C.red : C.gold }} />
+                    <Tx s={11} c={C.muted} style={{ flex: 1 }}>{ch.installmentNumber ? '#' + ch.installmentNumber + ' · ' : ''}{when(ch.paidAt || ch.chargeDate)}</Tx>
+                    <Amt s={11.5}>{ch.formattedAmount || '₹' + Number(ch.amount || 0).toLocaleString('en-IN')}</Amt>
+                    <Tx w={700} s={9.5} c={ch.status === 'SUCCESS' ? C.pos : ch.status === 'FAILED' ? C.red : C.muted}>{ch.status}</Tx>
+                  </View>
+                ))}
+              </View>
+            )}
             {(canPause || canResume || canCancel) && (
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
                 {canPause && <CTA label={act.busy === it.orderId ? '…' : 'PAUSE'} outline onPress={() => sipAction(it, 'pause')} style={{ flex: 1, paddingVertical: 11 }} />}
@@ -147,7 +182,7 @@ function Investments({ V }) {
       {!!act.msg && <Tx s={12} c={C.green} style={{ marginBottom: 10 }}>{act.msg}</Tx>}
       <Card style={{ padding: 14, borderWidth: 1, borderColor: C.gold35 }}>
         <Tx w={700} s={11} ls={0.1} c={C.muted}>ONE-TIME PAYMENTS · RAZORPAY</Tx>
-        <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 6 }}>Use Add Funds → Pay online. New SIP mandates are not available in the app yet (existing SIPs can be paused, resumed or cancelled above).</Tx>
+        <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 6 }}>Use Add Funds for a one-time payment or to set up a SIP. Existing SIPs can be paused, resumed or cancelled above.</Tx>
       </Card>
     </>
   );
@@ -266,17 +301,20 @@ function AddFunds({ V }) {
   const bank = useLoad(() => services.bankDetails(), []);
   // Same values the server returns (and the web's Account Services page shows) — shown at once, replaced by the API answer
   const b = bank.data || (!bank.err && !isDemo() ? { payableTo: 'Qode Advisors LLP', accountNumber: '43377275922', bank: 'SBI Bank – Corporate Account Group Branch', ifsc: 'SBIN0009995', micr: '40000213' } : null);
-  const [mode, setMode] = useState('online');
+  const rec = V.payRecover;   // set by main.js when an order / SIP was in the browser and the app reloaded
+  const [mode, setMode] = useState(rec && rec.kind === 'sip' ? 'sip' : 'online');
+  const subs = { online: 'Top up your investment with a one-time online payment.', sip: 'Set up a recurring investment — authorise once, Razorpay debits automatically on schedule.', bank: 'Transfer from your registered bank account by NEFT, RTGS or IMPS using the details below.' };
   return (
-    <Shell V={V} title="Add funds" sub={mode === 'online' ? 'Top up your investment with a one-time online payment.' : 'Transfer from your registered bank account by NEFT, RTGS or IMPS using the details below.'}>
+    <Shell V={V} title="Add funds" sub={subs[mode]}>
       <View style={{ marginTop: 14, flexDirection: 'row', borderWidth: 1, borderColor: 'rgba(55,88,79,0.25)', borderRadius: 999, padding: 3 }}>
-        {[['online', 'PAY ONLINE'], ['bank', 'BANK TRANSFER']].map(([k, l]) => (
+        {[['online', 'ADD FUNDS'], ['sip', 'SET UP SIP'], ['bank', 'BANK TRANSFER']].map(([k, l]) => (
           <Pressable key={k} onPress={() => setMode(k)} style={{ flex: 1, paddingVertical: 8, borderRadius: 999, alignItems: 'center', backgroundColor: mode === k ? C.green : 'transparent' }}>
-            <Tx w={700} s={11} ls={0.06} c={mode === k ? C.gold : C.muted}>{l}</Tx>
+            <Tx w={700} s={10.5} ls={0.04} c={mode === k ? C.gold : C.muted}>{l}</Tx>
           </Pressable>
         ))}
       </View>
-      {mode === 'online' && <PayOnline V={V} recover={V.payRecover} onDone={() => V.bumpRefresh && V.bumpRefresh()} />}
+      {mode === 'online' && <PayOnline V={V} recover={rec && rec.kind !== 'sip' ? rec : null} onDone={() => V.bumpRefresh && V.bumpRefresh()} />}
+      {mode === 'sip' && <SetupSip V={V} recover={rec && rec.kind === 'sip' ? rec : null} onDone={() => V.bumpRefresh && V.bumpRefresh()} />}
       {mode === 'bank' && <>
       {bank.loading && !b && <View style={{ marginTop: 16 }}><Loading rows={2} h={56} /></View>}
       {!!bank.err && <View style={{ marginTop: 16 }}><ErrorBox msg={bank.err} onRetry={bank.reload} /></View>}

@@ -11,6 +11,12 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { C, UICtx, Tx } from './ui';
 import { readPendingPayment, hintFromReturnUrl } from './screens/pay';
+import { storeGet, storeSet, storeDel } from './api/session';
+
+// The primary-UCC pop-up is once per SIGN-IN, not per app start: Expo Go reloads the project on every
+// payment/SIP return link, which reset the in-memory flag and showed it again after each transaction.
+// So the dismissal is remembered on the device against the client code and cleared on sign-out.
+const UCC_SEEN_KEY = 'myqode.uccSeen';
 import {
   QUARTER_LABELS,
   QS, TYPES, FEES, RES,
@@ -49,7 +55,7 @@ export default class MyQode extends React.Component {
     email: '', pw: '', loading: false, lifting: false, cu: 1, ob: null, car: 0,
     ts: 1, hc: false, rm: false,
     pnlFy: 0, pnlOpen: null, pnlSeg: 0, docQ: '', docCat: 0, det: false, cred: null,
-    snap: null, scopes: null, d: null, dl: false, dErr: '', hold: {}, navs: {},
+    snap: null, scopes: null, d: null, dl: false, sl: false, dErr: '', hold: {}, navs: {},
     authErr: '', authInfo: '', busy: false, setupEmail: '', np: '', np2: '', user: null, page: null,
     refreshing: false, rk: 0, toast: '',
     hist: null, dv: 'nuvama',   // hist = raw rows of an account with legacy Orbis data; dv = which of the web's three views
@@ -173,6 +179,7 @@ export default class MyQode extends React.Component {
         const me = await auth.me();
         await new Promise(r => this.setState({ user: me }, r));
         trackStart(me.clientCode);
+        storeGet(UCC_SEEN_KEY).then(v => { if (v && v === String(me.clientCode)) this.setState({ uccSeen: true }); });
         services.bankDetails().catch(() => {});
         services.warmSwitchInfo();
         await Promise.race([this.openPortfolio(), cap]);
@@ -217,16 +224,31 @@ export default class MyQode extends React.Component {
     await this.loadScope();
   }
 
+  // A failure worth retrying by ourselves: no answer at all (tunnel / Wi-Fi hiccup, cold server) or a 5xx.
+  // 401/403/404 and validation errors are real answers and are shown at once.
+  static transient(e) { return !e || e.status == null || e.status === 0 || e.status >= 500; }
+  static wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
   // Signing in must never be blocked by portfolio data: open the app and show the problem there, with a retry.
+  // `sl` (snapshot loading) keeps the skeleton up for the whole of loadSnapshot → loadScope; before it the
+  // dashboard showed "We couldn't load your portfolio" for the gap between the app opening and the first
+  // request answering, then filled in — an error that was never real.
   async openPortfolio() {
-    try { await this.loadSnapshot(); }
-    catch (e) {
-      if (e.status === 401) throw e;
-      this.setState({ snap: null, scopes: null, d: null, dl: false, dErr: e.message || 'We couldn’t load your accounts.' });
-    }
+    this.setState({ sl: true, dErr: '' });
+    try {
+      for (let attempt = 0; ; attempt++) {
+        try { await this.loadSnapshot(); return; }
+        catch (e) {
+          if (e.status === 401) throw e;
+          if (attempt < 2 && MyQode.transient(e)) { await MyQode.wait(1500 * (attempt + 1)); continue; }
+          this.setState({ snap: null, scopes: null, d: null, dl: false, dErr: e.message || 'We couldn’t load your accounts.' });
+          return;
+        }
+      }
+    } finally { this.setState({ sl: false }); }
   }
 
-  async loadScope() {
+  async loadScope(attempt = 0) {
     if (!this.state.scopes) return this.openPortfolio();
     const scope = this.curScope();
     if (!scope) {
@@ -282,7 +304,11 @@ export default class MyQode extends React.Component {
       this.lastLoad = Date.now();
       this.loadHoldings(scope, seq);
     } catch (e) {
-      if (seq === this.seq) this.setState({ dl: false, dErr: e.message });
+      if (seq !== this.seq) return;
+      // Transient failure: keep the skeleton and try again (twice) before showing an error — a tunnel or
+      // Wi-Fi hiccup on the first request must not flash "couldn't load" over a portfolio that loads fine.
+      if (attempt < 2 && MyQode.transient(e)) { await MyQode.wait(1500 * (attempt + 1)); if (seq === this.seq) return this.loadScope(attempt + 1); return; }
+      this.setState({ dl: false, dErr: e.message });
     }
   }
 
@@ -495,6 +521,7 @@ export default class MyQode extends React.Component {
     trackStop();
     setDemo(false);
     clearUserCaches();
+    storeDel(UCC_SEEN_KEY);   // next sign-in sees the UCC pop-up once again
     this.seq++;
     await clearToken();
     this.counted = false;
@@ -556,7 +583,17 @@ export default class MyQode extends React.Component {
     const p = await readPendingPayment();
     if (!p || this.unmounted) return;
     const initial = url || (await Linking.getInitialURL().catch(() => null)) || '';
-    this.setState({ sheet: 'r-add', payRecover: { order: { orderId: p.orderId }, hint: /payment-return/.test(initial) ? hintFromReturnUrl(initial) : '' } });
+    const hint = /payment-return/.test(initial) ? hintFromReturnUrl(initial) : '';
+    // Back to where the client started: same tab and same account scope (a reload lands on Home / the
+    // default scope otherwise), then the Add Funds sheet with the result on top of it.
+    const sc = this.state.scopes;
+    const scopeOk = p.scope != null && sc && (p.scope === -1 ? !!sc.family : typeof p.scope === 'string' ? sc.owners.some(o => o.accounts.some(a => 'a:' + a.id === p.scope)) : !!sc.owners[p.scope]);
+    if (scopeOk && p.scope !== this.state.acct) this.pickScope(p.scope);
+    if (p.tab && p.tab !== this.state.tab) { this.setState({ tab: p.tab }); screen(p.tab); }
+    // kind decides which Add Funds tab opens in recovery mode: 'sip' → SetupSip, otherwise PayOnline
+    this.setState({ sheet: 'r-add', payRecover: p.subscriptionId
+      ? { kind: 'sip', sub: { subscriptionId: p.subscriptionId, accountId: p.accountId }, hint }
+      : { kind: 'order', order: { orderId: p.orderId }, hint } });
   };
   onDeepLink = url => {
     if (this.handleResumeUrl(url)) return;
@@ -647,7 +684,7 @@ export default class MyQode extends React.Component {
     const scope = this.curScope();
     const perf = S.d && S.d.perf;
     const hasData = !!perf;
-    const busy = S.loading || S.dl;
+    const busy = S.loading || S.dl || S.sl;   // sl: snapshot / scopes still loading (see openPortfolio)
     const green = C.pos, red = C.red;
     const c = v => (v < 0 ? red : v > 0 ? green : C.muted);   // same rule as the web table: green / red / neutral
     const asOf = perf ? perf.dataAsOf : '';
@@ -781,7 +818,7 @@ export default class MyQode extends React.Component {
       startApp: this.startApp,
       lifting: S.lifting, liftDone: () => set({ lifting: false }),
       loading: busy, ready: !busy && hasData,
-      hasData, dataErr: !busy && !hasData ? (S.dErr || '') : '', retry: () => this.loadScope(),
+      hasData, dataErr: !busy && !hasData ? (S.dErr || '') : '', retry: () => this.loadScope(0),
       refresh: this.refresh, refreshing: S.refreshing, rk: S.rk,
       doLogout: () => this.signOut(),
       acctName: scope ? scope.name : '', acctInitials: scope ? scope.initials : '', acctCode: scope ? scope.code : '',
@@ -793,7 +830,7 @@ export default class MyQode extends React.Component {
       sheetNotifs: S.sheet === 'notifs', notifEmpty: true, notifHas: false,
       notifList: [],
       svcPending: false, svcNone: true, svcPendingSub: '',
-      tab: S.tab,
+      tab: S.tab, scopeKey: S.acct,
       isHome: S.tab === 'home', isPortfolio: S.tab === 'portfolio', isHoldings: S.tab === 'holdings',
       isDocs: S.tab === 'docs', isServices: S.tab === 'services', isMore: S.tab === 'more',
       goHome: () => this.go('home'), goPortfolio: () => this.go('portfolio'),
@@ -888,8 +925,8 @@ export default class MyQode extends React.Component {
       payRecover: S.payRecover || null,
       // primary-UCC pop-up: once per sign-in, over Home, after the dashboard has loaded and while no sheet/page is open
       showUcc: S.tab === 'home' && !S.uccSeen && !busy && hasData && !S.sheet && !S.page && !isDemo() && S.phase === 'app' && !S.lifting,
-      dismissUcc: () => set({ uccSeen: true }),
-      reshowUcc: () => { set({ uccSeen: false, tab: 'home', sheet: null, page: null }); screen('home'); },
+      dismissUcc: () => { set({ uccSeen: true }); storeSet(UCC_SEEN_KEY, String((S.user && S.user.clientCode) || '')); },
+      reshowUcc: () => { storeDel(UCC_SEEN_KEY); set({ uccSeen: false, tab: 'home', sheet: null, page: null }); screen('home'); },
       acctList: owners.map((a, i) => ({
         id: a.id + ':' + i, name: a.name, code: a.code, role: a.role, crown: a.crown, initials: a.initials,
         value: this.fmt(a.value), pick: () => this.pickScope(i), active: S.acct === i,

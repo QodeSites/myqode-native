@@ -137,12 +137,18 @@ export const services = {
   registerPushToken: guarded('registering a push token (enables push notifications to the client)',
     pushToken => api('/services/register-push-token', { method: 'POST', body: { pushToken, platform } })),
   unregisterPushToken: pushToken => api('/services/register-push-token', { method: 'DELETE', body: { pushToken } }),
-  setupSip: guarded('creating a Cashfree SIP mandate', body => api('/services/setup-sip', { method: 'POST', body })),
+  // SIP (Razorpay Subscriptions, app/api/mobile/services/{setup,verify,pause-resume,cancel}-sip). Not
+  // TEST_MODE-guarded — same reasoning as payments.razorpay below: test keys, no client contact, no
+  // notification unless RAZORPAY_NOTIFY_CLIENT=true on the server. This lets a SIP mandate be tested
+  // end-to-end against a real client account, same as the one-time payment flow.
+  setupSip: body => call('/services/setup-sip', { method: 'POST', body }, () => demo.setupSip(body)),
+  // The client's registered bank account (masked) — what a SIP mandate is allowed to debit.
+  registeredBank: accountId => call('/services/registered-bank', { query: { accountId } }, () => demo.registeredBank()),
   verifySip: subscriptionId => call('/services/verify-sip', { query: { subscriptionId } }, () => demo.verifySip(subscriptionId)),
-  pauseResumeSip: guarded('pausing/resuming the client’s SIP', (subscription_id, accountId, action) =>
-    api('/services/pause-resume-sip', { method: 'POST', body: { subscription_id, accountId, action } })),
-  cancelSip: guarded('cancelling the client’s SIP', (subscription_id, accountId) =>
-    api('/services/cancel-sip', { method: 'POST', body: { subscription_id, accountId } })),
+  pauseResumeSip: (subscription_id, accountId, action) =>
+    call('/services/pause-resume-sip', { method: 'POST', body: { subscription_id, accountId, action } }, () => demo.pauseResumeSip(action)),
+  cancelSip: (subscription_id, accountId) =>
+    call('/services/cancel-sip', { method: 'POST', body: { subscription_id, accountId } }, () => demo.cancelSip()),
 };
 
 export const payments = {
@@ -152,6 +158,8 @@ export const payments = {
   razorpay: {
     createOrder: body => call('/payments/razorpay/create-order', { method: 'POST', body }, () => demo.rzOrder(body)),
     verify: body => call('/payments/razorpay/verify', { method: 'POST', body }, () => demo.rzVerify(body)),
+    // Long-poll (server holds ≤ 20 s) used while the browser tab is open — see autoReturn in screens/pay.js.
+    wait: query => api('/payments/razorpay/wait', { query, timeout: 30000 }),
   },
   createOrder: guarded('creating a Cashfree payment order', body => api('/payments/create-order', { method: 'POST', body })),
   verify: orderId => call('/payments/verify', { query: { orderId } }, () => demo.verifyOrder(orderId)),

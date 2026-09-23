@@ -22,14 +22,46 @@ import { AccountChips } from './kit';
 
 const PENDING_KEY = 'myqode.pendingPayment';
 const PENDING_MAX_AGE = 45 * 60 * 1000;   // a Razorpay order is payable for ~this long
+// One record for whatever is in the browser right now: a one-time order ({ orderId }) or a SIP mandate
+// ({ subscriptionId }, see sip.js). Only one can be in progress at a time.
 export async function readPendingPayment() {
-  try { const p = JSON.parse((await storeGet(PENDING_KEY)) || 'null'); return p && p.orderId && Date.now() - p.at < PENDING_MAX_AGE ? p : null; } catch { return null; }
+  try { const p = JSON.parse((await storeGet(PENDING_KEY)) || 'null'); return p && (p.orderId || p.subscriptionId) && Date.now() - p.at < PENDING_MAX_AGE ? p : null; } catch { return null; }
 }
+export const savePendingPayment = p => storeSet(PENDING_KEY, JSON.stringify({ ...p, at: Date.now() }));
 export const clearPendingPayment = () => storeDel(PENDING_KEY);
 // status=… from the return page's redirect → the verify hint
-export const hintFromReturnUrl = url => { const s = ((Linking.parse(url || '').queryParams || {}).status) || ''; return s === 'success' ? 'success' : s === 'failed' ? 'failed' : s === 'expired' ? 'expired' : ''; };
+export const hintFromReturnUrl = url => { const s = ((Linking.parse(url || '').queryParams || {}).status) || ''; return ['success', 'failed', 'expired', 'cancelled'].includes(s) ? s : ''; };
 
-const CHIPS = [100000, 500000, 1000000];
+// Bring the app back BY ITSELF once the server knows the outcome. Chrome (Custom Tab) refuses to launch an
+// app from the return page — page scripts, meta refresh and even a 302 are ignored without a fresh tap —
+// so the client was left closing the tab by hand. With the tab in front our activity is paused and React
+// Native holds every timer, but an in-flight request still completes: so the app chains long-poll requests
+// (the server holds each one ≤ 20 s until the payment/mandate is decided) and, on the first decided answer,
+// opens its own return link. Android routes that to our activity, which closes the tab above it, and the
+// auth session resolves with the URL exactly as if the browser had redirected. Stops when the tab closes.
+// `params` = { orderId } for a one-time payment, { subId } for a SIP.
+export function autoReturn(params, ret) {
+  let stop = false;
+  // iOS needs none of this: ASWebAuthenticationSession catches the server's redirect to our scheme and
+  // closes itself. Raising the app underneath it would only fight the session.
+  if (Platform.OS !== 'android') return () => {};
+  (async () => {
+    for (let i = 0; i < 40 && !stop; i++) {            // ≤ ~13 minutes of holds
+      let status = null;
+      try { status = (await payments.razorpay.wait(params)).status; } catch { if (stop) break; await new Promise(r => setTimeout(r, 1500)); }
+      if (status && !stop) {
+        payments.razorpay.wait({ ...params, ack: status }).catch(() => {});   // trace only: "the app tried"
+        Linking.openURL(ret + (ret.includes('?') ? '&' : '?') + 'status=' + status).catch(() => {});
+        break;
+      }
+    }
+  })();
+  return () => { stop = true; };
+}
+
+// Razorpay per-transaction ceiling on the Qode account is ₹5,00,000 — the chips never offer more, and
+// the field will not accept more (server rejects > MAX too, in create-order).
+const CHIPS = [100000, 250000, 500000];
 const MIN = 100, MAX = 500000;
 const fmt = v => '₹' + Number(v || 0).toLocaleString('en-IN');
 const Lbl = ({ children, style }) => <Tx w={700} s={10} ls={0.12} c={C.gray} style={[{ marginTop: 18 }, style]}>{children}</Tx>;
@@ -104,7 +136,8 @@ export function PayOnline({ V, onDone, recover }) {
     // Where the return page sends the browser: myqode://payment-return in a build, exp://<dev host>/--/payment-return
     // in Expo Go. The order is remembered on the device first, so a reload on the way back can still recover it.
     const ret = Linking.createURL('payment-return');
-    await storeSet(PENDING_KEY, JSON.stringify({ orderId: order.orderId, accountId: acct, amount: amt, at: Date.now() }));
+    // tab + scope are restored on recovery, so the result opens over the screen the client started from
+    await savePendingPayment({ orderId: order.orderId, accountId: acct, amount: amt, tab: V.tab, scope: V.scopeKey });
     set({ ret });
     const url = BASE_URL + order.checkoutPath + '&ret=' + encodeURIComponent(ret);
     if (Platform.OS === 'web') {
@@ -112,11 +145,14 @@ export function PayOnline({ V, onDone, recover }) {
       return set({ step: 'browser', busy: false });
     }
     let res;
+    // While the tab is open, watch the order and pull the app back the moment it is decided (see autoReturn).
+    const stopWatch = autoReturn({ orderId: order.orderId }, ret);
     try {
-      // Auth session: the browser tab closes by itself when it reaches `ret`, and the URL comes back here.
-      // createTask:false keeps the tab in the app's own task, so a manual close also lands on this screen.
+      // Auth session: the tab closes when the app receives `ret` (browser redirect or autoReturn), and the URL
+      // comes back here. createTask:false keeps the tab in the app's own task, so a manual close also lands here.
       res = await WebBrowser.openAuthSessionAsync(url, ret, { createTask: false, showInRecents: false, dismissButtonStyle: 'close', toolbarColor: '#02422B', controlsColor: '#DABD38' });
-    } catch (e) { return finish('error', null, 'Could not open the payment window: ' + e.message); }
+    } catch (e) { stopWatch(); return finish('error', null, 'Could not open the payment window: ' + e.message); }
+    stopWatch();
     if (res && res.type === 'success' && res.url) return verify(order, hintFromReturnUrl(res.url));
     // browser closed by hand: the user may have paid, failed or cancelled — the server knows
     verify(order, 'cancelled');
@@ -162,11 +198,11 @@ export function PayOnline({ V, onDone, recover }) {
     <View>
       {opts.length > 1 && <><Lbl style={{ marginTop: 14 }}>ACCOUNT</Lbl><AccountChips options={opts} value={acct} onPick={setAcct} /></>}
       <Lbl style={{ marginTop: 14 }}>AMOUNT</Lbl>
-      <Field value={amt ? amt.toLocaleString('en-IN') : ''} onChangeText={t => { setAmt(Math.min(parseInt(t.replace(/\D/g, '') || '0', 10), MAX)); set({ err: '' }); }} numeric s={26} prefix="₹" />
+      <Field value={amt ? amt.toLocaleString('en-IN') : ''} onChangeText={t => { const n = parseInt(t.replace(/\D/g, '') || '0', 10); setAmt(Math.min(n, MAX)); set({ err: n > MAX ? `Online payments are capped at ${fmt(MAX)} per transaction — amount set to the maximum. For more, use a bank transfer.` : '' }); }} numeric s={26} prefix="₹" />
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
         {CHIPS.map(v => (
-          <Pressable key={v} onPress={() => { setAmt(a => Math.min((a || 0) + v, MAX)); set({ err: '' }); }} style={{ borderWidth: 1, borderColor: C.greenBorder, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 }}>
-            <Amt s={12} c={C.green}>+{fmt(v)}</Amt>
+          <Pressable key={v} onPress={() => { setAmt(v); set({ err: '' }); }} style={{ borderWidth: 1, borderColor: amt === v ? C.green : C.greenBorder, backgroundColor: amt === v ? C.green : 'transparent', borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 }}>
+            <Amt s={12} c={amt === v ? C.cream : C.green}>{fmt(v)}</Amt>
           </Pressable>
         ))}
       </View>
