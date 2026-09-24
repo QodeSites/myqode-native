@@ -181,8 +181,10 @@ export function SetupSip({ V, onDone, recover }) {
     verify(sub, 'cancelled');   // browser closed by hand
   };
 
-  const reset = () => { clearPendingPayment(); if (st.kind === 'failed' || st.kind === 'cancelled') abandon(st.sub, st.result); set({ step: 'form', busy: false, err: '', sub: null, kind: '', detail: '', result: null }); };
-  const done = () => { if (st.kind === 'failed' || st.kind === 'cancelled') abandon(st.sub, st.result); V.closeSheet(); };
+  // A bank failure is already recorded by the server as "Mandate Failed" — only a set-up the client walked away
+  // from ("not completed") is voided here, so the list shows Failed vs Cancelled truthfully.
+  const reset = () => { clearPendingPayment(); if (st.kind === 'cancelled') abandon(st.sub, st.result); set({ step: 'form', busy: false, err: '', sub: null, kind: '', detail: '', result: null }); };
+  const done = () => { if (st.kind === 'cancelled') abandon(st.sub, st.result); V.closeSheet(); };
 
   if (st.step === 'verify') {
     return <View style={{ alignItems: 'center', paddingVertical: 28 }}><ActivityIndicator color={C.green} /><Tx s={12.5} c={C.muted} style={{ marginTop: 12 }}>Confirming your SIP…</Tx></View>;
