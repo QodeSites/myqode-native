@@ -96,7 +96,7 @@ export function CTA({ label, onPress, outline, style, ls = 0.08 }) {
         transform: [{ scale: pressed ? 0.98 : 1 }],
       }, style]}
     >
-      <Tx w={700} s={13} ls={ls} c={outline ? C.green : C.gold}>{label}</Tx>
+      <Tx w={700} s={13} ls={ls} c={outline ? C.green : C.gold} center>{label}</Tx>
     </Pressable>
   );
 }
