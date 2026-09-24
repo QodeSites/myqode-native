@@ -63,6 +63,40 @@ Backend `myQode/.env` already has: `RAZORPAY_KEY_ID` (rzp_test_…), `RAZORPAY_K
   mode) → URL `https://<api tunnel>/api/mobile/payments/razorpay/webhook`, secret = `RAZORPAY_WEBHOOK_SECRET`,
   events `payment.captured`, `payment.failed`, `order.paid`. Update the URL whenever the tunnel restarts.
 
+## 3b. Live Razorpay keys, real money, client still not contacted
+
+For testing real payments and real SIP mandates as a real user before go-live. In `myQode/.env`:
+
+```
+RAZORPAY_KEY_ID=rzp_live_…          # from Razorpay dashboard → Settings → API Keys (live mode)
+RAZORPAY_KEY_SECRET=…
+RAZORPAY_WEBHOOK_SECRET=…           # the secret you set on the LIVE webhook
+RAZORPAY_ENVIRONMENT=live
+RAZORPAY_NOTIFY_CLIENT=false        # ← the only thing that keeps the client out of the loop
+```
+
+With `RAZORPAY_NOTIFY_CLIENT=false` and live keys (`shouldNotifyClient()` / `checkoutContact()` in `lib/razorpay.ts`):
+
+- Razorpay's own customer emails/SMS for mandates and charges are off (`customer_notify: 0`).
+- Our server sends the client nothing (no `lib/notifications` calls from the Razorpay webhook).
+- Checkout is **not** prefilled with the client's email/phone — only the name. The tester types their own on
+  Razorpay's page, so any gateway receipt goes to the tester, not the client on file.
+- Everything else is real: the order/mandate is created on the live account, money moves, the registered bank
+  account is still prefilled into the e-mandate form.
+
+What cannot be switched off: the client's **bank / NPCI** sends its own SMS for a debit or a mandate
+registration on the client's account. So test one-time payments and mandates **on the tester's own bank
+account**, not the client's — for e-mandate that means overriding the prefilled account number/IFSC on the
+form with the tester's, or testing with a login that has no registered bank on file.
+
+Also in the Razorpay dashboard (live mode): the webhook URL + secret (events: `payment.captured`,
+`payment.failed`, `order.paid`, `subscription.authenticated`, `subscription.activated`, `subscription.charged`,
+`subscription.pending`, `subscription.halted`, `subscription.cancelled`, `subscription.paused`,
+`subscription.resumed`, `subscription.completed`), and check that e-mandate / UPI Autopay are enabled on the
+live account (Subscriptions must be activated by Razorpay for the merchant).
+
+Production = the same live keys with the `RAZORPAY_NOTIFY_CLIENT` line removed.
+
 ## 4. Release build (store)
 
 ### App side — `myqode-native`
