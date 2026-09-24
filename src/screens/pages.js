@@ -237,6 +237,7 @@ function Risk() {
         <Card key={p.title} style={{ padding: 16, marginTop: 14 }}>
           <Tx f="play" w={600} s={17}>{p.title}</Tx>
           {p.body.map((t, i) => <Tx key={i} s={12.5} c={C.muted} lh={1.6} style={{ marginTop: 8 }}>{t}</Tx>)}
+          {!!p.pdf && <CTA label="VIEW POLICY (PDF)" outline onPress={() => openUrl(p.pdf)} style={{ marginTop: 12, paddingVertical: 11 }} />}
         </Card>
       ))}
     </>

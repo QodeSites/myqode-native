@@ -204,13 +204,16 @@ export const GRIEVANCE = {
   protection: [`All complaints and resolutions are documented and reviewed periodically.`],
 };
 
+// Same list and PDFs as the web's /trust/risk-managment-and-controls (myQode app/(protected)/trust/...). The PDFs
+// are served by the live web app from public/policies/.
 export const RISK = {
   intro: [`Key operating policies that guide portfolio construction and risk management.`],
   policies: [
-    { title: `Hedging Policy`, body: [`We use derivatives prudently to manage downside risk, not for speculation. Protective put options & hedges are employed where appropriate to safeguard portfolios against significant market declines.`] },
-    { title: `Liquidity Rules`, body: [`We follow a defined liquidity policy to ensure capital is available for hedging and client needs.`] },
-    { title: `Rebalance Policy`, body: [`All portfolios are rebalanced monthly, realigning holdings to strategy weights to control drift.`] },
-    { title: `Concentration Limits`, body: [`We impose no sector caps; portfolios are built bottom‑up, with structural gold allocations.`] },
+    { title: `Hedging Policy`, pdf: `https://myqode.qodeinvest.com/policies/hedging-policy.pdf`, body: [`We use derivatives prudently to manage downside risk, not for speculation. Protective put options & hedges are employed where appropriate to safeguard portfolios against significant market declines.`] },
+    { title: `Liquidity Rules`, pdf: `https://myqode.qodeinvest.com/policies/liquidity-rules.pdf`, body: [`We follow a defined liquidity policy to ensure capital is available for hedging and client needs.`] },
+    { title: `Rebalance Policy`, pdf: `https://myqode.qodeinvest.com/policies/rebalance-policy.pdf`, body: [`All portfolios are rebalanced monthly, realigning holdings to strategy weights to control drift.`] },
+    { title: `Concentration Limits`, pdf: `https://myqode.qodeinvest.com/policies/concentration-limits.pdf`, body: [`We impose no sector caps; portfolios are built bottom‑up, with structural gold allocations.`] },
+    { title: `Referral Policy`, pdf: `https://myqode.qodeinvest.com/policies/Referral%20Policy_Signed.pdf`, body: [`Our signed referral policy sets out how client referrals are handled, including eligibility, disclosures and the terms that apply to referred and referring parties.`] },
   ],
 };
 
