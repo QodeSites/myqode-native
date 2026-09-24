@@ -1,7 +1,12 @@
 // HTML document loaded into the in-app WebView to run Digio's Web SDK. It
-// mirrors the web wizard's SDK call exactly (environment, callback, theme,
-// then submit(requestId, identifier, accessTokenId)) and reports everything
-// back to React Native through window.ReactNativeWebView.postMessage.
+// mirrors the web wizard's SDK call (environment, callback, theme, then
+// submit(requestId, identifier, accessTokenId)) with one difference: the
+// REDIRECTION APPROACH. The web wizard lets the SDK open a popup window. A
+// WebView has no popups, and Digio's own iframe mode still needs one for the
+// DigiLocker leg (DigiLocker sends X-Frame-Options and cannot be framed), so
+// inside the app the whole WebView navigates through Digio and DigiLocker and
+// comes back to `returnUrl`. screens/verify.js intercepts that navigation and
+// hands the result to the store; the server poll confirms the outcome.
 export function buildDigioHtml(payload) {
   const cfg = JSON.stringify({
     sdkSrc: payload.sdkSrc,
@@ -9,6 +14,7 @@ export function buildDigioHtml(payload) {
     requestId: payload.requestId,
     identifier: payload.identifier,
     accessTokenId: payload.accessTokenId || null,
+    returnUrl: payload.returnUrl,
   }).replace(/</g, '\\u003c');
   return `<!doctype html>
 <html lang="en">
@@ -29,26 +35,27 @@ html,body{margin:0;height:100%;background:#F7F5E9;font-family:-apple-system,Blin
   var cfg=${cfg};
   function send(m){try{window.ReactNativeWebView.postMessage(JSON.stringify(m));}catch(e){}}
   function status(t){var s=document.getElementById('s');if(s)s.innerHTML=t;}
-  window.onerror=function(msg){send({type:'error',message:String(msg)});};
-  window.addEventListener('unhandledrejection',function(e){send({type:'error',message:String(e&&e.reason)});});
+  // Stray exceptions (cross-origin scripts surface as "Script error.") are diagnostics,
+  // not outcomes: report them as logs so they never tear the window down mid-flow.
+  window.onerror=function(msg){send({type:'log',message:String(msg)});};
+  window.addEventListener('unhandledrejection',function(e){send({type:'log',message:String(e&&e.reason)});});
   var sc=document.createElement('script');
   sc.src=cfg.sdkSrc;sc.async=true;
   sc.onload=function(){
     try{
       if(!window.Digio){send({type:'error',message:'sdk_missing'});return;}
-      // is_iframe: the SDK's default is window.open(), which mobile WebViews
-      // refuse (iOS returns null, nothing appears). The iframe mode renders
-      // the same flow inline in this page with camera/microphone allowed.
       var d=new window.Digio({
         environment:cfg.environment,
-        is_iframe:true,
+        is_redirection_approach:true,
+        redirect_url:cfg.returnUrl,
+        redirect_timeout:1500,
         callback:function(r){send({type:'callback',response:r||null});},
         theme:{primaryColor:'#008455',secondaryColor:'#02422B'}
       });
       d.init();
+      send({type:'opened'});
       d.submit(cfg.requestId,cfg.identifier,cfg.accessTokenId||undefined);
       status('');
-      send({type:'opened'});
     }catch(e){send({type:'error',message:(e&&e.message)||String(e)});}
   };
   sc.onerror=function(){send({type:'error',message:'sdk_load_failed'});};
@@ -58,4 +65,31 @@ html,body{margin:0;height:100%;background:#F7F5E9;font-family:-apple-system,Blin
 </script>
 </body>
 </html>`;
+}
+
+// Digio's exit page appends "?status=success|cancel&digio_doc_id=…&message=…" (and
+// "&error_code=TERMINATED" on a hard failure) to the return URL. The message is not
+// URL-encoded by Digio, so decoding is best-effort. Returns null for any other URL.
+export function parseDigioReturn(url, returnUrl) {
+  if (!url || !returnUrl || !url.startsWith(returnUrl)) return null;
+  const rest = url.slice(returnUrl.length).replace(/^[?&#]/, '');
+  const q = {};
+  rest.split('&').forEach(pair => {
+    if (!pair) return;
+    const i = pair.indexOf('=');
+    const k = i === -1 ? pair : pair.slice(0, i);
+    const v = i === -1 ? '' : pair.slice(i + 1);
+    q[safeDecode(k)] = safeDecode(v);
+  });
+  return {
+    type: 'return',
+    status: q.status || 'unknown',
+    docId: q.digio_doc_id || null,
+    message: q.message || '',
+    errorCode: q.error_code || null,
+  };
+}
+
+function safeDecode(s) {
+  try { return decodeURIComponent(s.replace(/\+/g, ' ')); } catch (e) { return s; }
 }

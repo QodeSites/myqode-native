@@ -68,14 +68,21 @@ export async function request(path, { method = 'GET', body, formData, headers = 
     signal: ctrl ? ctrl.signal : undefined,
   };
   let res;
+  const startedAt = Date.now();
   try {
     res = await fetch(url, init);
   } catch (e) {
     clearTimeout(timer);
+    // The investor-facing message cannot say why; the console line can. RN reports every
+    // native failure (DNS, TLS, an unreadable file:// part, a dropped tunnel) as the same
+    // "Network request failed", so the elapsed time and the request shape matter.
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn(`[onboarding] ${method} ${url} failed after ${Date.now() - startedAt} ms: ${e && e.name}: ${e && e.message}` + (formData ? ' (multipart)' : ''));
+    }
     if (e && e.name === 'AbortError') {
       throw new OnboardingError('That took too long. Check your connection and try again.', { code: 'timeout', retryable: true });
     }
-    throw new OnboardingError('You appear to be offline. We will keep your progress and retry when you are back.', { code: 'offline', retryable: true });
+    throw new OnboardingError('You appear to be offline. We will keep your progress and retry when you are back.', { code: 'offline', retryable: true, body: { cause: e && e.message } });
   }
   clearTimeout(timer);
   const parsed = await parseBody(res);

@@ -33,13 +33,16 @@ import AppShell from './screens/appshell';
 import Curtain from './screens/curtain';
 // Onboarding (account opening) — a separate, unauthenticated backend; see src/onboarding/config.js.
 import OnboardingStore from './onboarding/store';
-import * as obApi from './onboarding/api';
+import * as obApiModule from './onboarding/api';
+import { nativeFilePart } from './onboarding/file-native';
+// Uploads read the picked file with expo-file-system (see file-native.js); everything else is the module as is.
+const obApi = { ...obApiModule, uploadDocument: (id, fieldKey, file) => obApiModule.uploadDocument(id, fieldKey, file, nativeFilePart) };
 import * as obStorage from './onboarding/storage';
 import {
   accountTypeFor, accountLabelFor, accountTypeToOb, toBackendData, fromBackendData, stepIndexFor, resumeStepFor,
   lockedFieldsFor, verifiedSummary, maskAccount, docSlotsFor, resolveDocs, riskProfileFor, formatDobInput,
   isValidEmail, isValidMobile, validateBegin, validateIdentity, validateNominees, validateDocs, validateForSubmit,
-  ENTITY_LABELS,
+  cleanName, validateAmount, ENTITY_LABELS,
 } from './onboarding/mapping';
 import { API_BASE, RESUME_HOSTS, UPLOAD } from './onboarding/config';
 
@@ -975,7 +978,9 @@ export default class MyQode extends React.Component {
     const PROG = { begin: 0.04, type: 0.125, identity: 0.25, q: 0.3 + OB.qi * 0.018, result: 0.42, fee: 0.5, fin: 0.625, noms: 0.75, docs: 0.875, review: 0.96, tracker: 1, opened: 1 };
     const BACK = { type: 'begin', identity: 'type', result: 'q', fee: 'result', fin: 'fee', noms: 'fin', docs: 'noms', review: 'docs' };
     const allocSum = OB.noms.reduce((s, n) => s + (parseInt(n.alloc, 10) || 0), 0);
-    const upd = (i, f) => t => { const noms = OB.noms.map((n, j) => j === i ? { ...n, [f]: t } : n); setOb({ noms, nomErr: '' }); };
+    // Nominee inputs are sanitised as typed: names letters-only, mobile 10 digits, share 1–3 digits.
+    const NOM_CLEAN = { name: cleanName, rel: cleanName, guardian: cleanName, mob: t => t.replace(/\D/g, '').slice(0, 10), alloc: t => t.replace(/\D/g, '').slice(0, 3) };
+    const upd = (i, f) => t => { const v = NOM_CLEAN[f] ? NOM_CLEAN[f](t) : t; const noms = OB.noms.map((n, j) => j === i ? { ...n, [f]: v } : n); setOb({ noms, nomErr: '' }); };
 
     // ---- verification helpers ----------------------------------------------
     const lockedP = lockedFieldsFor(server, 'primary');
@@ -1076,8 +1081,8 @@ export default class MyQode extends React.Component {
       obNoms: st === 'noms', obFeeStep: st === 'fee', obQ: st === 'q', obResult: st === 'result',
       obDocsStep: st === 'docs', obReview: st === 'review', obTracker: st === 'tracker', obOpened: st === 'opened',
       obName: OB.name, obEmail: OB.email, obMobile: OB.mobile,
-      onObName: t => setOb({ name: t, err: '' }),
-      onObEmail: t => setOb({ email: t, err: '' }),
+      onObName: t => setOb({ name: cleanName(t), err: '' }),
+      onObEmail: t => setOb({ email: t.replace(/\s/g, '').slice(0, 254), err: '' }),
       onObMobile: t => setOb({ mobile: t.replace(/\D/g, '').slice(0, 10), err: '' }),
       obHasErr: !!OB.err, obErr: OB.err,
       obBeginNext: () => {
@@ -1112,7 +1117,7 @@ export default class MyQode extends React.Component {
       obIncome: this.chips(['Under ₹25 L', '₹25 L – 1 Cr', '₹1 – 5 Cr', 'Over ₹5 Cr'], OB.income, i => setOb({ income: i })),
       obEdu: this.chips(['Graduate', 'Post-graduate', 'Professional', 'Other'], OB.edu, i => setOb({ edu: i })),
       obDob: OB.dob, onObDob: t => setOb({ dob: formatDobInput(t), err: '' }),
-      obAddr: OB.addr, onObAddr: t => setOb({ addr: t, err: '' }),
+      obAddr: OB.addr, onObAddr: t => setOb({ addr: t.slice(0, 500), err: '' }),
       obPan: OB.pan, onObPan: t => setOb({ pan: t.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10), err: '' }),
       // Verified (locked) fields for holder 1
       obLockedFields: lockedP,
@@ -1144,8 +1149,8 @@ export default class MyQode extends React.Component {
       obVerifyEvent: msg => { if (OB.verify) store.sdkEvent(OB.verify.subject, OB.verify.purpose, msg); },
       // Holder 2
       obNoH2: !OB.h2 && individual, obH2: OB.h2, obAddH2: () => setOb({ h2: true }), obRemoveH2: () => setOb({ h2: false }),
-      obH2Name: OB.h2Name, onObH2Name: t => setOb({ h2Name: t, err: '' }),
-      obH2Email: OB.h2Email, onObH2Email: t => setOb({ h2Email: t, err: '' }),
+      obH2Name: OB.h2Name, onObH2Name: t => setOb({ h2Name: cleanName(t), err: '' }),
+      obH2Email: OB.h2Email, onObH2Email: t => setOb({ h2Email: t.replace(/\s/g, '').slice(0, 254), err: '' }),
       obH2Mobile: OB.h2Mobile, onObH2Mobile: t => setOb({ h2Mobile: t.replace(/\D/g, '').slice(0, 10), err: '' }),
       obH2Pan: OB.h2Pan, onObH2Pan: t => setOb({ h2Pan: t.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10), err: '' }),
       obH2Dob: OB.h2Dob, onObH2Dob: t => setOb({ h2Dob: formatDobInput(t), err: '' }),
@@ -1250,9 +1255,10 @@ export default class MyQode extends React.Component {
       obCloseFund: () => setOb({ fundOpen: false }),
       obFundOpen: OB.fundOpen, obFundForm: !OB.fundDone, obFundDone: OB.fundDone,
       obAmtStr: OB.amt ? OB.amt.toLocaleString('en-IN') : '',
-      onObAmt: t => setOb({ amt: parseInt(t.replace(/\D/g, '') || '0', 10) }),
+      onObAmt: t => setOb({ amt: parseInt(t.replace(/\D/g, '').slice(0, 12) || '0', 10), fundErr: '' }),
       obAmtFmt: this.fmt(OB.amt || 0),
-      obFundConfirm: () => setOb({ fundDone: true }),
+      obFundErr: OB.fundErr || '',
+      obFundConfirm: () => { const err = validateAmount(OB.amt); if (err) return setOb({ fundErr: err }); setOb({ fundDone: true, fundErr: '' }); },
       obFinish: () => set({ ob: null, phase: 'login' }),
       obExitToLogin: () => set({ phase: 'login' }),
     };

@@ -6,6 +6,7 @@
 // `store.s` (a plain snapshot) when computing view values. The api/storage
 // modules are injectable so the logic can be unit-tested in node.
 import { isOffline } from './http.js';
+import { satisfiedFromServer } from './mapping.js';
 import { TIMINGS, UPLOAD } from './config.js';
 
 const KYC_DONE = ['approved', 'success', 'approval_pending'];
@@ -194,6 +195,13 @@ export default class OnboardingStore {
     clearTimeout(this.t.save);
     this.t.save = setTimeout(() => this.flush(), TIMINGS.autosaveDebounceMs);
   }
+  // Persist keys the form projection does not own (Digio check ids, digioDocKeys) the way the
+  // web wizard does, so a resume can rebuild what a verification produced. They ride the next
+  // autosave and never collide with sync(), which only touches projected keys.
+  stash(patch) {
+    Object.assign(this.pending, patch);
+    if (this.s.id) { clearTimeout(this.t.save); this.t.save = setTimeout(() => this.flush(), 0); }
+  }
   async flush() {
     clearTimeout(this.t.save);
     if (this.s.locked || this.disposed) return;
@@ -246,10 +254,11 @@ export default class OnboardingStore {
       this.set({
         hydrating: false, id: sub.id, resumeToken: sub.resumeToken, accountType: sub.accountType,
         status: sub.status, locked: sub.status === 'submitted', server, uploads: sub.uploads || [],
-        satisfied: server.primary_bank_accountNumber ? ['doc_cancelled_cheque'] : [],
+        satisfied: satisfiedFromServer(server),
         checks: {}, saved, currentStep: sub.currentStep || 0, submittedAt: sub.submittedAt || null,
         saveState: 'saved', createError: null, saveError: null,
       });
+      if (sub.status !== 'submitted') await this.catchUp(server);
       if (sub.status === 'submitted') this.refreshProgress();
       return sub;
     } catch (e) {
@@ -268,6 +277,36 @@ export default class OnboardingStore {
   async refreshProgress() {
     if (!this.s.id) return null;
     try { const p = await this.api.getProgress(this.s.id); this.set({ progress: p }); return p; } catch (e) { return null; }
+  }
+
+  // One quiet poll per check id the draft remembers (the web wizard's syncOnce): a verification
+  // that finished after the app was closed is applied; anything unfinished is left alone. Checks
+  // whose result is already on the draft are skipped — each poll costs a Digio round trip.
+  async catchUp(server) {
+    const ids = [];
+    ['primary', 'second', 'third'].forEach(p => {
+      if (server[`${p}_kycCheckId`] && server[`${p}_kycStatus`] !== 'verified') ids.push(server[`${p}_kycCheckId`]);
+      if (server[`${p}_bankCheckId`] && !server[`${p}_bank_accountNumber`]) ids.push(server[`${p}_bankCheckId`]);
+    });
+    for (const id of ids) {
+      try {
+        const r = await this.api.getKyc(id);
+        if (KYC_DONE.includes(r.status)) this.applyDone(r);
+      } catch (e) { /* best effort — the investor can verify again */ }
+    }
+  }
+  // Merge a finished check into the draft: verified fields, the document slots it satisfies,
+  // and (persisted, like the web wizard's digioDocKeys) so a resume keeps them.
+  applyDone(r) {
+    const extracted = r.extracted || {};
+    const docKeys = r.docKeys || [];
+    const server = { ...this.s.server, ...extracted };
+    const satisfied = Array.from(new Set([...(this.s.satisfied || []), ...docKeys]));
+    this.set({ server, satisfied });
+    const known = Array.isArray(server.digioDocKeys) ? server.digioDocKeys : [];
+    const merged = Array.from(new Set([...known, ...docKeys]));
+    if (merged.length !== known.length) this.stash({ digioDocKeys: merged });
+    this.refreshUploads();
   }
 
   // ---- Digio verification -------------------------------------------------
@@ -290,9 +329,11 @@ export default class OnboardingStore {
       const check = {
         key, subject, purpose, kind: 'kyc', ...p, startedAt: this.now(), lastPolledAt: null, attempt: (prev.attempt || 0) + 1,
         done: false, failed: false, slow: false, timedOut: false, starting: false, error: null, errorCode: null, sdkError: null,
-        opened: false, extracted: {}, docKeys: [],
+        opened: false, sdkResponded: false, sdkCancelled: false, extracted: {}, docKeys: [],
       };
       this.set({ digio: 'enabled', digioMessage: null, checks: { ...this.s.checks, [key]: check } });
+      // Remembered on the draft so a resume can catch up on the outcome (see catchUp).
+      this.stash({ [`${subject}_${purpose === 'bank' ? 'bankCheckId' : 'kycCheckId'}`]: p.checkId });
       this.startPolling(key);
       return check;
     } catch (e) {
@@ -351,11 +392,8 @@ export default class OnboardingStore {
       if (doneList.includes(r.status)) {
         upd.done = true; upd.slow = false;
         upd.extracted = r.extracted || {}; upd.docKeys = r.docKeys || [];
-        const server = { ...this.s.server, ...upd.extracted };
-        const satisfied = Array.from(new Set([...(this.s.satisfied || []), ...upd.docKeys]));
-        this.set({ server, satisfied });
+        this.applyDone(r);
         this.setCheck(key, upd);
-        this.refreshUploads();
         this.notice('ok', c.kind === 'esign' ? 'Agreement signed.' : (c.purpose === 'bank' ? 'Bank account verified.' : 'Identity verified.'));
         return;
       }
@@ -382,21 +420,38 @@ export default class OnboardingStore {
       schedule(isOffline(e) ? TIMINGS.pollIntervalMs * 3 : TIMINGS.pollIntervalMs);
     }
   }
-  // Messages from the WebView bridge.
+  // Messages from the WebView bridge (src/onboarding/digio-html.js) and the Digio exit
+  // redirect the sheet intercepts (screens/verify.js → parseDigioReturn).
+  //   opened   — our page is up and has handed over to Digio; clears any earlier outcome.
+  //   return   — Digio's exit page navigated to our return URL: status=success|cancel,
+  //              message, and error_code=TERMINATED on a hard failure (not a user cancel).
+  //   callback — the SDK callback (popup/iframe modes only; kept for completeness).
+  //   error    — the page could not load or start the SDK.
+  //   loading / log — informational, never change the outcome.
   sdkEvent(subject, purpose, msg) {
     const key = OnboardingStore.checkKey(subject, purpose);
     const c = this.s.checks[key];
     if (!c || !msg) return;
-    if (msg.type === 'opened') { this.setCheck(key, { opened: true, sdkError: null }); return; }
+    if (msg.type === 'opened') { this.setCheck(key, { opened: true, sdkResponded: false, sdkError: null, sdkCancelled: false }); return; }
     if (msg.type === 'callback') {
       const r = msg.response || {};
       const failedInSdk = !!r.error_code;
-      this.setCheck(key, { sdkResponded: true, sdkError: failedInSdk ? (r.message || 'The verification was not completed.') : null });
+      this.setCheck(key, { sdkResponded: true, sdkError: failedInSdk ? (r.message || 'The verification was not completed.') : null, sdkCancelled: r.error_code === 'CANCELLED' });
+      this.pollNow(key);
+      return;
+    }
+    if (msg.type === 'return') {
+      const ok = msg.status === 'success' && !msg.errorCode;
+      this.setCheck(key, {
+        sdkResponded: true,
+        sdkError: ok ? null : (msg.message || 'The verification was not completed.'),
+        sdkCancelled: !ok && !msg.errorCode,
+      });
       this.pollNow(key);
       return;
     }
     if (msg.type === 'error') {
-      this.setCheck(key, { sdkError: FRIENDLY[msg.message] || 'The verification window ran into a problem. You can try again or upload your documents instead.' });
+      this.setCheck(key, { sdkError: FRIENDLY[msg.message] || 'The verification window ran into a problem. You can try again or upload your documents instead.', sdkCancelled: false });
     }
   }
 

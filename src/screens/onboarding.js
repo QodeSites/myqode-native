@@ -372,7 +372,7 @@ export default function Onboarding({ V }) {
                     {V.obIsIndividual && (
                       <>
                         <View style={{ flexDirection: 'row', gap: 14, marginTop: 16 }}>
-                          <Field label="PAN" value={V.obPan} onChangeText={V.onObPan} placeholder="ABCDE1234F" autoCapitalize="characters" s={14} style={{ flex: 1 }} />
+                          <Field label="PAN" value={V.obPan} onChangeText={V.onObPan} placeholder="ABCPE1234F" autoCapitalize="characters" s={14} style={{ flex: 1 }} />
                           <Field label="DATE OF BIRTH" value={V.obDob} onChangeText={V.onObDob} placeholder="DD / MM / YYYY" numeric s={14} style={{ flex: 1 }} />
                         </View>
                         <Sub style={{ marginTop: 16 }}>GENDER</Sub>
@@ -425,7 +425,7 @@ export default function Onboarding({ V }) {
                     <>
                       <Field label="NAME AS PER PAN" value={V.obH2Name} onChangeText={V.onObH2Name} placeholder="Second holder's name" autoCapitalize="words" style={{ marginTop: 14 }} />
                       <View style={{ flexDirection: 'row', gap: 14, marginTop: 16 }}>
-                        <Field label="PAN" value={V.obH2Pan} onChangeText={V.onObH2Pan} placeholder="ABCDE1234F" autoCapitalize="characters" s={14} style={{ flex: 1 }} />
+                        <Field label="PAN" value={V.obH2Pan} onChangeText={V.onObH2Pan} placeholder="ABCPE1234F" autoCapitalize="characters" s={14} style={{ flex: 1 }} />
                         <Field label="DATE OF BIRTH" value={V.obH2Dob} onChangeText={V.onObH2Dob} placeholder="DD / MM / YYYY" numeric s={14} style={{ flex: 1 }} />
                       </View>
                     </>
@@ -702,7 +702,11 @@ export default function Onboarding({ V }) {
             <Tx s={12} c={C.muted} style={{ marginTop: 3 }}>First contribution to PMS 00891</Tx>
             <Tx w={700} s={11} ls={0.12} c={C.muted} style={{ marginTop: 20, marginBottom: 8 }}>AMOUNT</Tx>
             <Field value={V.obAmtStr} onChangeText={V.onObAmt} numeric s={26} prefix="₹" />
-            <Tx s={11} c={C.gray} style={{ marginTop: 8 }}>Minimum initial contribution ₹50,00,000.00 as per SEBI PMS regulations.</Tx>
+            {V.obFundErr ? (
+              <Tx s={11.5} c={C.red} style={{ marginTop: 8 }}>{V.obFundErr}</Tx>
+            ) : (
+              <Tx s={11} c={C.gray} style={{ marginTop: 8 }}>Minimum initial contribution ₹50,00,000.00 as per SEBI PMS regulations.</Tx>
+            )}
             <Tx w={700} s={11} ls={0.12} c={C.muted} style={{ marginTop: 20, marginBottom: 8 }}>TRANSFER TO YOUR OWN PMS ACCOUNT</Tx>
             <View style={{ borderWidth: 1, borderColor: 'rgba(55,88,79,0.2)', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 4 }}>
               {[['Account name', 'Rohan Mehta — PMS'], ['Bank', 'HDFC Bank, Fort, Mumbai'], ['Account no.', '50100 4821 0891'], ['IFSC', 'HDFC0000060']].map(([k, v], i) => (

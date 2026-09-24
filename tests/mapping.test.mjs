@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import {
   toBackendData, fromBackendData, accountTypeFor, lockedFieldsFor, docSlotsFor, resolveDocs,
   validateBegin, validateIdentity, validateNominees, validateDocs, dobToIso, formatDobInput, isoToDobDisplay,
-  riskProfileFor, resumeStepFor, normalizeMobile, isAdult,
+  riskProfileFor, resumeStepFor, normalizeMobile, isAdult, satisfiedFromServer,
+  cleanName, isValidName, isValidEmail, isValidMobile, isValidPan, isIndividualPan, validateDob, hasPin, validateAmount,
 } from '../src/onboarding/mapping.js';
 
 const base = () => ({
-  step: 'identity', name: 'Ravi Kumar', email: 'Ravi@Example.com', mobile: '9876543210', dob: '17 / 04 / 1988', addr: '12 MG Road, Indiranagar, Bengaluru',
+  step: 'identity', name: 'Ravi Kumar', email: 'Ravi@Example.com', mobile: '9876543210', dob: '17 / 04 / 1988', addr: '12 MG Road, Indiranagar, Bengaluru 560038',
   pan: 'abcpk1234f', fatherName: '', aadhaar: '', type: 0, subRes: 0, entitySub: 0, res: 0, gender: 1, marital: 1, mobBel: 0, emailBel: 0, pep: 1,
   occ: 0, src: 0, income: 2, edu: 1, h2: false, h2Name: '', h2Email: '', h2Mobile: '', h2Pan: '', h2Dob: '', mode: 0,
   noms: [{ name: 'Priya', rel: 'Spouse', mob: '9876500000', alloc: '100', minor: false, guardian: '' }], nomOptOut: false,
@@ -98,7 +99,7 @@ test('validation catches the common mistakes', () => {
   assert.match(validateIdentity({ ...base(), dob: '17 / 04 / 2020' }, {}), /18 or older/);
   // A verified PAN/DOB is not re-validated from the typed field.
   assert.equal(validateIdentity({ ...base(), pan: '', dob: '' }, { primary_kycVerifiedKeys: ['primary_pan', 'primary_dob'] }), null);
-  assert.match(validateNominees({ ...base(), noms: [{ name: 'A', rel: 'Son', alloc: '60' }, { name: 'B', rel: 'Daughter', alloc: '30' }] }), /90%/);
+  assert.match(validateNominees({ ...base(), noms: [{ name: 'Asha Rao', rel: 'Son', alloc: '60' }, { name: 'Bela Rao', rel: 'Daughter', alloc: '30' }] }), /90%/);
   assert.equal(validateNominees({ ...base(), noms: [], nomOptOut: true }), null);
 });
 
@@ -116,4 +117,105 @@ test('dates, mobiles, risk and resume helpers', () => {
   assert.equal(resumeStepFor({}, 3, 'draft'), 'docs');
   assert.equal(resumeStepFor({ appStep: 'docs' }, 1, 'submitted'), 'tracker');
   assert.equal(resumeStepFor({ appStep: 'q' }, 1, 'draft'), 'identity');
+});
+
+test('document slots satisfied by a saved draft come from verified keys, digioDocKeys and the bank waiver', () => {
+  const data = {
+    primary_kycStatus: 'verified',
+    primary_kycVerifiedKeys: ['primary_fullName', 'primary_pan', 'primary_aadhaarMasked', 'primary_kycStatus'],
+    second_kycVerifiedKeys: ['second_pan'],
+    digioDocKeys: ['doc_pan_h1', 'doc_digilocker_bundle_h3'],
+    primary_bank_accountNumber: '1234',
+  };
+  assert.deepEqual(satisfiedFromServer(data).sort(), ['doc_aadhaar_h1', 'doc_cancelled_cheque', 'doc_digilocker_bundle_h3', 'doc_pan_h1', 'doc_pan_h2'].sort());
+  assert.deepEqual(satisfiedFromServer({}), []);
+  assert.deepEqual(satisfiedFromServer(null), []);
+});
+
+// ---- Field checks -------------------------------------------------------------------
+test('names accept letters and common punctuation only', () => {
+  assert.equal(cleanName('Ravi 123 Kumar!'), 'Ravi  Kumar');
+  assert.equal(cleanName("D'Souza-Rao Jr."), "D'Souza-Rao Jr.");
+  assert.equal(cleanName('x'.repeat(120)).length, 100);
+  assert.equal(isValidName('Ravi Kumar'), true);
+  assert.equal(isValidName('R'), false);
+  assert.equal(isValidName('   '), false);
+  assert.equal(isValidName('.-'), false);
+});
+
+test('emails need a real domain and no spaces', () => {
+  assert.equal(isValidEmail('ravi.kumar+qode@example.co.in'), true);
+  assert.equal(isValidEmail('ravi@example'), false);
+  assert.equal(isValidEmail('ravi@@example.com'), false);
+  assert.equal(isValidEmail('ra vi@example.com'), false);
+  assert.equal(isValidEmail('ravi@exa mple.com'), false);
+  assert.equal(isValidEmail('ravi@example..com'), false);
+  assert.equal(isValidEmail('a@' + 'b'.repeat(250) + '.com'), false);
+});
+
+test('mobiles are 10 digits, start with 6-9 and are not a repeated digit', () => {
+  assert.equal(isValidMobile('9876543210'), true);
+  assert.equal(isValidMobile('+91 98765 43210'), true);
+  assert.equal(isValidMobile('5876543210'), false);
+  assert.equal(isValidMobile('9999999999'), false);
+  assert.equal(isValidMobile('98765'), false);
+});
+
+test('PAN shape and holder type', () => {
+  assert.equal(isValidPan('ABCPE1234F'), true);
+  assert.equal(isValidPan('abcpe1234f'), true);
+  assert.equal(isValidPan('ABCDE12345'), false);
+  assert.equal(isIndividualPan('ABCPE1234F'), true);
+  assert.equal(isIndividualPan('ABCCE1234F'), false);
+  assert.equal(isIndividualPan('bad'), false);
+});
+
+test('date of birth must be a real date, an adult, and not impossibly old', () => {
+  const now = new Date('2026-09-24');
+  assert.equal(validateDob('17 / 04 / 1988', now), null);
+  assert.match(validateDob('', now), /DD \/ MM \/ YYYY/);
+  assert.match(validateDob('31 / 02 / 1990', now), /DD \/ MM \/ YYYY/);
+  assert.match(validateDob('24 / 09 / 2010', now), /18 or older/);
+  assert.match(validateDob('01 / 01 / 1890', now), /check the year/);
+  assert.match(validateDob('01 / 01 / 2030', now), /18 or older/);
+});
+
+test('addresses carry a PIN code', () => {
+  assert.equal(hasPin('12 MG Road, Bengaluru 560001'), true);
+  assert.equal(hasPin('12 MG Road, Bengaluru'), false);
+  assert.equal(hasPin('Flat 1234567 Road'), false);
+});
+
+test('investment amount respects the PMS minimum', () => {
+  assert.equal(validateAmount(5000000), null);
+  assert.equal(validateAmount(12500000), null);
+  assert.match(validateAmount(4999999), /50,00,000/);
+  assert.match(validateAmount(0), /50,00,000/);
+  assert.match(validateAmount(NaN), /50,00,000/);
+});
+
+test('identity step enforces every field for both holders', () => {
+  const ok = { ...base(), pan: 'ABCPK1234F', addr: '12 MG Road, Indiranagar, Bengaluru 560038' };
+  assert.equal(validateIdentity(ok, {}), null);
+  assert.match(validateIdentity({ ...ok, name: 'R2' }, {}), /name/i);
+  assert.match(validateIdentity({ ...ok, pan: 'ABCCK1234F' }, {}), /individual/i);
+  assert.match(validateIdentity({ ...ok, addr: '12 MG Road, Indiranagar' }, {}), /PIN/);
+  assert.match(validateIdentity({ ...ok, dob: '01 / 01 / 1890' }, {}), /year/);
+  const two = { ...ok, h2: true, h2Name: 'Anita Rao', h2Email: '', h2Mobile: '9111111111', h2Pan: 'ABCPA1111A', h2Dob: '01 / 01 / 1990' };
+  assert.equal(validateIdentity(two, {}), null);
+  assert.match(validateIdentity({ ...two, h2Email: 'nope', h2Mobile: '9111111111' }, {}), /email/i);
+  assert.match(validateIdentity({ ...two, h2Pan: 'ABCPK1234F' }, {}), /same PAN/i);
+  assert.match(validateIdentity({ ...two, h2Dob: '01 / 01 / 2015' }, {}), /18 or older/);
+  assert.match(validateIdentity({ ...two, h2Dob: '' }, {}), /DD \/ MM \/ YYYY/);
+});
+
+test('nominee fields are checked individually', () => {
+  const good = { ...base(), noms: [{ name: 'Anita Rao', rel: 'Spouse', mob: '', alloc: '100', minor: false, guardian: '' }] };
+  assert.equal(validateNominees(good), null);
+  assert.match(validateNominees({ ...good, noms: [{ ...good.noms[0], rel: 'Wife 2' }] }), /relationship/i);
+  assert.match(validateNominees({ ...good, noms: [{ ...good.noms[0], mob: '12345' }] }), /mobile/i);
+  assert.match(validateNominees({ ...good, noms: [{ ...good.noms[0], alloc: '0' }] }), /1 and 100/);
+  assert.match(validateNominees({ ...good, noms: [{ ...good.noms[0], alloc: '100.5' }] }), /whole/);
+  assert.match(validateNominees({ ...good, noms: [{ ...good.noms[0], minor: true, guardian: 'G' }] }), /guardian/i);
+  assert.match(validateNominees({ ...good, noms: [{ ...good.noms[0], name: 'A1' }] }), /name/i);
 });

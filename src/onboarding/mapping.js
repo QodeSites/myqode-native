@@ -62,9 +62,26 @@ export function normalizeMobile(s) {
   const d = clean(s).replace(/\D/g, '');
   return d.length > 10 ? d.slice(-10) : d;
 }
-export function isValidMobile(s) { return /^[6-9]\d{9}$/.test(normalizeMobile(s)); }
-export function isValidEmail(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(clean(s)); }
+// Indian mobile: 10 digits starting 6–9; a repeated digit (9999999999) is never a real number.
+export function isValidMobile(s) { const m = normalizeMobile(s); return /^[6-9]\d{9}$/.test(m) && !/^(\d)\1{9}$/.test(m); }
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\.[A-Za-z]{2,}$/;
+export function isValidEmail(s) { const e = clean(s); return e.length <= 254 && EMAIL_RE.test(e); }
 export function isValidPan(s) { return /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(clean(s).toUpperCase()); }
+// The 4th letter of a PAN encodes the holder type: P person, H HUF, C company, F firm, T trust…
+// An individual account holder must give a P PAN.
+export function isIndividualPan(s) { return isValidPan(s) && clean(s).toUpperCase()[3] === 'P'; }
+
+// Names as they appear on PAN: letters, spaces, dot, apostrophe, hyphen. Applied as the user types.
+export function cleanName(t) { return String(t || '').replace(/[^A-Za-z .'-]/g, '').slice(0, 100); }
+export function isValidName(s) {
+  const v = clean(s);
+  return v.length > 0 && v === cleanName(v).trim() && (v.match(/[A-Za-z]/g) || []).length >= 2;
+}
+// A typed address "as per proof" must carry a 6-digit Indian PIN code (first digit 1–9).
+export function hasPin(s) { return /(^|\D)[1-9]\d{5}(?=\D|$)/.test(clean(s)); }
+// SEBI's minimum for a PMS account.
+export const MIN_INVESTMENT = 5000000;
+export function validateAmount(amt) { return amt >= MIN_INVESTMENT ? null : 'The minimum investment is ₹50,00,000.'; }
 
 // DOB in the app is typed as digits and displayed "DD / MM / YYYY".
 export function formatDobInput(raw) {
@@ -90,6 +107,15 @@ export function isAdult(iso, now = new Date()) {
   const [y, m, d] = iso.split('-').map(Number);
   const cutoff = new Date(Date.UTC(now.getUTCFullYear() - 18, now.getUTCMonth(), now.getUTCDate()));
   return Date.UTC(y, m - 1, d) <= cutoff.getTime();
+}
+// Full date-of-birth check for a typed (not DigiLocker-locked) field: a real calendar date, an
+// adult, and not more than 120 years back. Returns the message to show, or null.
+export function validateDob(display, now = new Date()) {
+  const iso = dobToIso(display);
+  if (!iso) return 'Please enter the date of birth as DD / MM / YYYY.';
+  if (+iso.slice(0, 4) < now.getUTCFullYear() - 120) return 'That date of birth looks too far back — please check the year.';
+  if (!isAdult(iso, now)) return 'Account holders must be 18 or older.';
+  return null;
 }
 
 export function riskProfileFor(ans) {
@@ -323,31 +349,42 @@ export function resolveDocs(slots, uploads, satisfiedKeys) {
 // ---- Validation -----------------------------------------------------------
 
 export function validateBegin(ob) {
-  if (!clean(ob.name)) return 'Please add your name so we know what to call you.';
+  if (!isValidName(ob.name)) return 'Please add your full name (letters only) so we know what to call you.';
   if (!isValidEmail(ob.email)) return 'That email doesn’t look complete — mind checking it?';
   if (!isValidMobile(ob.mobile)) return 'Your mobile number should be 10 digits, starting with 6 to 9.';
   return null;
 }
 
+// Fields DigiLocker verified are locked and skipped here; everything typed is checked.
 export function validateIdentity(ob, server) {
   const locked = lockedFieldsFor(server, 'primary');
-  if (!clean(ob.name)) return 'Please add the name as it appears on your PAN.';
+  if (!locked.name && !isValidName(ob.name)) return 'Please add the full name as it appears on your PAN (letters only).';
   if (!isValidEmail(ob.email)) return 'Please add a valid email for holder 1.';
   if (!isValidMobile(ob.mobile)) return 'Please add a valid 10-digit mobile for holder 1.';
   if (ob.type === 0) {
-    if (!locked.pan && !isValidPan(ob.pan)) return 'PAN should look like ABCDE1234F.';
-    if (!locked.dob) {
-      const iso = dobToIso(ob.dob);
-      if (!iso) return 'Please enter your date of birth as DD / MM / YYYY.';
-      if (!isAdult(iso)) return 'Account holders must be 18 or older.';
+    if (!locked.pan) {
+      if (!isValidPan(ob.pan)) return 'PAN should look like ABCPE1234F.';
+      if (!isIndividualPan(ob.pan)) return 'This PAN isn’t an individual’s PAN — the 4th letter should be P.';
     }
-    if (!locked.addr && clean(ob.addr).length < 10) return 'Please add your full address as per your proof.';
+    if (!locked.dob) { const e = validateDob(ob.dob); if (e) return e; }
+    if (!locked.addr) {
+      if (clean(ob.addr).length < 10) return 'Please add your full address as per your proof.';
+      if (clean(ob.addr).length > 500) return 'Please keep the address under 500 characters.';
+      if (!hasPin(ob.addr)) return 'Please include the 6-digit PIN code in your address.';
+    }
   }
   if (ob.h2) {
-    if (!clean(ob.h2Name)) return 'Please add the second holder’s name.';
-    if (!isValidMobile(ob.h2Mobile) && !isValidEmail(ob.h2Email)) return 'Add a mobile or email for the second holder so we can verify them.';
     const locked2 = lockedFieldsFor(server, 'second');
-    if (!locked2.h2Pan && !isValidPan(ob.h2Pan)) return 'Second holder’s PAN should look like ABCDE1234F.';
+    if (!locked2.h2Name && !isValidName(ob.h2Name)) return 'Please add the second holder’s full name (letters only).';
+    if (clean(ob.h2Email) && !isValidEmail(ob.h2Email)) return 'Please check the second holder’s email.';
+    if (clean(ob.h2Mobile) && !isValidMobile(ob.h2Mobile)) return 'The second holder’s mobile should be 10 digits, starting with 6 to 9.';
+    if (!isValidMobile(ob.h2Mobile) && !isValidEmail(ob.h2Email)) return 'Add a mobile or email for the second holder so we can verify them.';
+    if (!locked2.h2Pan) {
+      if (!isValidPan(ob.h2Pan)) return 'Second holder’s PAN should look like ABCPE1234F.';
+      if (!isIndividualPan(ob.h2Pan)) return 'The second holder’s PAN isn’t an individual’s PAN — the 4th letter should be P.';
+      if (clean(ob.h2Pan).toUpperCase() === clean(ob.pan).toUpperCase()) return 'The second holder can’t have the same PAN as holder 1.';
+    }
+    if (!locked2.h2Dob) { const e = validateDob(ob.h2Dob); if (e) return e.replace('the date of birth', 'the second holder’s date of birth'); }
   }
   return null;
 }
@@ -355,9 +392,13 @@ export function validateIdentity(ob, server) {
 export function validateNominees(ob) {
   if (ob.nomOptOut || !ob.noms || ob.noms.length === 0) return null;
   for (const n of ob.noms) {
-    if (!clean(n.name)) return 'Each nominee needs a name.';
-    if (!clean(n.rel)) return 'Tell us how each nominee is related to you.';
-    if (n.minor && !clean(n.guardian)) return 'A minor nominee needs a guardian name.';
+    if (!isValidName(n.name)) return 'Each nominee needs a full name (letters only).';
+    if (!isValidName(n.rel)) return 'Relationship should be a word like Spouse, Son or Daughter.';
+    if (clean(n.mob) && !isValidMobile(n.mob)) return 'A nominee’s mobile should be 10 digits, starting with 6 to 9.';
+    if (!/^\d+$/.test(clean(n.alloc))) return 'Shares should be whole numbers.';
+    const share = parseInt(n.alloc, 10);
+    if (share < 1 || share > 100) return 'Each share should be between 1 and 100%.';
+    if (n.minor && !isValidName(n.guardian)) return 'A minor nominee needs a guardian’s full name.';
   }
   const sum = ob.noms.reduce((s, n) => s + (parseInt(n.alloc, 10) || 0), 0);
   if (sum !== 100) return `Allocations should add up to 100%. They’re at ${sum}% now.`;
@@ -377,4 +418,19 @@ export function validateForSubmit(ob, server, docRows) {
   return validateBegin(ob) || validateIdentity(ob, server)
     || (ob.ans.some(a => a == null) ? 'Please answer all six risk questions.' : null)
     || validateNominees(ob) || validateDocs(docRows);
+}
+
+// Document slots a saved draft already covers, rebuilt on resume: DigiLocker-fetched PAN and
+// Aadhaar per holder (the verified keys prove the fetch even while the server's media download
+// is still pending), the web wizard's `digioDocKeys` list, and the penny-drop cheque waiver.
+export function satisfiedFromServer(data) {
+  if (!data) return [];
+  const out = new Set(Array.isArray(data.digioDocKeys) ? data.digioDocKeys : []);
+  ['primary', 'second', 'third'].forEach((p, i) => {
+    const keys = Array.isArray(data[`${p}_kycVerifiedKeys`]) ? data[`${p}_kycVerifiedKeys`] : [];
+    if (keys.includes(`${p}_pan`)) out.add(`doc_pan_h${i + 1}`);
+    if (keys.includes(`${p}_aadhaarMasked`)) out.add(`doc_aadhaar_h${i + 1}`);
+  });
+  if (data.primary_bank_accountNumber) out.add('doc_cancelled_cheque');
+  return [...out];
 }

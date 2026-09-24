@@ -7,10 +7,13 @@ import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, Tx, CTA } from '../ui';
 import { Check } from '../icons';
-import { buildDigioHtml } from '../onboarding/digio-html';
+import { buildDigioHtml, parseDigioReturn } from '../onboarding/digio-html';
 import { API_BASE } from '../onboarding/config';
 
 const ALLOWED = /^(https?:|about:blank)/i;
+// Where Digio's exit page sends the WebView when the flow ends (redirection approach, see
+// digio-html.js). Never actually loaded: onShouldStartLoadWithRequest intercepts it below.
+const RETURN_URL = API_BASE + '/mobile/digio-return';
 
 function Pill({ label, bg = C.gold, fg = C.ink }) {
   return (
@@ -45,7 +48,7 @@ export default function VerifySheet({ open, check, title, subtitle, onClose, onM
     return () => clearInterval(id);
   }, [open, active, check && check.startedAt]);
 
-  const html = useMemo(() => (check && check.sdkSrc ? buildDigioHtml(check) : null), [check && check.requestId, check && check.accessTokenId, check && check.sdkSrc]);
+  const html = useMemo(() => (check && check.sdkSrc ? buildDigioHtml({ ...check, returnUrl: RETURN_URL }) : null), [check && check.requestId, check && check.accessTokenId, check && check.sdkSrc]);
 
   if (!open) return null;
   const mm = String(Math.floor(elapsed / 60)).padStart(1, '0'), ss = String(elapsed % 60).padStart(2, '0');
@@ -89,11 +92,32 @@ export default function VerifySheet({ open, check, title, subtitle, onClose, onM
         <CTA label="UPLOAD DOCUMENTS INSTEAD" onPress={onManual} outline style={{ marginTop: 10 }} />
       </Panel>
     );
+  } else if (check.sdkCancelled) {
+    body = (
+      <Panel icon={<Tx f="play" w={600} s={30} c={C.gold}>!</Tx>} title="You closed the verification window" body="Nothing was submitted. Reopen it to pick up where you left off, or upload your documents instead.">
+        <CTA label="REOPEN VERIFICATION" onPress={retryWindow} />
+        <CTA label="UPLOAD DOCUMENTS INSTEAD" onPress={onManual} outline style={{ marginTop: 10 }} />
+      </Panel>
+    );
   } else if (check.sdkError) {
     body = (
       <Panel icon={<Tx f="play" w={600} s={30} c={C.gold}>!</Tx>} title="Something interrupted the window" body={check.sdkError + ' If you already completed the steps, we are still checking with DigiLocker in the background.'}>
         <CTA label="REOPEN VERIFICATION" onPress={retryWindow} />
         <CTA label="UPLOAD DOCUMENTS INSTEAD" onPress={onManual} outline style={{ marginTop: 10 }} />
+      </Panel>
+    );
+  } else if (check.sdkResponded) {
+    // Digio's exit page has sent us back with status=success; the server poll now confirms
+    // it and fetches the verified details. Hide the WebView so the stale exit page is not seen.
+    body = (
+      <Panel
+        icon={<ActivityIndicator color={C.green} />}
+        title={check.purpose === 'bank' ? 'Confirming your bank account' : 'Confirming with DigiLocker'}
+        body="Digio has finished. We're fetching your verified details now — this usually takes a few seconds."
+      >
+        <Pressable onPress={onManual} style={{ paddingVertical: 10, alignItems: 'center' }}>
+          <Tx w={700} s={11.5} c={C.green}>Taking too long? Upload documents instead →</Tx>
+        </Pressable>
       </Panel>
     );
   } else {
@@ -133,6 +157,10 @@ export default function VerifySheet({ open, check, title, subtitle, onClose, onM
               )}
               onMessage={onMessage}
               onShouldStartLoadWithRequest={req => {
+                // Digio's exit page redirecting to our return URL: the flow is over. Report
+                // the outcome and keep the (non-existent) page from loading.
+                const ret = parseDigioReturn(req.url, RETURN_URL);
+                if (ret) { onEvent && onEvent(ret); return false; }
                 if (ALLOWED.test(req.url)) return true;
                 // tel:, mailto:, intent:, upi: and app-store links would pull the
                 // investor out of the app; keep everything inside this window.

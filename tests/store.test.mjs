@@ -197,3 +197,129 @@ test('e-sign unavailable is explained, not thrown', async () => {
   assert.match(store.check('primary', 'esign').error, /e-signature/);
   store.dispose();
 });
+
+// ---- Redirection approach: Digio's exit page navigates the WebView to our return URL -------------
+test('a successful Digio return is recorded and a poll follows', async () => {
+  let polls = 0;
+  const { store } = make({ getKyc: async () => { polls += 1; return { status: 'requested', extracted: {}, docKeys: [] }; } });
+  await store.requestCreate('resident_individual', {});
+  await store.startVerification('primary', 'identity');
+  const before = polls;
+  store.sdkEvent('primary', 'identity', { type: 'return', status: 'success', message: 'KYC process completed', docId: 'KID1' });
+  await wait(5);
+  const c = store.check('primary', 'identity');
+  assert.equal(c.sdkResponded, true);
+  assert.equal(c.sdkError, null);
+  assert.equal(c.sdkCancelled, false);
+  assert.ok(polls > before);
+  store.dispose();
+});
+
+test('a cancelled Digio return is a cancel, not an interruption', async () => {
+  const { store } = make();
+  await store.requestCreate('resident_individual', {});
+  await store.startVerification('primary', 'identity');
+  store.sdkEvent('primary', 'identity', { type: 'return', status: 'cancel', message: 'KYC Process Cancelled', docId: 'KID1' });
+  const c = store.check('primary', 'identity');
+  assert.equal(c.sdkResponded, true);
+  assert.equal(c.sdkError, 'KYC Process Cancelled');
+  assert.equal(c.sdkCancelled, true);
+  store.dispose();
+});
+
+test('a terminated Digio return is an error, not a cancel', async () => {
+  const { store } = make();
+  await store.requestCreate('resident_individual', {});
+  await store.startVerification('primary', 'identity');
+  store.sdkEvent('primary', 'identity', { type: 'return', status: 'cancel', errorCode: 'TERMINATED', message: 'KYC Request Expired', docId: 'KID1' });
+  const c = store.check('primary', 'identity');
+  assert.equal(c.sdkError, 'KYC Request Expired');
+  assert.equal(c.sdkCancelled, false);
+  store.dispose();
+});
+
+test('SDK callback CANCELLED is flagged as a cancel', async () => {
+  const { store } = make();
+  await store.requestCreate('resident_individual', {});
+  await store.startVerification('primary', 'identity');
+  store.sdkEvent('primary', 'identity', { type: 'callback', response: { error_code: 'CANCELLED', message: 'closed' } });
+  assert.equal(store.check('primary', 'identity').sdkCancelled, true);
+  store.dispose();
+});
+
+test('page log messages never interrupt the window', async () => {
+  const { store } = make();
+  await store.requestCreate('resident_individual', {});
+  await store.startVerification('primary', 'identity');
+  store.sdkEvent('primary', 'identity', { type: 'opened' });
+  store.sdkEvent('primary', 'identity', { type: 'log', message: 'Script error.' });
+  const c = store.check('primary', 'identity');
+  assert.equal(c.sdkError, null);
+  assert.equal(c.opened, true);
+  store.dispose();
+});
+
+test('reopening the window clears a previous cancel', async () => {
+  const { store } = make();
+  await store.requestCreate('resident_individual', {});
+  await store.startVerification('primary', 'identity');
+  store.sdkEvent('primary', 'identity', { type: 'return', status: 'cancel', message: 'KYC Process Cancelled' });
+  store.sdkEvent('primary', 'identity', { type: 'opened' });
+  const c = store.check('primary', 'identity');
+  assert.equal(c.sdkError, null);
+  assert.equal(c.sdkCancelled, false);
+  assert.equal(c.sdkResponded, false);
+  store.dispose();
+});
+
+// ---- Resume keeps what DigiLocker fetched ---------------------------------------------------
+test('hydrate restores DigiLocker-satisfied document slots from the saved draft', async () => {
+  const { store } = make({
+    getSubmission: async () => ({ id: 'sub_1', resumeToken: 'tok_1', accountType: 'resident_individual', status: 'draft', currentStep: 3, uploads: [],
+      data: { primary_kycStatus: 'verified', primary_kycVerifiedKeys: ['primary_pan', 'primary_aadhaarMasked'], digioDocKeys: ['doc_cancelled_cheque'] } }),
+  });
+  await store.hydrate('tok_1');
+  assert.deepEqual([...store.s.satisfied].sort(), ['doc_aadhaar_h1', 'doc_cancelled_cheque', 'doc_pan_h1']);
+  store.dispose();
+});
+
+test('a verification persists its check id and doc keys on the draft', async () => {
+  let n = 0;
+  const { api, store } = make({
+    getKyc: async () => { n += 1; return n < 2 ? { status: 'requested', extracted: {}, docKeys: [] } : { status: 'approved', extracted: { primary_pan: 'ABCPK1234F' }, docKeys: ['doc_pan_h1', 'doc_aadhaar_h1'] }; },
+  });
+  await store.requestCreate('resident_individual', { primary_email: 'r@x.com' });
+  await store.startVerification('primary', 'identity');
+  store.pollNow('primary_identity');
+  await wait(300);
+  const patches = api.calls.filter(c => c[0] === 'patch').map(c => c[2].data);
+  assert.ok(patches.some(d => d.primary_kycCheckId === 'chk_1'), 'check id saved on the draft');
+  assert.ok(patches.some(d => Array.isArray(d.digioDocKeys) && d.digioDocKeys.includes('doc_pan_h1') && d.digioDocKeys.includes('doc_aadhaar_h1')), 'doc keys saved on the draft');
+  store.dispose();
+});
+
+test('hydrate catches up a verification that finished while the app was closed', async () => {
+  const polled = [];
+  const { store } = make({
+    getSubmission: async () => ({ id: 'sub_1', resumeToken: 'tok_1', accountType: 'resident_individual', status: 'draft', currentStep: 1, uploads: [],
+      data: { primary_fullName: 'RAVI', primary_kycCheckId: 'chk_9' } }),
+    getKyc: async id => { polled.push(id); return { status: 'approved', extracted: { primary_pan: 'ABCPK1234F', primary_kycStatus: 'verified', primary_kycVerifiedKeys: ['primary_pan'] }, docKeys: ['doc_pan_h1'] }; },
+  });
+  await store.hydrate('tok_1');
+  assert.deepEqual(polled, ['chk_9']);
+  assert.equal(store.s.server.primary_pan, 'ABCPK1234F');
+  assert.ok(store.s.satisfied.includes('doc_pan_h1'));
+  store.dispose();
+});
+
+test('hydrate ignores a persisted check that is still pending', async () => {
+  const { store } = make({
+    getSubmission: async () => ({ id: 'sub_1', resumeToken: 'tok_1', accountType: 'resident_individual', status: 'draft', currentStep: 1, uploads: [],
+      data: { primary_kycCheckId: 'chk_9' } }),
+    getKyc: async () => ({ status: 'requested', extracted: {}, docKeys: [] }),
+  });
+  await store.hydrate('tok_1');
+  assert.deepEqual(store.s.satisfied, []);
+  assert.deepEqual(store.s.checks, {});
+  store.dispose();
+});
