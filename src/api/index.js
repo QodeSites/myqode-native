@@ -31,15 +31,22 @@ const platform = Platform.OS === 'web' ? undefined : Platform.OS;
 
 export const auth = {
   checkIdentifier: identifier => api('/auth/check-identifier', { method: 'POST', auth: false, body: { identifier } }),
-  login: (username, password) => api('/auth/login', { method: 'POST', auth: false, body: { username, password, platform } }),
+  // role: 'client' | 'distributor' from the login screen's switch — the server turns a wrong pick into a clear message.
+  login: (username, password, role) => api('/auth/login', { method: 'POST', auth: false, body: { username, password, platform, role } }),
+  // Re-issues a 30-day token for a valid one (called on start-up once the token is a day old) — the client stays signed in.
+  refresh: () => api('/auth/refresh', { method: 'POST' }),
   // Dev-server only: NODE_ENV=development makes the password optional.
   loginBypass: username => api('/auth/login', { method: 'POST', auth: false, body: { username, platform } }),
   devClients: () => api('/dev/clients', { auth: false }),
-  sendSetupOtp: guarded('sending a setup OTP email', email => api('/auth/send-setup-otp', { method: 'POST', auth: false, body: { email } })),
+  // Test builds send these with testRedirect: the server mails MOBILE_AUTH_EMAIL_OVERRIDE (the tester) instead of the
+  // client, or refuses when no override is set.
+  sendSetupOtp: email => (demoOn ? mock(() => ({ success: true })) : api('/auth/send-setup-otp', { method: 'POST', auth: false, body: { email, ...(TEST_MODE ? { testRedirect: true } : {}) } })),
   verifySetupOtp: (email, otp) => api('/auth/verify-setup-otp', { method: 'POST', auth: false, body: { email, otp } }),
-  completeOtpSetup: guarded('changing the client’s password', (email, otp, newPassword, confirmPassword) =>
-    api('/auth/complete-otp-setup', { method: 'POST', auth: false, body: { email, otp, newPassword, confirmPassword } })),
-  forgot: guarded('sending a password-reset email', email => api('/auth/forgot', { method: 'POST', auth: false, body: { email } })),
+  // Not blocked in test mode (decided 2026-09-24, to test the flow as a real user): the OTP only reaches the tester
+  // via the server's MOBILE_AUTH_EMAIL_OVERRIDE, and completing this REALLY sets that account's password.
+  completeOtpSetup: (email, otp, newPassword, confirmPassword) => (demoOn ? mock(() => ({ success: true }))
+    : api('/auth/complete-otp-setup', { method: 'POST', auth: false, body: { email, otp, newPassword, confirmPassword } })),
+  forgot: email => (demoOn ? mock(() => ({ success: true })) : api('/auth/forgot', { method: 'POST', auth: false, body: { email, ...(TEST_MODE ? { testRedirect: true } : {}) } })),
   me: () => api('/auth/me'),
 };
 
@@ -164,6 +171,24 @@ export const payments = {
   createOrder: guarded('creating a Cashfree payment order', body => api('/payments/create-order', { method: 'POST', body })),
   verify: orderId => call('/payments/verify', { query: { orderId } }, () => demo.verifyOrder(orderId)),
   investmentStatus: accountId => call('/payments/investment-status', { query: { accountId } }, () => demo.investmentStatus()),
+};
+
+// Partner (distributor) login only — the server re-checks the distributor role on every call.
+// Read-only: a distributor never acts on an investor's account from the app.
+export const distributor = {
+  journey: () => api('/distributor/journey'),
+  strategyAum: () => api('/distributor/strategy-aum'),
+  // Fees & payouts — same figures as the web (the server calls the web calculator)
+  feePeriods: () => api('/distributor/fees'),
+  feeRows: period => api('/distributor/fees', { method: 'POST', body: { startDate: period.startDate, endDate: period.endDate, period: period.label }, timeout: 60000 }),
+  invoiceProfile: () => api('/distributor/invoice-profile'),
+  saveInvoiceProfile: body => api('/distributor/invoice-profile', { method: 'PUT', body }),
+  invoices: () => api('/distributor/invoice-issue'),
+  issueInvoice: body => api('/distributor/invoice-issue', { method: 'POST', body }),
+  // Signed 5-minute link to a PDF (investor statement or deck), opened in the phone's viewer
+  fileLink: body => api('/distributor/file-link', { method: 'POST', body }),
+  indicator: () => api('/distributor/indicator', { timeout: 45000 }),
+  ticket: body => api('/distributor/ticket', { method: 'POST', body }),
 };
 
 // Super-admin only (token must carry isSuperAdmin and not be an impersonation token).

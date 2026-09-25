@@ -15,5 +15,6 @@ export const DEV_BYPASS = on(process.env.EXPO_PUBLIC_DEV_BYPASS);
 // (myQode .env, defaults 1.1.2 / 1.0.0) drive the "update available" / "update required" banner.
 export const APP_VERSION = (Constants.expoConfig && Constants.expoConfig.version) || '1.0.0';
 
-// Testing: hide the update banner. In a release build (TEST_MODE off) it always applies.
-export const SHOW_UPDATE_BANNER = !TEST_MODE;
+// Update pop-up: always on in a release build (TEST_MODE off). While testing it is hidden, unless
+// EXPO_PUBLIC_SHOW_UPDATE_PROMPT=1 — which shows it without turning test mode (and its client protections) off.
+export const SHOW_UPDATE_BANNER = !TEST_MODE || on(process.env.EXPO_PUBLIC_SHOW_UPDATE_PROMPT);

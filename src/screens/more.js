@@ -1,8 +1,8 @@
 // More tab: profile, Investor Relations contact and the web app's menu groups.
 import React from 'react';
 import { View, Pressable, Linking } from 'react-native';
-import { C, Tx, Card, Fade } from '../ui';
-import { ChevronRight, Phone, MailIcon } from '../icons';
+import { C, Tx, Card, Fade, Toggle } from '../ui';
+import { ChevronRight, Phone, MailIcon, FaceID } from '../icons';
 import { CONTACT } from '../content';
 import { SectionLabel } from './kit';
 
@@ -49,6 +49,20 @@ export function MoreCream({ V }) {
           ))}
         </Card>
       )}
+      {!!V.bio && (
+        <>
+          <SectionLabel>SECURITY</SectionLabel>
+          <Card style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(2,66,43,0.1)', alignItems: 'center', justifyContent: 'center' }}><FaceID s={20} /></View>
+            <View style={{ flex: 1 }}>
+              <Tx w={700} s={13}>Unlock with {V.bio.label}</Tx>
+              <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>{V.bioOn ? 'On — asked each time the app opens' : 'Off — tap to turn on'}</Tx>
+              {!!V.bioNote && <Tx s={10.5} c={C.gray} lh={1.4} style={{ marginTop: 4 }}>{V.bioNote}</Tx>}
+            </View>
+            <Toggle on={V.bioOn} onPress={V.bioToggle} />
+          </Card>
+        </>
+      )}
       {GROUPS.map(g => (
         <View key={g.title}>
           <SectionLabel>{g.title}</SectionLabel>
@@ -65,23 +79,23 @@ export function MoreCream({ V }) {
           </Card>
         </View>
       ))}
-      <SectionLabel>DEVELOPER</SectionLabel>
-      <Card style={{ overflow: 'hidden' }}>
-        {[['Data requirements & API coverage', 'requirements'], ...(V.isSuperAdmin || V.impersonated ? [[V.impersonated ? 'Admin · exit impersonation' : 'Admin · clients & impersonation', 'admin']] : [])].map(([label, key], i, a) => (
-          <Pressable key={key} onPress={() => V.openPage(key)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, minHeight: 46, borderBottomWidth: i < a.length - 1 ? 1 : 0, borderColor: C.hairline }}>
-            <Tx w={700} s={13} style={{ flex: 1 }}>{label}</Tx>
-            <ChevronRight />
-          </Pressable>
-        ))}
-      </Card>
+      {(V.isSuperAdmin || V.impersonated) && (
+        <>
+          <SectionLabel>ADMIN</SectionLabel>
+          <Card style={{ overflow: 'hidden' }}>
+            <Pressable onPress={() => V.openPage('admin')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, minHeight: 46 }}>
+              <Tx w={700} s={13} style={{ flex: 1 }}>{V.impersonated ? 'Admin · exit impersonation' : 'Admin · clients & impersonation'}</Tx>
+              <ChevronRight />
+            </Pressable>
+          </Card>
+        </>
+      )}
       <SectionLabel>SETTINGS</SectionLabel>
       <Card style={{ overflow: 'hidden' }}>
-        {[['Switch account', () => V.openSwitch()], ['Display & accessibility', V.openSettings]].map(([label, fn], i) => (
-          <Pressable key={label} onPress={fn} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, minHeight: 46, borderBottomWidth: i < 1 ? 1 : 0, borderColor: C.hairline }}>
-            <Tx w={700} s={13} style={{ flex: 1 }}>{label}</Tx>
-            <ChevronRight />
-          </Pressable>
-        ))}
+        <Pressable onPress={V.openSettings} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, minHeight: 46 }}>
+          <Tx w={700} s={13} style={{ flex: 1 }}>Display & accessibility</Tx>
+          <ChevronRight />
+        </Pressable>
       </Card>
       <Pressable onPress={V.doLogout} style={{ padding: 12, marginTop: 18 }}>
         <Tx w={700} s={13} c={C.red} center>Sign out</Tx>

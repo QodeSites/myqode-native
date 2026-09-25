@@ -3,7 +3,7 @@
 import React from 'react';
 import { View, Pressable } from 'react-native';
 import { C, Tx, Amt, Sheet, Field, CTA, Chip, ChipRow, Toggle, Hairline } from '../ui';
-import { Crown, ChevronRight } from '../icons';
+import { Crown, ChevronRight, FamilyIcon } from '../icons';
 
 // "For your attention" — notifications sheet (v2).
 export function NotifsSheet({ V }) {
@@ -123,7 +123,7 @@ export function SwitchSheet({ V }) {
           backgroundColor: V.famActive ? 'rgba(218,189,56,0.08)' : 'transparent',
         }}>
           <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center' }}>
-            <Tx w={700} s={11} c={C.ink}>MF</Tx>
+            <FamilyIcon s={19} />
           </View>
           <View style={{ flex: 1 }}>
             <Tx w={700} s={13}>Entire Family</Tx>
@@ -151,13 +151,22 @@ export function SettingsSheet({ V }) {
           </View>
           <Toggle on={V.hcOn} onPress={V.hcToggle} />
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16, borderBottomWidth: V.bio ? 1 : 0, borderColor: C.hairline }}>
           <View style={{ flex: 1 }}>
             <Tx w={700} s={13}>Reduced motion</Tx>
             <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>Minimises animation throughout</Tx>
           </View>
           <Toggle on={V.rmOn} onPress={V.rmToggle} />
         </View>
+        {!!V.bio && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16 }}>
+            <View style={{ flex: 1 }}>
+              <Tx w={700} s={13}>Unlock with {V.bio.label}</Tx>
+              <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>Ask for {V.bio.label} when the app opens. You stay signed in.</Tx>
+            </View>
+            <Toggle on={V.bioOn} onPress={V.bioToggle} />
+          </View>
+        )}
       </View>
     </Sheet>
   );

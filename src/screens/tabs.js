@@ -102,6 +102,19 @@ export function HomeCream({ V }) {
         <View style={{ marginTop: 10 }}>
           <NavChart line={V.linePath} area={V.areaPath} bench={V.benchPath} tip={V.navTip} yTicks={V.yTicks} xDates={V.xDates} />
         </View>
+        {/* Legend: which line is which (same colours as the chart) */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ width: 14, height: 2.5, borderRadius: 2, backgroundColor: C.green }} />
+            <Tx s={10.5} c={C.muted}>Your portfolio</Tx>
+          </View>
+          {V.hasBench && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ width: 14, height: 1.5, borderRadius: 1, backgroundColor: C.gray }} />
+              <Tx s={10.5} c={C.muted}>{V.benchName}</Tx>
+            </View>
+          )}
+        </View>
         <RangeRow ranges={V.ranges} style={{ marginTop: 12 }} />
       </Card>
       <UccNotice visible={V.showUcc} onClose={V.dismissUcc} />
@@ -278,9 +291,9 @@ export function PortfolioCream({ V }) {
     <Fade>
       <Card big style={{ marginTop: -34, padding: 16, flexDirection: 'row' }}>
         {V.perfHead.map(([k, v, col]) => (
-          <View key={k} style={{ flex: 1 }}>
-            <Tx w={700} s={9.5} ls={0.1} c={C.muted}>{k}</Tx>
-            <Amt s={13.5} c={col} style={{ marginTop: 5 }}>{v}</Amt>
+          <View key={k} style={{ flex: 1, alignItems: 'center' }}>
+            <Tx w={700} s={9.5} ls={0.1} c={C.muted} center>{k}</Tx>
+            <Amt s={13.5} c={col} center style={{ marginTop: 5 }}>{v}</Amt>
           </View>
         ))}
       </Card>

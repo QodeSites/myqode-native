@@ -7,40 +7,10 @@ import React, { useState } from 'react';
 import { View, Pressable } from 'react-native';
 import { C, Tx, Card, Fade } from '../ui';
 import { DocIcon, ChevronRight } from '../icons';
-import { documents, BASE_URL } from '../api';
+import { documents } from '../api';
 import { useLoad, openUrl, ErrorBox, Empty, SectionLabel, AccountChips } from './kit';
 
-// The web's Policies page (trust/risk-managment-and-controls): four PDFs served from the site's /policies folder.
-const POLICIES = [
-  { title: 'Hedging Policy', file: 'hedging-policy.pdf', description: 'We use derivatives prudently to manage downside risk, not for speculation. Protective put options & hedges are employed where appropriate to safeguard portfolios against significant market declines.' },
-  { title: 'Liquidity Rules', file: 'liquidity-rules.pdf', description: 'We follow a defined liquidity policy to ensure capital is available for hedging and client needs.' },
-  { title: 'Rebalance Policy', file: 'rebalance-policy.pdf', description: 'All portfolios are rebalanced monthly, realigning holdings to strategy weights to control drift.' },
-  { title: 'Concentration Limits', file: 'concentration-limits.pdf', description: 'We impose no sector caps; portfolios are built bottom-up, with structural gold allocations.' },
-];
-
-function Policies() {
-  return (
-    <>
-      <SectionLabel style={{ marginTop: 22 }}>POLICIES</SectionLabel>
-      <Tx s={12} c={C.muted} lh={1.5} style={{ marginTop: -4, marginBottom: 10, marginLeft: 2 }}>Key operating policies that guide portfolio construction and risk management.</Tx>
-      <Card style={{ overflow: 'hidden' }}>
-        {POLICIES.map((p, i) => (
-          <View key={p.file} style={{ padding: 16, borderBottomWidth: i < POLICIES.length - 1 ? 1 : 0, borderColor: C.hairline }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Tx f="play" w={600} s={17}>{p.title}</Tx>
-                <Tx s={12} c={C.muted} lh={1.5} style={{ marginTop: 4 }}>{p.description}</Tx>
-              </View>
-              <Pressable onPress={() => openUrl(BASE_URL + '/policies/' + p.file)} style={{ backgroundColor: C.green, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 14 }}>
-                <Tx w={700} s={11} c={C.cream}>Click here</Tx>
-              </Pressable>
-            </View>
-          </View>
-        ))}
-      </Card>
-    </>
-  );
-}
+// Policies are not listed here: they live on More → Risk management (with the Referral Policy), as on the web.
 
 // Same three sections, titles and descriptions as the web page. The mobile API also has a 4th
 // folder (disclosures); the web does not show it, so neither do we.
@@ -115,7 +85,6 @@ export function DocsCream({ V }) {
       {!!cats.err && <ErrorBox msg={cats.err} onRetry={cats.reload} />}
       {/* Sections are drawn straight away; the "n files" badges appear once the listing arrives. */}
       {!!accountId && SECTIONS.map(sec => <Section key={sec.id + accountId} sec={sec} accountId={accountId} count={counts[sec.id] || 0} reloadKey={V.rk} />)}
-      <Policies />
     </Fade>
   );
 }

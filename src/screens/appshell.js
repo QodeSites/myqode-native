@@ -5,7 +5,7 @@ import { View, Pressable, Animated, Dimensions, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, Tx, Amt, Chip, CurveCap, Fade, GoldThreads, useUI } from '../ui';
-import { Bell, Refresh, ChevronDown, ChevronRight, TabHome, TabPortfolio, TabDocs, TabServices, TabMore } from '../icons';
+import { Bell, Refresh, ChevronDown, FamilyIcon, ChevronRight, TabHome, TabPortfolio, TabDocs, TabServices, TabMore } from '../icons';
 import { PerfChart } from './charts';
 import { HomeCream, PortfolioCream, HoldingsCream, HomeSkeleton, OtherSkeleton } from './tabs';
 import { DocsCream } from './docs';
@@ -22,9 +22,10 @@ function Header({ V, insets }) {
         borderRadius: 999, paddingVertical: 5, paddingRight: 12, paddingLeft: 5, minHeight: 38, flexShrink: 1,
       }}>
         <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center' }}>
-          <Tx w={700} s={10} c={C.ink}>{V.acctInitials}</Tx>
+          {V.isFamily ? <FamilyIcon s={15} /> : <Tx w={700} s={10} c={C.ink}>{V.acctInitials}</Tx>}
         </View>
         <Tx w={700} s={13} c={C.cream} numberOfLines={1} style={{ flexShrink: 1 }}>{V.acctName}</Tx>
+        {!!V.acctTag && <Tx w={700} s={13} c={C.gold}>· {V.acctTag}</Tx>}
         {V.multiAcct && <ChevronDown />}
       </Pressable>
       <View style={{ flex: 1 }} />
@@ -48,13 +49,6 @@ function DarkZone({ V }) {
             <Tx w={700} s={9.5} ls={0.18} c={C.red}>TEST MODE · CLIENT CONTACT BLOCKED{V.impersonated ? ' · IMPERSONATING' : ''}</Tx>
           </View>
         </View>
-      )}
-      {!!V.update && (
-        <Pressable onPress={V.update.force ? undefined : V.dismissUpdate} style={{ marginTop: 10, marginHorizontal: 22, borderWidth: 1, borderColor: C.gold35, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12 }}>
-          <Tx w={700} s={11} c={C.gold}>{V.update.force ? 'Update required' : 'Update available'} · v{V.update.latestVersion}</Tx>
-          {!!V.update.message && <Tx s={11} c={C.cream80} lh={1.4} style={{ marginTop: 3 }}>{V.update.message}</Tx>}
-          {!V.update.force && <Tx s={10} c={C.cream60} style={{ marginTop: 3 }}>Tap to dismiss</Tx>}
-        </Pressable>
       )}
       {V.isDemo && (
         <View style={{ paddingTop: 10, paddingHorizontal: 22, flexDirection: 'row' }}>
@@ -162,10 +156,10 @@ function DarkZone({ V }) {
       {V.isMore && (
         <Fade style={{ paddingTop: 22, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center' }}>
-            <Tx w={700} s={16} c={C.ink}>{V.acctInitials}</Tx>
+            {V.isFamily ? <FamilyIcon s={26} /> : <Tx w={700} s={16} c={C.ink}>{V.acctInitials}</Tx>}
           </View>
           <View style={{ flex: 1 }}>
-            <Tx f="play" w={600} s={22} c={C.cream}>{V.acctName}</Tx>
+            <Tx f="play" w={600} s={22} c={C.cream}>{V.acctName}{V.acctTag ? <Tx f="play" w={600} s={22} c={C.gold}> · {V.acctTag}</Tx> : null}</Tx>
             <Tx s={11.5} c={C.cream60} style={{ marginTop: 3 }}>{V.acctCode}{V.sinceLbl ? ' · ' + V.sinceLbl : ''}</Tx>
           </View>
         </Fade>

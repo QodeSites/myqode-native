@@ -6,6 +6,9 @@ import React from 'react';
 import { View, StatusBar, BackHandler, AppState, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
+import { Alert } from 'react-native';
+import { biometricAvailable, biometricEnabled, setBiometricEnabled, biometricUnlock, inExpoGo } from './api/biometric';
+import { LockScreen, UpdatePrompt } from './screens/gate';
 import * as Network from 'expo-network';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -30,6 +33,7 @@ import Carousel from './screens/carousel';
 import { Login, OtpScreen, SetPassword } from './screens/login';
 import Onboarding, { ResumeScreen } from './screens/onboarding';
 import AppShell from './screens/appshell';
+import { DistributorShell } from './screens/distributor';
 import Curtain from './screens/curtain';
 // Onboarding (account opening) — a separate, unauthenticated backend; see src/onboarding/config.js.
 import OnboardingStore from './onboarding/store';
@@ -65,6 +69,10 @@ export default class MyQode extends React.Component {
     update: null, devOpen: false, devClients: null, devErr: '', devQ: '',
     resume: null,      // { token, source, loading, error, code } while a resume link / saved draft is being opened
     distributor: null, // ?d=<code> from a distributor link
+    loginAs: 'client', // login screen switch: 'client' | 'distributor'
+    bio: null,         // { label } when Face ID / fingerprint is available on this device
+    bioOn: false,      // user turned the start-up lock on
+    lockErr: '', lockBusy: false, lockGone: false,   // lockGone: lock was on but this phone no longer has biometrics
   };
 
   go(t) {
@@ -121,6 +129,8 @@ export default class MyQode extends React.Component {
     }
     this.appSub = AppState.addEventListener('change', st => {
       if (st === 'active' && this.state.phase === 'app' && Date.now() - (this.lastLoad || 0) > 60000) this.refresh();
+      // A release can land while the app sits in the background: look again when it comes back, at most every 30 min.
+      if (st === 'active' && Date.now() - (this.lastVersionCheck || 0) > 30 * 60 * 1000) this.checkVersion();
       if (this.store) { if (st === 'active') this.store.onForeground(); else if (st === 'background') this.store.onBackground(); }
     });
     this.boot();
@@ -150,6 +160,7 @@ export default class MyQode extends React.Component {
       if (S.tab !== 'home') { this.go('home'); return true; }
       return this.confirmExit();
     }
+    if (S.phase === 'partner' || S.phase === 'lock') return this.confirmExit();
     if (S.phase === 'resume') { this.setState({ phase: 'login', resume: null }); return true; }
     if (S.phase === 'ob') { this.obVals().obBack(); return true; }
     if (S.phase === 'otp' || S.phase === 'setpw') { this.setState({ phase: 'login', authErr: '', authInfo: '', busy: false }); return true; }
@@ -171,36 +182,70 @@ export default class MyQode extends React.Component {
     this.toastT = setTimeout(() => this.setState({ toast: '' }), 2000);
   }
 
-  async boot() {
+  async boot(unlocked = false) {
+    // Whether this device can use Face ID / fingerprint, and whether the user turned it on — for the More card.
+    biometricAvailable().then(bio => this.setState({ bio })).catch(() => {});
+    biometricEnabled().then(on => this.setState({ bioOn: !!on })).catch(() => {});
     const minSplash = new Promise(r => { this.splashT = setTimeout(r, 1200); });
-    let ok = false;
-    if (await getToken()) {
+    let ok = false, partner = false;
+    const token = await getToken();
+    if (token) {
+      // Stay signed in: a token more than a day old is swapped for a fresh 30-day one. Best effort — a failure
+      // (offline, admin/impersonation token) changes nothing.
+      try {
+        const iat = JSON.parse(globalThis.atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).iat;
+        if (iat && Date.now() / 1000 - iat > 86400) { const r = await auth.refresh(); if (r && r.token) await setToken(r.token); }
+      } catch {}
+      // Face ID / fingerprint gate: the session is intact, the user just has to unlock the app.
+      if (!unlocked && await biometricEnabled()) {
+        const bio = await biometricAvailable();
+        if (bio) {
+          this.setState({ bio, bioOn: true });
+          const r = await biometricUnlock(bio.label);
+          if (!r.ok) { await minSplash; this.setState({ phase: 'lock', lockErr: r.message, lockGone: false }); return; }
+        } else {
+          // The lock is on but the fingerprints / face were removed from the phone: never open unlocked —
+          // the password is the only way in.
+          await minSplash;
+          this.setState({ phase: 'lock', lockGone: true, lockErr: 'Fingerprint / face unlock is no longer set up on this phone. Sign in with your password to continue.' });
+          return;
+        }
+      }
+    }
+    if (token) {
       // Load everything the Home screen needs while the splash is showing, so the dashboard appears filled
       // in. Capped at 8 s: after that the app opens anyway and the skeleton takes over.
       const cap = new Promise(r => setTimeout(r, 8000));
       try {
         const me = await auth.me();
         await new Promise(r => this.setState({ user: me }, r));
+        if (me && me.isDistributor) partner = true;   // partner login: no investor accounts, no portfolio load
+        else {
         trackStart(me.clientCode);
         storeGet(UCC_SEEN_KEY).then(v => { if (v && v === String(me.clientCode)) this.setState({ uccSeen: true }); });
         services.bankDetails().catch(() => {});
         services.warmSwitchInfo();
         await Promise.race([this.openPortfolio(), cap]);
+        }
         ok = true;
       } catch (e) { if (e.status === 401) await clearToken(); }
     }
     this.checkVersion();
     await minSplash;
     if (this.unmounted || this.state.phase !== 'splash') return;
-    if (ok) this.startApp(); else this.setState({ phase: 'carousel' });
+    if (ok && partner) this.setState({ phase: 'partner' });
+    else if (ok) this.startApp(); else this.setState({ phase: 'carousel' });
   }
 
   async checkVersion() {
     if (!SHOW_UPDATE_BANNER) return;
     try {
       const v = await meta.appVersion();
-      if (v && v.minVersion && semverLt(APP_VERSION, v.minVersion)) this.setState({ update: { force: true, ...v } });
-      else if (v && v.latestVersion && semverLt(APP_VERSION, v.latestVersion)) this.setState({ update: { force: false, ...v } });
+      this.lastVersionCheck = Date.now();
+      // Forced: below the minimum version, or the server's APP_FORCE_UPDATE=true (everyone must update).
+      if (v && ((v.minVersion && semverLt(APP_VERSION, v.minVersion)) || (v.forceUpdate && v.latestVersion && semverLt(APP_VERSION, v.latestVersion)))) this.setState({ update: { force: true, ...v } });
+      else if (v && v.latestVersion && semverLt(APP_VERSION, v.latestVersion)) { if (!this.updateDismissed) this.setState({ update: { force: false, ...v } }); }
+      else this.setState({ update: null });
     } catch {}
   }
 
@@ -211,7 +256,8 @@ export default class MyQode extends React.Component {
       const code = S.acct.slice(2);
       for (const o of sc.owners) {
         const a = o.accounts.find(x => String(x.id) === code);
-        if (a) return { id: String(a.id), kind: 'account', name: a.strategyName || a.id, initials: (a.strategyPrefix || 'Q').slice(0, 3), code: a.id + ' · ' + o.name, value: num(a.portfolioValue) || 0, accounts: [a] };
+        // shown as member + strategy: the member's initials, "<member> · <strategy prefix>"
+        if (a) return { id: String(a.id), kind: 'account', name: o.name, initials: o.initials, tag: a.strategyPrefix || a.strategyName || '', code: a.id + ' · ' + (a.strategyName || a.id), value: num(a.portfolioValue) || 0, accounts: [a] };
       }
     }
     return (S.acct === -1 ? sc.family : sc.owners[S.acct]) || sc.owners[0] || null;
@@ -404,9 +450,10 @@ export default class MyQode extends React.Component {
     if (!id || !pw) return this.setState({ authErr: 'Enter your email or client code and your password.' });
     this.setState({ busy: true, authErr: '', authInfo: '' });
     try {
-      { const r = await auth.login(id, pw); await this.finishLogin(r.token, r.user); }
+      { const r = await auth.login(id, pw, this.state.loginAs); await this.finishLogin(r.token, r.user); }
     } catch (e) {
       if (e.code === 'PASSWORD_SETUP_REQUIRED') return this.beginSetup(id);
+      if (e.code === 'ROLE_MISMATCH' && e.data && e.data.role) { this.setState({ loginAs: e.data.role, busy: false, authErr: e.message }); return; }
       this.authFail(e);
     }
   };
@@ -414,12 +461,46 @@ export default class MyQode extends React.Component {
   async finishLogin(token, user) {
     await setToken(token);
     this.setState({ user: user || null });
+    this.offerBiometric();
+    if (user && user.isDistributor) {
+      this.setState({ busy: false, pw: '', np: '', np2: '', otp: ['', '', '', '', '', ''], authErr: '', phase: 'partner' });
+      return;
+    }
     trackStart(user && user.clientCode);
     await new Promise(r => this.setState({}, r));   // user (accountCodes) must be in state before scopes are built
     try { await this.openPortfolio(); } catch (e) { await clearToken(); throw e; }
     this.setState({ busy: false, pw: '', np: '', np2: '', otp: ['', '', '', '', '', ''], authErr: '' });
     this.startApp();
   }
+
+  // After a password sign-in: one-time offer to unlock with Face ID / fingerprint from now on.
+  async offerBiometric() {
+    try {
+      if (await biometricEnabled()) { this.setState({ bioOn: true, bio: await biometricAvailable() }); return; }
+      const bio = await biometricAvailable();
+      this.setState({ bio });
+      if (!bio || (await storeGet('myqode.biometricAsked'))) return;
+      await storeSet('myqode.biometricAsked', '1');
+      Alert.alert('Unlock with ' + bio.label + '?', 'Open myQode with ' + bio.label + ' instead of typing your password each time. You can change this under Settings.', [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Turn on', onPress: () => this.setBiometric(true) },
+      ]);
+    } catch {}
+  }
+  setBiometric = async on => {
+    if (on) { const r = await biometricUnlock((this.state.bio || {}).label); if (!r.ok) { if (r.message) this.toast(r.message); return; } }
+    await setBiometricEnabled(on);
+    this.setState({ bioOn: on });
+  };
+  lockRetry = async () => {
+    if (this.state.lockBusy) return;
+    this.setState({ lockBusy: true, lockErr: '' });
+    const r = await biometricUnlock((this.state.bio || {}).label);
+    if (!r.ok) { this.setState({ lockBusy: false, lockErr: r.message }); return; }
+    this.setState({ lockBusy: false, phase: 'splash' });
+    this.boot(true);
+  };
+  lockUsePassword = async () => { await setBiometricEnabled(false); this.setState({ bioOn: false }); this.signOut(); };
 
   async beginSetup(id) {
     try {
@@ -474,6 +555,7 @@ export default class MyQode extends React.Component {
   }
 
   doForgot = async () => {
+    if (this.state.busy) return;   // a second tap would issue a second link and cancel the first
     const id = this.state.email.trim();
     if (!id.includes('@')) return this.setState({ authErr: 'Enter your registered email above, then tap Forgot password.', authInfo: '' });
     this.setState({ busy: true, authErr: '', authInfo: '' });
@@ -534,6 +616,7 @@ export default class MyQode extends React.Component {
     });
   };
   expire() {
+    if (this.state.phase === 'partner') return this.signOut('Your session has expired. Please sign in again.');
     if (this.state.phase !== 'app') return;
     if (this.origToken) this.exitImpersonation();
     else this.signOut('Your session has expired. Please sign in again.');
@@ -777,7 +860,12 @@ export default class MyQode extends React.Component {
     const savedProg = this.store ? this.store.s.progress : null;
     return {
       isSplash: S.phase === 'splash', isLogin: S.phase === 'login', isOtp: S.phase === 'otp', isSetPw: S.phase === 'setpw', isApp: S.phase === 'app',
-      isCarousel: S.phase === 'carousel', isResume: S.phase === 'resume',
+      isCarousel: S.phase === 'carousel', isResume: S.phase === 'resume', isPartner: S.phase === 'partner', isLock: S.phase === 'lock',
+      loginAs: S.loginAs, setLoginAs: r => set({ loginAs: r, authErr: '', authInfo: '' }),
+      bio: S.bio, bioOn: S.bioOn, bioToggle: () => this.setBiometric(!S.bioOn),
+      lockRetry: this.lockRetry, lockUsePassword: this.lockUsePassword, lockErr: S.lockErr, lockBusy: S.lockBusy, lockGone: S.lockGone, lockLabel: (S.bio && S.bio.label) || 'fingerprint',
+      // Expo Go on iPhone can't use Face ID (the prompt falls back to the passcode); a real build can.
+      bioNote: S.bio && S.bio.iosFace && inExpoGo ? 'In Expo Go, iPhone asks for your passcode instead of Face ID. Face ID works in the installed app.' : '',
       carIdx: S.car,
       carNext: () => set({ car: Math.min(S.car + 1, 2) }), carPrev: () => set({ car: Math.max(S.car - 1, 0) }),
       carSkip: () => set({ phase: 'login' }), carDone: () => set({ phase: 'login' }),
@@ -788,9 +876,10 @@ export default class MyQode extends React.Component {
       testMode: TEST_MODE && !isDemo(), devBypass: DEV_BYPASS,
       devOpen: S.devOpen, toggleDev: this.toggleDev, bypassLogin: this.bypassLogin, devErr: S.devErr, reloadDev: this.loadDevClients, apiBase: BASE_URL,
       devQ: S.devQ, onDevQ: t => set({ devQ: t }),
-      devClients: (S.devClients || []).filter(c => { const q = S.devQ.trim().toLowerCase().replace(/[^a-z0-9@.]/g, ''); return !q || [c.name, c.email, c.clientCode].some(x => String(x || '').toLowerCase().replace(/[^a-z0-9@.]/g, '').includes(q)); }).slice(0, 40),
+      // Dev picker follows the login switch: Client shows investor accounts, Distributor shows partner logins.
+      devClients: (S.devClients || []).filter(c => (S.loginAs === 'distributor') === !!c.isDistributor).filter(c => { const q = S.devQ.trim().toLowerCase().replace(/[^a-z0-9@.]/g, ''); return !q || [c.name, c.email, c.clientCode].some(x => String(x || '').toLowerCase().replace(/[^a-z0-9@.]/g, '').includes(q)); }).slice(0, 40),
       devLoaded: S.devClients !== null,
-      update: S.update, dismissUpdate: () => set({ update: null }),
+      update: S.update, dismissUpdate: () => { this.updateDismissed = true; set({ update: null }); },   // "Later" holds until the next app start
       authErr: S.authErr, authInfo: S.authInfo, authBusy: S.busy,
       otpEmailMask: S.setupEmail.replace(/^(.).*(.@)/, '$1•••$2'),
       otpBoxes: S.otp.map((v, i) => ({
@@ -824,7 +913,7 @@ export default class MyQode extends React.Component {
       hasData, dataErr: !busy && !hasData ? (S.dErr || '') : '', retry: () => this.loadScope(0),
       refresh: this.refresh, refreshing: S.refreshing, rk: S.rk,
       doLogout: () => this.signOut(),
-      acctName: scope ? scope.name : '', acctInitials: scope ? scope.initials : '', acctCode: scope ? scope.code : '',
+      acctName: scope ? scope.name : '', acctInitials: scope ? scope.initials : '', acctTag: (scope && scope.tag) || '', acctCode: scope ? scope.code : '',
       isFamily: S.acct === -1 && !!family,
       multiAcct: owners.length > 0,   // owner aggregate vs its strategy accounts are different views, so the switcher always applies
       // notifications (no inbox API yet)
@@ -910,7 +999,7 @@ export default class MyQode extends React.Component {
       acctOptions: (scope ? scope.accounts : []).map(a => ({ id: a.id, label: a.strategyPrefix ? a.strategyPrefix + ' · ' + a.id : a.id })),
       openReq: k => set({ sheet: k }),
       bumpRefresh: () => set(s => ({ rk: s.rk + 1 })),
-      openAdd: () => set({ sheet: 'r-add' }), openWithdraw: () => set({ sheet: 'r-withdraw' }),
+      openAdd: () => set({ sheet: 'r-add' }),
       openSwitchStrategy: () => set({ sheet: 'r-switch' }),
       // every strategy account in the current scope, with its current value (snapshot) for the switch form
       switchAccounts: (scope ? scope.accounts : []).filter(a => a.strategyPrefix && a.strategyPrefix !== 'QLF').map(a => ({
@@ -1272,7 +1361,7 @@ export default class MyQode extends React.Component {
     };
     return (
       <UICtx.Provider value={U}>
-        <View style={{ flex: 1, backgroundColor: this.state.phase === 'app' ? C.cream : '#001008' }}>
+        <View style={{ flex: 1, backgroundColor: this.state.phase === 'app' || this.state.phase === 'partner' ? C.cream : '#001008' }}>
           <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
           {V.isSplash && <Splash V={V} />}
           {V.isCarousel && <Carousel V={V} />}
@@ -1282,6 +1371,9 @@ export default class MyQode extends React.Component {
           {V.isResume && <ResumeScreen V={V} />}
           {V.isOb && <Onboarding V={V} />}
           {V.isApp && <AppShell V={V} />}
+          {V.isPartner && <DistributorShell V={V} />}
+          {V.isLock && <LockScreen V={V} />}
+          <UpdatePrompt V={V} />
           {V.lifting && <Curtain onDone={V.liftDone} rm={this.state.rm} />}
           {!!this.state.toast && (
             <View style={{ position: 'absolute', left: 0, right: 0, bottom: 110, alignItems: 'center', pointerEvents: 'none' }}>

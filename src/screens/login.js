@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
-import { C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise } from '../ui';
+import { C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise, KeyboardScroll } from '../ui';
 
 function DarkHead({ children, pct = 0.42 }) {
   return (
@@ -28,18 +28,26 @@ function Msg({ V }) {
 
 export function Login({ V }) {
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: C.cream }}>
+    <View style={{ flex: 1, backgroundColor: C.cream }}>
       <DarkHead>
         <Tx f="play" w={600} s={32} c={C.cream}>myQode</Tx>
         <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: 12, marginBottom: 10 }} />
       </DarkHead>
-      <ScrollView style={{ flex: 1, marginTop: -46 }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+      <KeyboardScroll style={{ flex: 1, marginTop: -46 }} contentContainerStyle={{ flexGrow: 1 }} >
         <CurveCap height={46} />
         <View style={{ backgroundColor: C.cream, flexGrow: 1, paddingHorizontal: 24, paddingBottom: 30 }}>
           <Rise>
             <Card big style={{ marginTop: -30, paddingVertical: 24, paddingHorizontal: 22 }}>
               <Tx w={700} s={11} ls={0.14} c={C.muted}>WELCOME BACK</Tx>
-              <Field label="EMAIL OR CLIENT CODE" value={V.email} onChangeText={V.onEmail} placeholder="you@example.com" autoCapitalize="none" style={{ marginTop: 18 }} />
+              <View style={{ marginTop: 14, flexDirection: 'row', borderWidth: 1, borderColor: 'rgba(55,88,79,0.25)', borderRadius: 999, padding: 3 }}>
+                {[['client', 'CLIENT'], ['distributor', 'DISTRIBUTOR']].map(([k, l]) => (
+                  <Pressable key={k} onPress={() => V.setLoginAs(k)} accessibilityRole="button" accessibilityState={{ selected: V.loginAs === k }}
+                    style={{ flex: 1, paddingVertical: 9, borderRadius: 999, alignItems: 'center', backgroundColor: V.loginAs === k ? C.green : 'transparent' }}>
+                    <Tx w={700} s={10.5} ls={0.06} c={V.loginAs === k ? C.gold : C.muted}>{l}</Tx>
+                  </Pressable>
+                ))}
+              </View>
+              <Field label={V.loginAs === 'distributor' ? 'PARTNER EMAIL' : 'EMAIL OR CLIENT CODE'} value={V.email} onChangeText={V.onEmail} placeholder={V.loginAs === 'distributor' ? 'partner@firm.com' : 'you@example.com'} autoCapitalize="none" style={{ marginTop: 18 }} />
               <Field label="PASSWORD" value={V.pw} onChangeText={V.onPw} placeholder="••••••••" secure style={{ marginTop: 16 }} />
               <Msg V={V} />
               <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'SIGN IN SECURELY'} onPress={V.doLogin} style={{ marginTop: 22, opacity: V.authBusy ? 0.6 : 1 }} />
@@ -61,7 +69,7 @@ export function Login({ V }) {
                 <View style={{ marginTop: 12 }}>
                   <Tx s={11} c={C.muted} lh={1.5}>Uses the email or client code typed above. The myQode server must be running in development (NODE_ENV=development).</Tx>
                   <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'SIGN IN AS THIS USER (NO PASSWORD)'} onPress={() => V.bypassLogin()} outline style={{ marginTop: 12, opacity: V.authBusy ? 0.6 : 1 }} />
-                  <Field label="FIND A CLIENT" value={V.devQ} onChangeText={V.onDevQ} placeholder="name, email or code" autoCapitalize="none" style={{ marginTop: 14 }} />
+                  <Field label={V.loginAs === 'distributor' ? 'FIND A PARTNER' : 'FIND A CLIENT'} value={V.devQ} onChangeText={V.onDevQ} placeholder="name, email or code" autoCapitalize="none" style={{ marginTop: 14 }} />
                   <Tx s={10} c={C.gray} style={{ marginTop: 6 }}>Server: {V.apiBase}</Tx>
                   {!V.devLoaded && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>Loading clients…</Tx>}
                   {!!V.devErr && (
@@ -70,9 +78,9 @@ export function Login({ V }) {
                       <Tx w={700} s={11} c={C.green} style={{ marginTop: 4 }}>Tap to retry</Tx>
                     </Pressable>
                   )}
-                  {V.devLoaded && !V.devErr && V.devClients.length === 0 && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>No Discretionary client matches that search. Non-Discretionary accounts aren’t listed — type the code above and use the button instead.</Tx>}
-                  {V.devClients.map(c => (
-                    <Pressable key={c.clientCode} onPress={() => V.bypassLogin(c.email || c.clientCode)} style={{ paddingVertical: 10, borderBottomWidth: 1, borderColor: C.hairline }}>
+                  {V.devLoaded && !V.devErr && V.devClients.length === 0 && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>{V.loginAs === 'distributor' ? 'No partner login matches that search.' : 'No Discretionary client matches that search. Non-Discretionary accounts aren’t listed — type the code above and use the button instead.'}</Tx>}
+                  {V.devClients.map((c, i) => (
+                    <Pressable key={c.clientCode || 'p:' + i + ':' + c.email} onPress={() => V.bypassLogin(c.email || c.clientCode)} style={{ paddingVertical: 10, borderBottomWidth: 1, borderColor: C.hairline }}>
                       <Tx w={700} s={12}>{c.name || c.clientCode}</Tx>
                       <Tx s={10.5} c={C.muted} style={{ marginTop: 2 }}>{[c.clientCode, c.email, c.schemeName].filter(Boolean).join(' · ')}</Tx>
                     </Pressable>
@@ -107,20 +115,20 @@ export function Login({ V }) {
           </Pressable>
           <Tx s={10} ls={0.08} c={C.gray} center style={{ marginTop: 26 }}>PROTECTED BY 256-BIT ENCRYPTION</Tx>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardScroll>
+    </View>
   );
 }
 
 export function OtpScreen({ V }) {
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: C.cream }}>
+    <View style={{ flex: 1, backgroundColor: C.cream }}>
       <DarkHead pct={0.36}>
         <Tx f="play" w={600} s={26} c={C.cream}>Verify it's you</Tx>
         <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: 12, marginBottom: 10 }} />
         <Tx s={12} c={C.cream65}>Code sent to {V.otpEmailMask}</Tx>
       </DarkHead>
-      <ScrollView style={{ flex: 1, marginTop: -46 }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+      <KeyboardScroll style={{ flex: 1, marginTop: -46 }} contentContainerStyle={{ flexGrow: 1 }} >
         <CurveCap height={46} />
         <View style={{ backgroundColor: C.cream, flexGrow: 1, paddingHorizontal: 24, paddingBottom: 30 }}>
           <Rise>
@@ -140,20 +148,20 @@ export function OtpScreen({ V }) {
             <Tx s={12} c={C.muted} center>Back to sign in</Tx>
           </Pressable>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardScroll>
+    </View>
   );
 }
 
 export function SetPassword({ V }) {
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: C.cream }}>
+    <View style={{ flex: 1, backgroundColor: C.cream }}>
       <DarkHead pct={0.36}>
         <Tx f="play" w={600} s={26} c={C.cream}>Set your password</Tx>
         <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: 12, marginBottom: 10 }} />
         <Tx s={12} c={C.cream65}>Choose a password for {V.otpEmailMask}</Tx>
       </DarkHead>
-      <ScrollView style={{ flex: 1, marginTop: -46 }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+      <KeyboardScroll style={{ flex: 1, marginTop: -46 }} contentContainerStyle={{ flexGrow: 1 }} >
         <CurveCap height={46} />
         <View style={{ backgroundColor: C.cream, flexGrow: 1, paddingHorizontal: 24, paddingBottom: 30 }}>
           <Rise>
@@ -167,7 +175,7 @@ export function SetPassword({ V }) {
             </Card>
           </Rise>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardScroll>
+    </View>
   );
 }

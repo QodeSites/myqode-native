@@ -92,18 +92,22 @@ function ChartTip({ tip, vw, vh, height, lineColor, children }) {
 }
 
 // y-axis tick labels (top, middle, bottom) drawn over the chart, and x-axis dates under it.
+// Y labels get their own left column (GUTTER wide) and the plot starts to the right of it, so the line never
+// runs through the numbers. The x dates are indented by the same amount to stay under the plot.
+const GUTTER = 34;
 function Axes({ yTicks, xDates, height, color, children }) {
   const ys = [8, height / 2, height - 8];
+  const g = yTicks && yTicks.length ? GUTTER : 0;
   return (
     <View>
-      <View>
+      <View style={{ paddingLeft: g }}>
         {children}
         {(yTicks || []).map((t, i) => (
-          <Tx key={i} s={9} c={color} style={{ position: 'absolute', left: 0, top: ys[i] - (i === 2 ? 12 : -1), pointerEvents: 'none' }}>{t}</Tx>
+          <Tx key={i} s={9} c={color} numberOfLines={1} style={{ position: 'absolute', left: 0, width: g - 4, top: ys[i] - (i === 2 ? 12 : -1), pointerEvents: 'none' }}>{t}</Tx>
         ))}
       </View>
       {!!(xDates && xDates.length) && (
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, paddingLeft: g }}>
           {xDates.map((d, i) => <Tx key={i} s={9} c={color}>{d}</Tx>)}
         </View>
       )}
