@@ -358,6 +358,7 @@ export function validateNominees(ob) {
     if (!clean(n.name)) return 'Each nominee needs a name.';
     if (!clean(n.rel)) return 'Tell us how each nominee is related to you.';
     if (n.minor && !clean(n.guardian)) return 'A minor nominee needs a guardian name.';
+    if (clean(n.mob) && !isValidMobile(n.mob)) return `Nominee ${clean(n.name) || ''} has an invalid mobile number (10 digits, starting 6–9).`.replace('  ', ' ');
   }
   const sum = ob.noms.reduce((s, n) => s + (parseInt(n.alloc, 10) || 0), 0);
   if (sum !== 100) return `Allocations should add up to 100%. They’re at ${sum}% now.`;

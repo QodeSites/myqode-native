@@ -97,7 +97,7 @@ export default function Carousel({ V }) {
             </Pressable>
           )}
           {V.carLast && (
-            <CTA label="EXPLORE THE NEW MYQODE" onPress={V.carDone} style={{ flex: 1, borderWidth: 1, borderColor: C.gold }} />
+            <CTA label="EXPLORE THE NEW MYQODE" onPress={V.carDone} style={{ width: 170, paddingVertical: 12, paddingHorizontal: 18, justifyContent: 'center', borderWidth: 1, borderColor: C.gold }} />
           )}
         </View>
       </View>

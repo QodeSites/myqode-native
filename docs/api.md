@@ -67,6 +67,33 @@ Because `origToken` lives only in memory, killing the app while impersonating le
 
 The UI is `AdminPage` in `src/screens/pages.js` (More → Developer → Admin). It is listed only when `user.isSuperAdmin` or `user.isImpersonated` is true.
 
+## Start-up lock (Face ID / fingerprint)
+
+`src/api/biometric.js` wraps `expo-local-authentication`. After a password sign-in the app offers, once, to unlock with
+Face ID / fingerprint (also a toggle under Settings). When on, `boot()` asks for it before anything renders; a failed
+or cancelled prompt shows `LockScreen` (`src/screens/gate.js`) with retry and "Sign in with password", which signs out.
+The token itself is never touched — biometrics only gate opening the app.
+
+## Partner (distributor) login
+
+A distributor signs in on the same login screen as an investor. Backend rule, identical to the web
+(`../myQode/lib/distributorIdentity.ts`): the login row has no `clientcode` and its email resolves as a distributor.
+
+- The login screen has a Client / Distributor switch. It sends `role`; a wrong pick gets a 403 `ROLE_MISMATCH` with the
+  right role, and the app flips the switch and shows the message.
+- `POST /auth/login` returns `user.isDistributor: true` and `role: 'distributor'`. The token carries `isDistributor` and
+  `distributorName`, with empty `accountCodes`, so every investor route answers 403.
+- `GET /auth/me` re-checks the role. A partner whose row no longer qualifies gets a 401 and is signed out.
+- `GET /distributor/journey` and `GET /distributor/strategy-aum` return the same payloads as the web's
+  `/api/distributor/*` routes. Both re-resolve the distributor from the token's email on every call, and refuse
+  investors, the reviewer and impersonation tokens.
+- A person who is both an investor and a partner signs in as the investor, as on the web.
+
+App: `finishLogin()` and `boot()` send a partner to `phase: 'partner'`, which renders `DistributorShell`
+(`src/screens/distributor.js`: Overview, Investors, Links, More). It is read-only. The status wording is a port of
+`../myQode/lib/distributorVocabulary.ts`, and the investor detail leaves out the CRM's last-conversation note, as the
+web does. In development the sign-in picker lists partner logins first.
+
 ## `BlockedError` and `guarded()`
 
 `src/api/index.js`.
@@ -133,6 +160,7 @@ Paths are relative to `/api/mobile`. "Auth" is whether the app sends the Bearer 
 | `completeOtpSetup(email, otp, newPassword, confirmPassword)` | `POST /auth/complete-otp-setup` | No | No | **Blocked** | `savePassword()`. Changes the client's password. |
 | `forgot(email)` | `POST /auth/forgot` | No | No | **Blocked** | `doForgot()`. Emails a web reset link to the client. |
 | `me()` | `GET /auth/me` | Yes | No | Allowed | `boot()` token check; `exitImpersonation()`. |
+| `refresh()` | `POST /auth/refresh` | Yes | No | Allowed | `boot()`: once the stored token is a day old it is swapped for a fresh 30-day one, so the client stays signed in until they sign out or uninstall. Admin, impersonation and reviewer tokens are not extended. |
 
 ### `meta`
 
@@ -212,6 +240,21 @@ The five request routes and the referral route send one email to `investor.relat
 | `createOrder(body)` | `POST /payments/create-order` | Yes | No | **Blocked** | Not called. Needs the Cashfree SDK. |
 | `verify(orderId)` | `GET /payments/verify` | Yes | Yes | Allowed | Not called. |
 | `investmentStatus(accountId)` | `GET /payments/investment-status` | Yes | Yes | Allowed | `Investments`: list of online orders and SIP mandates with status and timeline. |
+
+### `distributor`
+
+Partner login only; see [Partner (distributor) login](#partner-distributor-login).
+
+| Function | Endpoint | Auth | Demo | TEST_MODE | Used by / purpose |
+| --- | --- | --- | --- | --- | --- |
+| `journey()` | `GET /distributor/journey` | Yes | No | Allowed | `DistributorShell`: book totals, investors with stage, referral links. |
+| `strategyAum()` | `GET /distributor/strategy-aum` | Yes | No | Allowed | `DistributorShell` Overview: split of the book across strategies. |
+| `feePeriods()` / `feeRows(period)` | `GET` / `POST /distributor/fees` | Yes | No | Allowed | Fees tab. The server calls the web's `/api/distributor/calculator` with the partner from the JWT, so figures are the web's. Admin fields are never forwarded. |
+| `invoiceProfile()` / `saveInvoiceProfile(body)` | `GET` / `PUT /distributor/invoice-profile` | Yes | No | Allowed | Raise invoice: the partner's invoice details (web validation). |
+| `invoices()` / `issueInvoice(body)` | `GET` / `POST /distributor/invoice-issue` | Yes | No | Allowed | Records an invoice number (409 on a duplicate), then the app renders the PDF with expo-print. |
+| `fileLink({kind,…})` | `POST /distributor/file-link` → `GET /distributor/file` | Yes / signed | No | Allowed | Investor statement (SOA, book-ownership checked) or deck PDF: a 5-minute signed link opened in the phone's viewer. |
+| `indicator()` | `GET /distributor/indicator` | Yes | No | Allowed | Market indicators: the Valuation Spread Indicator series (partner-only). |
+| `ticket(body)` | `POST /distributor/ticket` | Yes | No | Allowed | Raise a ticket → partnerships@ (or `MOBILE_IR_EMAIL_OVERRIDE` while testing); logged as `distributor_ticket`. |
 
 ### `admin`
 

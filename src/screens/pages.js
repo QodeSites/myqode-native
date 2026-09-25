@@ -4,11 +4,13 @@ import React, { useState } from 'react';
 import { View, Pressable, ScrollView, Linking, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { C, Tx, Amt, Card, CTA, Fade } from '../ui';
+import { C, Tx, Amt, Card, CTA, Fade, KeyboardScroll } from '../ui';
 import { ChevronLeft, ChevronRight, Phone, MailIcon } from '../icons';
 import { experience, engagement, admin } from '../api';
 import * as content from '../content';
 import { FormBody } from './services';
+import { check, LIMITS } from '../validate';
+import { Foundation, ReportsReviews, StrategySnapshot, PortalGuide, Team as TeamPage, Escalation } from './about';
 import { useLoad, openUrl, fmtSize, Loading, ErrorBox, Empty, SectionLabel, LinkRow } from './kit';
 
 const P = ({ children, style }) => <Tx s={13} lh={1.6} c={C.ink} style={[{ marginTop: 10 }, style]}>{children}</Tx>;
@@ -106,43 +108,15 @@ function Insights() {
   );
 }
 
-function Guide() {
-  const guide = useLoad(() => engagement.portalGuide(), []);
-  const videos = (guide.data && guide.data.videos) || [];
-  return (
-    <>
-      <P style={{ marginTop: 0 }}>Reports available on the Nuvama WealthSpectrum portal, and how to read them.</P>
-      {videos.length > 0 && (
-        <>
-          <SectionLabel>VIDEO TUTORIALS</SectionLabel>
-          <Card style={{ overflow: 'hidden' }}>
-            {videos.map((v, i) => <LinkRow key={v.key} title={v.reportName || v.filename} sub="Watch tutorial" onPress={() => openUrl(v.url)} last={i === videos.length - 1} />)}
-          </Card>
-        </>
-      )}
-      <SectionLabel>REPORTS</SectionLabel>
-      <Card style={{ overflow: 'hidden' }}>
-        {content.REPORTS.map((r, i) => (
-          <View key={r.title} style={{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: i < content.REPORTS.length - 1 ? 1 : 0, borderColor: C.hairline }}>
-            <Tx w={700} s={13}>{r.title}</Tx>
-            {!!r.desc && <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 3 }}>{r.desc}</Tx>}
-          </View>
-        ))}
-      </Card>
-    </>
-  );
-}
-
 const REFERRAL_FORM = {
   cta: 'SUBMIT REFERRAL', account: true,
   fields: [
-    { k: 'name', label: 'REFERRED PERSON’S NAME', kind: 'text' },
-    { k: 'email', label: 'EMAIL', kind: 'email' },
-    { k: 'phone', label: 'PHONE', kind: 'phone' },
-    { k: 'desc', label: 'NOTE (OPTIONAL)', kind: 'multiline' },
+    { k: 'name', label: 'REFERRED PERSON’S NAME', kind: 'name', placeholder: 'Full name', validate: x => check.name(x, 'their name') },
+    { k: 'email', label: 'EMAIL', kind: 'email', placeholder: 'name@example.com', validate: check.email },
+    { k: 'phone', label: 'MOBILE NUMBER', kind: 'phone', placeholder: '10-digit mobile', validate: check.phone },
+    { k: 'desc', label: 'NOTE (OPTIONAL)', kind: 'multiline', max: LIMITS.note, validate: x => (String(x || '').length > LIMITS.note ? `Please keep the note under ${LIMITS.note} characters.` : '') },
   ],
-  check: v => (!(v.name || '').trim() ? 'Please add their name.' : !/.+@.+\..+/.test(v.email || '') ? 'That email doesn’t look complete.' : (v.phone || '').replace(/\D/g, '').length < 10 ? 'Enter a 10-digit phone number.' : ''),
-  submit: (a, v) => engagement.referral({ accountId: a, name: v.name.trim(), email: v.email.trim(), phone: v.phone.trim(), description: v.desc || undefined }),
+  submit: (a, v) => engagement.referral({ accountId: a, name: v.name.trim(), email: v.email.trim().toLowerCase(), phone: v.phone, description: (v.desc || '').trim() || undefined }),
 };
 
 function Referral({ V }) {
@@ -203,31 +177,6 @@ function Faq() {
   );
 }
 
-function Grievance() {
-  const G = content.GRIEVANCE;
-  return (
-    <>
-      {G.intro.map((t, i) => <P key={i} style={i ? null : { marginTop: 0 }}>{t}</P>)}
-      {G.levels.map(l => (
-        <Card key={l.level + l.title} style={{ padding: 16, marginTop: 14, borderLeftWidth: 3, borderLeftColor: C.gold }}>
-          <Tx w={700} s={10} ls={0.12} c={C.muted}>{String(l.level).toUpperCase()}</Tx>
-          <Tx w={700} s={14} style={{ marginTop: 4 }}>{l.title}</Tx>
-          {l.body.map((t, i) => <Tx key={i} s={12.5} c={C.muted} lh={1.55} style={{ marginTop: 6 }}>{t}</Tx>)}
-          {l.contact.map((t, i) => <Tx key={'c' + i} w={700} s={12.5} c={C.green} style={{ marginTop: 6 }}>{t}</Tx>)}
-        </Card>
-      ))}
-      {G.protection.length > 0 && (
-        <>
-          <SectionLabel>INVESTOR PROTECTION</SectionLabel>
-          <Card style={{ padding: 16 }}>
-            {G.protection.map((t, i) => <Tx key={i} s={12.5} lh={1.6} style={{ marginTop: i ? 8 : 0 }}>{t}</Tx>)}
-          </Card>
-        </>
-      )}
-    </>
-  );
-}
-
 function Risk() {
   const R = content.RISK;
   return (
@@ -237,47 +186,11 @@ function Risk() {
         <Card key={p.title} style={{ padding: 16, marginTop: 14 }}>
           <Tx f="play" w={600} s={17}>{p.title}</Tx>
           {p.body.map((t, i) => <Tx key={i} s={12.5} c={C.muted} lh={1.6} style={{ marginTop: 8 }}>{t}</Tx>)}
+          {!!p.pdf && <CTA label="VIEW POLICY (PDF)" outline onPress={() => openUrl(p.pdf)} style={{ marginTop: 12, paddingVertical: 11 }} />}
         </Card>
       ))}
     </>
   );
-}
-
-function Strategies() {
-  return (
-    <>
-      {content.STRATEGIES.map(s => (
-        <Card key={s.prefix + s.name} style={{ padding: 16, marginBottom: 14 }}>
-          <Tx w={700} s={10} ls={0.12} c={C.muted}>{s.prefix}</Tx>
-          <Tx f="play" w={600} s={18} style={{ marginTop: 4 }}>{s.name}</Tx>
-          {!!s.tagline && <Tx s={12.5} c={C.muted} lh={1.55} style={{ marginTop: 6 }}>{s.tagline}</Tx>}
-          {s.points.map((t, i) => (
-            <View key={i} style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
-              <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: C.gold, marginTop: 8 }} />
-              <Tx s={12.5} lh={1.55} style={{ flex: 1 }}>{t}</Tx>
-            </View>
-          ))}
-        </Card>
-      ))}
-      {content.STRATEGY_GLOSSARY.length > 0 && <SectionLabel>GLOSSARY</SectionLabel>}
-      {content.STRATEGY_GLOSSARY.map(g => (
-        <View key={g.term} style={{ marginBottom: 12 }}>
-          <Tx w={700} s={13}>{g.term}</Tx>
-          <Tx s={12.5} c={C.muted} lh={1.55} style={{ marginTop: 3 }}>{g.def}</Tx>
-        </View>
-      ))}
-    </>
-  );
-}
-
-function Team() {
-  return content.TEAM.map(t => (
-    <Card key={t.name} style={{ padding: 16, marginBottom: 12 }}>
-      <Tx w={700} s={14}>{t.name}</Tx>
-      {!!t.role && <Tx w={700} s={10.5} ls={0.08} c={C.muted} style={{ marginTop: 3 }}>{t.role}</Tx>}
-      {!!t.bio && <Tx s={12.5} c={C.muted} lh={1.55} style={{ marginTop: 8 }}>{t.bio}</Tx>}
-    </Card>
-  ));
 }
 
 function Contact() {
@@ -394,15 +307,15 @@ const PAGES = {
   admin: { title: 'Admin', body: V => <AdminPage V={V} /> },
   family: { title: 'Family accounts', body: () => <Family /> },
   insights: { title: 'Insights & events', body: () => <Insights /> },
-  guide: { title: 'Investor portal guide', body: () => <Guide /> },
+  guide: { title: 'Investor portal guide', body: () => <PortalGuide /> },
   referral: { title: 'Referral programme', body: V => <Referral V={V} /> },
-  cadence: { title: content.CADENCE.title || 'Service cadence', body: () => <Article data={content.CADENCE} /> },
+  cadence: { title: 'Reports & Reviews', body: () => <ReportsReviews /> },
   philosophy: { title: 'Qode philosophy', body: () => <Article data={content.PHILOSOPHY} /> },
-  foundation: { title: content.FOUNDATION.title || 'Foundation', body: () => <Article data={content.FOUNDATION} /> },
-  strategies: { title: 'Strategy snapshot', body: () => <Strategies /> },
-  team: { title: 'Your team at Qode', body: () => <Team /> },
+  foundation: { title: 'Note from Fund Managers', body: () => <Foundation /> },
+  strategies: { title: 'Strategy Snapshot', body: () => <StrategySnapshot /> },
+  team: { title: 'Your Team at Qode', body: V => <TeamPage V={V} /> },
   faq: { title: 'FAQ & glossary', body: () => <Faq /> },
-  grievance: { title: 'Grievance redressal', body: () => <Grievance /> },
+  grievance: { title: 'Escalation Framework', body: () => <Escalation /> },
   risk: { title: 'Risk management', body: () => <Risk /> },
   contact: { title: 'Contact us', body: () => <Contact /> },
   privacy: { title: content.LEGAL.privacy.title || 'Privacy policy', body: () => <Article data={content.LEGAL.privacy} /> },
@@ -426,9 +339,9 @@ export function PageHost({ V }) {
         </View>
         <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: 10, marginLeft: 46 }} />
       </LinearGradient>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
+      <KeyboardScroll style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
         <Fade key={V.page}>{pg.body(V)}</Fade>
-      </ScrollView>
+      </KeyboardScroll>
     </View>
   );
 }

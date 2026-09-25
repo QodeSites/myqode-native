@@ -4,7 +4,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, Pressable, Animated, Easing, Modal,
-  ScrollView, Dimensions, Keyboard, Platform,
+  ScrollView, Dimensions, Keyboard, Platform, StyleSheet,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -96,7 +96,7 @@ export function CTA({ label, onPress, outline, style, ls = 0.08 }) {
         transform: [{ scale: pressed ? 0.98 : 1 }],
       }, style]}
     >
-      <Tx w={700} s={13} ls={ls} c={outline ? C.green : C.gold}>{label}</Tx>
+      <Tx w={700} s={13} ls={ls} c={outline ? C.green : C.gold} center>{label}</Tx>
     </Pressable>
   );
 }
@@ -162,31 +162,52 @@ export function Toggle({ on, onPress }) {
 }
 
 // Underline text field with tiny uppercase label (the design's input style).
-export function Field({ label, value, onChangeText, placeholder, secure, numeric, s = 15, style, prefix, autoFocus, autoCapitalize, multiline, keyboardType }) {
+// Eye / eye-off for the show-password toggle.
+function EyeIcon({ off, c = C.muted, s = 20 }) {
+  return (
+    <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+      <Path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12z" stroke={c} strokeWidth={1.6} strokeLinejoin="round" />
+      <Path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke={c} strokeWidth={1.6} />
+      {off ? <Path d="M4 4l16 16" stroke={c} strokeWidth={1.6} strokeLinecap="round" /> : null}
+    </Svg>
+  );
+}
+
+export function Field({ label, value, onChangeText, placeholder, secure, numeric, s = 15, style, prefix, autoFocus, autoCapitalize, multiline, keyboardType, error, maxLength, hint }) {
   const { z } = useUI();
+  const [shown, setShown] = useState(false);   // password fields: eye toggles between hidden and visible
   return (
     <View style={style}>
       {label ? <Tx w={700} s={10} ls={0.12} c={C.gray}>{label}</Tx> : null}
-      <View style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: C.mutedBorder }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: error ? 1.5 : 1, borderColor: error ? C.red : C.mutedBorder }}>
         {prefix ? <Tx s={15} c={C.muted} style={{ marginRight: 8 }}>{prefix}</Tx> : null}
         <TextInput
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
           placeholderTextColor={C.gray}
-          secureTextEntry={secure}
+          secureTextEntry={secure && !shown}
           keyboardType={keyboardType || (numeric ? 'number-pad' : 'default')}
           multiline={multiline}
           autoFocus={autoFocus}
           autoCapitalize={autoCapitalize}
           autoCorrect={false}
+          maxLength={maxLength}
           style={{
             flex: 1, fontFamily: 'Lato_400Regular', fontSize: s * z, color: C.ink,
             paddingVertical: 8, paddingHorizontal: 0, minWidth: 0,
             ...(multiline ? { minHeight: 84, textAlignVertical: 'top' } : null),
           }}
         />
+        {secure ? (
+          <Pressable onPress={() => setShown(v => !v)} hitSlop={10} accessibilityRole="button" accessibilityLabel={shown ? 'Hide password' : 'Show password'}
+            style={{ paddingLeft: 10, paddingVertical: 6 }}>
+            <EyeIcon off={shown} />
+          </Pressable>
+        ) : null}
       </View>
+      {error ? <Tx s={11} c={C.red} lh={1.4} style={{ marginTop: 5 }}>{error}</Tx>
+        : hint ? <Tx s={10.5} c={C.gray} lh={1.4} style={{ marginTop: 5 }}>{hint}</Tx> : null}
     </View>
   );
 }
@@ -341,3 +362,52 @@ export function Sheet({ visible, onClose, children, maxH = 0.86 }) {
     </Modal>
   );
 }
+
+// ── Keyboard ─────────────────────────────────────────────────────────────────
+// Height of the on-screen keyboard (0 when hidden). Android draws the app edge to edge, so the window is NOT
+// resized when the keyboard opens — screens must make room themselves.
+export function useKeyboardHeight() {
+  const [kb, setKb] = useState(0);
+  useEffect(() => {
+    const showEv = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEv = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const a = Keyboard.addListener(showEv, e => setKb(e.endCoordinates ? e.endCoordinates.height : 0));
+    const b = Keyboard.addListener(hideEv, () => setKb(0));
+    return () => { a.remove(); b.remove(); };
+  }, []);
+  return kb;
+}
+
+// ScrollView for full-screen forms: adds the keyboard's height below the content and scrolls the field being
+// typed into so it sits above the keyboard — on first open and whenever focus moves to another field.
+export const KeyboardScroll = React.forwardRef(function KeyboardScroll({ children, contentContainerStyle, onScroll, ...rest }, fwd) {
+  const ref = useRef(null);
+  const y = useRef(0);
+  const kb = useKeyboardHeight();
+  const setRef = r => { ref.current = r; if (typeof fwd === 'function') fwd(r); else if (fwd) fwd.current = r; };
+  useEffect(() => {
+    if (!kb) return;
+    let last = null;
+    const reveal = () => {
+      const input = TextInput.State && TextInput.State.currentlyFocusedInput ? TextInput.State.currentlyFocusedInput() : null;
+      if (!input || input === last || !ref.current || !input.measureInWindow) return;
+      last = input;
+      input.measureInWindow((x, iy, w, h) => {
+        const visibleBottom = Dimensions.get('window').height - kb - 24;
+        if (iy + h > visibleBottom) ref.current.scrollTo({ y: y.current + (iy + h - visibleBottom), animated: true });
+        else if (iy < 80) ref.current.scrollTo({ y: Math.max(0, y.current - (80 - iy)), animated: true });
+      });
+    };
+    const t = setTimeout(reveal, Platform.OS === 'ios' ? 0 : 60);
+    const iv = setInterval(reveal, 250);   // focus moved to another field while the keyboard stays open
+    return () => { clearTimeout(t); clearInterval(iv); };
+  }, [kb]);
+  const base = StyleSheet.flatten(contentContainerStyle) || {};
+  return (
+    <ScrollView ref={setRef} keyboardShouldPersistTaps="handled" scrollEventThrottle={16}
+      onScroll={e => { y.current = e.nativeEvent.contentOffset.y; if (onScroll) onScroll(e); }}
+      contentContainerStyle={[base, { paddingBottom: (base.paddingBottom || 0) + kb }]} {...rest}>
+      {children}
+    </ScrollView>
+  );
+});

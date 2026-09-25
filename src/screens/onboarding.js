@@ -254,8 +254,8 @@ export default function Onboarding({ V }) {
   const insets = useSafeAreaInsets();
   const { z } = useUI();
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: C.cream }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+    <View style={{ flex: 1, backgroundColor: C.cream }}>
+      <KeyboardScroll style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
         {/* dark anchor */}
         <LinearGradient colors={C.darkGrad} locations={[0, 0.62, 1]} start={{ x: 0.1, y: 0 }} end={{ x: 0.6, y: 1 }}
           style={{ paddingTop: insets.top + 10, paddingHorizontal: 22, paddingBottom: 78, minHeight: V.obTall ? 260 : 190 }}>
@@ -671,7 +671,7 @@ export default function Onboarding({ V }) {
             Qode is a SEBI-registered Portfolio Manager (Reg. No. INP000008914).{'\n'}Investments are subject to market risks.
           </Tx>
         </View>
-      </ScrollView>
+      </KeyboardScroll>
 
       {/* keeps status-bar icons legible when content scrolls beneath them */}
       <LinearGradient colors={['rgba(0,16,8,0.9)', 'rgba(0,16,8,0)']}
@@ -732,6 +732,6 @@ export default function Onboarding({ V }) {
           </View>
         )}
       </Sheet>
-    </KeyboardAvoidingView>
+    </View>
   );
 }

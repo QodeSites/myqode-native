@@ -78,7 +78,8 @@ RAZORPAY_NOTIFY_CLIENT=false        # ← the only thing that keeps the client o
 With `RAZORPAY_NOTIFY_CLIENT=false` and live keys (`shouldNotifyClient()` / `checkoutContact()` in `lib/razorpay.ts`):
 
 - Razorpay's own customer emails/SMS for mandates and charges are off (`customer_notify: 0`).
-- Our server sends the client nothing (no `lib/notifications` calls from the Razorpay webhook).
+- Our server sends the client nothing: the Razorpay webhook and the settlement cron (`lib/investmentStatusCron.ts`)
+  only call `lib/notifications` when `shouldNotifyClient()` is true.
 - Checkout is **not** prefilled with the client's email/phone — only the name. The tester types their own on
   Razorpay's page, so any gateway receipt goes to the tester, not the client on file.
 - Everything else is real: the order/mandate is created on the live account, money moves, the registered bank
@@ -90,7 +91,7 @@ account**, not the client's — for e-mandate that means overriding the prefille
 form with the tester's, or testing with a login that has no registered bank on file.
 
 Also in the Razorpay dashboard (live mode): the webhook URL + secret (events: `payment.captured`,
-`payment.failed`, `order.paid`, `subscription.authenticated`, `subscription.activated`, `subscription.charged`,
+`payment.failed`, `order.paid`, `refund.processed`, `subscription.authenticated`, `subscription.activated`, `subscription.charged`,
 `subscription.pending`, `subscription.halted`, `subscription.cancelled`, `subscription.paused`,
 `subscription.resumed`, `subscription.completed`), and check that e-mandate / UPI Autopay are enabled on the
 live account (Subscriptions must be activated by Razorpay for the merchant).
@@ -133,10 +134,16 @@ New/changed since the mobile work began (all additive except the four edited por
 - `app/api/mobile/primary-ucc` (Nuvama UCC notice)
 - `lib/razorpay.ts` + `app/api/mobile/payments/razorpay/{create-order,checkout,return,verify,webhook}`
 
+Test-only variables in `../myQode/.env` that must NOT be set in production:
+
+- `MOBILE_AUTH_EMAIL_OVERRIDE` — forgot-password link and password-setup OTP go here instead of the client.
+- `MOBILE_IR_EMAIL_OVERRIDE` — Investor Relations notifications (requests, payment completed, SIP set up) go here.
+- `RAZORPAY_SIP_ALLOW_CARD`, `RAZORPAY_SIP_SIMULATE`, `RAZORPAY_NOTIFY_CLIENT=false`, `SWITCH_REQUEST_LIVE`.
+
 Production `.env` on the server:
 - `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` = **live** keys, `RAZORPAY_ENVIRONMENT=live`,
   `RAZORPAY_WEBHOOK_SECRET` = the secret of a webhook registered on
-  `https://myqode.qodeinvest.com/api/mobile/payments/razorpay/webhook` (live mode, same three events).
+  `https://myqode.qodeinvest.com/api/mobile/payments/razorpay/webhook` (live mode, same events as above).
 - `RAZORPAY_NOTIFY_CLIENT=true` if clients should be emailed/pushed on payment success/failure (off by default).
 - `APP_LATEST_VERSION` = the version just released; `APP_MIN_VERSION` = the oldest version still allowed;
   `APP_IOS_URL` / `APP_ANDROID_URL` = store links (not yet wired into the banner).

@@ -16,7 +16,15 @@ export const Refresh = ({ s = 18, c = C.cream }) => (
   </Svg>
 );
 
-export const ChevronDown = ({ s = 10, c = 'rgba(239,236,211,0.7)' }) => (
+// Two people: the Entire Family scope.
+export const FamilyIcon = ({ s = 16, c = C.ink }) => (
+  <Svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx={9} cy={8} r={3.2} /><Path d="M3 19.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" />
+    <Circle cx={17} cy={9} r={2.5} /><Path d="M16.5 14.2c2.6.2 4.5 2.1 4.5 4.8" />
+  </Svg>
+);
+
+export const ChevronDown =({ s = 10, c = 'rgba(239,236,211,0.7)' }) => (
   <Svg width={s} height={s * 0.6} viewBox="0 0 10 6" fill="none">
     <Path d="M1 1l4 4 4-4" stroke={c} strokeWidth={1.6} strokeLinecap="round" />
   </Svg>
