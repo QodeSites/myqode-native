@@ -291,9 +291,9 @@ export function PortfolioCream({ V }) {
     <Fade>
       <Card big style={{ marginTop: -34, padding: 16, flexDirection: 'row' }}>
         {V.perfHead.map(([k, v, col]) => (
-          <View key={k} style={{ flex: 1 }}>
-            <Tx w={700} s={9.5} ls={0.1} c={C.muted}>{k}</Tx>
-            <Amt s={13.5} c={col} style={{ marginTop: 5 }}>{v}</Amt>
+          <View key={k} style={{ flex: 1, alignItems: 'center' }}>
+            <Tx w={700} s={9.5} ls={0.1} c={C.muted} center>{k}</Tx>
+            <Amt s={13.5} c={col} center style={{ marginTop: 5 }}>{v}</Amt>
           </View>
         ))}
       </Card>
