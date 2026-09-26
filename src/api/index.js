@@ -6,7 +6,7 @@ import { demo } from './demo';
 import { TEST_MODE } from './config';
 
 export { ApiError, BASE_URL, onUnauthorized } from './client';
-export { getToken, setToken, clearToken } from './session';
+export { getToken, setToken, clearToken, setViewToken, hasViewToken } from './session';
 export { TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './config';
 
 let demoOn = false;
@@ -107,7 +107,7 @@ let bankCache = null;
 let switchCache = null, switchPending = null;   // { data, at } — per signed-in client, see clearUserCaches()
 const SWITCH_FRESH_MS = 60 * 1000;
 // Drop everything cached for the current client. Call on sign-out and when impersonating someone else.
-export const clearUserCaches = () => { switchCache = null; switchPending = null; documents.forget(); };
+export const clearUserCaches = () => { switchCache = null; switchPending = null; documents.forget(); partnerMemo.clear(); };
 export const services = {
   // Qode's own bank account: static on the server. Cached after the first fetch so the Add Funds sheet is instant.
   bankDetails: () => {
@@ -173,22 +173,40 @@ export const payments = {
   investmentStatus: accountId => call('/payments/investment-status', { query: { accountId } }, () => demo.investmentStatus()),
 };
 
+// Partner app: the fee periods, a period's fee rows and the market indicator are slow to build on the server
+// (the fee calculator reads Zoho; the indicator is a large upstream file) and change rarely, so each answer is
+// kept in memory for a while and shared — reopening a tab, the statement or the invoice is instant, and a request
+// already in flight is reused rather than repeated. A failed request is not kept. Cleared on sign-out.
+const partnerMemo = new Map();   // key → { p: Promise, at }
+function memo(key, ttlMs, fn) {
+  const hit = partnerMemo.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.p;
+  const p = fn();
+  partnerMemo.set(key, { p, at: Date.now() });
+  p.catch(() => { if (partnerMemo.get(key) && partnerMemo.get(key).p === p) partnerMemo.delete(key); });
+  return p;
+}
+const MIN = 60 * 1000;
+
 // Partner (distributor) login only — the server re-checks the distributor role on every call.
 // Read-only: a distributor never acts on an investor's account from the app.
 export const distributor = {
   journey: () => api('/distributor/journey'),
   strategyAum: () => api('/distributor/strategy-aum'),
   // Fees & payouts — same figures as the web (the server calls the web calculator)
-  feePeriods: () => api('/distributor/fees'),
-  feeRows: period => api('/distributor/fees', { method: 'POST', body: { startDate: period.startDate, endDate: period.endDate, period: period.label }, timeout: 60000 }),
+  feePeriods: () => memo('fee-periods', 10 * MIN, () => api('/distributor/fees')),
+  feeRows: period => memo('fee-rows:' + period.label + ':' + period.startDate + ':' + period.endDate, 5 * MIN,
+    () => api('/distributor/fees', { method: 'POST', body: { startDate: period.startDate, endDate: period.endDate, period: period.label }, timeout: 60000 })),
   invoiceProfile: () => api('/distributor/invoice-profile'),
   saveInvoiceProfile: body => api('/distributor/invoice-profile', { method: 'PUT', body }),
   invoices: () => api('/distributor/invoice-issue'),
   issueInvoice: body => api('/distributor/invoice-issue', { method: 'POST', body }),
   // Signed 5-minute link to a PDF (investor statement or deck), opened in the phone's viewer
   fileLink: body => api('/distributor/file-link', { method: 'POST', body }),
-  indicator: () => api('/distributor/indicator', { timeout: 45000 }),
+  indicator: () => memo('indicator', 30 * MIN, () => api('/distributor/indicator', { timeout: 45000 })),
   ticket: body => api('/distributor/ticket', { method: 'POST', body }),
+  // "View account": a 2-hour read-only token for one investor in the partner's own book (web: investors page).
+  viewAccount: clientCode => api('/distributor/view-account', { method: 'POST', body: { clientCode } }),
 };
 
 // Super-admin only (token must carry isSuperAdmin and not be an impersonation token).

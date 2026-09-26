@@ -129,13 +129,13 @@ export function HomeCream({ V }) {
       </Grid2>
       <Tx s={11} c={C.gray} style={{ marginTop: 10, marginLeft: 2 }}>As of {V.asOf}</Tx>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 24, marginBottom: 10, marginHorizontal: 2 }}>
-        <Tx w={700} s={11} ls={0.12} c={C.muted}>RECENT ACTIVITY</Tx>
+        <Tx w={700} s={11} ls={0.12} c={C.muted}>TRANSACTIONS</Tx>
         <Pressable onPress={V.goServices}><Tx w={700} s={12} c={C.green}>View all</Tx></Pressable>
       </View>
       <Card style={{ overflow: 'hidden' }}>
         {V.hasTx
           ? V.tx3.map((t, i) => <TxRow key={i} t={t} last={i === V.tx3.length - 1} />)
-          : <Tx s={12} c={C.muted} style={{ padding: 16 }}>No contributions or withdrawals recorded yet.</Tx>}
+          : <Tx s={12} c={C.muted} style={{ padding: 16 }}>No transactions recorded yet.</Tx>}
       </Card>
     </Fade>
   );

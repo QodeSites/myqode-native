@@ -169,7 +169,7 @@ export function SetPassword({ V }) {
               <Tx w={700} s={11} ls={0.14} c={C.muted}>NEW PASSWORD</Tx>
               <Field label="PASSWORD" value={V.np} onChangeText={V.onNp} placeholder="••••••••" secure style={{ marginTop: 14 }} />
               <Field label="CONFIRM PASSWORD" value={V.np2} onChangeText={V.onNp2} placeholder="••••••••" secure style={{ marginTop: 16 }} />
-              <Tx s={11} c={C.gray} lh={1.5} style={{ marginTop: 12 }}>At least 8 characters, with upper and lower case letters, a number and a symbol.</Tx>
+              <Tx s={11} c={C.gray} lh={1.5} style={{ marginTop: 12 }}>At least 8 characters, with upper and lower case letters, a number and a symbol. No spaces.</Tx>
               <Msg V={V} />
               <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'SAVE & SIGN IN'} onPress={V.savePassword} style={{ marginTop: 20, opacity: V.authBusy ? 0.6 : 1 }} />
             </Card>

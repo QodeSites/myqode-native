@@ -4,14 +4,15 @@ import { View, Pressable, Linking } from 'react-native';
 import { C, Tx, Card, Fade, Toggle } from '../ui';
 import { ChevronRight, Phone, MailIcon, FaceID } from '../icons';
 import { CONTACT } from '../content';
+import { SignOutButton } from './kit';
 import { SectionLabel } from './kit';
 
 const GROUPS = [
   { title: 'EXPERIENCE', items: [['Family accounts', 'family'], ['Investor portal guide', 'guide'], ['Service cadence', 'cadence']] },
-  { title: 'ENGAGEMENT', items: [['Insights & events', 'insights'], ['Referral programme', 'referral']] },
+  { title: 'ENGAGEMENT', items: [['Insights', 'insights'], ['Referral programme', 'referral']] },
   { title: 'ABOUT QODE', items: [['Qode philosophy', 'philosophy'], ['Strategy snapshot', 'strategies'], ['Note from our fund managers', 'foundation'], ['Your team at Qode', 'team']] },
   { title: 'TRUST', items: [['FAQ & glossary', 'faq'], ['Risk management', 'risk'], ['Grievance redressal', 'grievance']] },
-  { title: 'SUPPORT & LEGAL', items: [['Contact us', 'contact'], ['Privacy policy', 'privacy'], ['Terms & conditions', 'terms'], ['Cancellation & refund', 'cancellation']] },
+  { title: 'SUPPORT & LEGAL', items: [['Contact us', 'contact'], ['Privacy policy', 'privacy'], ['Terms & conditions', 'terms']] },
 ];
 
 const go = url => Linking.openURL(url).catch(() => {});
@@ -97,9 +98,13 @@ export function MoreCream({ V }) {
           <ChevronRight />
         </Pressable>
       </Card>
-      <Pressable onPress={V.doLogout} style={{ padding: 12, marginTop: 18 }}>
-        <Tx w={700} s={13} c={C.red} center>Sign out</Tx>
-      </Pressable>
+      {V.viewing ? (
+        <Pressable onPress={V.exitView} style={{ padding: 12, marginTop: 18 }}>
+          <Tx w={700} s={13} c={C.green} center>Back to partner panel</Tx>
+        </Pressable>
+      ) : (
+        <SignOutButton onPress={V.doLogout} />
+      )}
       {V.testMode && (
         <Pressable onPress={V.reshowUcc} style={{ padding: 8 }}>
           <Tx w={700} s={11} c={C.gold} center>TEST: show the UCC pop-up again</Tx>

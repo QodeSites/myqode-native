@@ -340,7 +340,7 @@ export function Sheet({ visible, onClose, children, maxH = 0.86 }) {
   }, [visible]);
   if (!visible) return null;
   return (
-    <Modal transparent visible onRequestClose={onClose} statusBarTranslucent>
+    <Modal transparent visible onRequestClose={() => { if (!runBack()) onClose(); }} statusBarTranslucent>
       <View style={{ flex: 1 }}>
         <Animated.View style={[{ flex: 1, backgroundColor: 'rgba(0,32,23,0.55)', opacity: fade }]}>
           <Pressable style={{ flex: 1 }} onPress={() => { Keyboard.dismiss(); onClose(); }} />
@@ -402,12 +402,39 @@ export const KeyboardScroll = React.forwardRef(function KeyboardScroll({ childre
     const iv = setInterval(reveal, 250);   // focus moved to another field while the keyboard stays open
     return () => { clearTimeout(t); clearInterval(iv); };
   }, [kb]);
+  // Android: closing the keyboard with Back leaves the field focused, and tapping a focused field does not
+  // bring the keyboard back — the field looks dead. Release the focus whenever the keyboard goes away.
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidHide', () => {
+      const S = TextInput.State;
+      const input = S && S.currentlyFocusedInput ? S.currentlyFocusedInput() : null;
+      if (input) S.blurTextInput(input);
+    });
+    return () => sub.remove();
+  }, []);
   const base = StyleSheet.flatten(contentContainerStyle) || {};
   return (
     <ScrollView ref={setRef} keyboardShouldPersistTaps="handled" scrollEventThrottle={16}
+      // iOS: lock each drag to one direction, so a sideways swipe on a chip row isn't taken over by this
+      // vertical scroll mid-gesture (which made the row spring back).
+      directionalLockEnabled
       onScroll={e => { y.current = e.nativeEvent.contentOffset.y; if (onScroll) onScroll(e); }}
       contentContainerStyle={[base, { paddingBottom: (base.paddingBottom || 0) + kb }]} {...rest}>
       {children}
     </ScrollView>
   );
 });
+
+// ── Back navigation shared by Android's back button and the iOS edge swipe ─────
+// A screen with its own inner history (the partner panel's tabs and sub-screens) registers a handler; the most
+// recent one runs first and returns true when it went back. main.js asks these before its own phase / tab rules.
+const backHandlers = [];
+export function runBack() {
+  for (let i = backHandlers.length - 1; i >= 0; i--) if (backHandlers[i].current()) return true;
+  return false;
+}
+export function useBackHandler(fn) {
+  const ref = useRef(fn);
+  ref.current = fn;
+  useEffect(() => { backHandlers.push(ref); return () => { const i = backHandlers.indexOf(ref); if (i >= 0) backHandlers.splice(i, 1); }; }, []);
+}

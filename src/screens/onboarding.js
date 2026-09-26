@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   C, Tx, Amt, Card, CTA, ChipRow, CurveCap, Field,
-  Radio, Rise, Hairline, GoldThreads, Sheet, useUI,
+  Radio, Rise, Hairline, GoldThreads, Sheet, useUI, KeyboardScroll,
 } from '../ui';
 import { ChevronLeft, Check, SmallCheck, Copy } from '../icons';
 import { ARTICLES } from '../data';

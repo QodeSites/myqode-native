@@ -3,7 +3,7 @@
 // React Native (text handlers instead of DOM events, active flags instead of
 // inline CSS strings).
 import React from 'react';
-import { View, StatusBar, BackHandler, AppState, Platform } from 'react-native';
+import { View, StatusBar, BackHandler, AppState, Platform, PanResponder } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { Alert } from 'react-native';
@@ -12,7 +12,7 @@ import { LockScreen, UpdatePrompt } from './screens/gate';
 import * as Network from 'expo-network';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { C, UICtx, Tx } from './ui';
+import { C, UICtx, Tx, runBack } from './ui';
 import { readPendingPayment, hintFromReturnUrl } from './screens/pay';
 import { storeGet, storeSet, storeDel } from './api/session';
 
@@ -24,7 +24,7 @@ import {
   QUARTER_LABELS,
   QS, TYPES, FEES, RES,
 } from './data';
-import { BASE_URL, auth, portfolio, meta, admin, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
+import { BASE_URL, auth, portfolio, meta, admin, distributor, setViewToken, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
 import { trackStart, trackStop, screen } from './api/track';
 import { perfFrom, navFrom, ddFrom, cashFrom, plFrom, combineFamily } from './webcalc';
 import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, titleCase, semverLt } from './adapt';
@@ -54,6 +54,9 @@ const MIME_BY_EXT = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg
 const guessMime = name => MIME_BY_EXT[(String(name || '').split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
 
 const PERIOD = { '1M': '1M', '6M': '6M', '1Y': '1Y', '3Y': '3Y', All: 'ALL' };
+
+// Sign-in fields never take spaces (typed or pasted): an email, a client code and a password contain none.
+const noSpace = t => String(t || '').replace(/\s+/g, '');
 
 export default class MyQode extends React.Component {
   state = {
@@ -112,6 +115,7 @@ export default class MyQode extends React.Component {
     this.seq = 0;
     onUnauthorized(() => this.expire());
     this.backSub = BackHandler.addEventListener('hardwareBackPress', () => this.handleBack());
+
     // Razorpay's return page deep-links to …/payment-return. Normally the payment sheet's auth session consumes
     // it; this catches the link when the sheet is gone (project reloaded, app relaunched) and resumes the order.
     this.linkSub = Linking.addEventListener('url', ({ url }) => this.onDeepLink(url));
@@ -151,21 +155,33 @@ export default class MyQode extends React.Component {
   // Back button: close what is on top, then go to Home, and only leave the app
   // after a second press on the first screen. Returns true when the press was handled here.
   // (Bottom sheets are native Modals: they close themselves on back via onRequestClose.)
-  handleBack() {
+  // iOS has no back button: a swipe in from the left edge does what Android's back does (sheets are native
+  // modals and close by their own swipe / buttons). Captured only for a clear rightward edge swipe, so taps and
+  // vertical scrolling underneath are untouched.
+  edgeSwipe = PanResponder.create({
+    onMoveShouldSetPanResponderCapture: (_, g) => Platform.OS === 'ios' && g.x0 < 28 && g.dx > 14 && Math.abs(g.dy) < Math.abs(g.dx) * 0.6,
+    onPanResponderRelease: (_, g) => { if (g.dx > 70 || (g.dx > 30 && g.vx > 0.5)) this.handleBack(true); },
+    onPanResponderTerminationRequest: () => false,
+  });
+
+  // soft: the iOS edge swipe — it only ever goes back, never arms "press back again to exit".
+  handleBack(soft = false) {
     const S = this.state;
+    if (runBack()) return true;
     if (S.sheet) { this.setState({ sheet: null }); return true; }
     if (S.page) { this.setState({ page: null }); return true; }
     if (S.phase === 'app') {
       // Tabs are top-level destinations, not a stack: from any tab, back goes straight to Home.
       if (S.tab !== 'home') { this.go('home'); return true; }
-      return this.confirmExit();
+      if (S.viewing) { this.exitView(); return true; }   // a partner viewing an investor: back to the partner panel
+      return soft ? false : this.confirmExit();
     }
-    if (S.phase === 'partner' || S.phase === 'lock') return this.confirmExit();
+    if (S.phase === 'partner' || S.phase === 'lock') return soft ? false : this.confirmExit();
     if (S.phase === 'resume') { this.setState({ phase: 'login', resume: null }); return true; }
     if (S.phase === 'ob') { this.obVals().obBack(); return true; }
     if (S.phase === 'otp' || S.phase === 'setpw') { this.setState({ phase: 'login', authErr: '', authInfo: '', busy: false }); return true; }
     if (S.phase === 'carousel' && S.car > 0) { this.setState({ car: S.car - 1 }); return true; }
-    if (S.phase === 'login' || S.phase === 'carousel') return this.confirmExit();
+    if (S.phase === 'login' || S.phase === 'carousel') return soft ? false : this.confirmExit();
     return true;   // splash / transitions: ignore
   }
 
@@ -603,6 +619,7 @@ export default class MyQode extends React.Component {
 
   signOut = async (msg = '') => {
     this.origToken = null;
+    setViewToken(null); this.partnerUser = null; this.partnerNav = null;
     trackStop();
     setDemo(false);
     clearUserCaches();
@@ -612,13 +629,14 @@ export default class MyQode extends React.Component {
     this.counted = false;
     this.setState({
       phase: 'login', tab: 'home', sheet: null, page: null, user: null, acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {},
-      dErr: '', dl: false, pw: '', busy: false, otp: ['', '', '', '', '', ''], authErr: msg, authInfo: '', uccSeen: false, payRecover: null,
+      dErr: '', dl: false, pw: '', busy: false, otp: ['', '', '', '', '', ''], authErr: msg, authInfo: '', uccSeen: false, payRecover: null, viewing: null,
     });
   };
   expire() {
     if (this.state.phase === 'partner') return this.signOut('Your session has expired. Please sign in again.');
     if (this.state.phase !== 'app') return;
-    if (this.origToken) this.exitImpersonation();
+    if (this.state.viewing) this.exitView('Your view of that account has timed out. Open it again from your investors.');
+    else if (this.origToken) this.exitImpersonation();
     else this.signOut('Your session has expired. Please sign in again.');
   }
 
@@ -640,6 +658,30 @@ export default class MyQode extends React.Component {
     catch { this.signOut('Your admin session has expired. Please sign in again.'); }
   };
 
+  // Partner "View account" (web: distributors/investors → View account): the investor's own app, read-only, on a
+  // 2-hour token held in memory only. The partner's token stays saved, so back / exit / an app restart all return
+  // to the partner panel, to the screen the partner left (partnerNav).
+  viewInvestor = async (clientCode, nav = null) => {
+    const r = await distributor.viewAccount(clientCode);
+    this.partnerUser = this.state.user;
+    this.partnerNav = nav;
+    setViewToken(r.token);
+    clearUserCaches();
+    this.seq++;
+    await new Promise(res => this.setState({ user: r.user, viewing: r.user.name || 'Investor', page: null, sheet: null, tab: 'home',
+      acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '' }, res));
+    await this.openPortfolio();
+    this.startApp();
+  };
+  exitView = (msg = '') => {
+    setViewToken(null);
+    clearUserCaches();
+    this.seq++;
+    const user = this.partnerUser; this.partnerUser = null;
+    this.setState({ user, viewing: null, phase: 'partner', page: null, sheet: null, tab: 'home', acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '' });
+    if (msg) this.toast(msg);
+  };
+
   fmt(v) { return '₹' + v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   fmt0(v) { return '₹' + v.toLocaleString('en-IN'); }
   sfmt(v) { return (v < 0 ? '−' : '+') + this.fmt(Math.abs(v)); }
@@ -652,7 +694,7 @@ export default class MyQode extends React.Component {
     services.bankDetails().catch(() => {});
     services.warmSwitchInfo();
     const sc = this.curScope(); if (sc && sc.accounts[0]) documents.warm(sc.accounts[0].id);   // Documents tab: category counts
-    if (!first) return;
+    if (!first || this.state.viewing) return;
     this.resumePayment();
     const t0 = Date.now(), D = 400;
     const step = () => {
@@ -792,17 +834,30 @@ export default class MyQode extends React.Component {
     const p3 = buildPaths(ddPts, ddBench, 330, 100, 0);
     // Plot in real NAV terms like the web chart: portfolio = raw NAV, benchmark scaled to start at the same NAV.
     const hasRaw = pts.length > 1 && navs.length === pts.length && navs.every(v => v != null && v > 0);
-    const cPts = hasRaw ? navs : pts;
-    // Web chart = full history with the benchmark rebased to 10 (PMS convention). Shorter ranges start both lines together.
-    const cBench = bench ? bench.map(b => (b / bench[0]) * (hasRaw && shownRange === 'All' ? 10 : cPts[0])) : null;
-    // "All" uses the web's y-axis domain (calculateYDomain: min/max padded 5%, floored/ceiled to whole NAV units);
-    // the shorter, mobile-only ranges use a rounded axis.
-    const webDomain = vs => { const min = Math.min(...vs), max = Math.max(...vs), pad = (max - min) * 0.05, lo = Math.floor(min - pad), hi = Math.ceil(max + pad); return { lo, hi, ticks: [hi, (lo + hi) / 2, lo].map(v => v.toFixed(1)) }; };
+    // Every range is drawn from 10 (the PMS convention the full-history chart already used): portfolio and
+    // benchmark are both rebased to 10 at the first date shown. The real NAV is still what the tooltip and the
+    // "current NAV" figure show (rawLine / navs), only the drawing is rebased.
+    const rawLine = hasRaw ? navs : pts;
+    const cPts = rawLine.length ? rawLine.map(v => (v / rawLine[0]) * 10) : [];
+    const cBench = bench && bench.length ? bench.map(b => (b / bench[0]) * 10) : null;
+    // Axis: a rounded range around the data; its bottom is exactly 10 unless the line dips below 10. 10.00 is always
+    // labelled — as the bottom tick, or at its own height when the axis goes lower. Labels carry two decimals.
     const axisVals = cBench ? cPts.concat(cBench) : cPts;
-    const axis = cPts.length > 1 ? (shownRange === 'All' && hasRaw ? webDomain(axisVals) : niceAxis(axisVals)) : { lo: 0, hi: 1, ticks: [] };
+    let axis = { lo: 0, hi: 1, ticks: [] };
+    if (cPts.length > 1) {
+      const nice = niceAxis(axisVals);
+      const lo = Math.min(...axisVals) >= 10 ? 10 : nice.lo, hi = Math.max(nice.hi, lo + 0.01);
+      const at = v => ({ t: v.toFixed(2), f: (hi - v) / (hi - lo) });   // f: 0 = top, 1 = bottom
+      let ticks = [at(hi), at((hi + lo) / 2), at(lo)];
+      if (lo < 10 && hi > 10) {
+        const ten = at(10);
+        ticks = ticks.filter(k => Math.abs(k.f - ten.f) > 0.15).concat(ten);   // drop a tick that would crowd it
+      }
+      axis = { lo, hi, ticks };
+    }
     const p1 = buildPaths(cPts, cBench, 330, 120, null, [axis.lo, axis.hi]);
     const p2 = buildPaths(cPts, cBench, 358, 110, null, [axis.lo, axis.hi]);
-    const navNow = cPts.length ? cPts[cPts.length - 1] : 0;
+    const navNow = rawLine.length ? rawLine[rawLine.length - 1] : 0;   // the real NAV, not the rebased line
     const dmy = d => { const t = new Date(d); return isNaN(t) ? '' : t.getDate() + '/' + (t.getMonth() + 1) + '/' + t.getFullYear(); };
     const xDates = dates.length > 1 ? [dates[0], dates[Math.floor((dates.length - 1) / 2)], dates[dates.length - 1]].map(dmy) : [];
     // Growth anchor for the full-history chart = the web's: NAV 10 (the PMS starting point) when the first
@@ -822,7 +877,7 @@ export default class MyQode extends React.Component {
     const tx = t => {
       const out = t.type === 'outflow', amt = Math.abs(num(t.amount) || 0);
       return {
-        title: out ? 'Withdrawal' : 'Contribution', sub: dateFmt(t.date),
+        title: out ? 'Withdrawal' : 'Invested', sub: dateFmt(t.date),
         amt: this.sfmt(out ? -amt : amt), color: out ? red : green, status: 'COMPLETED', stColor: C.green,
       };
     };
@@ -871,7 +926,8 @@ export default class MyQode extends React.Component {
       carSkip: () => set({ phase: 'login' }), carDone: () => set({ phase: 'login' }),
       carProg: (S.car + 1) / 3, carHasPrev: S.car > 0, carLast: S.car === 2,
       // auth
-      email: S.email, pw: S.pw, onEmail: t => set({ email: t, authErr: '' }), onPw: t => set({ pw: t, authErr: '' }),
+      email: S.email, pw: S.pw, onEmail: t => set({ email: noSpace(t), authErr: /\s/.test(t) ? 'Spaces aren’t allowed in your email or client code.' : '' }),
+      onPw: t => set({ pw: noSpace(t), authErr: /\s/.test(t) ? 'Spaces aren’t allowed in a password.' : '' }),
       doLogin: this.doLogin, doForgot: this.doForgot, startDemo: this.startDemo, isDemo: isDemo(),
       testMode: TEST_MODE && !isDemo(), devBypass: DEV_BYPASS,
       devOpen: S.devOpen, toggleDev: this.toggleDev, bypassLogin: this.bypassLogin, devErr: S.devErr, reloadDev: this.loadDevClients, apiBase: BASE_URL,
@@ -889,7 +945,7 @@ export default class MyQode extends React.Component {
       })),
       verifyOtp: this.verifyOtp, resendOtp: this.resendOtp,
       backToLogin: () => set({ phase: 'login', authErr: '', authInfo: '', busy: false }),
-      np: S.np, np2: S.np2, onNp: t => set({ np: t, authErr: '' }), onNp2: t => set({ np2: t, authErr: '' }),
+      np: S.np, np2: S.np2, onNp: t => set({ np: noSpace(t), authErr: /\s/.test(t) ? 'Spaces aren’t allowed in a password.' : '' }), onNp2: t => set({ np2: noSpace(t), authErr: /\s/.test(t) ? 'Spaces aren’t allowed in a password.' : '' }),
       savePassword: this.savePassword,
       // Saved application banner on sign-in
       hasResume: !!(saved && saved.resumeToken && S.phase === 'login'),
@@ -935,7 +991,7 @@ export default class MyQode extends React.Component {
       navIdx: { home: 0, portfolio: 1, holdings: 1, docs: 2, services: 3, more: 4 }[S.tab],
       heroValue: this.fmt(value * (0.35 + 0.65 * S.cu)),
       rangeLabel: shownRange === 'All' ? 'all time' : shownRange, rangeLoading, asOf, benchName, sinceLbl: perf ? 'Since ' + perf.inceptionDate : '',
-      growthNow: navNow.toFixed(hasRaw ? 4 : 2), navNow: navNow.toFixed(hasRaw ? 4 : 2),
+      growthNow: navNow.toFixed(2), navNow: navNow.toFixed(2),
       yTicks: axis.ticks, xDates,
       hasViews: !!S.hist && !S.hist.family,
       viewChips: [['nuvama', 'Nuvama'], ['orbis', 'Orbis (Legacy)'], ['consolidated', 'Combined']].map(([id, label]) => ({ label, active: S.dv === id, pick: () => this.applyView(id) })),
@@ -994,6 +1050,7 @@ export default class MyQode extends React.Component {
         rows: f.m.map(a => ({ m: a[0], v: this.sfmt(a[1]), color: c(a[1]) })),
       })),
       impersonate: this.impersonate, exitImpersonation: this.exitImpersonation,
+      viewing: S.viewing, viewInvestor: this.viewInvestor, exitView: () => this.exitView(), partnerNav: this.partnerNav || null,
       user: S.user, isSuperAdmin: !!(S.user && S.user.isSuperAdmin), impersonated: !!(S.user && S.user.isImpersonated),
       page: S.page, openPage: k => { screen('page:' + k); set({ page: k }); }, closePage: () => set({ page: null }),
       acctOptions: (scope ? scope.accounts : []).map(a => ({ id: a.id, label: a.strategyPrefix ? a.strategyPrefix + ' · ' + a.id : a.id })),
@@ -1361,7 +1418,7 @@ export default class MyQode extends React.Component {
     };
     return (
       <UICtx.Provider value={U}>
-        <View style={{ flex: 1, backgroundColor: this.state.phase === 'app' || this.state.phase === 'partner' ? C.cream : '#001008' }}>
+        <View style={{ flex: 1, backgroundColor: this.state.phase === 'app' || this.state.phase === 'partner' ? C.cream : '#001008' }} {...this.edgeSwipe.panHandlers}>
           <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
           {V.isSplash && <Splash V={V} />}
           {V.isCarousel && <Carousel V={V} />}

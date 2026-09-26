@@ -95,3 +95,15 @@ export function AccountChips({ options, value, onPick }) {
     </View>
   );
 }
+
+// Sign out — the same button in the investor app (More) and the partner app (More): outlined in red, since it
+// ends the session.
+export function SignOutButton({ onPress, style }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel="Sign out"
+      style={({ pressed }) => [{ marginTop: 22, paddingVertical: 13, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(239,68,68,0.45)',
+        backgroundColor: pressed ? 'rgba(239,68,68,0.06)' : 'transparent', alignItems: 'center' }, style]}>
+      <Tx w={700} s={13} ls={0.04} c={C.red}>Sign out</Tx>
+    </Pressable>
+  );
+}

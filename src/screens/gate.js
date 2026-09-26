@@ -36,15 +36,25 @@ export function UpdatePrompt({ V }) {
   const url = u.updateUrls && u.updateUrls[Platform.OS === 'ios' ? 'ios' : 'android'];
   return (
     <Modal transparent visible animationType="fade" onRequestClose={u.force ? undefined : V.dismissUpdate} statusBarTranslucent>
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,32,23,0.6)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 }}>
+      {/* "Update available" closes on ✕, Later, a tap outside or Back; "Update required" cannot be skipped. */}
+      <Pressable onPress={u.force ? undefined : V.dismissUpdate} accessible={false}
+        style={{ flex: 1, backgroundColor: 'rgba(0,32,23,0.6)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 }}>
+        <Pressable onPress={() => {}} accessible={false} style={{ alignSelf: 'stretch' }}>
         <Card big style={{ alignSelf: 'stretch', padding: 22 }}>
+          {!u.force && (
+            <Pressable onPress={V.dismissUpdate} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"
+              style={{ position: 'absolute', top: 12, right: 12, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(55,88,79,0.08)', zIndex: 2 }}>
+              <Tx w={700} s={14} c={C.muted}>✕</Tx>
+            </Pressable>
+          )}
           <Tx w={700} s={10.5} ls={0.14} c={C.muted}>{u.force ? 'UPDATE REQUIRED' : 'UPDATE AVAILABLE'}</Tx>
           <Tx f="play" w={600} s={21} style={{ marginTop: 8 }}>myQode {u.latestVersion ? 'v' + u.latestVersion : 'update'}</Tx>
           <Tx s={12.5} c={C.muted} lh={1.6} style={{ marginTop: 8 }}>{u.message || 'A new version of myQode is available. Please update for the latest features.'}</Tx>
           <CTA label={Platform.OS === 'ios' ? 'OPEN THE APP STORE' : 'OPEN GOOGLE PLAY'} onPress={() => url && Linking.openURL(url).catch(() => {})} style={{ marginTop: 20 }} />
           {!u.force && <CTA label="LATER" outline onPress={V.dismissUpdate} style={{ marginTop: 10 }} />}
         </Card>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
