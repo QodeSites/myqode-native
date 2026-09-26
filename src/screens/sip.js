@@ -46,7 +46,7 @@ const defaultEnd = start => addMonths(start, 120);
 //   web     → a typed YYYY-MM-DD field (the native picker does not exist there)
 const clamp = (d, min, max) => (min && d < min ? min : max && d > max ? max : d);
 const dayOnly = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-function DateField({ label, value, min, max, onChange, hint }) {
+export function DateField({ label, value, min, max, onChange, hint, placeholder }) {   // placeholder: shown instead of the date while none is chosen
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
   const openPicker = () => {
@@ -64,7 +64,7 @@ function DateField({ label, value, min, max, onChange, hint }) {
         <Field value={iso(value)} placeholder="YYYY-MM-DD" onChangeText={t => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t.trim()); if (!m) return; const d = new Date(+m[1], +m[2] - 1, +m[3]); if (!isNaN(d)) onChange(clamp(d, min, max)); }} s={14} style={{ marginTop: 6 }} />
       ) : (
         <Pressable onPress={openPicker} style={{ marginTop: 6, borderWidth: 1, borderColor: open ? C.green : C.mutedBorder35, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12 }}>
-          <Tx w={700} s={13}>{niceDate(value)}</Tx>
+          {placeholder ? <Tx s={13} c={C.gray}>{placeholder}</Tx> : <Tx w={700} s={13}>{niceDate(value)}</Tx>}
           {!!hint && <Tx s={10.5} c={C.gray} style={{ marginTop: 2 }}>{hint}</Tx>}
         </Pressable>
       )}

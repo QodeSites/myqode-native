@@ -274,9 +274,9 @@ export const demo = {
   },
   switchInfo() {
     return { investors: [
-      { id: 'demo-1', legalName: 'Rohan Mehta', invested: { QAW: 7565443, QTF: 3321414, QGF: 5720213 }, pending: null },
-      { id: 'demo-2', legalName: 'Anjali Mehta', invested: { QAW: 5000000, QTF: 0, QGF: 4210450 }, pending: null },
-      { id: 'demo-3', legalName: 'Mehta Family Trust', invested: { QAW: 20000000, QTF: 14108880, QGF: 0 }, pending: { requestDate: '2026-07-10', switchType: 'Partial Switch' } },
+      { id: 'demo-1', legalName: 'Rohan Mehta', invested: { QAW: 7565443, QTF: 3321414, QGF: 5720213 }, pending: [] },
+      { id: 'demo-2', legalName: 'Anjali Mehta', invested: { QAW: 5000000, QTF: 0, QGF: 4210450 }, pending: [] },
+      { id: 'demo-3', legalName: 'Mehta Family Trust', invested: { QAW: 20000000, QTF: 14108880, QGF: 0 }, pending: [{ requestDate: '2026-07-10', switchType: 'Partial Switch', from: ['QAW'], to: ['QTF'] }] },
     ], dryRun: false };
   },
 };

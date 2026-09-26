@@ -4,7 +4,14 @@ import { Platform } from 'react-native';
 const KEY = 'myqode.token';
 const web = Platform.OS === 'web';
 
+// A partner viewing one of their investors holds that investor's read-only token in memory only: it is never
+// saved, so closing the app returns to the partner's own session.
+let viewToken = null;
+export const setViewToken = t => { viewToken = t || null; };
+export const hasViewToken = () => !!viewToken;
+
 export async function getToken() {
+  if (viewToken) return viewToken;
   try {
     return web ? globalThis.localStorage?.getItem(KEY) || null : await SecureStore.getItemAsync(KEY);
   } catch { return null; }

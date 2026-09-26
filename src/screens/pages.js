@@ -77,7 +77,7 @@ function Family() {
 }
 
 function Insights() {
-  const tabs = [['Newsletters', 'newsletters'], ['Perspectives', 'perspectives'], ['Events', 'events']];
+  const tabs = [['Newsletters', 'newsletters'], ['Perspectives', 'perspectives']];
   const [tab, setTab] = useState('newsletters');
   const list = useLoad(() => engagement[tab](), [tab]);
   const items = (list.data && list.data.items) || [];
@@ -113,7 +113,7 @@ const REFERRAL_FORM = {
   fields: [
     { k: 'name', label: 'REFERRED PERSON’S NAME', kind: 'name', placeholder: 'Full name', validate: x => check.name(x, 'their name') },
     { k: 'email', label: 'EMAIL', kind: 'email', placeholder: 'name@example.com', validate: check.email },
-    { k: 'phone', label: 'MOBILE NUMBER', kind: 'phone', placeholder: '10-digit mobile', validate: check.phone },
+    { k: 'phone', label: 'MOBILE NUMBER', kind: 'phone', placeholder: 'Enter mobile number', validate: check.phone },
     { k: 'desc', label: 'NOTE (OPTIONAL)', kind: 'multiline', max: LIMITS.note, validate: x => (String(x || '').length > LIMITS.note ? `Please keep the note under ${LIMITS.note} characters.` : '') },
   ],
   submit: (a, v) => engagement.referral({ accountId: a, name: v.name.trim(), email: v.email.trim().toLowerCase(), phone: v.phone, description: (v.desc || '').trim() || undefined }),
@@ -306,7 +306,7 @@ const PAGES = {
   requirements: { title: 'Data requirements & API coverage', body: () => <Requirements /> },
   admin: { title: 'Admin', body: V => <AdminPage V={V} /> },
   family: { title: 'Family accounts', body: () => <Family /> },
-  insights: { title: 'Insights & events', body: () => <Insights /> },
+  insights: { title: 'Insights', body: () => <Insights /> },
   guide: { title: 'Investor portal guide', body: () => <PortalGuide /> },
   referral: { title: 'Referral programme', body: V => <Referral V={V} /> },
   cadence: { title: 'Reports & Reviews', body: () => <ReportsReviews /> },
@@ -339,7 +339,8 @@ export function PageHost({ V }) {
         </View>
         <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: 10, marginLeft: 46 }} />
       </LinearGradient>
-      <KeyboardScroll style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
+      {/* keyed on the page: every page opens at its top */}
+      <KeyboardScroll key={V.page} style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
         <Fade key={V.page}>{pg.body(V)}</Fade>
       </KeyboardScroll>
     </View>

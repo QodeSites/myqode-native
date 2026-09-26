@@ -378,7 +378,8 @@ export function Team({ V }) {
         <Labelled label="When to Contact" style={{ marginTop: 6 }}>For reports, account queries, operational clarifications, and all quarterly/annual reviews.</Labelled>
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
           <CTA label="CONTACT IR TEAM" onPress={() => go(`mailto:${IR}?subject=${encodeURIComponent('IR Support Request - ' + (code || 'Account'))}`)} style={{ flex: 1, paddingVertical: 12 }} />
-          <CTA label="RAISE ANY QUERY" outline onPress={() => V && V.openReq('r-account')} style={{ flex: 1, paddingVertical: 12 }} />
+          {/* web: "Raise Any Query" opens the discussion-topic form (inquiry_type 'discussion') */}
+          <CTA label="RAISE ANY QUERY" outline onPress={() => V && V.openReq('r-discussion')} style={{ flex: 1, paddingVertical: 12 }} />
         </View>
         <Tx s={11} c={C.gray} style={{ marginTop: 8 }}>We will get back to you promptly.</Tx>
       </ChannelCard>

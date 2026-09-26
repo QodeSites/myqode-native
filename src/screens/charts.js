@@ -60,7 +60,7 @@ function ChartTip({ tip, vw, vh, height, lineColor, children }) {
         }}>
           <Tx w={700} s={11} c={C.ink}>{fmtDate(tip.dates[idx])}</Tx>
           <Tx w={700} s={11} c={growth ? C.green : C.red} style={{ marginTop: 3 }}>{growth ? 'Portfolio Growth' : 'Drawdown'}: {signed(v)}</Tx>
-          {nav != null && <Tx s={10.5} c={C.muted}>NAV: {nav}</Tx>}
+          {nav != null && <Tx s={10.5} c={C.muted}>NAV: {Number(nav).toFixed(2)}</Tx>}
           {bv != null && <Tx w={700} s={11} c={C.muted} style={{ marginTop: 3 }} numberOfLines={1}>{tip.benchName}{growth ? '' : ' DD'}: {signed(bv)}</Tx>}
           {bv != null && bval != null && <Tx s={10.5} c={C.muted}>Value: {Number(bval).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Tx>}
         </View>
@@ -94,7 +94,7 @@ function ChartTip({ tip, vw, vh, height, lineColor, children }) {
 // y-axis tick labels (top, middle, bottom) drawn over the chart, and x-axis dates under it.
 // Y labels get their own left column (GUTTER wide) and the plot starts to the right of it, so the line never
 // runs through the numbers. The x dates are indented by the same amount to stay under the plot.
-const GUTTER = 34;
+const GUTTER = 30;   // fits "10.00"–"99.99" at 9pt with a small gap before the plot ("100.00" shrinks to fit)
 function Axes({ yTicks, xDates, height, color, children }) {
   const ys = [8, height / 2, height - 8];
   const g = yTicks && yTicks.length ? GUTTER : 0;
@@ -102,9 +102,14 @@ function Axes({ yTicks, xDates, height, color, children }) {
     <View>
       <View style={{ paddingLeft: g }}>
         {children}
-        {(yTicks || []).map((t, i) => (
-          <Tx key={i} s={9} c={color} numberOfLines={1} style={{ position: 'absolute', left: 0, width: g - 4, top: ys[i] - (i === 2 ? 12 : -1), pointerEvents: 'none' }}>{t}</Tx>
-        ))}
+        {(yTicks || []).map((t, i) => {
+          // { t, f }: label at its own height (f = 0 top … 1 bottom, same 8px inset as the plot); a string: slot i.
+          const top = typeof t === 'object' ? Math.min(height - 12, Math.max(0, 8 + t.f * (height - 16) - 6)) : ys[i] - (i === 2 ? 12 : -1);
+          return (
+            <Tx key={i} s={9} c={color} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
+              style={{ position: 'absolute', left: 0, width: g - 3, textAlign: 'left', top, pointerEvents: 'none' }}>{typeof t === 'object' ? t.t : t}</Tx>
+          );
+        })}
       </View>
       {!!(xDates && xDates.length) && (
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, paddingLeft: g }}>

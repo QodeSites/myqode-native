@@ -1,4 +1,4 @@
-import { getToken } from './session';
+import { getToken, hasViewToken } from './session';
 
 // Point at a local myQode dev server (e.g. http://192.168.x.x:2069) with EXPO_PUBLIC_API_BASE_URL.
 export const BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || 'https://myqode.qodeinvest.com').replace(/\/$/, '');
@@ -14,6 +14,8 @@ let unauthorizedHandler = null;
 export const onUnauthorized = fn => { unauthorizedHandler = fn; };
 
 export async function api(path, { method = 'GET', query, body, auth = true, timeout = 25000 } = {}) {
+  // Viewing an investor's account as their partner is read-only (the server refuses it too).
+  if (auth && method !== 'GET' && hasViewToken()) throw new ApiError('You are viewing this account — changes are not available.', { status: 403, code: 'VIEW_ONLY' });
   let url = BASE_URL + '/api/mobile' + path;
   if (query) {
     const qs = Object.entries(query).filter(([, v]) => v != null && v !== '')

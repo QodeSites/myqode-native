@@ -1,7 +1,7 @@
 // Main app frame: scrolling dark-curtain header + cream zone per tab,
 // fixed bottom nav with sliding gold thread, sheets, and success overlay.
 import React, { useRef, useEffect } from 'react';
-import { View, Pressable, Animated, Dimensions, Easing } from 'react-native';
+import { View, Pressable, Animated, Dimensions, Easing, RefreshControl } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, Tx, Amt, Chip, CurveCap, Fade, GoldThreads, useUI } from '../ui';
@@ -43,6 +43,18 @@ function Header({ V, insets }) {
 function DarkZone({ V }) {
   return (
     <>
+      {!!V.viewing && (
+        // A partner viewing one of their investors (read-only): who this is, and the way back.
+        <View style={{ marginTop: 12, marginHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: C.gold, borderRadius: 10, paddingVertical: 8, paddingLeft: 12, paddingRight: 8, backgroundColor: 'rgba(218,189,56,0.1)' }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Tx w={700} s={9.5} ls={0.14} c={C.gold}>VIEWING · READ-ONLY</Tx>
+            <Tx w={700} s={12.5} c={C.cream} numberOfLines={1} style={{ marginTop: 2 }}>{V.viewing}</Tx>
+          </View>
+          <Pressable onPress={V.exitView} accessibilityRole="button" accessibilityLabel="Back to the partner panel" style={{ backgroundColor: C.gold, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
+            <Tx w={700} s={11} c={C.ink}>Back to partner</Tx>
+          </Pressable>
+        </View>
+      )}
       {V.testMode && (
         <View style={{ paddingTop: 10, paddingHorizontal: 22, flexDirection: 'row' }}>
           <View style={{ borderWidth: 1, borderColor: C.red, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 }}>
@@ -101,7 +113,7 @@ function DarkZone({ V }) {
         <Fade style={{ paddingTop: 16, paddingHorizontal: 22 }}>
           <Tx w={700} s={11} ls={0.14} c={C.gold}>PERFORMANCE</Tx>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 6 }}>
-            <Tx f="play" w={600} s={24} c={C.cream}>NAV performance</Tx>
+            <Tx f="play" w={600} s={24} c={C.cream}>NAV Performance</Tx>
             <Amt s={15} c={C.gold}>{V.growthNow}</Amt>
           </View>
           <View style={{ marginTop: 10 }}>
@@ -136,7 +148,7 @@ function DarkZone({ V }) {
       {V.isDocs && (
         <Fade style={{ paddingTop: 22, paddingHorizontal: 22 }}>
           <Tx w={700} s={11} ls={0.14} c={C.gold}>DOCUMENTS</Tx>
-          <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>Account documents</Tx>
+          <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>Account Documents</Tx>
           <Tx s={12} c={C.cream60} style={{ marginTop: 6 }}>Agreement, account opening documents and CML</Tx>
         </Fade>
       )}
@@ -149,7 +161,7 @@ function DarkZone({ V }) {
               <Tx s={12} c={C.cream60} style={{ marginTop: 6 }}>{V.svcPendingSub}</Tx>
             </>
           ) : (
-            <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>Services</Tx>
+            <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>Account Services</Tx>
           )}
         </Fade>
       )}
@@ -210,14 +222,26 @@ function BottomNav({ V, insets }) {
 export default function AppShell({ V }) {
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
+  // One scroll view holds every tab: each tab opens at its top, not where the last one was left.
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    const sv = scrollRef.current;
+    const node = sv && (sv.scrollTo ? sv : sv.getNode && sv.getNode());
+    if (node) node.scrollTo({ y: 0, animated: false });
+    scrollY.setValue(0);
+  }, [V.tab]);
   const darkY = scrollY.interpolate({ inputRange: [0, 200], outputRange: [0, 44], extrapolate: 'clamp' });
   const strY = scrollY.interpolate({ inputRange: [0, 200], outputRange: [0, 14], extrapolate: 'clamp' });
   return (
     <View style={{ flex: 1, backgroundColor: C.cream }}>
       <Animated.ScrollView
+        ref={scrollRef}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: 130 }}
+      
+        // Pull down to refresh: same reload as the Refresh button in the header.
+        refreshControl={<RefreshControl refreshing={!!V.refreshing} onRefresh={V.refresh} tintColor={C.gold} colors={[C.green]} progressViewOffset={insets.top} />}
       >
         <LinearGradient colors={C.darkGrad} locations={[0, 0.62, 1]} start={{ x: 0.1, y: 0 }} end={{ x: 0.6, y: 1 }} style={{ paddingBottom: 106 }}>
           <GoldThreads height={320} />

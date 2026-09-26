@@ -21,12 +21,23 @@ const ITEMS = [
   { key: 'r-switch', title: 'Switch strategy', sub: 'Move capital between strategies' },
   { key: 'r-strategy', title: 'Ask about a strategy', sub: 'Send a question to the investment team' },
   { key: 'r-discussion', title: 'Book a discussion', sub: 'Request a call with Investor Relations' },
-  { key: 'r-account', title: 'Raise a query', sub: 'Account changes, family linking, or anything else' },
+  { key: 'r-account' },   // title from accountRequest(): the web's family / account request, by role
 ];
+
+// Web: experience/family-account — "Raise Family Request" for a head of family, "Raise Account Request" otherwise,
+// with the same examples and placeholder. The email Investor Relations receives is titled the same way.
+export function accountRequest(user) {
+  const head = !!(user && user.isHeadOfFamily);
+  return head
+    ? { title: 'Raise family request', sub: 'Merge accounts, reassign an owner, split into a new family group, or change the family email.',
+        cta: 'RAISE FAMILY REQUEST', placeholder: 'Write your family request here (e.g., merge accounts, reassign owner, update family email)…' }
+    : { title: 'Raise account request', sub: 'Update your email or personal details, join a family group, or change your account status.',
+        cta: 'RAISE ACCOUNT REQUEST', placeholder: 'Write your account request here (e.g., update email, change personal details)…' };
+}
 
 export function ServicesCream({ V }) {
   // Activity lives in one place with a switch, instead of three sections stacked under each other:
-  // ONLINE & SIPs (Razorpay orders + SIP mandates, per account) | CONTRIBUTIONS (every cash movement).
+  // ONLINE & SIPs (Razorpay orders + SIP mandates, per account) | TRANSACTIONS (every cash movement).
   const [view, setView] = useState('online');
   const opts = V.acctOptions;
   const [sel, setSel] = useState(null);
@@ -49,7 +60,7 @@ export function ServicesCream({ V }) {
       </Pressable>
       <SectionLabel>REQUESTS & SUPPORT</SectionLabel>
       <Card style={{ overflow: 'hidden' }}>
-        {ITEMS.map((it, i) => (
+        {ITEMS.map(it => (it.key === 'r-account' ? { ...it, ...accountRequest(V.user) } : it)).map((it, i) => (
           <Pressable key={it.key} onPress={() => V.openReq(it.key)} style={{
             flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, minHeight: 52,
             borderBottomWidth: i < ITEMS.length - 1 ? 1 : 0, borderColor: C.hairline,
@@ -64,7 +75,7 @@ export function ServicesCream({ V }) {
       </Card>
 
       <SectionLabel>ACTIVITY</SectionLabel>
-      <Segment value={view} onPick={setView} options={[['online', 'ONLINE & SIPs · ' + n(all.length)], ['cash', 'CONTRIBUTIONS · ' + V.txAll.length]]} />
+      <Segment value={view} onPick={setView} options={[['online', 'ONLINE & SIPs · ' + n(all.length)], ['cash', 'TRANSACTIONS · ' + V.txAll.length]]} />
       {view === 'online'
         ? <Investments V={V} opts={opts} accountId={accountId} onPickAccount={setSel} inv={inv} all={all} />
         : <CashList V={V} />}
@@ -86,7 +97,7 @@ function Segment({ value, onPick, options }) {
   );
 }
 
-// Contributions & withdrawals (bank transfers, redemptions): first few rows, then "show all".
+// Transactions — contributions & withdrawals (bank transfers, redemptions): first few rows, then "show all".
 function CashList({ V }) {
   const [showAll, setShowAll] = useState(false);
   const rows = showAll ? V.txAll : V.txAll.slice(0, 5);
@@ -94,7 +105,7 @@ function CashList({ V }) {
   if (!V.hasTx) {
     return (
       <Card style={{ padding: 18 }}>
-        <Tx s={12.5} c={C.muted} lh={1.6} center>No contributions or withdrawals recorded yet.</Tx>
+        <Tx s={12.5} c={C.muted} lh={1.6} center>No transactions recorded yet.</Tx>
       </Card>
     );
   }
@@ -154,7 +165,7 @@ function Investments({ V, opts, accountId, onPickAccount, inv, all }) {
       {!inv.loading && inv.data && all.length === 0 && (
         <Card style={{ padding: 18, alignItems: 'center' }}>
           <Tx w={700} s={13} center>No online payments or SIPs yet</Tx>
-          <Tx s={12} c={C.muted} lh={1.6} center style={{ marginTop: 6 }}>Bank transfers appear under Contributions. Use Add Funds to pay online or set up a SIP.</Tx>
+          <Tx s={12} c={C.muted} lh={1.6} center style={{ marginTop: 6 }}>Bank transfers appear under Transactions. Use Add Funds to pay online or set up a SIP.</Tx>
           <CTA label="ADD FUNDS" onPress={V.openAdd} style={{ marginTop: 14, alignSelf: 'stretch', paddingVertical: 12 }} />
         </Card>
       )}
@@ -274,8 +285,8 @@ export const FORMS = {
     submit: (a, v) => services.discussion({ accountId: a, topic: v.t.trim() }),
   },
   'r-account': {
-    title: 'Raise a query', sub: 'Account changes, linking a family member’s account, or anything else you need from Investor Relations.', cta: 'SEND QUERY',
-    fields: [{ k: 'm', label: 'YOUR QUERY', kind: 'multiline', validate: x => check.text(x, { min: 10, what: 'your query' }) }],
+    // title / sub / cta / placeholder come from accountRequest() — they depend on the signed-in user's role
+    fields: [{ k: 'm', label: 'YOUR REQUEST', kind: 'multiline', validate: x => check.text(x, { min: 10, what: 'your request' }) }],
     submit: (a, v) => services.accountRequest({ accountId: a, message: v.m.trim() }),
   },
 };
@@ -297,7 +308,10 @@ export function FormBody({ cfg, opts, onDone, doneLabel = 'DONE' }) {
     cfg.fields.forEach(f => { const m = f.validate ? f.validate(v[f.k], v) : ''; if (m) fe[f.k] = m; });
     setErrs(fe);
     const bad = Object.values(fe)[0] || (cfg.check ? cfg.check(v) : '');
-    if (bad) return setSt({ busy: false, err: Object.keys(fe).length > 1 ? 'Please fix the highlighted fields.' : bad, ref: null });
+    // A field's own message already shows under that field — the form-level line only adds what isn't there:
+    // a summary when several fields are wrong, or the cross-field check.
+    const nFe = Object.keys(fe).length;
+    if (bad) return setSt({ busy: false, err: nFe > 1 ? 'Please fix the highlighted fields.' : nFe === 1 ? '' : bad, ref: null });
     setSt({ busy: true, err: '', ref: null });
     try {
       const r = await cfg.submit(acct, v);
@@ -333,7 +347,7 @@ export function FormBody({ cfg, opts, onDone, doneLabel = 'DONE' }) {
             <Field label={f.label} value={v[f.k] || ''} onChangeText={t => set(f.k, tidy(f, t))} multiline={f.kind === 'multiline'}
               keyboardType={f.kind === 'email' ? 'email-address' : f.kind === 'phone' ? 'number-pad' : undefined}
               autoCapitalize={f.kind === 'email' ? 'none' : f.kind === 'name' ? 'words' : undefined}
-              prefix={f.kind === 'phone' ? '+91' : undefined} placeholder={f.placeholder}
+              placeholder={f.placeholder}
               maxLength={f.kind === 'phone' ? 10 : f.max || (f.kind === 'multiline' ? LIMITS.message : f.kind === 'email' ? LIMITS.email : LIMITS.name)}
               error={errs[f.k]} hint={f.kind === 'multiline' && (v[f.k] || '').length > 0 ? `${(v[f.k] || '').length} / ${f.max || LIMITS.message}` : f.hint}
               style={{ marginTop: 18 }} />
@@ -402,13 +416,17 @@ export function RequestSheets({ V }) {
   if (k === 'r-add') return <AddFunds V={V} />;
   if (k === 'r-switch') {
     return (
-      <Shell V={V} title="Switch strategy" sub="Move part or all of an account into another Qode strategy.">
+      <Shell V={V} title="Switch strategy" sub="Tell us where you'd like to move your investment. Our team will confirm the details with you.">
         <SwitchForm onClose={V.closeSheet} preferName={V.acctName} />
       </Shell>
     );
   }
-  const cfg = FORMS[k];
+  let cfg = FORMS[k];
   if (!cfg) return null;
+  if (k === 'r-account') {
+    const r = accountRequest(V.user);
+    cfg = { ...cfg, title: r.title, sub: r.sub + ' It is emailed to Investor Relations with your client code and client ID.', cta: r.cta, fields: cfg.fields.map(f => ({ ...f, placeholder: r.placeholder })) };
+  }
   return (
     <Shell V={V} title={cfg.title} sub={cfg.sub}>
       <FormBody key={k} cfg={cfg} opts={V.acctOptions} onDone={V.closeSheet} />
