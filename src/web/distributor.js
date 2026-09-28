@@ -105,26 +105,61 @@ const Notice = ({ children, tone = 'info', style }) => (
 );
 function StatusTag({ s, sub }) {
   return (
-    <View style={{ minWidth: 0 }}>
+    <View style={{ minWidth: 0, alignSelf: 'stretch' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
         <Dot color={STATUS_COLOR[s.key]} />
-        <Tx w={600} s={12.5} c={STATUS_TEXT[s.key] || C.ink} numberOfLines={1}>{sc(s.label)}</Tx>
+        <Tx w={600} s={12.5} c={STATUS_TEXT[s.key] || C.ink} numberOfLines={1} style={{ flexShrink: 1, minWidth: 0 }}>{sc(s.label)}</Tx>
       </View>
       {!!sub && <Tx s={11.5} c={C.ink3} numberOfLines={1} style={{ marginTop: 2, marginLeft: 15 }}>{sub}</Tx>}
     </View>
   );
 }
 const iconBtn = ({ hovered }) => ({ width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: C.line2, backgroundColor: hovered ? C.hover : C.card, alignItems: 'center', justifyContent: 'center' });
-// A date field: the browser's own date picker.
+// A dd/mm/yyyy date field. The browser's own date input always shows the browser's locale order (mm/dd/yyyy on
+// en-US), so the text is typed here and the native picker is kept only behind the calendar button.
+const isoToDmy = iso => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '');
+function dmyToIso(t) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(t);
+  if (!m) return null;
+  const iso = `${m[3]}-${m[2]}-${m[1]}`;
+  const d = new Date(iso + 'T00:00:00');
+  return !Number.isNaN(d.getTime()) && d.getDate() === +m[1] && d.getMonth() + 1 === +m[2] ? iso : null;
+}
 function DateInput({ label, value, onChange, min, max }) {
+  const [text, setText] = useState(isoToDmy(value));
+  const picker = useRef(null);
+  useEffect(() => { setText(isoToDmy(value)); }, [value]);
+  const type = raw => {
+    const dg = raw.replace(/\D/g, '').slice(0, 8);
+    const t = dg.length > 4 ? `${dg.slice(0, 2)}/${dg.slice(2, 4)}/${dg.slice(4)}` : dg.length > 2 ? `${dg.slice(0, 2)}/${dg.slice(2)}` : dg;
+    setText(t);
+    if (!t) onChange('');
+    else { const iso = dmyToIso(t); if (iso) onChange(iso); }
+  };
+  const bad = text.length === 10 && !dmyToIso(text);
   return (
     <View style={{ flex: 1, minWidth: 0 }}>
       {!!label && <Tx w={600} s={12.5} c={C.ink2} style={{ marginBottom: 6 }}>{label}</Tx>}
-      {React.createElement('input', {
-        type: 'date', value: value || '', min: min || undefined, max: max || undefined, 'aria-label': label,
-        onChange: e => onChange(e.target.value || ''),
-        style: { height: 42, border: '1px solid ' + C.line2, borderRadius: 8, padding: '0 10px', fontFamily: 'Inter_400Regular', fontSize: 14, color: C.ink, background: C.card, width: '100%', boxSizing: 'border-box' },
-      })}
+      {React.createElement('div', { style: { position: 'relative' } },
+        React.createElement('input', {
+          type: 'text', inputMode: 'numeric', placeholder: 'dd/mm/yyyy', value: text, 'aria-label': label ? label + ' (dd/mm/yyyy)' : 'Date (dd/mm/yyyy)',
+          onChange: e => type(e.target.value),
+          style: { height: 42, border: '1px solid ' + (bad ? C.red : C.line2), borderRadius: 8, padding: '0 40px 0 10px', fontFamily: 'Inter_400Regular', fontSize: 14, color: C.ink, background: C.card, width: '100%', boxSizing: 'border-box', outline: 'none' },
+        }),
+        React.createElement('input', {
+          ref: picker, type: 'date', tabIndex: -1, 'aria-hidden': true, value: value || '', min: min || undefined, max: max || undefined,
+          onChange: e => onChange(e.target.value || ''),
+          style: { position: 'absolute', right: 0, bottom: 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none', border: 0, padding: 0 },
+        }),
+        React.createElement('button', {
+          type: 'button', 'aria-label': 'Open calendar',
+          onClick: () => { const el = picker.current; if (!el) return; try { el.showPicker(); } catch { el.focus(); el.click(); } },
+          style: { position: 'absolute', right: 4, top: 4, width: 34, height: 34, border: 0, borderRadius: 6, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.ink2 },
+        }, React.createElement('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+          React.createElement('rect', { x: 3, y: 4, width: 18, height: 18, rx: 2 }),
+          React.createElement('path', { d: 'M16 2v4M8 2v4M3 10h18' }))),
+      )}
+      {bad && <Tx s={11.5} c={C.red} style={{ marginTop: 4 }}>Not a real date</Tx>}
     </View>
   );
 }
@@ -288,7 +323,8 @@ export default function DesktopDistributor({ V }) {
       <View style={{ flex: 1, minWidth: 0 }}>
         <TopBar V={V} title={section === 'investors' && sub ? (sub.c.name || 'Investor') : TITLES[section]} asOf={valuedOn ? fmtDate(valuedOn) : ''}
           busy={journey.loading || split.loading} onRefresh={() => setTick(t => t + 1)} />
-        <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 28, paddingBottom: 48 }}>
+        {/* overflowX auto: a table wider than the window scrolls sideways here rather than being cut off (RNW hides it by default) */}
+        <ScrollView ref={scrollRef} style={{ flex: 1, overflowX: 'auto' }} contentContainerStyle={{ padding: 28, paddingBottom: 48 }}>
           <View style={{ maxWidth: 1680, width: '100%' }}>{body}</View>
         </ScrollView>
       </View>
@@ -528,7 +564,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
   useEffect(() => { setShown(25); }, [q, status, f.stage, f.strategy, f.basis, f.from, f.to]);
   useEffect(() => { if (f.status) setStatus(f.status); }, [f.status]);
   const [soaBusy, setSoaBusy] = useState('');
-  const [soaMsg, setSoaMsg] = useState('');
+  const [soaMsg, setSoaMsg] = useState(null);   // { email, text }: shown under that investor's SOA button, where it was pressed
   const [reportsFor, setReportsFor] = useState(null);   // investor whose "Download reports" dialog is open
   const d = journey.data;
   const clients = (d && d.journey && d.journey.clients) || [];
@@ -540,9 +576,9 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
   const drop = k => setFilter({ ...f, [k]: undefined, ...(k === 'basis' ? { from: undefined, to: undefined } : null) });
   const soa = async c => {
     if (soaBusy) return;
-    setSoaBusy(c.email); setSoaMsg('');
+    setSoaBusy(c.email); setSoaMsg(null);
     try { await openFile({ kind: 'soa', email: c.email }, `No SOA has been issued for ${c.name || 'this investor'} yet.`); }
-    catch (e) { setSoaMsg(e.status === 404 ? `No SOA has been issued for ${c.name || 'this investor'} yet.` : 'We couldn’t fetch the SOA. Please try again.'); }
+    catch (e) { setSoaMsg({ email: c.email, text: e.status === 404 ? `No SOA has been issued for ${c.name || 'this investor'} yet.` : 'We couldn’t fetch the SOA. Please try again.' }); }
     setSoaBusy('');
   };
 
@@ -552,19 +588,19 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
   const chips = [f.stage && ['stage', 'Onboarding step: ' + sc(f.stage)], f.strategy && ['strategy', 'Strategy: ' + f.strategy]].filter(Boolean);
 
   const cols = [
-    { key: 'n', label: '#', flex: 0.3, render: r => <Tx s={12} c={C.ink3}>{r.i + 1}</Tx> },
-    { key: 'name', label: 'Investor', flex: 2, render: ({ c }) => (
-      <View style={{ minWidth: 0 }}>
+    { key: 'n', label: '#', w: 44, render: r => <Tx s={12} c={C.ink3}>{r.i + 1}</Tx> },
+    { key: 'name', label: 'Investor', flex: 2, min: 180, render: ({ c }) => (
+      <View style={{ minWidth: 0, alignSelf: 'stretch' }}>
         <Tx w={600} s={13.5} numberOfLines={1}>{c.name || '–'}</Tx>
         <Tx s={11.5} c={C.ink3} numberOfLines={1}>{[c.city, c.email].filter(Boolean).join(' · ') || 'No details recorded yet'}</Tx>
       </View>) },
-    { key: 'status', label: 'Status', flex: 1.6, render: ({ c, s }) => <StatusTag s={s} sub={s.key === 'onboarding' && c.onboardingStage ? sc(c.onboardingStage) : null} /> },
-    { key: 'strat', label: 'Strategies', flex: 1.3, render: ({ c }) => (
+    { key: 'status', label: 'Status', flex: 1.6, min: 180, render: ({ c, s }) => <StatusTag s={s} sub={s.key === 'onboarding' && c.onboardingStage ? sc(c.onboardingStage) : null} /> },
+    { key: 'strat', label: 'Strategies', flex: 1.3, min: 130, render: ({ c }) => (
       (c.strategies || []).length ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {c.strategies.map(n => <View key={n} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Dot sq s={7} color={STRATEGY_COLOR[n] || C.ink3} /><Tx s={12.5}>{shortStrategy(n)}</Tx></View>)}
         </View>) : <Tx s={12.5} c={C.ink3}>–</Tx>) },
-    { key: 'value', label: 'Current value', right: true, flex: 1.1, render: ({ c }) => {
+    { key: 'value', label: 'Current value', right: true, flex: 1.1, min: 120, render: ({ c }) => {
       const delta = c.currentValue != null && c.investedAmount != null ? c.currentValue - c.investedAmount : null;
       return (
         <View style={{ alignItems: 'flex-end' }}>
@@ -572,16 +608,21 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
           {delta != null ? <Amt s={11.5} c={delta >= 0 ? C.pos : C.red}>{delta >= 0 ? '+' : '−'}{money(Math.abs(delta))}</Amt> : <Tx s={11.5} c={C.ink3}>No holdings yet</Tx>}
         </View>);
     } },
-    { key: 'date', label: f.basis === 'opened' ? 'Account opened' : 'First funded', right: true, flex: 0.95, render: ({ c }) => <Tx s={12.5} c={C.ink2} numberOfLines={1}>{fmtDate(f.basis === 'opened' ? c.accountLiveDate : fundedDate(c) || c.accountLiveDate)}</Tx> },
+    { key: 'date', label: f.basis === 'opened' ? 'Account opened' : 'First funded', right: true, flex: 0.95, min: 125, render: ({ c }) => <Tx s={12.5} c={C.ink2} numberOfLines={1}>{fmtDate(f.basis === 'opened' ? c.accountLiveDate : fundedDate(c) || c.accountLiveDate)}</Tx> },
     { key: 'act', label: 'Actions', right: true, w: 336, render: ({ c }) => (
-      <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
-        {c.clientCode
-          ? <Btn small label={view.opening === c.clientCode ? 'Opening…' : 'View account'} onPress={() => view.open(c)} disabled={!!view.opening && view.opening !== c.clientCode} />
-          : <View style={{ height: 34, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, justifyContent: 'center' }}><Tx s={12} c={C.ink3}>Not in portal yet</Tx></View>}
-        {!!c.clientCode && <Btn small kind="outline" label="Reports" icon={<Download s={13} c={C.ink2} />} onPress={() => setReportsFor(c)} />}
-        {!!c.email && <Btn small kind="outline" label={soaBusy === c.email ? 'Fetching…' : 'SOA'} icon={<Download s={13} c={C.ink2} />} onPress={() => soa(c)} disabled={!!soaBusy && soaBusy !== c.email} />}
+      <View style={{ alignItems: 'flex-end' }}>
+        <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+          {c.clientCode
+            ? <Btn small label={view.opening === c.clientCode ? 'Opening…' : 'View account'} onPress={() => view.open(c)} disabled={!!view.opening && view.opening !== c.clientCode} />
+            : <View style={{ height: 34, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, justifyContent: 'center' }}><Tx s={12} c={C.ink3}>Not in portal yet</Tx></View>}
+          {!!c.clientCode && <Btn small kind="outline" label="Reports" icon={<Download s={13} c={C.ink2} />} onPress={() => setReportsFor(c)} />}
+          {!!c.email && <Btn small kind="outline" label={soaBusy === c.email ? 'Fetching…' : 'SOA'} icon={<Download s={13} c={C.ink2} />} onPress={() => soa(c)} disabled={!!soaBusy && soaBusy !== c.email} />}
+        </View>
+        {!!soaMsg && soaMsg.email === c.email && <Tx w={600} s={11.5} c={C.ink2} lh={1.4} style={{ marginTop: 6, textAlign: 'right' }}>{soaMsg.text}</Tx>}
       </View>) },
   ];
+  // Fixed and floor widths add up to the narrowest table that still lines up; below that the page scrolls sideways.
+  const tableMin = cols.reduce((n, c) => n + (c.w || c.min || 0), 2);
 
   return (
     <View style={{ gap: 20 }}>
@@ -608,7 +649,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
             <Chips value={f.basis || ''} options={DATE_BASES.map(([k]) => [k, k === '' ? 'Any' : k === 'opened' ? 'Opened' : 'First funded'])}
               onChange={k => setFilter(k ? { ...f, basis: k } : { ...f, basis: undefined, from: undefined, to: undefined })} />
             {!!f.basis && (
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+              <View style={{ gap: 12, marginTop: 14 }}>
                 <DateInput label="From" value={f.from} max={f.to} onChange={v => setFilter({ ...f, from: v || undefined })} />
                 <DateInput label="To" value={f.to} min={f.from} onChange={v => setFilter({ ...f, to: v || undefined })} />
               </View>
@@ -618,10 +659,10 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
         </View>
 
         {/* Table */}
-        <View style={{ flex: 1, minWidth: 0, gap: 12 }}>
+        <View style={{ flex: 1, minWidth: tableMin, gap: 12 }}>
           {!!view.err && <Notice tone="bad">{view.err.text}</Notice>}
-          {!!soaMsg && <Notice>{soaMsg}</Notice>}
-          <Panel pad={0} title={rows.length === clients.length ? plural(clients.length, 'investor', 'investors') : `Showing ${rows.length} of ${clients.length}`}
+          {/* overflow visible: a clipping card would become the sticky header's scroll container and it would never stick */}
+          <Panel pad={0} style={{ overflow: 'visible' }} title={rows.length === clients.length ? plural(clients.length, 'investor', 'investors') : `Showing ${rows.length} of ${clients.length}`}
             sub={'Largest holdings first' + (dupes ? `. Includes ${plural(dupes, 'duplicate record', 'duplicate records')} from the CRM` : '')}
             right={<Input value={q} onChangeText={setQ} placeholder="Search by name, email or strategy" style={{ width: 300 }} />}>
             {chips.length > 0 && (
@@ -634,7 +675,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
                 ))}
               </View>
             )}
-            <Table rows={rows.slice(0, shown).map((x, i) => ({ ...x, i, id: (x.c.email || 'row') + '-' + i }))} cols={cols} onRowPress={r => onDetail(r.c, r.s)}
+            <Table sticky rows={rows.slice(0, shown).map((x, i) => ({ ...x, i, id: (x.c.email || 'row') + '-' + i }))} cols={cols} onRowPress={r => onDetail(r.c, r.s)}
               empty={clients.length ? 'No investors match this view. Try a different search, or choose All investors.' : 'No investors have joined through your links yet. Share an onboarding link to get started.'} />
             {rows.length > shown && (
               <View style={{ padding: 14, borderTopWidth: 1, borderColor: C.line, alignItems: 'center' }}>
@@ -910,13 +951,6 @@ function Fees({ periods, period, setPeriod, go }) {
                   ]} />
                 </Panel>
               )}
-              <Panel title="Raising an invoice">
-                <Tx s={13} c={C.ink2} lh={1.6}>Management fees are charged quarterly and performance fees annually. The commission shown is before GST: add 18% when you invoice. Every client figure is exclusive of GST, and the total to invoice is stated above.</Tx>
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
-                  <Btn small label="Raise invoice" onPress={() => go('invoice')} />
-                  <Btn small kind="outline" label="Fee statement" onPress={() => go('statement')} />
-                </View>
-              </Panel>
             </View>
           </Row>
         </>)}
@@ -1388,7 +1422,7 @@ function Support() {
             {TOPICS.map(([k, l, h]) => {
               const on = topic === k;
               return (
-                <Pressable key={k} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => { setTopic(k); setSt(s => ({ ...s, err: '' })); }}
+                <Pressable key={k} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => { if (k !== topic) setMessage(''); setTopic(k); setSt(s => ({ ...s, err: '' })); }}
                   style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 10, borderWidth: 1, borderColor: on ? C.green : C.line, backgroundColor: on ? C.greenTint : hovered ? C.hover : C.card })}>
                   <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: on ? C.green : C.line2, alignItems: 'center', justifyContent: 'center' }}>
                     {on && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.green }} />}

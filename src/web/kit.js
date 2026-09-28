@@ -327,18 +327,22 @@ export function DateField({ label, value, onChangeText, min, max, error, hint, p
   );
 }
 
-/** Data table. cols: [{ key, label, flex?, right?, render?(row) }]; rows: array; onRowPress?(row); selected?(row). */
-export function Table({ cols, rows, onRowPress, empty = 'Nothing to show yet.', dense, selected }) {
+/** Data table. cols: [{ key, label, flex?, min?, w?, right?, render?(row) }]; rows: array; onRowPress?(row); selected?(row); sticky? pins the header. */
+export function Table({ cols, rows, onRowPress, empty = 'Nothing to show yet.', dense, selected, sticky }) {
   const cell = { paddingVertical: dense ? 9 : 12, paddingHorizontal: 16 };
+  // A column is fixed (`w`) or flexible (`flex`, floored by `min` so its content never spills into a neighbour).
+  const size = c => (c.w ? { width: c.w, flexGrow: 0, flexShrink: 0 } : { flex: c.flex || 1, minWidth: c.min || 0 });
+  // `sticky` pins the header to the nearest scrolling ancestor, so nothing between it and the page may clip overflow.
+  const head = [{ flexDirection: 'row', backgroundColor: C.green }, sticky && { position: 'sticky', top: 0, zIndex: 2 }];
   return (
     <View>
-      <View style={{ flexDirection: 'row', backgroundColor: C.green }}>
-        {cols.map(c => <Tx key={c.key} w={600} s={11.5} c={C.cream} numberOfLines={1} style={[cell, { paddingVertical: 9, ...(c.w ? { width: c.w, flexShrink: 0 } : { flex: c.flex || 1 }), textAlign: c.right ? 'right' : 'left' }]}>{sentence(c.label)}</Tx>)}
+      <View style={head}>
+        {cols.map(c => <Tx key={c.key} w={600} s={11.5} c={C.cream} numberOfLines={1} style={[cell, size(c), { paddingVertical: 9, textAlign: c.right ? 'right' : 'left' }]}>{sentence(c.label)}</Tx>)}
       </View>
       {rows.length === 0 && <Tx s={13} c={C.ink3} style={{ padding: 20 }}>{empty}</Tx>}
       {rows.map((r, i) => {
         const inner = cols.map(c => (
-          <View key={c.key} style={[cell, { ...(c.w ? { width: c.w, flexShrink: 0 } : { flex: c.flex || 1 }), alignItems: c.right ? 'flex-end' : 'flex-start', justifyContent: 'center' }]}>
+          <View key={c.key} style={[cell, size(c), { alignItems: c.right ? 'flex-end' : 'flex-start', justifyContent: 'center' }]}>
             {c.render ? c.render(r) : <Tx s={13.5} numberOfLines={2}>{r[c.key] == null ? '' : String(r[c.key])}</Tx>}
           </View>
         ));
