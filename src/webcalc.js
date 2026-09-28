@@ -169,14 +169,14 @@ export function perfFrom(h, view) {
   };
 }
 
-const PERIOD_DAYS = { '1W': 7, '1M': 30, '3M': 91, '6M': 182, '1Y': 365, '3Y': 1095 };
+const PERIOD_DAYS = { '1W': 7, '10D': 10, '1M': 30, '3M': 91, '6M': 182, '1Y': 365, '3Y': 1095 };
 function windowed(h, view, period) {
   const rows = viewRows(h, view);
   if (!rows.length) return { rows: [], e: [] };
   const lastT = new Date(rows[rows.length - 1].report_date);
   const e = enrich(rows, asc(h.benchmark || [], 'date').filter(b => new Date(b.date) <= lastT));
   const days = PERIOD_DAYS[period];
-  if (!days) return { rows, e };   // "All" = the web chart, synthetic starting row included
+  if (!days) return { rows, e };   // "SI" (ALL) = the web chart, synthetic starting row included
   const from = new Date(rows[rows.length - 1].report_date).getTime() - days * DAY;
   const i = rows.findIndex(x => new Date(x.report_date).getTime() >= from);
   return { rows: rows.slice(i), e: e.slice(i + (e.length - rows.length)) };   // e may carry the synthetic row in front

@@ -39,6 +39,7 @@ export const fmtDate = d => {
 };
 // Chart axis ticks: "Sep 2026".
 export const fmtMonth = d => { const t = new Date(d); return isNaN(t) ? '' : `${MON_SHORT[t.getMonth()]} ${t.getFullYear()}`; };
+export const fmtDayMon = d => { const t = new Date(d); return isNaN(t) ? '' : `${t.getDate()} ${MON_SHORT[t.getMonth()]}`; };
 
 export const titleCase = s => String(s || '').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 

@@ -93,7 +93,7 @@ function ChartTip({ tip, vw, vh, height, lineColor, children }) {
 // y-axis tick labels (top, middle, bottom) drawn over the chart, and x-axis dates under it.
 // Y labels get their own left column (GUTTER wide) and the plot starts to the right of it, so the line never
 // runs through the numbers. The x dates are indented by the same amount to stay under the plot.
-const GUTTER = 30;   // fits "10.00"–"99.99" at 9pt with a small gap before the plot ("100.00" shrinks to fit)
+export const GUTTER = 30;   // fits "10.00"–"99.99" at 9pt with a small gap before the plot ("100.00" shrinks to fit)
 function Axes({ yTicks, xDates, height, color, children }) {
   const ys = [8, height / 2, height - 8];
   const g = yTicks && yTicks.length ? GUTTER : 0;

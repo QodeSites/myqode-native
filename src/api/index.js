@@ -4,11 +4,13 @@ import { Platform } from 'react-native';
 import { api, adminApi, ApiError } from './client';
 import { demo } from './demo';
 import { demoReports } from './demoReports';
+import { demoSecurities } from './demoHoldings';
 import { TEST_MODE } from './config';
 
 export { ApiError, BASE_URL, onUnauthorized } from './client';
 export { getToken, setToken, clearToken, setViewToken, hasViewToken } from './session';
 export { TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './config';
+import { APP_VERSION } from './config';
 
 let demoOn = false;
 export const setDemo = v => { demoOn = !!v; };
@@ -80,6 +82,34 @@ export const portfolio = {
   // Raw Nuvama + Orbis + benchmark rows for ONE strategy account (legacy Orbis views are built in src/webcalc.js).
   history: accountId => call('/portfolio/history', { query: { accountId } }, () => ({ accountId, nuvama: [], orbis: [], orbisMetrics: null, benchmark: [] })),
   cashflow: (accountId, kind = 'account') => call(pfx(kind) + 'cashflow', { query: { accountId } }, () => demo.cashflow(accountId)),
+  // Security-level holdings (stocks, ETFs, mutual funds, derivatives, cash) of strategy accounts, combined across
+  // them: accounts = one code, an array of codes, or omitted for every account on the token. See lib/securities.ts.
+  securities: accounts => {
+    const accountId = Array.isArray(accounts) ? accounts.join(',') : accounts || undefined;
+    return call('/portfolio/securities', { query: { accountId } }, () => demoSecurities(accountId));
+  },
+  // Money-weighted return (XIRR) of the SUM of the given accounts (one code, an array, or omitted = every strategy
+  // account on the token): { asOf, accounts, periods: [{ period: '1Y'|'3Y'|'SI', irr (percent|null), annualised, from, to }] }.
+  // Pass a scope's strategy codes, or its owner / group id — never an owner id together with its own accounts
+  // (counted twice). SI under a year is the period's own return (annualised: false). Formatting: src/irr.js.
+  irr: accounts => {
+    const list = Array.isArray(accounts) ? accounts.join(',') : accounts || undefined;
+    return call('/portfolio/irr', { query: { accounts: list } }, () => demoIrr(list));
+  },
+};
+
+// Demo IRR: plausible figures a little under the demo's NAV returns (top-ups came in after the early gains).
+const demoIrr = list => {
+  const asOf = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
+  const back = y => { const d = new Date(asOf + 'T00:00:00Z'); d.setUTCFullYear(d.getUTCFullYear() - y); return d.toISOString().slice(0, 10); };
+  return {
+    asOf, accounts: list ? String(list).split(',') : [],
+    periods: [
+      { period: '1Y', irr: 15.42, annualised: true, from: back(1), to: asOf },
+      { period: '3Y', irr: 17.08, annualised: true, from: back(3), to: asOf },
+      { period: 'SI', irr: 18.61, annualised: true, from: '2023-07-01', to: asOf },
+    ],
+  };
 };
 
 // Documents are S3 listings (one per category) — cached per account for the session so the tab and each
@@ -107,6 +137,11 @@ export const engagement = {
   events: () => call('/engagement/events', {}, () => demo.articles('Event')),
   portalGuide: () => call('/engagement/portal-guide', {}, () => ({ videos: [], snapshots: [], byReport: { snapshots: {}, videos: {} }, counts: { videos: 0, snapshots: 0 } })),
   referral: body => post('/engagement/referral', body),
+  // "Your Voice Matters": { recommend, satisfaction, clarity, ease: 1–5, comment? ≤ 2000 }. Stored on the server and
+  // emailed to Investor Relations only (never the client), so — like the service requests — not TEST_MODE-blocked.
+  // The server refuses it (403) for partner view-only and impersonation tokens.
+  feedback: body => call('/engagement/feedback', { method: 'POST', body: { ...body, platform: Platform.OS, appVersion: APP_VERSION } },
+    () => ({ ok: true, success: true, id: 0 })),
   // Analytics only writes to pms_mobile_analytics; it never contacts the client.
   analytics: events => (demoOn ? Promise.resolve({ ok: true }) : api('/engagement/analytics', { method: 'POST', body: { events } })),
 };
@@ -226,12 +261,25 @@ export const distributor = {
 // Reports page (app/api/mobile/reports/*): one strategy account at a time. Transactions are synced daily; capital
 // gains, expenses and the fact sheet come from Nuvama's report exports (their asOf is the export date).
 // opts: transactions { group, from, to, limit, offset, export }, capitalGains { fy, term, limit, offset, export },
-// expenses { type, limit, offset, export }. export: 1 returns up to 5000 rows (for the PDF).
+// expenses { type, limit, offset, export }. export: 1 returns up to 5000 rows (for the PDF). pnl / balanceSheet
+// take one account or several (see below).
 export const reports = {
   transactions: (accountId, opts = {}) => call('/reports/transactions', { query: { accountId, ...opts } }, () => demoReports.transactions(accountId, opts)),
   capitalGains: (accountId, opts = {}) => call('/reports/capital-gains', { query: { accountId, ...opts } }, () => demoReports.capitalGains(accountId, opts)),
   expenses: (accountId, opts = {}) => call('/reports/expenses', { query: { accountId, ...opts } }, () => demoReports.expenses(accountId, opts)),
   factsheet: (accountId, opts = {}) => call('/reports/factsheet', { query: { accountId, ...opts } }, () => demoReports.factsheet(accountId, opts)),
+  // Profit and loss account - Balance sheet (Nuvama's layout; myQode/lib/plbsCompute.ts). accounts: one code or an
+  // array of codes, summed on the server ("All accounts" is ONE call). pnl opts { from, to }: the P&L for the period
+  // and the balance sheet at `to` (defaults: this financial year to the latest value date). balanceSheet opts { date }:
+  // the balance sheet as of that date, its P&L from the start of that financial year. Same response shape.
+  pnl: (accounts, opts = {}) => {
+    const accountId = Array.isArray(accounts) ? accounts.join(',') : accounts;
+    return call('/reports/pnl', { query: { accountId, ...opts } }, () => demoReports.pnl(accountId, opts));
+  },
+  balanceSheet: (accounts, opts = {}) => {
+    const accountId = Array.isArray(accounts) ? accounts.join(',') : accounts;
+    return call('/reports/balance-sheet', { query: { accountId, ...opts } }, () => demoReports.balanceSheet(accountId, opts));
+  },
 };
 
 // Super-admin only (token must carry isSuperAdmin and not be an impersonation token).

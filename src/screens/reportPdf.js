@@ -119,20 +119,26 @@ const quarterOf = iso => {
   return 4;
 };
 export function capitalGainsPdf(r, accountId) {
-  // By financial year (fy set) or by a sale-date range (fy null, from / to set).
+  const head = header('Statement of Capital Gain / Loss', r.asOf, [...acctFields(accountId, r.holder), ['Period', cgPeriod(r)]],
+    r.fy ? `Financial year ${r.fy}` : periodLine(r.from, r.to));
+  return { html: page(true, head, cgBody(r)), landscape: true };
+}
+// Period text of a capital gains answer: by financial year (fy set) or by a sale-date range (fy null, from / to set).
+function cgPeriod(r) {
   const from = r.fy ? `${r.fy.slice(0, 4)}-04-01` : null, fyEnd = r.fy ? `${+r.fy.slice(0, 4) + 1}-03-31` : null;
   const to = r.asOf && fyEnd && r.asOf < fyEnd ? r.asOf : fyEnd;
   const range = !r.fy && (r.from || r.to);
-  const periodField = from ? `${dl(from)} to ${dl(to)}` : range ? `${r.from ? dl(r.from) : 'Earliest'} to ${dl(r.to || r.asOf)}` : '';
-  const head = header('Statement of Capital Gain / Loss', r.asOf, [...acctFields(accountId, r.holder), ['Period', periodField]],
-    r.fy ? `Financial year ${r.fy}` : periodLine(r.from, r.to));
+  return from ? `${dl(from)} to ${dl(to)}` : range ? `${r.from ? dl(r.from) : 'Earliest'} to ${dl(r.to || r.asOf)}` : '';
+}
+// Summary tiles and one section per category. A: with an Account column (all accounts).
+function cgBody(r, A, afterTiles = '') {
   const S = r.summary || { st: 0, lt: 0, ltTaxable: 0, total: 0 };
   const sum = tiles([[r.fy ? `FY ${r.fy} · Short term` : 'Short term', inr(S.st), cls(S.st)], ['Long term', inr(S.lt), cls(S.lt)], ['Long term (effective)', inr(S.ltTaxable), cls(S.ltTaxable)], ['Total realised', inr(S.total), cls(S.total)]]);
   const cats = [];
   for (const l of r.items) { const c = l.category || 'Other'; let g = cats.find(x => x.c === c); if (!g) cats.push(g = { c, lots: [] }); g.lots.push(l); }
-  const colg = '<colgroup>' + [19, 6, 7, 7, 8, 6, 7, 8, 8, 4, 8, 6, 6].map(w => `<col style="width:${w}%">`).join('') + '</colgroup>';
-  const head2 = `${colg}<thead><tr class="grp"><th></th><th colspan="4">Sale</th><th colspan="4">Purchase</th><th></th><th colspan="3">Realised gain / loss</th></tr>
-    <tr><th>Security</th><th>Date</th><th class="r">Quantity</th><th class="r">Rate (S)</th><th class="r">Amount</th><th>Date</th><th class="r">Rate (P)</th><th class="r">Amount</th>
+  const colg = '<colgroup>' + (A ? [7, 15, 6, 6, 7, 8, 6, 7, 8, 8, 4, 7, 6, 5] : [19, 6, 7, 7, 8, 6, 7, 8, 8, 4, 8, 6, 6]).map(w => `<col style="width:${w}%">`).join('') + '</colgroup>';
+  const head2 = `${colg}<thead><tr class="grp">${A ? '<th></th>' : ''}<th></th><th colspan="4">Sale</th><th colspan="4">Purchase</th><th></th><th colspan="3">Realised gain / loss</th></tr>
+    <tr>${A ? '<th>Account</th>' : ''}<th>Security</th><th>Date</th><th class="r">Quantity</th><th class="r">Rate (S)</th><th class="r">Amount</th><th>Date</th><th class="r">Rate (P)</th><th class="r">Amount</th>
     <th class="r">Effective cost</th><th class="r">Days</th><th class="r">Short term</th><th class="r">Long term</th><th class="r">Effective LT</th></tr></thead>`;
   const sections = cats.map((g, gi) => {
     const T = { sale: 0, pur: 0, cost: 0, st: 0, lt: 0, eff: 0 }, Q = { st: [0, 0, 0, 0, 0], lt: [0, 0, 0, 0, 0] };
@@ -140,7 +146,7 @@ export function capitalGainsPdf(r, accountId) {
       const st = l.term === 'ST' ? l.gain : 0, lt = l.term === 'LT' ? l.gain : 0, eff = l.term === 'LT' ? (l.ltTaxable != null ? l.ltTaxable : l.gain) : 0;
       T.sale += l.saleAmount || 0; T.pur += l.purchaseAmount || 0; T.cost += l.cost || 0; T.st += st; T.lt += lt; T.eff += eff;
       if (l.saleDate) { const q = quarterOf(l.saleDate); Q.st[q] += st; Q.lt[q] += eff; }
-      return `<tr class="z"><td class="wrap">${esc(l.security)}</td><td>${ds(l.saleDate)}</td><td class="r">${qty(l.qty)}</td><td class="r">${l.saleRate != null ? nf(l.saleRate, 4) : ''}</td>
+      return `<tr class="z">${A ? `<td class="wrap">${esc(l.account)}</td>` : ''}<td class="wrap">${esc(l.security)}</td><td>${ds(l.saleDate)}</td><td class="r">${qty(l.qty)}</td><td class="r">${l.saleRate != null ? nf(l.saleRate, 4) : ''}</td>
         <td class="r">${nf(l.saleAmount)}</td><td>${ds(l.purchaseDate)}</td><td class="r">${l.purchaseRate != null ? nf(l.purchaseRate, 4) : ''}</td><td class="r">${nf(l.purchaseAmount)}</td>
         <td class="r">${nf(l.cost)}</td><td class="r">${l.daysHeld != null ? l.daysHeld : ''}</td>
         <td class="r ${cls(st)}">${nf(st)}</td><td class="r ${cls(lt)}">${nf(lt)}</td><td class="r">${nf(eff)}</td></tr>`;
@@ -152,11 +158,10 @@ export function capitalGainsPdf(r, accountId) {
       <tr class="z"><td><b>Long term</b></td>${Q.lt.map(v => `<td class="r ${cls(v)}">${nf(v)}</td>`).join('')}<td class="r ${cls(T.eff)}"><b>${nf(T.eff)}</b></td><td></td><td></td></tr></tbody></table>
       <p class="note">Based on effective gain (after grandfathering / indexation). Quarters follow the advance-tax instalment dates.</p>`;
     return `${gi ? '<div class="pb"></div>' : ''}<h3>${esc(g.c)}</h3><table class="fixed">${head2}<tbody>${rows}
-      <tr class="tot"><td>Total</td><td></td><td></td><td></td><td class="r">${nf(T.sale)}</td><td></td><td></td><td class="r">${nf(T.pur)}</td><td class="r">${nf(T.cost)}</td><td></td>
+      <tr class="tot"><td>Total</td>${A ? '<td></td>' : ''}<td></td><td></td><td></td><td class="r">${nf(T.sale)}</td><td></td><td></td><td class="r">${nf(T.pur)}</td><td class="r">${nf(T.cost)}</td><td></td>
       <td class="r">${nf(T.st)}</td><td class="r">${nf(T.lt)}</td><td class="r">${nf(T.eff)}</td></tr></tbody></table>${quarters}`;
   }).join('');
-  const body = sum + (cats.length ? sections : '<p class="note">No realised gains in this period.</p>') + (r.hasMore ? '<p class="note">Showing the latest 5,000 lots.</p>' : '');
-  return { html: page(true, head, body), landscape: true };
+  return sum + afterTiles + (cats.length ? sections : '<p class="note">No realised gains in this period.</p>') + (r.hasMore ? '<p class="note">Showing the latest 5,000 lots.</p>' : '');
 }
 
 // ── Statement of expenses ─────────────────────────────────────────────────────────────────────────────────
@@ -204,9 +209,15 @@ function barChart(periods, a, b) {
   return s + '</svg>';
 }
 export function factsheetPdf(r, accountId) {
+  return { html: page(false, ...factsheetParts(r, accountId)), landscape: false };
+}
+// [header, body] of one account's fact sheet (also used per account in the all-accounts fact sheet).
+function factsheetParts(r, accountId) {
   const ret = r.returns || {}, periods = ret.periods || [];
-  // The band's "As of" line is the reporting date (the snapshot on or before the date asked for).
-  const head = header('Portfolio Fact Sheet', r.asOf, [...acctFields(accountId, r.holder, r.strategy), ['Inception', dl(r.inceptionDate)]]);
+  // The band's "As of" line is the reporting date: a stored Nuvama snapshot, or a date Qode computed (computed: true),
+  // in which case the backend's note is printed in small type right under the title band.
+  const head = header('Portfolio Fact Sheet', r.asOf, [...acctFields(accountId, r.holder, r.strategy), ['Inception', dl(r.inceptionDate)]])
+    + (r.computed && r.note ? `<p class="note" style="margin:6px 0 10px">${esc(r.note)}</p>` : '');
   const top = tiles([[`Portfolio value · ${dl(r.valueDate)}`, inr(r.portfolioValue, 0)], ['Profit / loss', inr(r.profitLoss, 0), cls(r.profitLoss)], ['Contribution', inr(r.contribution, 0)], ['Withdrawal', inr(r.withdrawal, 0)]]);
   const sectors = r.sectors.length ? `<h3>Sector allocation</h3>${r.sectors.slice().sort((x, y) => (y.pct || 0) - (x.pct || 0)).map(x => `<div class="srow">${esc(x.sector)}<b>${pc(x.pct)}</b>
     <div class="bar"><i style="width:${Math.max(0.5, Math.min(100, x.pct || 0))}%"></i></div></div>`).join('')}` : '';
@@ -222,5 +233,78 @@ export function factsheetPdf(r, accountId) {
     <thead><tr><th>#</th><th>Security</th><th>Sector</th><th class="r">Market value (₹)</th><th class="r">% of assets</th></tr></thead><tbody>
     ${r.holdings.map((x, i) => `<tr class="z"><td>${i + 1}</td><td class="wrap">${esc(x.security)}</td><td class="wrap">${esc(x.sector)}</td><td class="r">${nf(x.value, 0)}</td><td class="r">${pc(x.pct)}</td></tr>`).join('')}
     <tr class="tot"><td></td><td>Total</td><td></td><td class="r">${nf(tot, 0)}</td><td class="r">100.00%</td></tr></tbody></table>` : '';
-  return { html: page(false, head, `${top}<div class="two"><div>${sectors}</div><div>${perf}</div></div>${holdings}`), landscape: false };
+  return [head, `${top}<div class="two"><div>${sectors}</div><div>${perf}</div></div>${holdings}`];
+}
+
+// ── All accounts ──────────────────────────────────────────────────────────────────────────────────────────
+// One statement over every account of the investor (r from src/combine.js: rows carry `account`, totals summed,
+// r.accounts lists the codes, r.failed the accounts that could not be loaded). The header says "All accounts" and
+// lists the codes; tables get an Account column.
+const allFields = r => [['Account', 'All accounts'], ['Account codes', (r.accounts || []).join(', ')], ['Account holder', r.holder && r.holder.name]];
+const failedNote = r => (r.failed && r.failed.length
+  ? `<p class="note" style="color:${K.neg}">Not included (could not be loaded): ${r.failed.map(f => `${esc(f.accountId)} (${esc(f.msg)})`).join(', ')}.</p>` : '');
+const capNote = r => (r.truncated ? ' <span class="note">(latest 5,000 per account)</span>' : '');
+
+export function transactionsAllPdf(r, groupLabel) {
+  const head = header('Transaction Statement', r.asOf, [...allFields(r), ['Showing', groupLabel || 'All']], periodLine(r.from, r.to, 'All records'));
+  const flows = tiles([['Money in', inr(r.moneyIn), 'pos'], ['Money out', inr(r.moneyOut)], ...r.summary.filter(s => s.group !== 'money').slice(0, 2).map(s => [`${s.label} · ${s.count}`, inr(s.amount)])]);
+  let last = '';
+  const rows = r.items.map(t => {
+    const m = (t.date || '').slice(0, 7), sec = m !== last ? `<tr class="sec"><td colspan="8">${m ? `${MON[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}` : ''}</td></tr>` : '';
+    last = m;
+    const amt = (t.direction === 'out' ? -1 : 1) * (t.amount || 0);
+    return sec + `<tr class="z"><td>${ds(t.date)}</td><td>${ds(t.settleDate)}</td><td class="wrap">${esc(t.account)}</td><td>${esc(t.type)}</td><td class="wrap">${esc(t.security || t.notes || '')}</td>
+      <td class="r">${qty(t.qty)}</td><td class="r">${t.rate != null ? nf(t.rate) : ''}</td><td class="r ${t.direction === 'in' ? 'pos' : ''}">${nf(amt)}</td></tr>`;
+  }).join('');
+  const body = failedNote(r) + flows + `${r.items.length ? '' : '<p class="note">No transactions in this period.</p>'}<h3>Transactions · ${r.items.length}${capNote(r)}</h3>
+    <table class="fixed"><colgroup><col style="width:8%"><col style="width:8%"><col style="width:10%"><col style="width:15%"><col><col style="width:9%"><col style="width:9%"><col style="width:13%"></colgroup>
+    <thead><tr><th>Date</th><th>Settled</th><th>Account</th><th>Transaction</th><th>Security / details</th><th class="r">Quantity</th><th class="r">Rate</th><th class="r">Amount (₹)</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return { html: page(false, head, body), landscape: false };
+}
+
+export function capitalGainsAllPdf(r) {
+  const head = header('Statement of Capital Gain / Loss', r.asOf, [...allFields(r), ['Period', cgPeriod(r)]],
+    r.fy ? `Financial year ${r.fy}` : periodLine(r.from, r.to));
+  const byCat = (r.summary && r.summary.byCategory) || [];
+  const cats = byCat.length ? `<h3>By category · all accounts</h3><table class="fixed"><colgroup><col><col style="width:16%"><col style="width:16%"><col style="width:16%"><col style="width:16%"></colgroup>
+    <thead><tr><th>Category</th><th class="r">Short term</th><th class="r">Long term</th><th class="r">Long term (effective)</th><th class="r">Total</th></tr></thead><tbody>
+    ${byCat.map(c => `<tr class="z"><td>${esc(c.category)}</td><td class="r ${cls(c.st)}">${nf(c.st)}</td><td class="r ${cls(c.lt)}">${nf(c.lt)}</td><td class="r">${nf(c.ltTaxable)}</td><td class="r ${cls((c.st || 0) + (c.lt || 0))}">${nf((c.st || 0) + (c.lt || 0))}</td></tr>`).join('')}</tbody></table>` : '';
+  return { html: page(true, head, failedNote(r) + cgBody({ ...r, hasMore: false }, true, cats) + (r.truncated ? '<p class="note">Showing the latest 5,000 lots per account.</p>' : '')), landscape: true };
+}
+
+export function expensesAllPdf(r) {
+  const head = header('Statement of Expenses', r.asOf, [...allFields(r), [r.from || r.to ? 'Statement covers' : 'Period', r.period ? `${dl(r.period.from)} to ${dl(r.period.to)}` : '']],
+    periodLine(r.from, r.to));
+  const top = tiles([['Paid', inr(r.paid)], ['Payable (accrued)', inr(r.payable)], ['Total', inr((r.paid || 0) + (r.payable || 0))]]);
+  const max = Math.max(1, ...r.byType.map(t => t.amount || 0));
+  const byType = `<h3>By charge</h3>${r.byType.map(t => `<div class="srow">${esc(t.type)} <span class="note">· ${t.count} ${t.count === 1 ? 'entry' : 'entries'}</span><b>${inr(t.amount)}</b>
+    <div class="bar"><i style="width:${Math.max(1, (t.amount || 0) / max * 100).toFixed(1)}%"></i></div></div>`).join('')}`;
+  const block = (label, status) => {
+    const items = r.items.filter(x => (x.status || 'paid') === status);
+    if (!items.length) return '';
+    const tot = items.reduce((s, x) => s + (x.amount || 0), 0);
+    return `<tr class="sec"><td colspan="6">${label}</td></tr>` + items.map(x => `<tr class="z"><td>${ds(x.date)}</td><td>${ds(x.settleDate)}</td><td class="wrap">${esc(x.account)}</td><td>${esc(x.type)}</td><td class="wrap">${esc(x.notes || '')}</td><td class="r">${nf(x.amount)}</td></tr>`).join('')
+      + `<tr class="tot"><td colspan="5">Total ${label.toLowerCase()}</td><td class="r">${nf(tot)}</td></tr>`;
+  };
+  const body = failedNote(r) + top + byType + `<h3>Entries${r.type ? ' · ' + esc(r.type) : ''} · ${r.items.length}${capNote(r)}</h3>
+    <table class="fixed"><colgroup><col style="width:9%"><col style="width:9%"><col style="width:11%"><col style="width:21%"><col><col style="width:14%"></colgroup>
+    <thead><tr><th>Date</th><th>Settled</th><th>Account</th><th>Charge</th><th>Description</th><th class="r">Amount (₹)</th></tr></thead><tbody>
+    ${block('Expenses paid', 'paid')}${block('Expenses payable', 'payable')}</tbody></table>${r.items.length ? '' : '<p class="note">No expense entries in this period.</p>'}`;
+  return { html: page(false, head, body), landscape: false };
+}
+
+// Combined summary (values summed; returns are not additive), then each account's own fact sheet on a new page.
+export function factsheetAllPdf(r) {
+  const head = header('Portfolio Fact Sheet', r.asOf, [...allFields(r), ['Requested', r.date ? dl(r.date) : 'Latest']]);
+  const top = tiles([['Portfolio value', inr(r.portfolioValue, 0)], ['Profit / loss', inr(r.profitLoss, 0), cls(r.profitLoss)], ['Contribution', inr(r.contribution, 0)], ['Withdrawal', inr(r.withdrawal, 0)]]);
+  const sheets = r.sheets || [];
+  const table = `<h3>By account</h3><table class="fixed"><colgroup><col style="width:13%"><col><col style="width:11%"><col style="width:13%"><col style="width:13%"><col style="width:12%"><col style="width:11%"></colgroup>
+    <thead><tr><th>Account</th><th>Strategy</th><th>As of</th><th class="r">Portfolio value (₹)</th><th class="r">Profit / loss (₹)</th><th class="r">Contribution (₹)</th><th class="r">Withdrawal (₹)</th></tr></thead><tbody>
+    ${sheets.map(({ accountId, data: d }) => (d && d.asOf
+      ? `<tr class="z"><td>${esc(accountId)}</td><td class="wrap">${esc(strategyName(d.holder, d.strategy))}</td><td>${ds(d.asOf)}</td><td class="r">${nf(d.portfolioValue, 0)}</td><td class="r ${cls(d.profitLoss)}">${nf(d.profitLoss, 0)}</td><td class="r">${nf(d.contribution, 0)}</td><td class="r">${nf(d.withdrawal, 0)}</td></tr>`
+      : `<tr class="z"><td>${esc(accountId)}</td><td colspan="6" class="note">No fact sheet for this date.</td></tr>`)).join('')}
+    <tr class="tot"><td>Total</td><td></td><td></td><td class="r">${nf(r.portfolioValue, 0)}</td><td class="r">${nf(r.profitLoss, 0)}</td><td class="r">${nf(r.contribution, 0)}</td><td class="r">${nf(r.withdrawal, 0)}</td></tr></tbody></table>
+    <p class="note">${esc(r.note || 'Returns are per account; values are summed.')}</p>`;
+  const each = sheets.filter(s => s.data && s.data.asOf).map(({ accountId, data }) => `<div class="pb"></div>${factsheetParts(data, accountId).join('')}`).join('');
+  return { html: page(false, head, failedNote(r) + top + table + each), landscape: false };
 }

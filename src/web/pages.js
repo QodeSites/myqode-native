@@ -4,6 +4,8 @@
 import React, { useState } from 'react';
 import { View, Pressable, Image, Linking, Platform } from 'react-native';
 import { C, Tx, Amt, Card, Row, Grid, Label, Panel, Stat, DarkCard, Btn, Chips, Tabs, Table, KeyVals, TextLink, Pill, Loading, Empty, ErrorBlock, Dialog, sentence } from './kit';
+import { DesktopVoice } from './voice';
+import { DesktopTransactions } from './transactions';
 import { NuvamaDetails } from './nuvama';
 import { inr } from '../adapt';
 import { ChevronRight, ChevronDown, Phone, MailIcon } from '../icons';
@@ -12,9 +14,11 @@ import * as content from '../content';
 import { FormBody } from '../screens/services';
 import { useLoad, openUrl, fmtSize } from '../screens/kit';
 import { REFERRAL_FORM } from '../screens/pages';
+import { irLinks } from '../screens/contact';
+import { ContactCard } from './contact';
 import {
   WEB, MANAGERS, CADENCE, STRATS, STRAT_GLOSSARY, WEALTHSPECTRUM, PASSWORD_PDF, ACCESS, REPORT_GROUPS, norm,
-  BOOKING, IR, LEVELS, LineIcon,
+  BOOKING, LEVELS, LineIcon,
 } from '../screens/about';
 
 const go = url => Linking.openURL(url).catch(() => {});
@@ -59,8 +63,8 @@ const Lead = ({ children, style }) => <Tx s={15} lh={1.65} c={C.ink2} style={[{ 
 
 /* ── Side rail: "On this page" + related pages ─────────────────────────────────────────────────────────── */
 const RELATED = {
-  about: [['philosophy', 'Qode philosophy'], ['foundation', 'Note from our fund managers'], ['strategies', 'Strategy snapshot'], ['team', 'Your team at Qode']],
-  legal: [['privacy', 'Privacy policy'], ['terms', 'Terms and conditions'], ['cancellation', 'Cancellation and refund'], ['risk', 'Risk management'], ['grievance', 'Grievance redressal']],
+  about: [['philosophy', 'Qode Philosophy'], ['foundation', 'Foundation'], ['strategies', 'Strategy Snapshot'], ['team', 'Your Team at Qode']],
+  legal: [['privacy', 'Privacy policy'], ['terms', 'Terms and conditions'], ['cancellation', 'Cancellation and refund'], ['risk', 'Risk Management & Controls'], ['grievance', 'Escalation and Grievance Redressal']],
 };
 function Rail({ V, toc, related, children }) {
   const rel = related ? related.filter(([k]) => k !== V.page) : [];
@@ -369,33 +373,94 @@ function Cadence({ V }) {
 }
 
 /* ── Note from our fund managers ───────────────────────────────────────────────────────────────────────── */
-function Foundation() {
+function Foundation({ V }) {
   const MV = [['Mission', 'To support investors with data-driven, high-quality investment solutions that deliver superior risk-adjusted returns.'],
     ['Vision', 'To transform investment management with innovation and discipline, creating lasting value for our investors.']];
   return (
     <View style={{ gap: 20 }}>
       <DarkCard style={{ flexDirection: 'row', padding: 0 }}>
         {MV.map(([h, t], i) => (
-          <View key={h} style={{ flex: 1, padding: 26, borderLeftWidth: i ? 1 : 0, borderColor: 'rgba(255,255,255,0.12)' }}>
-            <Tx w={600} s={12.5} c={C.gold}>{h}</Tx>
-            <Tx f="play" w={500} s={19} lh={1.45} c={C.cream} style={{ marginTop: 8 }}>{t}</Tx>
+          <View key={h} style={{ flex: 1, paddingVertical: 30, paddingHorizontal: 32, borderLeftWidth: i ? 1 : 0, borderColor: 'rgba(255,255,255,0.12)' }}>
+            <Tx w={600} s={12.5} c={C.gold}>Our {h.toLowerCase()}</Tx>
+            <Tx f="play" w={500} s={21} lh={1.45} c={C.cream} style={{ marginTop: 10 }}>{t}</Tx>
           </View>
         ))}
       </DarkCard>
-      <Row top gap={20}>
+      <SectionTitle sub="Why we invest the way we do, in their own words">A note from our fund managers</SectionTitle>
+      {/* Letters side by side at equal height, signed at the foot like a letter. */}
+      <Row gap={20}>
         {MANAGERS.map(m => (
-          <Card key={m.name} style={{ flex: 1, overflow: 'hidden' }}>
-            <View style={{ flexDirection: 'row', gap: 16, paddingVertical: 20, paddingHorizontal: 24, alignItems: 'center', borderBottomWidth: 1, borderColor: C.line }}>
-              <Image source={{ uri: m.photo }} style={{ width: 72, height: 72, borderRadius: 12, backgroundColor: C.subtle }} resizeMode="cover" accessibilityLabel={m.name} />
-              <View style={{ flex: 1 }}>
-                <Tx f="play" w={600} s={21}>{m.name}</Tx>
-                <Tx w={600} s={12.5} c={C.green} style={{ marginTop: 3 }}>{m.role}</Tx>
+          <Card key={m.name} style={{ flex: 1, paddingVertical: 28, paddingHorizontal: 30, justifyContent: 'space-between' }}>
+            <View>
+              <Tx f="play" w={700} s={56} lh={0.9} c={C.gold} style={{ height: 34 }}>{'“'}</Tx>
+              {m.letter.map((t, j) => <Body key={j} s={14.5} style={{ marginTop: j ? 14 : 6 }}>{t}</Body>)}
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 24, paddingTop: 18, borderTopWidth: 1, borderColor: C.line }}>
+              <Image source={{ uri: m.photo }} style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: C.subtle }} resizeMode="cover" accessibilityLabel={m.name} />
+              <View>
+                <Tx f="play" w={600} s={18}>{m.name}</Tx>
+                <Tx w={600} s={12.5} c={C.green} style={{ marginTop: 2 }}>{m.role}, Qode Advisors LLP</Tx>
               </View>
             </View>
-            <View style={{ paddingVertical: 22, paddingHorizontal: 24 }}>
-              {m.letter.map((t, j) => <Body key={j} style={{ marginTop: j ? 12 : 0 }}>{t}</Body>)}
-            </View>
           </Card>
+        ))}
+      </Row>
+      <RelatedRow V={V} keys={['philosophy', 'strategies', 'team']} />
+    </View>
+  );
+}
+
+/* ── Qode philosophy ────────────────────────────────────────────────────────────────────────────────────── */
+const PHILO_ICON = { 'Who We Are': 'user', 'What We Do': 'chart', 'How We Work': 'clipboard', 'Why It Matters': 'shield' };
+function Philosophy({ V }) {
+  const secs = content.PHILOSOPHY.sections;
+  const [first, ...rest] = secs;
+  return (
+    <View style={{ gap: 20 }}>
+      <DarkCard style={{ paddingVertical: 36, paddingHorizontal: 40 }}>
+        <Tx w={600} s={12.5} c={C.gold}>Qode philosophy</Tx>
+        <Tx f="play" w={600} s={32} lh={1.25} c={C.cream} style={{ marginTop: 12, maxWidth: 820 }}>Evidence, not opinion, should drive investment decisions.</Tx>
+        <Tx s={15} lh={1.7} c={C.cream60} style={{ marginTop: 16, maxWidth: 860 }}>{first.p.join(' ')}</Tx>
+      </DarkCard>
+      <Row gap={20}>
+        {rest.map((sec, i) => (
+          <Card key={sec.h} style={{ flex: 1, paddingVertical: 26, paddingHorizontal: 26 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <IconChip name={PHILO_ICON[sec.h] || 'chart'} />
+              <Tx w={600} s={13} c={C.gold}>{String(i + 2).padStart(2, '0')}</Tx>
+            </View>
+            <Tx f="play" w={600} s={21} style={{ marginTop: 18 }}>{sec.h}</Tx>
+            {sec.p.map((t, j) => <Body key={j} style={{ marginTop: 10 }}>{t}</Body>)}
+          </Card>
+        ))}
+      </Row>
+      <RelatedRow V={V} keys={['foundation', 'strategies', 'team']} />
+    </View>
+  );
+}
+
+// "Continue reading": the neighbouring About Qode pages as link cards across the width.
+const RELATED_TEXT = {
+  philosophy: ['Qode Philosophy', 'What we believe and why'], foundation: ['Foundation', 'Mission, vision and our fund managers'],
+  strategies: ['Strategy Snapshot', 'Each strategy, its benchmark and pillars'], team: ['Your Team at Qode', 'Who to reach and how'],
+};
+function RelatedRow({ V, keys }) {
+  return (
+    <View>
+      <SectionTitle>Continue reading</SectionTitle>
+      <Row gap={16}>
+        {keys.map(k => (
+          <Pressable key={k} accessibilityRole="link" onPress={() => V.openPage(k)} style={({ hovered }) => ({ flex: 1 })}>
+            {({ hovered }) => (
+              <Card style={{ paddingVertical: 18, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 12, borderColor: hovered ? C.green : C.line }}>
+                <View style={{ flex: 1 }}>
+                  <Tx w={600} s={14.5} c={C.green}>{RELATED_TEXT[k][0]}</Tx>
+                  <Tx s={12.5} c={C.ink3} style={{ marginTop: 3 }}>{RELATED_TEXT[k][1]}</Tx>
+                </View>
+                <Tx w={600} s={18} c={hovered ? C.green : C.ink3}>{'›'}</Tx>
+              </Card>
+            )}
+          </Pressable>
         ))}
       </Row>
     </View>
@@ -463,16 +528,6 @@ function Channel({ icon, title, children, dark }) {
   );
   return dark ? <DarkCard style={{ flex: 1 }}>{inner}</DarkCard> : <Card style={{ flex: 1, padding: 24 }}>{inner}</Card>;
 }
-const ContactLine = ({ icon, title, sub, onPress }) => (
-  <Pressable accessibilityRole="link" onPress={onPress} style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: C.line, backgroundColor: hovered ? C.hover : C.card, marginTop: 10 })}>
-    {icon}
-    <View style={{ flex: 1 }}>
-      <Tx w={600} s={13}>{title}</Tx>
-      <Tx s={13} c={C.green} style={{ marginTop: 1 }}>{sub}</Tx>
-    </View>
-    <ChevronRight s={12} c={C.ink3} />
-  </Pressable>
-);
 
 function Team({ V }) {
   const code = (V && V.acctCode) || (V && V.user && V.user.clientCode) || '';
@@ -491,7 +546,7 @@ function Team({ V }) {
           <Labelled label="When to contact" style={{ marginTop: 8 }}>For reports, account queries, operational clarifications, and all quarterly/annual reviews.</Labelled>
           <View style={{ flex: 1 }} />
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
-            <Btn label="Contact IR team" onPress={() => go(`mailto:${IR}?subject=${encodeURIComponent('IR Support Request - ' + (code || 'Account'))}`)} />
+            <Btn label="Contact IR team" onPress={() => go(irLinks(code || 'Account').email('IR Support Request'))} />
             <Btn kind="outline" label="Raise any query" onPress={() => V.openReq('r-discussion')} />
             <Tx s={12} c={C.ink3}>We will get back to you promptly.</Tx>
           </View>
@@ -503,22 +558,7 @@ function Team({ V }) {
           <View style={{ flex: 1 }} />
           <Btn kind="gold" label="Book a call" onPress={() => go(BOOKING)} style={{ marginTop: 18, alignSelf: 'flex-start' }} />
         </Channel>
-        <Channel icon="message" title="WhatsApp and email">
-          <Labelled label="Purpose">Instant, informal, and quick communication.</Labelled>
-          <Row gap={10}>
-            <View style={{ flex: 1 }}>
-              <ContactLine icon={<Phone />} title="WhatsApp (IR desk)" sub="+91 98203 00028, 9 AM to 5 PM"
-                onPress={() => go(`https://wa.me/919820300028?text=${encodeURIComponent('Hi! I am ' + (code || 'a client') + ' and would like to discuss my account')}`)} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <ContactLine icon={<MailIcon />} title="Email" sub={IR} onPress={() => go(`mailto:${IR}?subject=${encodeURIComponent('Account Query - ' + (code || 'Client'))}`)} />
-            </View>
-          </Row>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 }}>
-            <Btn kind="outline" label="Join Qode Investor Circle" onPress={() => go('https://chat.whatsapp.com/IW7eHWZjWAq54MyKvZtQdC')} />
-            <Tx s={12} c={C.ink3} style={{ flex: 1 }}>WhatsApp community for Qode investors</Tx>
-          </View>
-        </Channel>
+        <ContactCard code={code} style={{ flex: 1 }} />
       </Row>
     </View>
   );
@@ -581,7 +621,7 @@ function Faq() {
 }
 
 /* ── Grievance redressal ───────────────────────────────────────────────────────────────────────────────── */
-function Grievance() {
+function Grievance({ V }) {
   const field = (l, k) => (l.lines.find(([x]) => x === k) || [])[1];
   const cols = [
     { key: 'n', label: 'Level', flex: 0.5, render: l => (
@@ -623,8 +663,7 @@ function Grievance() {
           <Tx w={600} s={12.5} c={C.gold}>Start here</Tx>
           <Tx f="play" w={600} s={19} c={C.cream} style={{ marginTop: 8 }}>Most questions are resolved at Level 1.</Tx>
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
-            <Btn kind="gold" label="Email Investor Relations" onPress={() => go('mailto:investor.relations@qodeinvest.com')} />
-            <Btn kind="outline" label="WhatsApp IR desk" onPress={() => go('https://wa.me/919820300028')} />
+            <Btn kind="gold" label="Contact Investor Relations" onPress={() => V.openPage('team')} />
           </View>
         </DarkCard>
       </Row>
@@ -654,58 +693,23 @@ function Risk() {
   );
 }
 
-/* ── Contact us ────────────────────────────────────────────────────────────────────────────────────────── */
-function Contact() {
-  const K = content.CONTACT;
-  return (
-    <Row top gap={20}>
-      {K.phones.length > 0 && (
-        <Panel title="Call" style={{ flex: 1 }}>
-          {K.phones.map(p => (
-            <ContactLine key={p.number} icon={<Phone />} title={p.label} sub={p.number} onPress={() => go('tel:' + String(p.number).replace(/[^\d+]/g, ''))} />
-          ))}
-        </Panel>
-      )}
-      {K.emails.length > 0 && (
-        <Panel title="Email" style={{ flex: 1 }}>
-          {K.emails.map(e => <ContactLine key={e.address} icon={<MailIcon />} title={e.label} sub={e.address} onPress={() => go('mailto:' + e.address)} />)}
-        </Panel>
-      )}
-      {(K.hours.length > 0 || K.address.length > 0) && (
-        <View style={{ flex: 1, gap: 20 }}>
-          {K.hours.length > 0 && (
-            <DarkCard>
-              <Tx w={600} s={12.5} c={C.gold}>Hours</Tx>
-              {K.hours.map((t, i) => <Tx key={i} w={600} s={16} lh={1.45} c={C.cream} style={{ marginTop: 8 }}>{t}</Tx>)}
-            </DarkCard>
-          )}
-          {K.address.length > 0 && (
-            <Panel title="Office">
-              {K.address.map((t, i) => <Tx key={i} s={13.5} lh={1.6} c={i ? C.ink2 : C.ink} style={{ marginTop: i ? 2 : 0 }}>{t}</Tx>)}
-            </Panel>
-          )}
-        </View>
-      )}
-    </Row>
-  );
-}
-
 const L = content.LEGAL;
 export const DESKTOP_PAGES = {
-  family: { title: 'Family accounts', body: () => <Family /> },
-  nuvama: { title: 'Your details on Nuvama', body: () => <NuvamaDetails /> },
-  insights: { title: 'Insights', body: () => <Insights /> },
-  guide: { title: 'Investor portal guide', body: () => <PortalGuide /> },
-  referral: { title: 'Referral programme', body: V => <Referral V={V} /> },
-  cadence: { title: 'Service cadence', body: V => <Cadence V={V} /> },
-  philosophy: { title: 'Qode philosophy', body: V => <ArticlePage V={V} data={content.PHILOSOPHY} related={RELATED.about} /> },
-  foundation: { title: 'Note from our fund managers', body: () => <Foundation /> },
-  strategies: { title: 'Strategy snapshot', body: () => <Strategies /> },
-  team: { title: 'Your team at Qode', body: V => <Team V={V} /> },
-  faq: { title: 'FAQ and glossary', body: () => <Faq /> },
-  grievance: { title: 'Grievance redressal', body: () => <Grievance /> },
-  risk: { title: 'Risk management', body: () => <Risk /> },
-  contact: { title: 'Contact us', body: () => <Contact /> },
+  family: { title: 'Account Mapping', body: () => <Family /> },
+  nuvama: { title: 'Your Details on Nuvama', body: V => <NuvamaDetails V={V} /> },
+  insights: { title: 'Insights & Events', body: () => <Insights /> },
+  guide: { title: 'Investor Portal Guide', body: () => <PortalGuide /> },
+  referral: { title: 'Referral Program', body: V => <Referral V={V} /> },
+  cadence: { title: 'Service Cadence', body: V => <Cadence V={V} /> },
+  philosophy: { title: 'Qode Philosophy', body: V => <Philosophy V={V} /> },
+  foundation: { title: 'Foundation', body: V => <Foundation V={V} /> },
+  strategies: { title: 'Strategy Snapshot', body: () => <Strategies /> },
+  team: { title: 'Your Team at Qode', body: V => <Team V={V} /> },
+  faq: { title: 'FAQs & Glossary', body: () => <Faq /> },
+  grievance: { title: 'Escalation and Grievance Redressal', body: V => <Grievance V={V} /> },
+  risk: { title: 'Risk Management & Controls', body: () => <Risk /> },
+  voice: { title: 'Your Voice Matters', body: V => <DesktopVoice V={V} /> },
+  transactions: { title: 'Transactions', body: V => <DesktopTransactions V={V} /> },
   privacy: { title: L.privacy.title || 'Privacy policy', body: V => <ArticlePage V={V} data={L.privacy} related={RELATED.legal} /> },
   terms: { title: L.terms.title || 'Terms and conditions', body: V => <ArticlePage V={V} data={L.terms} related={RELATED.legal} /> },
   cancellation: { title: L.cancellation.title || 'Cancellation and refund', body: V => <ArticlePage V={V} data={L.cancellation} related={RELATED.legal} /> },

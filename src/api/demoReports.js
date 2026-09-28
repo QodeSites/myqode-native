@@ -1,5 +1,7 @@
 // Demo-mode answers for the Reports page (same shapes as /api/mobile/reports/*; the server's reviewer mock in
 // myQode/lib/mobileReports.ts serves the same figures to App Store reviewers).
+import { demo } from './demo';
+import { demoSecurities } from './demoHoldings';
 const AS_OF = '2026-09-25';
 const GROUPS = { trades: 'Trades', money: 'Money in/out', income: 'Income', charges: 'Charges' };
 const TXNS = [
@@ -98,4 +100,102 @@ export const demoReports = {
       ],
     };
   },
+};
+
+// ── Profit and loss account - Balance sheet (same shape as /api/mobile/reports/pnl, myQode/lib/plbsCompute.ts) ──────
+// Built for the Mehta family's accounts from the demo snapshot and holdings (src/api/demo.js, demoHoldings.js), so
+// the statement ties out: portfolio value = assets at cost + unrealised gain − current liabilities, both sides of the
+// balance sheet agree, and the surplus is the change in reserves. Several accounts are summed, as on the server.
+const PL_LABELS = {
+  dividend: 'Dividend', interest: 'Interest', realised: 'Realized gain/loss', custodian: 'Custodian fees', management: 'Management fees',
+  stt: 'Securities transaction tax (STT)', other: 'Other expenses', payablePurchases: 'Payable against purchases',
+  custodianPayable: 'Custodian fees, billed / payable', managementPayable: 'Management fees, billed / payable', otherPayable: 'Other expenses, billed / payable',
+  bank: 'Balance with banks', receivableSale: 'Receivable against sale', outstandingDividend: 'Outstanding dividend',
+};
+const PL_START = '2023-07-01';
+const r2 = v => Math.round(v * 100) / 100;
+const dayMs = d => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
+const fyStartOf = d => `${+d.slice(5, 7) >= 4 ? d.slice(0, 4) : +d.slice(0, 4) - 1}-04-01`;
+function demoPlLines(code, from, to) {
+  const sec = demoSecurities(code);
+  const V = sec.totals.value;
+  const perf = demo.performance(code);
+  const capital = r2(perf.amountInvested * (V / (perf.currentValue || V)));
+  const opt = sec.items.filter(i => i.assetClass === 'Derivatives');
+  const cash = sec.items.filter(i => i.symbol == null && i.assetClass === 'Cash');
+  const inv = sec.items.filter(i => !opt.includes(i) && !cash.includes(i));
+  const sum = (list, k) => list.reduce((s, i) => s + i[k], 0);
+  const eqEnd = sum(inv, 'value') - sum(inv, 'invested'), optEnd = sum(opt, 'value') - sum(opt, 'invested');
+  const reservesEnd = V - eqEnd - optEnd - capital;
+  // The period's share of everything earned since inception (by days), and the unrealised gain a year earlier.
+  const life = Math.max(1, (dayMs(to) - dayMs(PL_START)) / 86400000), days = Math.max(0, (dayMs(to) - dayMs(from < PL_START ? PL_START : from)) / 86400000 + 1);
+  const share = Math.min(1, days / life), years = days / 365;
+  const surplus = reservesEnd * share;
+  const equity = /^(QGF|QTF)/.test(code);
+  const L = {
+    dividend: V * (equity ? 0.0042 : 0.0006) * years, interest: V * 0.0011 * years,
+    custodian: V * 0.0003 * years, management: V * 0.0125 * years, stt: V * (equity ? 0.0011 : 0.0004) * years, other: V * 0.0002 * years,
+  };
+  L.realised = surplus - L.dividend - L.interest + L.custodian + L.management + L.stt + L.other;
+  const custodianPayable = V * 0.00002, otherPayable = V * 0.000025;
+  const lines = {
+    ...L, eqEnd, eqBegin: eqEnd * (1 - share * 0.65), optEnd, optBegin: optEnd * 0.4,
+    capital, withdrawals: 0, reservesBegin: reservesEnd - surplus,
+    payablePurchases: 0, custodianPayable, otherPayable,
+    investmentsAtCost: sum(inv, 'invested'), optionsPosition: sum(opt, 'invested'), optionsMargin: 0,
+    // Fees billed and unpaid are still in the bank: the balance is the cash plus them.
+    bank: sum(cash, 'value') + custodianPayable + otherPayable, receivableSale: 0,
+  };
+  return { lines, value: V };
+}
+function demoStatement(accountId, from, to) {
+  const codes = String(accountId || '').split(',').map(x => x.trim()).filter(Boolean);
+  const lines = {};
+  let value = 0;
+  for (const c of codes) {
+    const x = demoPlLines(c, from, to);
+    value += x.value;
+    for (const [k, v] of Object.entries(x.lines)) lines[k] = (lines[k] || 0) + v;
+  }
+  for (const k of Object.keys(lines)) lines[k] = r2(lines[k]);
+  const ln = k => ({ key: k, label: PL_LABELS[k], amount: lines[k] || 0 });
+  const income = ['dividend', 'interest', 'realised'].map(ln), expenses = ['custodian', 'management', 'stt', 'other'].map(ln);
+  const incomeTotal = r2(income.reduce((s, x) => s + x.amount, 0)), expenseTotal = r2(expenses.reduce((s, x) => s + x.amount, 0)), surplus = r2(incomeTotal - expenseTotal);
+  const investments = { end: lines.eqEnd, begin: lines.eqBegin, net: r2(lines.eqEnd - lines.eqBegin) };
+  const options = { end: lines.optEnd, begin: lines.optBegin, net: r2(lines.optEnd - lines.optBegin) };
+  const current = ['payablePurchases', 'custodianPayable', 'otherPayable'].map(ln), currentTotal = r2(current.reduce((s, x) => s + x.amount, 0));
+  const curA = ['bank', 'receivableSale'].map(ln), curATotal = r2(curA.reduce((s, x) => s + x.amount, 0));
+  const reserves = { begin: lines.reservesBegin, period: surplus, end: r2(lines.reservesBegin + surplus) };
+  const assetsTotal = r2(lines.investmentsAtCost + lines.optionsPosition + lines.optionsMargin + curATotal);
+  const liabTotal = r2(lines.capital - lines.withdrawals + reserves.end + currentTotal);
+  const unrealisedNet = r2(investments.net + options.net);
+  const valueFromStatement = r2(assetsTotal + investments.end + options.end - currentTotal);
+  return {
+    accountId: codes.join(','), accounts: codes, from, to, asOf: to, computed: true,
+    note: 'Computed by Qode from Nuvama transaction, holdings and expense data.',
+    basis: 'Accrual basis, as in Nuvama: income and charges by booking date, dividends by ex-date, realised gains by sale date. The surplus excludes unrealised gains, which are shown separately. The balance sheet is at cost: portfolio value = total assets + unrealised gain − current liabilities.',
+    coverage: { from: PL_START, to: AS_OF }, periods: [], holder: codes.length === 1 ? { name: 'Rohan Mehta', strategy: null } : null,
+    pnl: { income, incomeTotal, expenses, expenseTotal, surplus },
+    unrealised: { investments, options, net: unrealisedNet },
+    balanceSheet: {
+      asOf: to,
+      liabilities: { capital: lines.capital, withdrawals: lines.withdrawals, reserves, current, currentTotal, difference: r2(assetsTotal - liabTotal), total: assetsTotal },
+      assets: { investmentsAtCost: lines.investmentsAtCost, optionsPosition: lines.optionsPosition, futuresMargin: null, optionsMargin: lines.optionsMargin, current: curA, currentTotal: curATotal, total: assetsTotal },
+    },
+    totals: { income: incomeTotal, expenses: expenseTotal, surplus, unrealised: unrealisedNet, liabilities: assetsTotal, assets: assetsTotal, portfolioValue: r2(value) },
+    reconciliation: {
+      expected: surplus, computed: surplus, diff: 0, portfolioValue: r2(value), valueFromStatement, valueDiff: r2(value - valueFromStatement),
+      note: 'The computed surplus agrees with the change in portfolio value (after unrealised gains and capital flows) within ₹1.',
+    },
+  };
+}
+const clampTo = t => (t && t < AS_OF ? t : AS_OF);
+demoReports.pnl = (accountId, { from, to } = {}) => {
+  const end = clampTo(iso(to)), f = iso(from) || fyStartOf(end), start = f < PL_START ? PL_START : f;
+  if (start > end) throw Object.assign(new Error('The From date must be on or before the To date.'), { status: 400 });
+  return demoStatement(accountId, start, end);
+};
+demoReports.balanceSheet = (accountId, { date } = {}) => {
+  const end = clampTo(iso(date));
+  return demoStatement(accountId, fyStartOf(end), end);
 };

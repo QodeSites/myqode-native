@@ -6,6 +6,7 @@ import { View, Pressable, Linking } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { C, Tx, Row, Panel, Table, KeyVals, Pill, Btn, Loading, ErrorBlock, Label } from './kit';
 import { meta } from '../api';
+import { ContactIRLink } from './contact';
 import { useLoad } from '../screens/kit';
 import { fmtDate } from '../adapt';
 
@@ -23,7 +24,7 @@ const ACCOUNT_COLS = [
   { key: 'status', label: 'Status', flex: 0.7, right: true, render: a => <Pill label={a.active ? 'Active' : 'Closed'} tone={a.active ? 'ok' : 'neutral'} /> },
 ];
 
-export function NuvamaDetails({ compact }) {
+export function NuvamaDetails({ compact, V }) {
   const q = useLoad(() => meta.nuvamaDetails(), []);
   const [copied, setCopied] = useState(false);
   if (q.loading && !q.data) return <Loading rows={3} />;
@@ -58,7 +59,8 @@ export function NuvamaDetails({ compact }) {
         </Panel>
 
         {/* Registered contact */}
-        <Panel title="Registered with Nuvama" sub="Contact details on your account. Write to Investor Relations to change them." style={{ flex: 1 }}>
+        <Panel title="Registered with Nuvama" sub="Contact details on your account. Write to Investor Relations to change them." style={{ flex: 1 }}
+          footer={V ? <ContactIRLink V={V} /> : null}>
           {(x.holders || []).map((h, i) => (
             <View key={i} style={{ marginTop: i ? 14 : 0 }}>
               {(x.holders || []).length > 1 && <Tx w={600} s={13} style={{ marginBottom: 4 }}>{h.name}</Tx>}

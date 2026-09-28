@@ -31,10 +31,11 @@ import {
   QUARTER_LABELS,
   QS, TYPES, FEES, RES,
 } from './data';
+import { irrPeriod, fmtIrr, irrLabel } from './irr';
 import { BASE_URL, auth, portfolio, meta, admin, backoffice, onAdminDenied, distributor, setViewToken, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
 import { trackStart, trackStop, screen } from './api/track';
 import { perfFrom, navFrom, ddFrom, cashFrom, plFrom, combineFamily } from './webcalc';
-import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, ddPct, inr, sinr, fmtDate, fmtMonth, titleCase, semverLt } from './adapt';
+import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, ddPct, inr, sinr, fmtDate, fmtMonth, fmtDayMon, titleCase, semverLt } from './adapt';
 import Splash from './screens/splash';
 import Carousel from './screens/carousel';
 import { Login, OtpScreen, SetPassword } from './screens/login';
@@ -57,18 +58,46 @@ import {
   cleanName, validateAmount, ENTITY_LABELS,
 } from './onboarding/mapping';
 import { API_BASE, RESUME_HOSTS, UPLOAD } from './onboarding/config';
+import { PAGE_ALIASES } from './nav';
 
 const MIME_BY_EXT = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 const guessMime = name => MIME_BY_EXT[(String(name || '').split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
 
-const PERIOD = { '1M': '1M', '6M': '6M', '1Y': '1Y', '3Y': '3Y', All: 'ALL' };
+const PERIOD = { '1W': '1W', '10D': '10D', '1M': '1M', '6M': '6M', '1Y': '1Y', '3Y': '3Y', SI: 'ALL' };
+const RANGE_IDS = ['1W', '10D', '1M', '6M', '1Y', '3Y', 'SI'];
+const RANGE_LABEL = { '1W': 'the last week', '10D': 'the last 10 days', '1M': 'the last month', '6M': 'the last 6 months', '1Y': 'the last year', '3Y': 'the last 3 years', SI: 'since inception' };
+const normRange = r => (r === 'All' || r === 'ALL' || !PERIOD[r] ? 'SI' : r);   // 'All' was the old name of SI
+// The API windows (nav / drawdown ?period=) are 1W, 1M, 3M, 6M, 1Y, 3Y, ALL. 10D isn't one of them: it is
+// fetched as 1M and cut to the last 10 calendar days here.
+const apiPeriod = p => (p === '10D' ? '1M' : p);
+const CLIENT_DAYS = { '10D': 10 };
+function cutRange(nav, dd, period) {
+  const days = CLIENT_DAYS[period];
+  if (!days) return { nav, dd };
+  // Counted back from the latest date on record (as webcalc's windows are), so a lagging or demo series still fills.
+  const all = (nav && nav.series) || [];
+  const last = all.length ? new Date(String(all[all.length - 1].date).slice(0, 10) + 'T00:00:00Z') : null;
+  if (last) last.setUTCDate(last.getUTCDate() - days);
+  const cut = last ? last.toISOString().slice(0, 10) : '';
+  const rows = all.filter(r => String(r.date).slice(0, 10) >= cut);
+  if (!rows.length) return { nav: nav ? { ...nav, series: [] } : nav, dd: dd ? { ...dd, series: [] } : dd };
+  // Re-anchor at the window start, the way the API anchors every window: growth rebased to 100, drawdown peak reset.
+  const p0 = rows[0].portfolio, b0 = (rows.find(r => r.benchmark != null) || {}).benchmark;
+  const series = rows.map(r => ({ ...r, portfolio: +((r.portfolio / p0) * 100).toFixed(4), benchmark: r.benchmark != null && b0 ? +((r.benchmark / b0) * 100).toFixed(4) : null }));
+  let pk = -Infinity, bpk = -Infinity;
+  const ddSeries = series.map(r => {
+    pk = Math.max(pk, r.portfolio); if (r.benchmark != null) bpk = Math.max(bpk, r.benchmark);
+    return { date: r.date, portfolio: +(((r.portfolio - pk) / pk) * 100).toFixed(4), benchmark: r.benchmark == null ? null : +(((r.benchmark - bpk) / bpk) * 100).toFixed(4) };
+  });
+  return { nav: { ...nav, period, series }, dd: { ...(dd || {}), period, series: ddSeries } };
+}
 
 // Sign-in fields never take spaces (typed or pasted): an email, a client code and a password contain none.
 const noSpace = t => String(t || '').replace(/\s+/g, '');
 
 export default class MyQode extends React.Component {
   state = {
-    phase: 'splash', tab: 'home', sheet: null, acct: 0, range: 'All',
+    phase: 'splash', tab: 'home', sheet: null, acct: 0, range: 'SI',
     amt: 500000, method: 0, success: null, otp: ['', '', '', '', '', ''],
     email: '', pw: '', loading: false, lifting: false, cu: 1, ob: null, car: 0,
     ts: 1, hc: false, rm: false,
@@ -350,7 +379,7 @@ export default class MyQode extends React.Component {
       this.setState({ dl: false, d: null, dErr: 'There is no active portfolio on this login yet. If you have just invested, it appears once your account is funded. For anything else, please contact Investor Relations.' });
       return;
     }
-    const seq = ++this.seq, period = PERIOD[this.state.range];
+    const seq = ++this.seq, period = PERIOD[normRange(this.state.range)];
     this.setState({ dl: true, dErr: '' });
     try {
       const k = scope.kind;
@@ -367,12 +396,12 @@ export default class MyQode extends React.Component {
         }
         this.setState({ hist: fam, dv: 'nuvama' }, () => this.applyView('nuvama'));
         this.lastLoad = Date.now();
-        this.loadHoldings(scope, seq);
+        this.loadHoldings(scope, seq); this.loadIrr(scope, seq);
         return;
       }
       // Performance is required; every other part is optional so one failing endpoint can't blank the portfolio.
       const parts = await Promise.allSettled([
-        portfolio.performance(scope.id, k), portfolio.nav(scope.id, period, k), portfolio.drawdown(scope.id, period, k),
+        portfolio.performance(scope.id, k), portfolio.nav(scope.id, apiPeriod(period), k), portfolio.drawdown(scope.id, apiPeriod(period), k),
         portfolio.cashflow(scope.id, k), portfolio.monthlyPl(scope.id, k), portfolio.quarterlyPl(scope.id, k),
       ]);
       if (seq !== this.seq) return;
@@ -383,7 +412,8 @@ export default class MyQode extends React.Component {
         if ((e.status === 403 || e.status === 404) && this.stepDown(scope)) return;
         throw e;
       }
-      const [perf, nav, dd, cash, monthly, quarterly] = parts.map(x => (x.status === 'fulfilled' ? x.value : null));
+      const [perf, nav0, dd0, cash, monthly, quarterly] = parts.map(x => (x.status === 'fulfilled' ? x.value : null));
+      const { nav, dd } = cutRange(nav0, dd0, period);
       // Accounts with legacy Orbis rows: the web computes everything in the browser from raw rows, with three
       // views. Do the same (src/webcalc.js) so every figure matches whichever view is picked.
       let hist = null;
@@ -394,10 +424,10 @@ export default class MyQode extends React.Component {
         try { const h = await portfolio.history(legacyId); if (h && h.orbis && h.orbis.length) hist = h; } catch {}
         if (seq !== this.seq) return;
       }
-      if (hist) { this.setState({ hist }, () => this.applyView(this.state.dv)); this.lastLoad = Date.now(); this.loadHoldings(scope, seq); return; }
+      if (hist) { this.setState({ hist }, () => this.applyView(this.state.dv)); this.lastLoad = Date.now(); this.loadHoldings(scope, seq); this.loadIrr(scope, seq); return; }
       this.setState({ hist: null, d: { id: scope.id, kind: k, perf, cash, fys: buildFys(monthly), fysQ: buildFysQ(quarterly) }, navs: { [period]: { nav, dd } }, dl: false, pnlFy: 0, pnlOpen: null });
       this.lastLoad = Date.now();
-      this.loadHoldings(scope, seq);
+      this.loadHoldings(scope, seq); this.loadIrr(scope, seq);
     } catch (e) {
       if (seq !== this.seq) return;
       // Transient failure: keep the skeleton and try again (twice) before showing an error — a tunnel or
@@ -425,6 +455,13 @@ export default class MyQode extends React.Component {
     return true;
   }
 
+  // Money-weighted return (IRR) for the scope, next to the NAV-based TWRR. Optional: failures leave it blank.
+  async loadIrr(scope, seq) {
+    const codes = scope.kind === 'local-family' ? scope.members : [scope.id];
+    this.setState({ irr: null });
+    try { const r = await portfolio.irr(codes.map(String)); if (seq === this.seq) this.setState({ irr: r }); } catch {}
+  }
+
   async loadHoldings(scope, seq) {
     const res = await Promise.allSettled(scope.accounts.map(a => portfolio.performance(a.id)));
     if (seq !== this.seq) return;
@@ -437,7 +474,7 @@ export default class MyQode extends React.Component {
   applyView(dv) {
     const h = this.state.hist;
     if (!h) return;
-    const period = PERIOD[this.state.range], pl = plFrom(h, dv);
+    const period = PERIOD[normRange(this.state.range)], pl = plFrom(h, dv);
     this.setState({
       dv, dl: false, pnlFy: 0, pnlOpen: null,
       d: { id: h.accountId, kind: 'account', local: true, perf: perfFrom(h, dv), cash: cashFrom(h, dv), fys: buildFys(pl.monthly), fysQ: buildFysQ(pl.quarterly) },
@@ -447,6 +484,7 @@ export default class MyQode extends React.Component {
 
   // `shownRange` = the last range whose data is on screen; vals() keeps drawing it until the new one has loaded.
   async pickRange(id) {
+    id = normRange(id);
     const period = PERIOD[id], d = this.state.d;
     const shownRange = this.state.navs[period] ? id : (this.state.shownRange || this.state.range);
     this.setState({ range: id, shownRange });
@@ -457,7 +495,8 @@ export default class MyQode extends React.Component {
     }
     if (!d || this.state.navs[period]) return;
     try {
-      const [nav, dd] = await Promise.all([portfolio.nav(d.id, period, d.kind), portfolio.drawdown(d.id, period, d.kind)]);
+      const [nav0, dd0] = await Promise.all([portfolio.nav(d.id, apiPeriod(period), d.kind), portfolio.drawdown(d.id, apiPeriod(period), d.kind)]);
+      const { nav, dd } = cutRange(nav0, dd0, period);
       if (this.state.d && this.state.d.id === d.id) this.setState(s => ({ navs: { ...s.navs, [period]: { nav, dd } }, shownRange: s.range === id ? id : s.shownRange }));
     } catch {}
   }
@@ -983,10 +1022,13 @@ export default class MyQode extends React.Component {
     const p1 = buildPaths(cPts, cBench, 330, 120, null, [axis.lo, axis.hi]);
     const p2 = buildPaths(cPts, cBench, 358, 110, null, [axis.lo, axis.hi]);
     const navNow = rawLine.length ? rawLine[rawLine.length - 1] : 0;   // the real NAV, not the rebased line
-    const xDates = dates.length > 1 ? [dates[0], dates[Math.floor((dates.length - 1) / 2)], dates[dates.length - 1]].map(fmtMonth) : [];
+    // Short windows (a few trading days, weekends skipped) label days, longer ones months.
+    const shortSpan = dates.length > 1 && new Date(dates[dates.length - 1]) - new Date(dates[0]) < 62 * 864e5;
+    const xFmt = shortSpan ? fmtDayMon : fmtMonth;
+    const xDates = dates.length > 1 ? [...new Set([dates[0], dates[Math.floor((dates.length - 1) / 2)], dates[dates.length - 1]].map(xFmt))] : [];
     // Growth anchor for the full-history chart = the web's: NAV 10 (the PMS starting point) when the first
     // NAV isn't exactly 10, else the first NAV. Shorter ranges are anchored at the window start.
-    const isAll = shownRange === 'All';
+    const isAll = shownRange === 'SI';
     const rawFirst = hasRaw ? navs[0] : null;
     const growthBase = isAll && rawFirst != null && rawFirst !== 10 ? 10 : null;   // null → relative to the first point
     const growthAt = i => (growthBase != null ? (navs[i] / growthBase - 1) * 100 : (pts[i] / pts[0] - 1) * 100);
@@ -1105,19 +1147,19 @@ export default class MyQode extends React.Component {
       svcPending: false, svcNone: true, svcPendingSub: '',
       tab: S.tab, scopeKey: S.acct,
       isHome: S.tab === 'home', isPortfolio: S.tab === 'portfolio', isHoldings: S.tab === 'holdings',
-      isDocs: S.tab === 'docs', isServices: S.tab === 'services', isMore: S.tab === 'more',
+      isDocs: S.tab === 'docs', isServices: S.tab === 'services', isMore: S.tab === 'more', isReports: S.tab === 'reports',
       goHome: () => this.go('home'), goPortfolio: () => this.go('portfolio'),
       isPfGroup: S.tab === 'portfolio' || S.tab === 'holdings',
       segPerf: () => this.go('portfolio'), segHold: () => this.go('holdings'),
       goDocs: () => this.go('docs'), goServices: () => this.go('services'), svcJump: S.svcJump || 0,
-      goServicesTx: () => { set({ svcJump: Date.now() }); this.go('services'); },   // Home → Transactions → View all
-      goMore: () => this.go('more'),
+      goServicesTx: () => { screen('page:transactions'); set({ page: 'transactions' }); },   // "View all" transactions: their own page
+      goMore: () => this.go('more'), goReports: () => this.go('reports'),
       vPortfolio: S.tab === 'portfolio' && !busy && hasData, vHoldings: S.tab === 'holdings' && !busy && hasData,
-      vDocs: S.tab === 'docs' && !S.loading, vServices: S.tab === 'services' && !S.loading, vMore: S.tab === 'more' && !S.loading,
+      vDocs: S.tab === 'docs' && !S.loading, vServices: S.tab === 'services' && !S.loading, vMore: S.tab === 'more' && !S.loading, vReports: S.tab === 'reports' && !S.loading,
       skelOther: S.tab !== 'home' && (['portfolio', 'holdings'].includes(S.tab) ? busy : S.loading),
-      navIdx: { home: 0, portfolio: 1, holdings: 1, docs: 2, services: 3, more: 4 }[S.tab],
+      navIdx: { home: 0, portfolio: 1, holdings: 1, reports: 2, services: 3, more: 4, docs: 4 }[S.tab],   // Documents opens from More
       heroValue: this.fmt(value * (0.35 + 0.65 * S.cu)),
-      rangeLabel: shownRange === 'All' ? 'all time' : shownRange, rangeLoading, asOf, benchName, sinceLbl: perf && perf.inceptionDate ? 'Since ' + fmtDate(perf.inceptionDate) : '',
+      rangeLabel: RANGE_LABEL[shownRange] || shownRange, rangePhrase: shownRange === 'SI' ? 'since inception' : 'over ' + (RANGE_LABEL[shownRange] || shownRange), rangeLoading, asOf, benchName, sinceLbl: perf && perf.inceptionDate ? 'Since ' + fmtDate(perf.inceptionDate) : '',
       growthNow: navNow.toFixed(2), navNow: navNow.toFixed(2),
       yTicks: axis.ticks, xDates,
       hasViews: !!S.hist && !S.hist.family,
@@ -1141,9 +1183,11 @@ export default class MyQode extends React.Component {
       ddTip: { kind: 'dd', dates: ddDates, pts: ddPts, bench: ddBench, navs: ddDates.map(d => (rawByDate[d] || [])[0]), bvals: ddDates.map(d => (rawByDate[d] || [])[1]), xy: p3.xy, bxy: p3.bxy, benchName },
       ddLine: p3.line, ddArea: p3.area, ddBench: p3.bench, hasDd: ddPts.length > 1, ddNow: ddPts.length ? ddPts[ddPts.length - 1] : 0,
       perfLine: p2.line, perfBench: p2.bench, hasBench: !!bench,
-      ranges: ['1M', '6M', '1Y', '3Y', 'All'].map(id => ({ label: id, pick: () => this.pickRange(id), active: S.range === id, loading: rangeLoading && S.range === id })),
+      ranges: RANGE_IDS.map(id => ({ label: id, pick: () => this.pickRange(id), active: S.range === id, loading: rangeLoading && S.range === id })),
       tx3: cashTx.slice(0, 3).map(tx), txAll: cashTx.map(tx), hasTx: cashTx.length > 0,
       holdings: holdRows, chartColor,
+      // IRR (money-weighted) beside TWRR: [{ period, label, value, color }] for SI / 1Y / 3Y when available.
+      irrRows: ['SI', '1Y', '3Y'].map(p => { const x = irrPeriod(S.irr, p); return x && x.irr != null ? { period: p, label: irrLabel(x), value: fmtIrr(x), color: c(x.irr) } : null; }).filter(Boolean),
       holdSlices: holdRows.map(h => ({ id: h.id, pct: h.alloc, color: h.color, name: h.name })),
       holdCount: holdRows.length,
       flows: [
@@ -1183,7 +1227,7 @@ export default class MyQode extends React.Component {
       toast: m => this.toast(m),
       viewing: S.viewing, viewInvestor: this.viewInvestor, exitView: () => this.exitView(), partnerNav: this.partnerNav || null,
       user: S.user, isSuperAdmin: !!(S.user && S.user.isSuperAdmin), impersonated: !!(S.user && S.user.isImpersonated),
-      page: S.page, openPage: k => { screen('page:' + k); set({ page: k }); }, closePage: () => set({ page: null }),
+      page: S.page, openPage: k => { k = PAGE_ALIASES[k] || k; screen('page:' + k); set({ page: k }); }, closePage: () => set({ page: null }),
       acctOptions: (scope ? scope.accounts : []).map(a => ({ id: a.id, label: a.strategyPrefix ? a.strategyPrefix + ' · ' + a.id : a.id })),
       openReq: k => { if (!S.viewing) set({ sheet: k }); },   // no requests in a client's name while a distributor views the account
       bumpRefresh: () => set(s => ({ rk: s.rk + 1 })),

@@ -1,12 +1,12 @@
 // Full-screen pages opened from the More tab: family, insights, guide, referral,
-// about / trust copy, contact and legal. Copy lives in src/content.js.
+// about / trust copy and legal (the old Contact page is part of Your Team at Qode). Copy lives in src/content.js.
 import React, { useState } from 'react';
-import { View, Pressable, ScrollView, Linking, TextInput } from 'react-native';
+import { View, Pressable, ScrollView, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, Tx, Amt, Card, CTA, Fade, KeyboardScroll } from '../ui';
 import { inr } from '../adapt';
-import { ChevronLeft, ChevronRight, Phone, MailIcon } from '../icons';
+import { ChevronLeft, ChevronRight } from '../icons';
 import { experience, engagement, admin } from '../api';
 import * as content from '../content';
 import { FormBody } from './services';
@@ -15,6 +15,11 @@ import { Foundation, ReportsReviews, StrategySnapshot, PortalGuide, Team as Team
 import { useLoad, openUrl, fmtSize, Loading, ErrorBox, Empty, SectionLabel, LinkRow } from './kit';
 import { ReportsPage } from './reports';
 import { NuvamaPage } from './nuvama';
+import { VoicePage } from './voice';
+import { CashList } from './services';
+
+// Placeholder for pages still being built.
+const ComingSoon = () => <Card style={{ padding: 20 }}><Tx s={13} c={C.muted}>Coming soon</Tx></Card>;
 
 const P = ({ children, style }) => <Tx s={13} lh={1.6} c={C.ink} style={[{ marginTop: 10 }, style]}>{children}</Tx>;
 
@@ -196,37 +201,6 @@ function Risk() {
   );
 }
 
-function Contact() {
-  const K = content.CONTACT;
-  const go = url => Linking.openURL(url).catch(() => {});
-  return (
-    <>
-      {K.phones.length > 0 && <SectionLabel style={{ marginTop: 0 }}>CALL</SectionLabel>}
-      {K.phones.length > 0 && (
-        <Card style={{ overflow: 'hidden' }}>
-          {K.phones.map((p, i) => (
-            <LinkRow key={p.number} title={p.label} sub={p.number} icon={<Phone />} right={null}
-              onPress={() => go('tel:' + String(p.number).replace(/[^\d+]/g, ''))} last={i === K.phones.length - 1} />
-          ))}
-        </Card>
-      )}
-      {K.emails.length > 0 && <SectionLabel>EMAIL</SectionLabel>}
-      {K.emails.length > 0 && (
-        <Card style={{ overflow: 'hidden' }}>
-          {K.emails.map((e, i) => <LinkRow key={e.address} title={e.label} sub={e.address} icon={<MailIcon />} right={null} onPress={() => go('mailto:' + e.address)} last={i === K.emails.length - 1} />)}
-        </Card>
-      )}
-      {(K.address.length > 0 || K.hours.length > 0) && <SectionLabel>OFFICE</SectionLabel>}
-      {(K.address.length > 0 || K.hours.length > 0) && (
-        <Card style={{ padding: 16 }}>
-          {K.address.map((t, i) => <Tx key={i} s={13} lh={1.55}>{t}</Tx>)}
-          {K.hours.map((t, i) => <Tx key={'h' + i} s={12} c={C.muted} style={{ marginTop: 8 }}>{t}</Tx>)}
-        </Card>
-      )}
-    </>
-  );
-}
-
 // ── Developer: what each screen needs, what the backend has, and how to close the gaps ──
 const REQS = [
   { s: 'Home, Portfolio, Holdings', ok: true, has: 'portfolio/snapshot, performance, nav, drawdown, monthly-pl, quarterly-pl, cashflow (+ combined-* for owner/family).', gap: 'XIRR, TWRR, Sharpe/Sortino/beta and “today’s change” are not computed by the API. To show them: add them to /portfolio/performance from pms_master_sheet cash flows and daily NAV (server-side), or accept they stay off the app.' },
@@ -309,20 +283,21 @@ export const PAGES = {
   reports: { title: 'Reports', body: V => <ReportsPage V={V} /> },
   requirements: { title: 'Data requirements & API coverage', body: () => <Requirements /> },
   admin: { title: 'Admin', body: V => <AdminPage V={V} /> },
-  family: { title: 'Family accounts', body: () => <Family /> },
-  nuvama: { title: 'Your details on Nuvama', body: () => <NuvamaPage /> },
-  insights: { title: 'Insights', body: () => <Insights /> },
-  guide: { title: 'Investor portal guide', body: () => <PortalGuide /> },
-  referral: { title: 'Referral programme', body: V => <Referral V={V} /> },
-  cadence: { title: 'Service cadence', body: () => <ReportsReviews /> },
-  philosophy: { title: 'Qode philosophy', body: () => <Article data={content.PHILOSOPHY} /> },
-  foundation: { title: 'Note from our fund managers', body: () => <Foundation /> },
-  strategies: { title: 'Strategy snapshot', body: () => <StrategySnapshot /> },
-  team: { title: 'Your team at Qode', body: V => <TeamPage V={V} /> },
-  faq: { title: 'FAQ & glossary', body: () => <Faq /> },
-  grievance: { title: 'Grievance redressal', body: () => <Escalation /> },
-  risk: { title: 'Risk management', body: () => <Risk /> },
-  contact: { title: 'Contact us', body: () => <Contact /> },
+  family: { title: 'Account Mapping', body: () => <Family /> },
+  nuvama: { title: 'Your Details on Nuvama', body: V => <NuvamaPage V={V} /> },
+  insights: { title: 'Insights & Events', body: () => <Insights /> },
+  guide: { title: 'Investor Portal Guide', body: () => <PortalGuide /> },
+  referral: { title: 'Referral Program', body: V => <Referral V={V} /> },
+  cadence: { title: 'Service Cadence', body: () => <ReportsReviews /> },
+  philosophy: { title: 'Qode Philosophy', body: () => <Article data={content.PHILOSOPHY} /> },
+  foundation: { title: 'Foundation', body: () => <Foundation /> },
+  strategies: { title: 'Strategy Snapshot', body: () => <StrategySnapshot /> },
+  team: { title: 'Your Team at Qode', body: V => <TeamPage V={V} /> },
+  faq: { title: 'FAQs & Glossary', body: () => <Faq /> },
+  grievance: { title: 'Escalation and Grievance Redressal', body: () => <Escalation /> },
+  risk: { title: 'Risk Management & Controls', body: () => <Risk /> },
+  voice: { title: 'Your Voice Matters', body: V => <VoicePage V={V} /> },
+  transactions: { title: 'Transactions', body: V => <CashList V={V} full /> },
   privacy: { title: content.LEGAL.privacy.title || 'Privacy policy', body: () => <Article data={content.LEGAL.privacy} /> },
   terms: { title: content.LEGAL.terms.title || 'Terms & conditions', body: () => <Article data={content.LEGAL.terms} /> },
   cancellation: { title: content.LEGAL.cancellation.title || 'Cancellation & refund', body: () => <Article data={content.LEGAL.cancellation} /> },

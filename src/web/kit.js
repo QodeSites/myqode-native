@@ -5,9 +5,9 @@
 // Every screen in src/web/ builds from these pieces. `C` here is the web palette: it keeps the app's key names so
 // shared code keeps working, with web values.
 import React, { useState } from 'react';
-import { View, Pressable, TextInput, ActivityIndicator, Modal, ScrollView } from 'react-native';
+import { View, Pressable, TextInput, ActivityIndicator, Modal, ScrollView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { C as APP, Tx as AppTx, Amt } from '../ui';
+import { C as APP, Tx as AppTx, Amt, useUI } from '../ui';
 import { ChevronRight } from '../icons';
 
 export const C = {
@@ -48,6 +48,26 @@ export function Tx({ f = 'inter', w = 400, ...rest }) {
   return <AppTx f="inter" w={IW[w] || 400} {...rest} />;
 }
 export { Amt };
+
+// Approximate Inter widths (in em) for the characters in figures; tabular digits are a fixed width.
+const CW = ch => ('0123456789₹'.includes(ch) ? 0.65 : ',.:'.includes(ch) ? 0.3 : ' '.includes(ch) ? 0.28 : '+−-–%'.includes(ch) ? 0.62 : /[A-Z]/.test(ch) ? 0.68 : 0.56);
+/** A figure that keeps its size when it fits and shrinks (down to `min`) when its box is too narrow, so large
+ *  amounts are never cut off. Accounts for the text-size setting (Amt multiplies by it) and letter spacing. */
+export function FitAmt({ children, s = 22, min = 12, style, ...rest }) {
+  const { z } = useUI();
+  const [box, setBox] = useState(0);
+  const text = String(children == null ? '' : children);
+  const ls = (Array.isArray(style) ? Object.assign({}, ...style.filter(Boolean)) : style || {}).letterSpacing || 0;
+  const units = [...text].reduce((n, ch) => n + CW(ch), 0);
+  let size = s;
+  // Text width ≈ size × z × units + letterSpacing × characters; solve for the size that fits the box.
+  if (box > 0 && units > 0) size = Math.max(min, Math.min(s, Math.floor(((box - 4 - ls * text.length) / (units * z)) * 10) / 10));
+  return (
+    <View onLayout={e => setBox(e.nativeEvent.layout.width)} style={{ alignSelf: 'stretch', minWidth: 0 }}>
+      <Amt s={size} numberOfLines={1} style={style} {...rest}>{text}</Amt>
+    </View>
+  );
+}
 
 // Section titles read as sentences on the web ("Strategy accounts"), whatever case the caller passes.
 const KEEP = new Set(['NAV', 'SIP', 'STP', 'PMS', 'SI', 'DD', 'IR', 'PDF', 'FAQ', 'CAGR', 'P&L', 'UCC', 'GST', 'PAN', 'KYC', 'TDS', 'ID', 'XIRR', 'AUM', 'GSTIN', 'IFSC', 'SOA', 'CSV']);
@@ -131,7 +151,7 @@ export function Stat({ label, value, color = C.ink, note, delta, deltaNeg, style
         {icon}
         <Label>{label}</Label>
       </View>
-      <Amt w={600} s={22} c={color} numberOfLines={1} style={{ marginTop: 8, letterSpacing: -0.3 }}>{value}</Amt>
+      <FitAmt w={600} s={22} c={color} style={{ marginTop: 8, letterSpacing: -0.3 }}>{value}</FitAmt>
       {(!!note || !!delta) && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
           {!!delta && <Delta text={delta} neg={deltaNeg} s={11.5} />}
@@ -224,6 +244,31 @@ export function Input({ label, value, onChangeText, placeholder, secure, error, 
         {right}
       </View>
       {!!(error || hint) && <Tx s={12} c={error ? C.red : C.ink3} style={{ marginTop: 6 }}>{error || hint}</Tx>}
+    </View>
+  );
+}
+
+/** Date field. On the web a real DOM <input type="date"> (the browser's calendar picker), styled like Input;
+ *  value / min / max are YYYY-MM-DD and onChangeText gets YYYY-MM-DD ('' when cleared). Elsewhere it falls back to Input. */
+export function DateField({ label, value, onChangeText, min, max, error, hint, placeholder = 'YYYY-MM-DD', style }) {
+  const [focus, setFocus] = useState(false);
+  const msg = typeof error === 'string' ? error : '';   // error={true} only colours the border
+  if (Platform.OS !== 'web') return <Input label={label} value={value} onChangeText={onChangeText} placeholder={placeholder} error={msg || undefined} hint={hint} style={style} />;
+  return (
+    <View style={style}>
+      {!!label && <Tx w={600} s={12.5} c={C.ink2} style={{ marginBottom: 6 }}>{sentence(label)}</Tx>}
+      {React.createElement('input', {
+        type: 'date', value: value || '', min: min || undefined, max: max || undefined, 'aria-label': label || 'Date',
+        onChange: e => onChangeText && onChangeText(e.target.value || ''),
+        onFocus: () => setFocus(true), onBlur: () => setFocus(false),
+        style: {
+          boxSizing: 'border-box', width: '100%', height: 44, padding: '0 12px', borderRadius: 8, borderStyle: 'solid', borderWidth: 1,
+          borderColor: error ? C.red : focus ? C.green : C.line2, backgroundColor: C.card, color: value ? C.ink : C.ink3,
+          fontFamily: 'Inter_400Regular, Inter, system-ui, sans-serif', fontSize: 14, lineHeight: '20px', cursor: 'pointer',
+          outline: focus ? '3px solid rgba(2,66,43,0.12)' : 'none', colorScheme: 'light',
+        },
+      })}
+      {!!(msg || hint) && <Tx s={12} c={msg ? C.red : C.ink3} style={{ marginTop: 6 }}>{msg || hint}</Tx>}
     </View>
   );
 }

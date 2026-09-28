@@ -1,16 +1,21 @@
 // Desktop Reports (web ≥ 1024 px): the custodian's statements for one strategy account, laid out as a dashboard
-// (KPI tiles on top, the report's tables on the left, statement details, PDF and filters in a right-hand column).
+// (header row with the PDF button, one compact summary strip, the report's tables on the left, statement details
+// and filters in a right-hand column).
 // Same data, filters, paging and PDFs as the phone page (src/screens/reports.js): /api/mobile/reports/* through
 // src/api → reports (demo mode answers from src/api/demoReports.js), PDFs from src/screens/reportPdf.js via savePdf.
+// "All accounts" (2+ accounts): every account's full list (export=1) fetched in parallel and merged in src/combine.js,
+// with an Account column, summed totals and one combined PDF per report. The P&L and balance sheet is the exception:
+// the server sums the accounts itself, so "All accounts" is one call with every code.
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Pressable, TextInput, Platform } from 'react-native';
+import { View, Pressable } from 'react-native';
 import Svg, { Rect, Line, Text as SvgText } from 'react-native-svg';
-import { C, Tx, Amt, Row, Grid, PageIntro, Label, Panel, Stat, Btn, Chips, Tabs, Table, KeyVals, Pill, Loading, Empty, ErrorBlock } from './kit';
+import { C, Tx, Amt, FitAmt, Card, Row, PageIntro, Label, Panel, Btn, Chips, Tabs, Table, KeyVals, Pill, Loading, Empty, ErrorBlock, DateField } from './kit';
 import { ChevronDown, Download } from '../icons';
 import { reports } from '../api';
 import { inr, sinr, pct, fmtDate } from '../adapt';
 import { savePdf } from '../screens/partner';
-import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf } from '../screens/reportPdf';
+import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactionsAllPdf, capitalGainsAllPdf, expensesAllPdf, factsheetAllPdf, plbsPdf } from '../screens/reportPdf';
+import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE } from '../combine';
 
 // ── formatting (the app-wide formatters; only quantity and period headers are local, as on the phone) ────────
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -63,13 +68,25 @@ function useOnce(fetch, deps) {
 
 
 // ── shared pieces ─────────────────────────────────────────────────────────────────────────────────────────
-// Every report uses one composition: a row of KPI tiles, then the report's table(s) on the left and a 300 px
-// right-hand column with the statement details, the PDF button and the report's filters.
+// Every report uses one composition: a header row (report name and date on the left, the PDF button on the right),
+// one compact summary strip, then the report's table(s) on the left and a 300 px right-hand column with the
+// statement details and the report's filters.
 const SIDE_W = 300;
-function ReportLayout({ stats, main, side }) {
+const PDF_HINT = 'Opens your browser’s print dialog. Choose “Save as PDF” to keep a copy.';
+function ReportLayout({ title, asOf, pdf, stats, main, side }) {
   return (
     <View>
-      {!!stats && <Grid min={170} gap={14} style={{ marginBottom: 20 }}>{stats}</Grid>}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, marginBottom: 14 }}>
+        <View style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+          {!!title && <Tx w={600} s={15} c={C.green} role="heading" aria-level={3} numberOfLines={1}>{title}</Tx>}
+          <Tx s={12} c={C.ink3} style={{ marginTop: 3 }}>{asOf ? `As of ${fmtDate(asOf)}` : 'No statement on record yet'}</Tx>
+        </View>
+        <View style={{ alignItems: 'flex-end', maxWidth: 360, flexShrink: 1 }}>
+          {pdf || <Btn kind="primary" small label="Download PDF" icon={<Download s={14} c={C.gold} />} disabled />}
+          <Tx s={11.5} c={C.ink3} lh={1.45} style={{ marginTop: 6, textAlign: 'right' }}>{PDF_HINT}</Tx>
+        </View>
+      </View>
+      {!!stats && <SummaryStrip items={stats} style={{ marginBottom: 20 }} />}
       <Row top>
         <View style={{ flex: 1, minWidth: 0, gap: 16 }}>{main}</View>
         <View style={{ width: SIDE_W, flexShrink: 0, gap: 16 }}>{side}</View>
@@ -92,23 +109,42 @@ function PdfBtn({ make, name, disabled }) {
   };
   return (
     <View>
-      <Btn kind="primary" label={busy ? 'Preparing PDF…' : 'Download PDF'} icon={<Download s={15} c={C.gold} />} onPress={go} disabled={disabled} busy={busy} />
-      {!!err && <Tx s={12} c={C.red} lh={1.45} style={{ marginTop: 8 }}>{err}</Tx>}
+      <Btn kind="primary" small label={busy ? 'Preparing PDF…' : 'Download PDF'} icon={<Download s={14} c={C.gold} />} onPress={go} disabled={disabled} busy={busy} />
+      {!!err && <Tx s={12} c={C.red} lh={1.45} style={{ marginTop: 8, textAlign: 'right' }}>{err}</Tx>}
     </View>
   );
 }
 
-// Right-column card naming the report, its date and its PDF.
-function StatementPanel({ title, asOf, note, pdf, extra = [] }) {
+// One compact summary card per report: evenly spaced figures split by hairlines, a small muted label (with an
+// optional muted suffix such as an entry count) above a medium figure that shrinks rather than truncates.
+// items: [{ label, value, color, note }].
+function SummaryStrip({ items, style }) {
+  const list = (items || []).filter(Boolean);
+  if (!list.length) return null;
+  return (
+    <Card style={[{ flexDirection: 'row', overflow: 'hidden' }, style]}>
+      {list.map((it, i) => (
+        <View key={it.label} style={{ flex: 1, minWidth: 0, paddingVertical: 12, paddingHorizontal: 16, borderLeftWidth: i ? 1 : 0, borderColor: C.line }}>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
+            <Tx w={600} s={11.5} c={C.ink3} numberOfLines={1} style={{ flexShrink: 0 }}>{it.label}</Tx>
+            {!!it.note && <Tx s={11} c={C.ink3} numberOfLines={1} style={{ flexShrink: 1, opacity: 0.85 }}>{it.note}</Tx>}
+          </View>
+          <FitAmt w={600} s={16} min={11} c={it.color || C.ink} style={{ marginTop: 4 }}>{it.value}</FitAmt>
+        </View>
+      ))}
+    </Card>
+  );
+}
+
+// Right-column card with the statement details (the PDF button sits in the report's header row).
+function StatementPanel({ title = 'Statement details', asOf, note, extra = [] }) {
   return (
     <Panel title={title}>
       <KeyVals items={[
         ['As of', asOf ? fmtDate(asOf) : '–'],
         ...(note ? [['Basis', <Tx key="n" s={13} c={C.ink} style={{ flexShrink: 1, textAlign: 'right' }}>{note}</Tx>]] : []),
         ...extra,
-      ]} style={{ marginTop: -8, marginBottom: 14 }} />
-      {pdf || <Btn kind="primary" label="Download PDF" icon={<Download s={15} c={C.gold} />} disabled />}
-      <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 10 }}>Opens your browser’s print dialog. Choose “Save as PDF” to keep a copy.</Tx>
+      ]} style={{ marginTop: -8 }} />
     </Panel>
   );
 }
@@ -133,6 +169,22 @@ function moreFooter(L, shown) {
   );
 }
 const countSub = (L) => `${L.items.length}${L.more ? '+' : ''} ${L.items.length === 1 && !L.more ? 'entry' : 'entries'}`;
+
+// All accounts: accounts that failed to load (the rest still show) and the per-account export cap.
+function CombinedNote({ h }) {
+  if (!h || !h.all) return null;
+  const failed = failedText(h.failed);
+  if (!failed && !h.truncated) return null;
+  return (
+    <View style={{ gap: 4 }}>
+      {!!failed && <Tx s={12.5} c={C.red} lh={1.5}>{failed}</Tx>}
+      {!!h.truncated && <Tx s={12} c={C.ink3} lh={1.5}>Some accounts have more than 5,000 entries; the latest 5,000 of each are shown.</Tx>}
+    </View>
+  );
+}
+const acctCol = { key: 'acct', label: 'Account', flex: 0.9, render: x => cellTx(x.account, { c: C.ink2 }) };
+const withAcct = (all, cols, at = 1) => (all ? [...cols.slice(0, at), acctCol, ...cols.slice(at)] : cols);
+const accountsRow = ids => ['Accounts', <Tx key="acc" s={13} w={600} style={{ flexShrink: 1, textAlign: 'right' }}>{`All accounts (${ids.length})`}</Tx>];
 
 const cellTx = (v, extra) => <Tx s={13} numberOfLines={2} {...extra}>{v}</Tx>;
 const cellAmt = (v, c = C.ink, w) => <Amt s={13} c={c} w={w} style={{ textAlign: 'right' }}>{v}</Amt>;
@@ -215,29 +267,6 @@ function useCoverage(head) {
   return now || cov;
 }
 
-// A date field. On the web the underlying <input> becomes type="date" so the browser's own picker opens;
-// the value stays YYYY-MM-DD either way.
-function DateField({ label, value, onChange, min, max, error }) {
-  const ref = useRef(null);
-  const [focus, setFocus] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (Platform.OS !== 'web' || !el || typeof el.setAttribute !== 'function') return;
-    el.setAttribute('type', 'date');
-    if (min) el.setAttribute('min', min); else el.removeAttribute('min');
-    if (max) el.setAttribute('max', max); else el.removeAttribute('max');
-  }, [min, max]);
-  return (
-    <View>
-      <Tx w={600} s={12} c={C.ink2} style={{ marginBottom: 6 }}>{label}</Tx>
-      <TextInput ref={ref} value={value || ''} onChangeText={onChange} placeholder="YYYY-MM-DD" placeholderTextColor={C.ink3}
-        accessibilityLabel={label} autoCapitalize="none" onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
-        style={{ height: 40, borderWidth: 1, borderRadius: 8, borderColor: error ? C.red : focus ? C.green : C.line2, backgroundColor: C.card,
-          paddingHorizontal: 10, fontSize: 13.5, color: C.ink, fontFamily: 'Inter_400Regular', outlineStyle: 'none' }} />
-    </View>
-  );
-}
-
 // The period card: presets, then From / To when "Custom" is chosen.
 function PeriodFilter({ R, cov, sub = 'Applies to the table and the PDF.', children }) {
   const today = isoOf(new Date());
@@ -247,8 +276,8 @@ function PeriodFilter({ R, cov, sub = 'Applies to the table and the PDF.', child
       <Chips value={R.preset} options={PRESETS} onChange={R.pick} />
       {R.preset === 'custom' && (
         <View style={{ gap: 12, marginTop: 14 }}>
-          <DateField label="From" value={R.draft.from} onChange={v => R.edit('from', v)} min={cov && cov.from} max={R.draft.to || hi} error={!!R.err} />
-          <DateField label="To" value={R.draft.to} onChange={v => R.edit('to', v)} min={R.draft.from || (cov && cov.from)} max={hi} error={!!R.err} />
+          <DateField label="From" value={R.draft.from} onChangeText={v => R.edit('from', v)} min={cov && cov.from} max={R.draft.to || hi} error={!!R.err} />
+          <DateField label="To" value={R.draft.to} onChangeText={v => R.edit('to', v)} min={R.draft.from || (cov && cov.from)} max={hi} error={!!R.err} />
           {!!R.err && <Tx s={12} c={C.red} lh={1.45}>{R.err}</Tx>}
         </View>
       )}
@@ -268,10 +297,11 @@ const outsideMsg = cov => `No records in the selected period. Records are availa
 function AccountPicker({ options, value, onPick }) {
   const [open, setOpen] = useState(false);
   if (!options || options.length < 2) return null;
-  if (options.length <= 5) return <Chips value={value} options={options.map(o => [o.id, o.label])} onChange={onPick} />;
+  // Full strategy names are long: chips only while they fit on one line, a dropdown otherwise.
+  if (options.length <= 5 && options.reduce((n, o) => n + String(o.label).length, 0) <= 64) return <Chips value={value} options={options.map(o => [o.id, o.label])} onChange={onPick} />;
   const cur = options.find(o => o.id === value) || options[0];
   return (
-    <View style={{ width: 340, zIndex: 50 }}>
+    <View style={{ width: 360, zIndex: 50 }}>
       <Pressable accessibilityRole="button" accessibilityLabel="Choose account" onPress={() => setOpen(o => !o)}
         style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 8, backgroundColor: C.card,
           borderColor: open || hovered ? C.green : C.line2, height: 40, paddingHorizontal: 12 })}>
@@ -296,24 +326,28 @@ function AccountPicker({ options, value, onPick }) {
 
 // ── Transactions ──────────────────────────────────────────────────────────────────────────────────────────
 const TXN_GROUPS = [['all', 'All'], ['trades', 'Trades'], ['money', 'Money in/out'], ['income', 'Income'], ['charges', 'Charges'], ['other', 'Other']];
-function Transactions({ accountId, rk }) {
+function Transactions({ accountId, ids, rk }) {
   const [group, setGroup] = useState('all');
   const R = useRange('all');
   const { from, to } = R;
-  const L = usePaged(offset => reports.transactions(accountId, { group, from, to, limit: 50, offset }), [accountId, group, from, to, rk]);
+  const all = accountId === ALL_ID;
+  const L = usePaged(offset => (all
+    ? loadTransactionsAll(ids, id => reports.transactions(id, { group, from, to, export: 1, limit: 5000 }), { group, from, to })
+    : reports.transactions(accountId, { group, from, to, limit: 50, offset })), [accountId, group, from, to, rk]);
   const h = L.head;
   const cov = useCoverage(h);
   const groupLabel = (TXN_GROUPS.find(g => g[0] === group) || [])[1];
-  const makePdf = async () => transactionsPdf(await reports.transactions(accountId, { group, from, to, export: 1, limit: 5000 }), accountId, groupLabel);
+  const makePdf = async () => (all ? transactionsAllPdf(h, groupLabel)
+    : transactionsPdf(await reports.transactions(accountId, { group, from, to, export: 1, limit: 5000 }), accountId, groupLabel));
   const sumOf = g => (h && h.summary.find(s => s.group === g)) || null;
-  const sumStat = (g, label) => { const s = sumOf(g); return <Stat label={label} value={s ? inr(s.amount) : inr(0)} note={s ? `${s.count} ${s.count === 1 ? 'entry' : 'entries'}` : null} />; };
+  const sumItem = (g, label) => { const s = sumOf(g); return { label, value: s ? inr(s.amount) : inr(0), note: s ? `${s.count} ${s.count === 1 ? 'entry' : 'entries'}` : null }; };
 
   // Rows arrive newest first; the first row of each month carries the month label so the table reads grouped.
   const rows = L.items.map((t, i) => {
     const m = (t.date || '').slice(0, 7);
     return { ...t, id: t.id != null ? t.id : i, _month: m && (i === 0 || (L.items[i - 1].date || '').slice(0, 7) !== m) ? monthLabel(m + '-01') : '' };
   });
-  const cols = [
+  const cols = withAcct(all, [
     { key: 'date', label: 'Date', flex: 0.9, render: t => (
       <View>
         {!!t._month && <Tx w={600} s={11} c={C.goldText} style={{ marginBottom: 3 }}>{t._month}</Tx>}
@@ -324,30 +358,34 @@ function Transactions({ accountId, rk }) {
     { key: 'sec', label: 'Security or details', flex: 2, render: t => cellTx(t.security || t.notes || '–', { c: t.security ? C.ink : C.ink2 }) },
     { key: 'qty', label: 'Quantity @ rate', flex: 1.3, right: true, render: t => cellAmt(t.qty != null && t.rate != null ? `${qtyFmt(t.qty)} @ ${inr(t.rate)}` : t.qty != null ? qtyFmt(t.qty) : '–', C.ink2) },
     { key: 'amt', label: 'Amount', flex: 1.1, right: true, render: t => cellAmt((t.direction === 'in' ? '+' : t.direction === 'out' ? '−' : '') + inr(t.amount), t.direction === 'in' ? C.pos : C.ink, 600) },
-  ];
-  const empty = !L.loading && !L.err && !L.items.length ? (h && !h.asOf && !cov ? 'No transactions are on record for this account yet.'
+  ]);
+  const empty = !L.loading && !L.err && !L.items.length ? (h && !h.asOf && !cov ? `No transactions are on record for ${all ? 'these accounts' : 'this account'} yet.`
     : outsideCoverage(R.range, cov) ? outsideMsg(cov)
     : from || to ? (group === 'all' ? 'No transactions in the selected period.' : 'No transactions in this category for the selected period.')
     : 'No transactions in this category.') : null;
 
   return (
     <ReportLayout
+      title="Transaction statement" asOf={h && h.asOf}
+      pdf={<PdfBtn make={makePdf} name={`Transactions ${all ? 'All accounts' : accountId}${rangeSuffix(R.range)}`} disabled={!L.items.length} />}
       stats={h && h.asOf ? [
-        <Stat key="in" label="Money in" value={sinr(h.moneyIn)} color={gainColor(h.moneyIn)} />,
-        <Stat key="out" label="Money out" value={h.moneyOut ? '−' + inr(h.moneyOut) : inr(0)} />,
-        <React.Fragment key="t">{sumStat('trades', 'Trades')}</React.Fragment>,
-        <React.Fragment key="i">{sumStat('income', 'Income')}</React.Fragment>,
-        <React.Fragment key="c">{sumStat('charges', 'Charges')}</React.Fragment>,
+        { label: 'Money in', value: sinr(h.moneyIn), color: gainColor(h.moneyIn) },
+        { label: 'Money out', value: h.moneyOut ? '−' + inr(h.moneyOut) : inr(0) },
+        sumItem('trades', 'Trades'),
+        sumItem('income', 'Income'),
+        sumItem('charges', 'Charges'),
       ] : null}
-      main={Status({ L, empty }) || (
-        <Panel title={group === 'all' ? 'All transactions' : groupLabel} sub={countSub(L)} pad={0} footer={moreFooter(L, L.items.length)}>
-          <Table cols={cols} rows={rows} dense />
-        </Panel>
-      )}
+      main={<>
+        <CombinedNote h={h} />
+        {Status({ L, empty }) || (
+          <Panel title={group === 'all' ? 'All transactions' : groupLabel} sub={countSub(L)} pad={0} footer={moreFooter(L, L.items.length)}>
+            <Table cols={cols} rows={rows} dense />
+          </Panel>
+        )}
+      </>}
       side={<>
-        <StatementPanel title="Transaction statement" asOf={h && h.asOf} note={h && h.asOf ? 'Latest transaction on record' : ''}
-          extra={periodRows(R.range, cov)}
-          pdf={<PdfBtn make={makePdf} name={`Transactions ${accountId}${rangeSuffix(R.range)}`} disabled={!L.items.length} />} />
+        <StatementPanel asOf={h && h.asOf} note={h && h.asOf ? 'Latest transaction on record' : ''}
+          extra={[...(all ? [accountsRow(ids)] : []), ...periodRows(R.range, cov)]} />
         <PeriodFilter R={R} cov={cov} />
         <FilterPanel title="Show" sub="Filter the statement by type">
           <Chips value={group} options={TXN_GROUPS} onChange={setGroup} />
@@ -358,7 +396,7 @@ function Transactions({ accountId, rk }) {
 }
 
 // ── Capital gains ─────────────────────────────────────────────────────────────────────────────────────────
-function CapitalGains({ accountId, rk }) {
+function CapitalGains({ accountId, ids, rk }) {
   const [fy, setFy] = useState(null);
   const [term, setTerm] = useState('');
   // Two ways to choose: a financial year (preset 'byfy', the API's own FY view) or a date range by sale date,
@@ -366,10 +404,15 @@ function CapitalGains({ accountId, rk }) {
   const R = useRange('byfy');
   const byFy = R.preset === 'byfy' || (R.preset === 'custom' && !R.from && !R.to);
   const q = byFy ? { fy: fy || undefined } : R.preset === 'all' ? { from: '1990-01-01', to: isoOf(new Date()) } : { from: R.from, to: R.to };
-  const L = usePaged(offset => reports.capitalGains(accountId, { ...q, term: term || undefined, limit: 50, offset }), [accountId, q.fy, q.from, q.to, term, rk]);
+  const all = accountId === ALL_ID;
+  // All accounts: the same FY (or sale-date range) for every account; with no FY chosen, the newest year any has.
+  const L = usePaged(offset => (all
+    ? loadCapitalGainsAll(ids, (id, o) => reports.capitalGains(id, { ...(byFy ? o : q), term: term || undefined, export: 1, limit: 5000 }), { ...q, term: term || undefined })
+    : reports.capitalGains(accountId, { ...q, term: term || undefined, limit: 50, offset })), [accountId, q.fy, q.from, q.to, term, rk]);
   const h = L.head, s = h && h.summary;
   const cov = useCoverage(h);
-  const makePdf = async () => capitalGainsPdf(await reports.capitalGains(accountId, { ...(byFy ? { fy: h.fy } : q), term: term || undefined, export: 1, limit: 5000 }), accountId);
+  const makePdf = async () => (all ? capitalGainsAllPdf(h)
+    : capitalGainsPdf(await reports.capitalGains(accountId, { ...(byFy ? { fy: h.fy } : q), term: term || undefined, export: 1, limit: 5000 }), accountId));
   // The years list only comes with FY answers; keep the last one so the FY chips stay while a range is shown.
   const [years, setYears] = useState([]);
   useEffect(() => { if (h && h.years && h.years.length) setYears(h.years); }, [h]);
@@ -379,7 +422,7 @@ function CapitalGains({ accountId, rk }) {
   const RC = { ...R, pick: k => R.pick(k, byFy && (h && h.fy || lastFy) ? fyRange(h && h.fy || lastFy) : undefined) };
   const shownRange = byFy ? {} : R.preset === 'all' ? {} : R.range;
 
-  const cols = [
+  const cols = withAcct(all, [
     { key: 'sec', label: 'Security', flex: 2.2, render: l => (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <TermTag term={l.term} />
@@ -393,29 +436,32 @@ function CapitalGains({ accountId, rk }) {
     { key: 'cost', label: 'Cost', flex: 1.1, right: true, render: l => cellAmt(inr(l.cost)) },
     { key: 'days', label: 'Days', flex: 0.6, right: true, render: l => cellAmt(l.daysHeld != null ? String(l.daysHeld) : '–', C.ink2) },
     { key: 'gain', label: 'Gain or loss', flex: 1.2, right: true, render: l => cellAmt(sinr(l.gain), gainColor(l.gain), 600) },
-  ];
+  ], 0);
   const catCols = [
     { key: 'category', label: 'Category', flex: 2.4, render: c => cellTx(c.category) },
     { key: 'st', label: 'Short term', right: true, render: c => cellAmt(sinr(c.st || 0), gainColor(c.st)) },
     { key: 'lt', label: 'Long term', right: true, render: c => cellAmt(sinr(c.lt || 0), gainColor(c.lt)) },
     { key: 'tot', label: 'Total', right: true, render: c => cellAmt(sinr((c.st || 0) + (c.lt || 0)), gainColor((c.st || 0) + (c.lt || 0)), 600) },
   ];
-  const empty = !L.loading && !L.err && !L.items.length ? (h && !h.asOf && !cov ? 'No capital gains report is available for this account yet.'
+  const empty = !L.loading && !L.err && !L.items.length ? (h && !h.asOf && !cov ? `No capital gains report is available for ${all ? 'these accounts' : 'this account'} yet.`
     : !byFy && outsideCoverage(shownRange, cov) ? outsideMsg(cov)
     : !byFy ? 'No realised gains in the selected period.' : 'No realised gains in this selection.') : null;
   const termLabel = term === 'ST' ? 'Short-term lots' : term === 'LT' ? 'Long-term lots' : 'Realised lots';
 
   return (
     <ReportLayout
+      title={byFy && h && h.fy ? `Capital gains, FY ${h.fy}` : 'Capital gains'} asOf={h && h.asOf}
+      pdf={<PdfBtn make={makePdf} name={byFy ? `Capital gains FY ${(h && h.fy) || ''} ${all ? 'All accounts' : accountId}` : `Capital gains ${all ? 'All accounts' : accountId}${rangeSuffix(shownRange)}`} disabled={!s} />}
       stats={s ? [
-        <Stat key="st" label="Short term" value={sinr(s.st)} color={gainColor(s.st)} />,
-        <Stat key="lt" label="Long term" value={sinr(s.lt)} color={gainColor(s.lt)} />,
-        <Stat key="ltg" label="LT after grandfathering" value={sinr(s.ltTaxable != null ? s.ltTaxable : s.lt)} color={gainColor(s.ltTaxable != null ? s.ltTaxable : s.lt)} note="Effective long-term gain" />,
-        <Stat key="tot" label="Total realised" value={sinr(s.total)} color={gainColor(s.total)} />,
+        { label: 'Short term', value: sinr(s.st), color: gainColor(s.st) },
+        { label: 'Long term', value: sinr(s.lt), color: gainColor(s.lt) },
+        { label: 'LT after grandfathering', value: sinr(s.ltTaxable != null ? s.ltTaxable : s.lt), color: gainColor(s.ltTaxable != null ? s.ltTaxable : s.lt) },
+        { label: 'Total realised', value: sinr(s.total), color: gainColor(s.total) },
       ] : null}
       main={<>
+        <CombinedNote h={h} />
         {s && s.byCategory && s.byCategory.length > 0 && (
-          <Panel title="By category" sub="Realised gain split by asset category" pad={0}>
+          <Panel title="By category" sub={all ? 'Realised gain split by asset category, summed across accounts' : 'Realised gain split by asset category'} pad={0}>
             <Table cols={catCols} rows={s.byCategory.map((c, i) => ({ ...c, id: c.category || i }))} dense />
           </Panel>
         )}
@@ -426,11 +472,10 @@ function CapitalGains({ accountId, rk }) {
         )}
       </>}
       side={<>
-        <StatementPanel title={byFy && h && h.fy ? `Capital gains, FY ${h.fy}` : 'Capital gains'} asOf={h && h.asOf} note={h && h.asOf ? 'Realised gains by date of sale' : ''}
-          extra={byFy ? (h && h.fy ? [['Period', <Tx key="per" s={13} w={600} style={{ flexShrink: 1, textAlign: 'right' }}>{fyPeriod(h.fy)}</Tx>]] : [])
+        <StatementPanel asOf={h && h.asOf} note={h && h.asOf ? 'Realised gains by date of sale' : ''}
+          extra={(all ? [accountsRow(ids)] : []).concat(byFy ? (h && h.fy ? [['Period', <Tx key="per" s={13} w={600} style={{ flexShrink: 1, textAlign: 'right' }}>{fyPeriod(h.fy)}</Tx>]] : [])
             .concat(coverageText(cov) ? [['On record', <Tx key="cov" s={13} c={C.ink2} style={{ flexShrink: 1, textAlign: 'right' }}>{coverageText(cov)}</Tx>]] : [])
-            : periodRows(shownRange, cov)}
-          pdf={<PdfBtn make={makePdf} name={byFy ? `Capital gains FY ${(h && h.fy) || ''} ${accountId}` : `Capital gains ${accountId}${rangeSuffix(shownRange)}`} disabled={!s} />} />
+            : periodRows(shownRange, cov))} />
         <PeriodFilter R={RC} cov={cov} sub="By date of sale. Pick a financial year or any dates.">
           {years.length > 1 && (
             <View style={{ marginTop: 16 }}>
@@ -451,49 +496,58 @@ function CapitalGains({ accountId, rk }) {
 }
 
 // ── Expenses ──────────────────────────────────────────────────────────────────────────────────────────────
-function Expenses({ accountId, rk }) {
+function Expenses({ accountId, ids, rk }) {
   const [type, setType] = useState('');
   const R = useRange('all');
   const { from, to } = R;
-  const L = usePaged(offset => reports.expenses(accountId, { type: type || undefined, from, to, limit: 50, offset }), [accountId, type, from, to, rk]);
+  const all = accountId === ALL_ID;
+  const L = usePaged(offset => (all
+    ? loadExpensesAll(ids, id => reports.expenses(id, { type: type || undefined, from, to, export: 1, limit: 5000 }), { type: type || undefined, from, to })
+    : reports.expenses(accountId, { type: type || undefined, from, to, limit: 50, offset })), [accountId, type, from, to, rk]);
   // byType comes with each first page; keep the last one so the filter panel doesn't blink while a filter loads.
   const [byType, setByType] = useState([]);
   useEffect(() => { if (L.head && L.head.byType) setByType(L.head.byType); }, [L.head]);
   const h = L.head;
   const cov = useCoverage(h);
-  const makePdf = async () => expensesPdf(await reports.expenses(accountId, { type: type || undefined, from, to, export: 1, limit: 5000 }), accountId);
-  const empty = !L.loading && !L.err && !L.items.length ? (h && !h.asOf && !cov ? 'No expense statement is available for this account yet.'
+  const makePdf = async () => (all ? expensesAllPdf(h)
+    : expensesPdf(await reports.expenses(accountId, { type: type || undefined, from, to, export: 1, limit: 5000 }), accountId));
+  const noStatement = `No expense statement is available for ${all ? 'these accounts' : 'this account'} yet.`;
+  const empty = !L.loading && !L.err && !L.items.length ? (h && !h.asOf && !cov ? noStatement
     : outsideCoverage(R.range, cov) ? outsideMsg(cov)
     : from || to ? (type ? 'No charges of this type in the selected period.' : 'No charges in the selected period.')
-    : 'No expense statement is available for this account yet.') : null;
+    : noStatement) : null;
   const max = Math.max(1, ...byType.map(t => t.amount || 0));
 
-  const cols = [
+  const cols = withAcct(all, [
     { key: 'date', label: 'Date', flex: 0.9, render: x => cellTx(fmtDate(x.date)) },
     { key: 'type', label: 'Charge', flex: 1.3, render: x => cellTx(x.type, { w: 600 }) },
     { key: 'notes', label: 'Description', flex: 2, render: x => cellTx(x.notes || '–', { c: C.ink2 }) },
     { key: 'status', label: 'Status', flex: 0.8, render: x => <Pill label={x.status === 'payable' ? 'Payable' : 'Paid'} tone={x.status === 'payable' ? 'warn' : 'neutral'} /> },
     { key: 'amt', label: 'Amount', flex: 1, right: true, render: x => cellAmt(inr(x.amount), C.ink, 600) },
-  ];
+  ]);
 
   return (
     <ReportLayout
+      title="Statement of expenses" asOf={h && h.asOf}
+      pdf={<PdfBtn make={makePdf} name={`Expenses ${all ? 'All accounts' : accountId}${rangeSuffix(R.range)}`} disabled={!L.items.length} />}
       stats={h && h.asOf ? [
-        <Stat key="paid" label="Paid" value={inr(h.paid)} />,
-        <Stat key="pay" label="Payable (accrued)" value={inr(h.payable)} />,
-        <Stat key="tot" label="Total" value={inr((h.paid || 0) + (h.payable || 0))} />,
+        { label: 'Paid', value: inr(h.paid) },
+        { label: 'Payable (accrued)', value: inr(h.payable) },
+        { label: 'Total', value: inr((h.paid || 0) + (h.payable || 0)) },
       ] : null}
-      main={Status({ L, empty }) || (
-        <Panel title={type || 'All charges'} sub={countSub(L)} pad={0} footer={moreFooter(L, L.items.length)}
-          right={type ? <Btn kind="ghost" small label="Show all" onPress={() => setType('')} /> : null}>
-          <Table cols={cols} rows={L.items.map((x, i) => ({ ...x, id: i }))} dense />
-        </Panel>
-      )}
+      main={<>
+        <CombinedNote h={h} />
+        {Status({ L, empty }) || (
+          <Panel title={type || 'All charges'} sub={countSub(L)} pad={0} footer={moreFooter(L, L.items.length)}
+            right={type ? <Btn kind="ghost" small label="Show all" onPress={() => setType('')} /> : null}>
+            <Table cols={cols} rows={L.items.map((x, i) => ({ ...x, id: i }))} dense />
+          </Panel>
+        )}
+      </>}
       side={<>
-        <StatementPanel title="Statement of expenses" asOf={h && h.asOf}
-          extra={[...periodRows(R.range, cov),
-            ...(h && h.asOf ? [['Statement covers', <Tx key="p" s={13} c={C.ink2} style={{ flexShrink: 1, textAlign: 'right' }}>{h.period ? `${fmtDate(h.period.from)} to ${fmtDate(h.period.to)}` : '–'}</Tx>]] : [])]}
-          pdf={<PdfBtn make={makePdf} name={`Expenses ${accountId}${rangeSuffix(R.range)}`} disabled={!L.items.length} />} />
+        <StatementPanel asOf={h && h.asOf}
+          extra={[...(all ? [accountsRow(ids)] : []), ...periodRows(R.range, cov),
+            ...(h && h.asOf ? [['Statement covers', <Tx key="p" s={13} c={C.ink2} style={{ flexShrink: 1, textAlign: 'right' }}>{h.period ? `${fmtDate(h.period.from)} to ${fmtDate(h.period.to)}` : '–'}</Tx>]] : [])]} />
         <PeriodFilter R={R} cov={cov} sub="By date of charge. Applies to the table and the PDF." />
         {byType.length > 0 && (
           <Panel title="By charge" sub={type ? 'Filtered to one charge' : 'Select a charge to filter the table'}
@@ -575,53 +629,44 @@ const Legend = ({ color, label }) => (
   </View>
 );
 
-// "As of" picker for the fact sheet: recent snapshot dates as chips, or any date (the latest snapshot on or
-// before it is shown). '' means the latest.
-function AsOfPanel({ dates, date, shown, onPick }) {
+// "As of" picker for the fact sheet: recent Nuvama snapshot dates as chips, or any date in the account's
+// coverage (the backend computes a fact sheet for dates without a snapshot). '' means the latest.
+function AsOfPanel({ dates, date, shown, coverage, onPick }) {
   const [draft, setDraft] = useState('');
   const [err, setErr] = useState('');
   const recent = dates.slice(0, 6);
   const cur = date || shown || dates[0] || '';
-  const oldest = dates.length ? dates[dates.length - 1] : undefined;
   const today = isoOf(new Date());
+  const lo = (coverage && coverage.from) || (dates.length ? dates[dates.length - 1] : undefined);
+  const hi = coverage && coverage.to && coverage.to < today ? coverage.to : today;
   const edit = v => {
     const t = (v || '').trim();
     setDraft(t);
     if (!t) { setErr(''); return; }
     if (!ISO_RE.test(t)) { setErr('Enter the date as YYYY-MM-DD.'); return; }
-    if (t > today) { setErr('Choose a date on or before today.'); return; }
+    if (lo && t < lo) { setErr(`Choose a date on or after ${fmtDate(lo)}.`); return; }
+    if (t > hi) { setErr(`Choose a date on or before ${fmtDate(hi)}.`); return; }
     setErr(''); onPick(t);
   };
+  const covText = coverageText(coverage);
   return (
-    <FilterPanel title="As of" sub={dates.length ? `${dates.length} ${dates.length === 1 ? 'snapshot' : 'snapshots'}, ${fmtDate(oldest)} to ${fmtDate(dates[0])}` : 'Choose the fact sheet date'}>
+    <FilterPanel title="As of" sub={covText ? `Fact sheets from ${covText}` : dates.length ? `${dates.length} ${dates.length === 1 ? 'snapshot' : 'snapshots'}, ${fmtDate(dates[dates.length - 1])} to ${fmtDate(dates[0])}` : 'Choose the fact sheet date'}>
       {recent.length > 0 && <Chips value={recent.includes(cur) ? cur : null} options={recent.map((x, i) => [x, i === 0 ? `${fmtDate(x)} (latest)` : fmtDate(x)])} onChange={x => { setDraft(''); setErr(''); onPick(x === dates[0] ? '' : x); }} />}
       <View style={{ marginTop: recent.length ? 14 : 0, gap: 8 }}>
-        <DateField label="Or choose a date" value={draft} onChange={edit} min={oldest} max={today} error={!!err} />
+        <DateField label="Or choose a date" value={draft} onChangeText={edit} min={lo} max={hi} error={!!err} />
         {!!err && <Tx s={12} c={C.red} lh={1.45}>{err}</Tx>}
-        <Tx s={12} c={C.ink3} lh={1.5}>Shows the latest fact sheet on or before the date you choose.</Tx>
+        <Tx s={12} c={C.ink3} lh={1.5}>{covText
+          ? `Pick any date from ${fmtDate(coverage.from)} to ${fmtDate(coverage.to)}. Dates other than a Nuvama snapshot are computed from your transaction and holdings data.`
+          : 'Dates other than a Nuvama snapshot are computed from your transaction and holdings data.'}</Tx>
       </View>
     </FilterPanel>
   );
 }
 
-function Factsheet({ accountId, rk }) {
-  const [date, setDate] = useState('');
-  const L = useOnce(() => reports.factsheet(accountId, date ? { date } : {}), [accountId, date, rk]);
-  const d = L.data;
-  // The snapshot list comes with every answer; keep the last one so the picker doesn't blink while loading.
-  const [dates, setDates] = useState([]);
-  useEffect(() => { if (d && Array.isArray(d.dates)) setDates(d.dates); }, [d]);
-  const strategy = d && d.strategy ? d.strategy.replace(/^QODE ADVISORS LLP - /, '') : '';
-  const statement = pdf => <StatementPanel title="Portfolio fact sheet" asOf={d && d.asOf} note={strategy}
-    extra={date ? [['Requested', fmtDate(date)]] : []} pdf={pdf} />;
-  const asOfPanel = <AsOfPanel dates={dates} date={date} shown={d && (d.date || d.asOf)} onPick={setDate} />;
-  if (L.loading) return <ReportLayout main={<Loading rows={4} />} side={<>{statement(null)}{asOfPanel}</>} />;
-  if (L.err) return <ReportLayout main={<ErrorBlock msg={L.err} onRetry={L.reload} />} side={<>{statement(null)}{asOfPanel}</>} />;
-  if (!d || !d.asOf) return <ReportLayout main={<Empty>{date ? `No fact sheet is available on or before ${fmtDate(date)}.${dates.length ? ` The earliest is from ${fmtDate(dates[dates.length - 1])}.` : ''}` : 'No fact sheet is available for this account yet.'}</Empty>} side={<>{statement(null)}{asOfPanel}</>} />;
-
+// One fact sheet's sections, shared by the single-account page and each account on the all-accounts page.
+function PerfPanel({ d }) {
   const r = d.returns || {}, periods = r.periods || [];
-  const sectors = (d.sectors || []).slice().sort((x, y) => (y.pct || 0) - (x.pct || 0));
-  const holdings = d.holdings || [];
+  if (!periods.length) return <Empty>No performance figures in this fact sheet.</Empty>;
   const perfRows = [{ id: 'p', name: 'Portfolio', vals: r.portfolio || [], color: C.green, mine: true }, ...(r.benchmark ? [{ id: 'b', name: r.benchmark.name, vals: r.benchmark.values || [], color: C.gold }] : [])];
   const perfCols = [
     { key: 'name', label: '', flex: 2, render: x => (
@@ -632,6 +677,24 @@ function Factsheet({ accountId, rk }) {
     ) },
     ...periods.map((p, j) => ({ key: 'p' + j, label: periodLabel(p), right: true, render: x => cellAmt(pct(x.vals[j]), x.mine ? gainColor(x.vals[j]) : C.ink2, 600) })),
   ];
+  return (
+    <Panel title="Performance (TWRR)" sub="Time-weighted, after management fees and other expenses. Returns over one year are annualised." pad={0}>
+      <Table cols={perfCols} rows={perfRows} dense />
+      <View style={{ padding: 20, paddingTop: 16, borderTopWidth: 1, borderColor: C.line }}>
+        <View style={{ flexDirection: 'row', gap: 18, flexWrap: 'wrap', marginBottom: 10 }}>
+          <Legend color={C.green} label="Portfolio" />
+          {!!r.benchmark && <Legend color={C.gold} label={r.benchmark.name} />}
+        </View>
+        <ReturnsChart periods={periods} a={r.portfolio || []} b={(r.benchmark && r.benchmark.values) || []} />
+      </View>
+    </Panel>
+  );
+}
+// limit: show only the top holdings (all-accounts page); the single-account page lists every holding.
+function HoldingsPanel({ d, limit }) {
+  const holdings = d.holdings || [];
+  if (!holdings.length) return null;
+  const shown = limit ? holdings.slice(0, limit) : holdings;
   const total = holdings.reduce((s, x) => s + (x.value || 0), 0);
   const holdCols = [
     { key: 'n', label: '#', flex: 0.35, render: x => cellTx(String(x.n), { c: C.ink3 }) },
@@ -647,76 +710,314 @@ function Factsheet({ accountId, rk }) {
       </View>
     ) },
   ];
+  const sub = `${holdings.length} ${holdings.length === 1 ? 'security' : 'securities'}${shown.length < holdings.length ? `, top ${shown.length} shown` : ''}`;
+  return (
+    <Panel title={limit ? 'Top holdings' : 'Portfolio holdings'} sub={sub} pad={0}
+      right={<Tx s={12.5} c={C.ink2}>Total <Amt s={12.5} w={600}>{inr(total)}</Amt></Tx>}>
+      <Table cols={holdCols} rows={shown.map((x, i) => ({ ...x, n: i + 1, id: i }))} dense />
+    </Panel>
+  );
+}
+function SectorsPanel({ d }) {
+  const sectors = (d.sectors || []).slice().sort((x, y) => (y.pct || 0) - (x.pct || 0));
+  return (
+    <Panel title="Sector allocation" sub={sectors.length ? `${sectors.length} ${sectors.length === 1 ? 'sector' : 'sectors'}, share of assets` : null}>
+      {sectors.length === 0 && <Tx s={13} c={C.ink2}>No sector split in this fact sheet.</Tx>}
+      <View style={{ gap: 14 }}>
+        {sectors.map(x => (
+          <View key={x.sector}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
+              <Tx s={13} style={{ flex: 1 }} numberOfLines={1}>{x.sector}</Tx>
+              <Amt s={13} w={600}>{(x.pct || 0).toFixed(2)}%</Amt>
+            </View>
+            <View style={{ height: 6, backgroundColor: C.track, borderRadius: 3, marginTop: 6, overflow: 'hidden' }}>
+              <View style={{ width: `${Math.max(0, Math.min(100, x.pct || 0))}%`, height: 6, backgroundColor: C.green, borderRadius: 3 }} />
+            </View>
+          </View>
+        ))}
+      </View>
+    </Panel>
+  );
+}
+
+function Factsheet({ accountId, ids, names, rk }) {
+  const [date, setDate] = useState('');
+  const all = accountId === ALL_ID;
+  const L = useOnce(() => (all
+    ? loadFactsheetsAll(ids, id => reports.factsheet(id, { ...(date ? { date } : {}), export: 1 }), { date })
+    : reports.factsheet(accountId, date ? { date } : {})), [accountId, date, rk]);
+  const d = L.data;
+  // The snapshot list comes with every answer; keep the last one so the picker doesn't blink while loading.
+  const [dates, setDates] = useState([]);
+  useEffect(() => { if (d && Array.isArray(d.dates)) setDates(d.dates); }, [d]);
+  const [coverage, setCoverage] = useState(null);
+  useEffect(() => { if (d && d.coverage && (d.coverage.from || d.coverage.to)) setCoverage(d.coverage); }, [d]);
+  const strategy = d && d.strategy ? d.strategy.replace(/^QODE ADVISORS LLP - /, '') : '';
+  const statement = <StatementPanel asOf={d && d.asOf} note={all ? FACTSHEET_NOTE : strategy} extra={[...(all ? [accountsRow(ids)] : []), ...(date ? [['Requested', fmtDate(date)]] : [])]} />;
+  const asOfPanel = <AsOfPanel dates={dates} date={date} shown={d && (d.date || d.asOf)} coverage={coverage} onPick={setDate} />;
+  const head = { title: 'Portfolio fact sheet', asOf: d && d.asOf };
+  const who = all ? 'these accounts' : 'this account';
+  if (L.loading) return <ReportLayout {...head} main={<Loading rows={4} />} side={<>{statement}{asOfPanel}</>} />;
+  if (L.err) return <ReportLayout {...head} main={<ErrorBlock msg={L.err} onRetry={L.reload} />} side={<>{statement}{asOfPanel}</>} />;
+  if (!d || !d.asOf) return <ReportLayout {...head} main={<><CombinedNote h={d} /><Empty>{coverage && coverage.from && coverage.to
+    ? `${date ? `No fact sheet is available for ${fmtDate(date)}.` : `No fact sheet is available for ${who} yet.`} Fact sheets can be shown for any date from ${fmtDate(coverage.from)} to ${fmtDate(coverage.to)}.`
+    : date ? `No fact sheet is available for ${fmtDate(date)}.` : `No fact sheet is available for ${who} yet.`}</Empty></>} side={<>{statement}{asOfPanel}</>} />;
+
+  const stats = [
+    { label: 'Portfolio value', value: inr(d.portfolioValue), note: d.valueDate ? 'on ' + fmtDate(d.valueDate) : null },
+    { label: 'Profit or loss', value: sinr(d.profitLoss), color: gainColor(d.profitLoss), note: d.inceptionDate ? 'since ' + fmtDate(d.inceptionDate) : null },
+    { label: 'Contribution', value: inr(d.contribution) },
+    { label: 'Withdrawal', value: inr(d.withdrawal) },
+  ];
+
+  if (all) {
+    // Combined summary (values summed), a by-account table, then each account's own fact sheet.
+    const sheets = d.sheets || [];
+    const byCols = [
+      { key: 'acct', label: 'Account', flex: 2.4, render: x => cellTx(names[x.accountId] || x.accountId, { w: 600 }) },
+      { key: 'asof', label: 'As of', flex: 1, render: x => cellTx(x.data.asOf ? fmtDate(x.data.asOf) : 'No fact sheet', { c: C.ink2 }) },
+      { key: 'val', label: 'Portfolio value', flex: 1.2, right: true, render: x => cellAmt(x.data.asOf ? inr(x.data.portfolioValue) : '–') },
+      { key: 'pl', label: 'Profit or loss', flex: 1.2, right: true, render: x => cellAmt(x.data.asOf ? sinr(x.data.profitLoss) : '–', gainColor(x.data.profitLoss), 600) },
+      { key: 'in', label: 'Contribution', flex: 1.2, right: true, render: x => cellAmt(x.data.asOf ? inr(x.data.contribution) : '–') },
+      { key: 'out', label: 'Withdrawal', flex: 1.1, right: true, render: x => cellAmt(x.data.asOf ? inr(x.data.withdrawal) : '–') },
+    ];
+    return (
+      <ReportLayout
+        {...head}
+        pdf={<PdfBtn make={async () => factsheetAllPdf(d)} name={`Fact sheet All accounts ${d.asOf}`} />}
+        stats={stats}
+        main={<>
+          <CombinedNote h={d} />
+          <Panel title="By account" sub={FACTSHEET_NOTE} pad={0}>
+            <Table cols={byCols} rows={sheets.map(x => ({ ...x, id: x.accountId }))} dense />
+          </Panel>
+          {sheets.filter(x => x.data && x.data.asOf).map(({ accountId: id, data: x }) => (
+            <View key={id} style={{ gap: 16, marginTop: 8 }}>
+              <View style={{ borderTopWidth: 1, borderColor: C.line, paddingTop: 16 }}>
+                <Tx w={600} s={15} c={C.green} role="heading" aria-level={3}>{names[id] || id}</Tx>
+                <Tx s={12} c={C.ink3} style={{ marginTop: 3 }}>
+                  {[`As of ${fmtDate(x.asOf)}`, `Value ${inr(x.portfolioValue)}`, `Profit or loss ${sinr(x.profitLoss)}`, x.inceptionDate ? `since ${fmtDate(x.inceptionDate)}` : null].filter(Boolean).join(', ')}
+                </Tx>
+                {!!(x.computed && x.note) && <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 6 }}>{x.note}</Tx>}
+              </View>
+              <PerfPanel d={x} />
+              <Row top>
+                <View style={{ flex: 1, minWidth: 0 }}><SectorsPanel d={x} /></View>
+                <View style={{ flex: 1.6, minWidth: 0 }}><HoldingsPanel d={x} limit={10} /></View>
+              </Row>
+            </View>
+          ))}
+        </>}
+        side={<>{statement}{asOfPanel}</>}
+      />
+    );
+  }
 
   return (
     <ReportLayout
-      stats={[
-        <Stat key="v" label="Portfolio value" value={inr(d.portfolioValue)} note={d.valueDate ? 'On ' + fmtDate(d.valueDate) : null} />,
-        <Stat key="pl" label="Profit or loss" value={sinr(d.profitLoss)} color={gainColor(d.profitLoss)} note={d.inceptionDate ? 'Since inception ' + fmtDate(d.inceptionDate) : null} />,
-        <Stat key="c" label="Contribution" value={inr(d.contribution)} />,
-        <Stat key="w" label="Withdrawal" value={inr(d.withdrawal)} />,
-      ]}
+      {...head}
+      pdf={<PdfBtn make={async () => factsheetPdf(await reports.factsheet(accountId, { ...(date ? { date } : {}), export: 1 }), accountId)} name={`Fact sheet ${accountId} ${d.asOf}`} />}
+      stats={stats}
       main={<>
-        {periods.length > 0 ? (
-          <Panel title="Performance (TWRR)" sub="Time-weighted, after management fees and other expenses. Returns over one year are annualised." pad={0}>
-            <Table cols={perfCols} rows={perfRows} dense />
-            <View style={{ padding: 20, paddingTop: 16, borderTopWidth: 1, borderColor: C.line }}>
-              <View style={{ flexDirection: 'row', gap: 18, flexWrap: 'wrap', marginBottom: 10 }}>
-                <Legend color={C.green} label="Portfolio" />
-                {!!r.benchmark && <Legend color={C.gold} label={r.benchmark.name} />}
-              </View>
-              <ReturnsChart periods={periods} a={r.portfolio || []} b={(r.benchmark && r.benchmark.values) || []} />
-            </View>
-          </Panel>
-        ) : <Empty>No performance figures in this fact sheet.</Empty>}
-        {holdings.length > 0 && (
-          <Panel title="Portfolio holdings" sub={`${holdings.length} ${holdings.length === 1 ? 'security' : 'securities'}`} pad={0}
-            right={<Tx s={12.5} c={C.ink2}>Total <Amt s={12.5} w={600}>{inr(total)}</Amt></Tx>}>
-            <Table cols={holdCols} rows={holdings.map((x, i) => ({ ...x, n: i + 1, id: i }))} dense />
-          </Panel>
-        )}
+        {!!(d.computed && d.note) && <Tx s={12} c={C.ink3} lh={1.5}>{d.note}</Tx>}
+        <PerfPanel d={d} />
+        <HoldingsPanel d={d} />
       </>}
       side={<>
-        {statement(<PdfBtn make={async () => factsheetPdf(await reports.factsheet(accountId, { ...(date ? { date } : {}), export: 1 }), accountId)} name={`Fact sheet ${accountId} ${d.asOf}`} />)}
+        {statement}
         {asOfPanel}
-        <Panel title="Sector allocation" sub={sectors.length ? `${sectors.length} ${sectors.length === 1 ? 'sector' : 'sectors'}, share of assets` : null}>
-          {sectors.length === 0 && <Tx s={13} c={C.ink2}>No sector split in this fact sheet.</Tx>}
-          <View style={{ gap: 14 }}>
-            {sectors.map(x => (
-              <View key={x.sector}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
-                  <Tx s={13} style={{ flex: 1 }} numberOfLines={1}>{x.sector}</Tx>
-                  <Amt s={13} w={600}>{(x.pct || 0).toFixed(2)}%</Amt>
-                </View>
-                <View style={{ height: 6, backgroundColor: C.track, borderRadius: 3, marginTop: 6, overflow: 'hidden' }}>
-                  <View style={{ width: `${Math.max(0, Math.min(100, x.pct || 0))}%`, height: 6, backgroundColor: C.green, borderRadius: 3 }} />
-                </View>
-              </View>
-            ))}
-          </View>
+        <SectorsPanel d={d} />
+      </>}
+    />
+  );
+}
+
+// ── P&L and balance sheet ─────────────────────────────────────────────────────────────────────────────────
+// Nuvama's "Profit and loss account - Balance sheet" layout: the P&L for the period (income, expenses, surplus),
+// the unrealised gain block (not part of the surplus), then the balance sheet at cost as of the period's end, the
+// two sides next to each other. /api/mobile/reports/pnl (myQode/lib/plbsCompute.ts); "All accounts" passes every
+// code in one call and the server sums them. A stored Nuvama report is shown as is; any other period is computed.
+const PLBS_NOTE = 'Computed by Qode from Nuvama transaction, holdings and expense data.';
+// One statement row: kind 'head' (section heading), 'line', 'sub' (indented), 'total' (ruled, bold), 'grand'
+// (double-ruled, bold, green). mid: an optional amount in the inner column (Nuvama's levels / sub-lines).
+function StmtRow({ label, amount, mid, kind = 'line', note, color }) {
+  const head = kind === 'head', total = kind === 'total' || kind === 'grand';
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12, paddingVertical: head ? 0 : 7, paddingTop: head ? 14 : undefined, paddingBottom: head ? 4 : undefined,
+      borderTopWidth: total ? (kind === 'grand' ? 2 : 1) : 0, borderColor: kind === 'grand' ? C.green : C.line2, marginTop: total ? 4 : 0 }}>
+      <View style={{ flex: 1, minWidth: 0, paddingLeft: kind === 'sub' ? 16 : 0 }}>
+        <Tx w={head || total ? 600 : 400} s={head ? 11.5 : 13} c={head ? C.goldText : kind === 'grand' ? C.green : C.ink} ls={head ? 0.6 : 0}>{head ? label.toUpperCase() : label}</Tx>
+        {!!note && <Tx s={11.5} c={C.ink3} lh={1.45} style={{ marginTop: 2 }}>{note}</Tx>}
+      </View>
+      {mid !== undefined && <Amt s={13} c={C.ink2} style={{ width: 130, textAlign: 'right' }}>{mid == null ? '' : inr(mid)}</Amt>}
+      {!head && <Amt s={13} w={total ? 600 : 400} c={color || (kind === 'grand' ? C.green : C.ink)} style={{ width: 140, textAlign: 'right' }}>{amount == null ? '' : inr(amount)}</Amt>}
+    </View>
+  );
+}
+// Rows of each statement, shared with the phone and the PDF layouts through the same response fields.
+const pnlRows = d => [
+  { kind: 'head', label: 'Income' },
+  ...d.pnl.income.map(x => ({ label: x.label, amount: x.amount, note: x.note })),
+  { kind: 'total', label: 'Total income', amount: d.pnl.incomeTotal },
+  { kind: 'head', label: 'Expenses' },
+  ...d.pnl.expenses.map(x => ({ label: x.label, amount: x.amount, note: x.note })),
+  { kind: 'total', label: 'Total expenses', amount: d.pnl.expenseTotal },
+  { kind: 'grand', label: 'Surplus for the period', amount: d.pnl.surplus, color: gainColor(d.pnl.surplus) },
+];
+const unrealRows = d => {
+  const u = d.unrealised, o = u.options;
+  return [
+    { label: 'At the end of the period', mid: u.investments.end },
+    { label: 'At the beginning of the period', mid: u.investments.begin },
+    { kind: 'total', label: 'Net unrealised gain or loss during the period', amount: u.investments.net, color: gainColor(u.investments.net) },
+    ...(o ? [
+      { label: 'At the end of the period (options)', mid: o.end },
+      { label: 'At the beginning of the period (options)', mid: o.begin },
+      { kind: 'total', label: 'Net unrealised gain or loss during the period (options)', amount: o.net, color: gainColor(o.net) },
+    ] : []),
+    { kind: 'grand', label: 'Net unrealised gain or loss', amount: u.net, color: gainColor(u.net) },
+  ];
+};
+const liabRows = d => {
+  const L = d.balanceSheet.liabilities;
+  return [
+    { label: 'Capital contribution', amount: L.capital },
+    { label: 'Less: withdrawals', amount: L.withdrawals },
+    { kind: 'head', label: 'Reserves and surplus' },
+    { kind: 'sub', label: 'Beginning', mid: L.reserves.begin },
+    { kind: 'sub', label: 'For the period', mid: L.reserves.period },
+    { kind: 'sub', label: 'Ending', amount: L.reserves.end },
+    { kind: 'head', label: 'Current liabilities and provisions' },
+    ...L.current.map(x => ({ kind: 'sub', label: x.label, mid: x.amount })),
+    { kind: 'sub', label: 'Total current liabilities', amount: L.currentTotal },
+    ...(L.difference ? [{ label: 'Other / reconciliation', amount: L.difference, note: 'Gap between the value on record and the computed surplus' }] : []),
+  ];
+};
+const assetRows = d => {
+  const A = d.balanceSheet.assets;
+  return [
+    { label: 'Investments at cost', amount: A.investmentsAtCost },
+    ...(A.optionsPosition != null ? [{ label: 'Net options purchase position', amount: A.optionsPosition }] : []),
+    ...(A.futuresMargin != null ? [{ label: 'Futures margin account', amount: A.futuresMargin }] : []),
+    ...(A.optionsMargin != null ? [{ label: 'Options margin account', amount: A.optionsMargin }] : []),
+    { kind: 'head', label: 'Current assets' },
+    ...A.current.map(x => ({ kind: 'sub', label: x.label, mid: x.amount, note: x.note })),
+    { kind: 'sub', label: 'Total current assets', amount: A.currentTotal },
+  ];
+};
+const Stmt = ({ rows }) => <View>{rows.map((r, i) => <StmtRow key={i} {...r} />)}</View>;
+const reconRows = d => {
+  const r = d.reconciliation || {};
+  const fmtDiff = v => (v == null ? '–' : Math.abs(v) <= 1 ? `${inr(v)} (within ₹1)` : inr(v));
+  return [
+    ...(r.portfolioValue != null ? [
+      [`Portfolio value on ${fmtDate(d.to)}`, inr(r.portfolioValue)],
+      ['Assets at cost + unrealised − liabilities', inr(r.valueFromStatement)],
+      ['Difference', fmtDiff(r.valueDiff), r.valueDiff != null && Math.abs(r.valueDiff) > 1 ? C.red : C.ink],
+    ] : []),
+    ...(r.expected != null ? [
+      ['Surplus implied by the value', inr(r.expected)],
+      ['Surplus in the P&L', inr(r.computed)],
+      ['Difference', fmtDiff(r.diff), r.diff != null && Math.abs(r.diff) > 1 ? C.red : C.ink],
+    ] : []),
+  ];
+};
+
+function PnlBalanceSheet({ accountId, ids, rk }) {
+  const R = useRange('fy');
+  const all = accountId === ALL_ID;
+  // "All time" asks from the earliest possible date; the server starts it at the first date on record.
+  const q = R.preset === 'all' ? { from: '2000-01-01' } : { from: R.from, to: R.to };
+  const L = useOnce(() => reports.pnl(all ? ids : accountId, q), [accountId, q.from, q.to, rk]);
+  const d = L.data;
+  const cov = useCoverage(d);
+  const period = d && d.asOf ? { from: d.from, to: d.to } : (R.preset === 'all' ? {} : R.range);
+  const head = { title: 'Profit and loss account and balance sheet', asOf: d && d.asOf };
+  const statement = (
+    <StatementPanel asOf={d && d.asOf} note={d && d.asOf ? (d.computed ? 'Computed by Qode' : 'Nuvama report') : ''}
+      extra={[...(all ? [accountsRow(ids)] : []), ...periodRows(period, cov)]} />
+  );
+  const side = <>{statement}<PeriodFilter R={R} cov={cov} sub="The P&L covers the period; the balance sheet is as of its last day." /></>;
+  if (L.loading) return <ReportLayout {...head} main={<Loading rows={6} />} side={side} />;
+  if (L.err) return <ReportLayout {...head} main={<ErrorBlock msg={L.err} onRetry={L.reload} />} side={side} />;
+  if (!d || !d.asOf) return <ReportLayout {...head} main={<Empty>{cov && cov.from && cov.to
+    ? `No statement for this period. Statements can be prepared for any dates from ${fmtDate(cov.from)} to ${fmtDate(cov.to)}.`
+    : `No statement is available for ${all ? 'these accounts' : 'this account'} yet.`}</Empty>} side={side} />;
+
+  const r = d.reconciliation || {};
+  const pdfName = `PnL and balance sheet ${all ? 'All accounts' : accountId} ${d.from} to ${d.to}`;
+  return (
+    <ReportLayout
+      {...head}
+      pdf={<PdfBtn make={async () => plbsPdf(d, all ? null : accountId)} name={pdfName} />}
+      stats={[
+        { label: 'Total income', value: sinr(d.pnl.incomeTotal), color: gainColor(d.pnl.incomeTotal) },
+        { label: 'Total expenses', value: inr(d.pnl.expenseTotal) },
+        { label: 'Surplus', value: sinr(d.pnl.surplus), color: gainColor(d.pnl.surplus) },
+        { label: 'Unrealised, net', value: sinr(d.unrealised.net), color: gainColor(d.unrealised.net) },
+        ...(r.portfolioValue != null ? [{ label: 'Portfolio value', value: inr(r.portfolioValue), note: 'on ' + fmtDate(d.to) }] : []),
+      ]}
+      main={<>
+        {!!(d.computed && d.note) && <Tx s={12} c={C.ink3} lh={1.5}>{d.note}{d.basis ? ' ' + d.basis : ''}</Tx>}
+        <Panel title="Profit and loss account" sub={`${fmtDate(d.from)} to ${fmtDate(d.to)}`}>
+          <Stmt rows={pnlRows(d)} />
         </Panel>
+        <Panel title="Unrealised gain or loss in the value of investments" sub="Shown for information; not part of the surplus">
+          <Stmt rows={unrealRows(d)} />
+        </Panel>
+        <Panel title={`Balance sheet as of ${fmtDate(d.to)}`} sub="At cost">
+          <Row>
+            <View style={{ flex: 1, minWidth: 0, justifyContent: 'space-between' }}>
+              <View>
+                <Tx w={600} s={13} c={C.green} style={{ marginBottom: 4 }}>Liabilities</Tx>
+                <Stmt rows={liabRows(d)} />
+              </View>
+              <StmtRow kind="grand" label="Total" amount={d.balanceSheet.liabilities.total} />
+            </View>
+            <View style={{ width: 1, backgroundColor: C.line }} />
+            <View style={{ flex: 1, minWidth: 0, justifyContent: 'space-between' }}>
+              <View>
+                <Tx w={600} s={13} c={C.green} style={{ marginBottom: 4 }}>Assets</Tx>
+                <Stmt rows={assetRows(d)} />
+              </View>
+              <StmtRow kind="grand" label="Total" amount={d.balanceSheet.assets.total} />
+            </View>
+          </Row>
+        </Panel>
+      </>}
+      side={<>
+        {side}
+        {reconRows(d).length > 0 && (
+          <Panel title="Reconciliation" sub={r.note}>
+            <KeyVals items={reconRows(d)} style={{ marginTop: -8 }} />
+          </Panel>
+        )}
       </>}
     />
   );
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────────────────────────────────
-const KINDS = [['txn', 'Transactions'], ['cg', 'Capital gains'], ['exp', 'Expenses'], ['fs', 'Fact sheet']];
+const KINDS = [['txn', 'Transactions'], ['cg', 'Capital gains'], ['exp', 'Expenses'], ['fs', 'Fact sheet'], ['pl', 'P&L and balance sheet']];
 export default function DesktopReports({ V }) {
-  const opts = V.acctOptions || [];
+  const opts = reportAccountOptions(V);
+  const singles = singleAccounts(opts);
+  const ids = singles.map(o => o.id);
+  const names = Object.fromEntries(singles.map(o => [o.id, o.label]));
   const [sel, setSel] = useState(null);
   const [kind, setKind] = useState('txn');
-  const accountId = sel && opts.some(o => o.id === sel) ? sel : opts[0] && opts[0].id;
-  const Body = { txn: Transactions, cg: CapitalGains, exp: Expenses, fs: Factsheet }[kind];
+  // "All accounts" is offered first, but the default stays the first single account.
+  const accountId = sel && opts.some(o => o.id === sel) ? sel : singles[0] && singles[0].id;
+  const Body = { txn: Transactions, cg: CapitalGains, exp: Expenses, fs: Factsheet, pl: PnlBalanceSheet }[kind];
   return (
     <View>
       <View style={{ zIndex: 20 }}>
-        <PageIntro title="Statements" sub="Custodian statements for your Qode PMS account from Nuvama: transactions, capital gains, expenses and the portfolio fact sheet. Each one can be downloaded as a PDF."
+        <PageIntro title="Statements" sub="Custodian statements for your Qode PMS account from Nuvama: transactions, capital gains, expenses, the portfolio fact sheet, and the profit and loss account with the balance sheet. Each one can be downloaded as a PDF."
           right={<AccountPicker options={opts} value={accountId} onPick={setSel} />} />
       </View>
       <Tabs value={kind} options={KINDS} onChange={setKind} style={{ marginBottom: 20 }} />
       {/* keyed so filters and paging reset when the account or report changes */}
-      {accountId ? <Body key={kind + accountId} accountId={accountId} rk={V.rk} /> : <Empty>No active account found.</Empty>}
+      {accountId ? <Body key={kind + accountId + (accountId === ALL_ID ? ids.join(',') : '')} accountId={accountId} ids={ids} names={names} rk={V.rk} /> : <Empty>No active account found.</Empty>}
     </View>
   );
 }

@@ -28,7 +28,7 @@ import {
   STRATEGY_COLOR, shortStrategy, ACCOUNT_JOURNEY, num, inrCompact, displayDate, SCHEME, SCHEME_COLOR, code3, parseBillgroup,
   EMPTY_PROFILE, todayIst, validateProfile, DECKS, SEGMENTS, toSeries, VsiChart, RISK_OFF, RISK_ON, VSI, ddmmyyyy, TOPICS,
 } from '../screens/partner';
-import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, ErrorBlock, Empty, Btn, PageIntro, Chips, Input, KeyVals, Pill, Dialog } from './kit';
+import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, ErrorBlock, Empty, Btn, PageIntro, Chips, Input, KeyVals, Pill, Dialog, FitAmt } from './kit';
 
 /* ── sections, addresses ────────────────────────────────────────────────────────────────────────────────── */
 const DocSmall = ({ c, s }) => <DocIcon s={s || 18} c={c} w={1.6} />;
@@ -325,7 +325,7 @@ function Overview({ journey, split, periods, onOpen, onDetail, go }) {
   const cell = (label, value, note, color, onPress) => (
     <Pressable disabled={!onPress} onPress={onPress} style={({ hovered }) => ({ flex: 1, paddingHorizontal: 20, justifyContent: 'center', opacity: hovered && onPress ? 0.8 : 1 })}>
       <Label c="rgba(239,236,211,0.6)">{label}</Label>
-      <Amt w={600} s={20} c={onDark(color)} numberOfLines={1} style={{ marginTop: 6 }}>{value}</Amt>
+      <FitAmt w={600} s={20} c={onDark(color)} style={{ marginTop: 6 }}>{value}</FitAmt>
       {!!note && <Tx s={11.5} c="rgba(239,236,211,0.55)" numberOfLines={1} style={{ marginTop: 3 }}>{note}</Tx>}
     </Pressable>
   );
@@ -343,7 +343,7 @@ function Overview({ journey, split, periods, onOpen, onDetail, go }) {
         <DarkCard style={{ flexDirection: 'row', paddingVertical: 22, paddingHorizontal: 0 }}>
           <View style={{ flex: 1.5, paddingHorizontal: 24, justifyContent: 'center' }}>
             <Label c="rgba(239,236,211,0.6)">Total value today</Label>
-            <Amt w={600} s={30} c={C.cream} numberOfLines={1} style={{ marginTop: 6, letterSpacing: -0.6 }}>{money(t.currentValue)}</Amt>
+            <FitAmt w={600} s={30} min={18} c={C.cream} style={{ marginTop: 6, letterSpacing: -0.6 }}>{money(t.currentValue)}</FitAmt>
             <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 10 }} />
             {gain != null && gainPct != null
               ? <Tx s={12} c="rgba(239,236,211,0.7)" style={{ marginTop: 8 }}><Tx w={600} s={12} c={onDark(gain >= 0 ? C.pos : C.red)}>{gain >= 0 ? '+' : '−'}{money(Math.abs(gain))} ({gain >= 0 ? '+' : '−'}{Math.abs(gainPct).toFixed(1)}%)</Tx> against {money(t.invested)} put in</Tx>
