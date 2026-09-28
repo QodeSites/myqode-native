@@ -55,8 +55,8 @@ function DarkZone({ V }) {
             <Tx w={700} s={9.5} ls={0.14} c={C.gold}>VIEWING · READ-ONLY</Tx>
             <Tx w={700} s={12.5} c={C.cream} numberOfLines={1} style={{ marginTop: 2 }}>{V.viewing}</Tx>
           </View>
-          <Pressable onPress={V.exitView} accessibilityRole="button" accessibilityLabel="Back to the partner panel" style={{ backgroundColor: C.gold, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
-            <Tx w={700} s={11} c={C.ink}>Back to partner</Tx>
+          <Pressable onPress={V.exitView} accessibilityRole="button" accessibilityLabel="Back to the distributor panel" style={{ backgroundColor: C.gold, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
+            <Tx w={700} s={11} c={C.ink}>Back to distributor</Tx>
           </Pressable>
         </View>
       )}
@@ -80,7 +80,7 @@ function DarkZone({ V }) {
           <Amt s={36} c={C.cream} numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 8, letterSpacing: -0.5 }}>{V.heroValue}</Amt>
           <View style={{ width: 52, height: 2, backgroundColor: C.gold, marginTop: 12, marginBottom: 10 }} />
           {!!V.asOf && <Tx s={12} c={C.cream60}>As of {V.asOf}</Tx>}
-          {V.needsYou && (
+          {V.needsYou && !V.viewing && (
             <Pressable onPress={V.goServices} style={{
               flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 16,
               borderWidth: 1, borderColor: C.gold35, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12,
@@ -184,20 +184,24 @@ const NAV = [
 function BottomNav({ V, insets }) {
   const { rm } = useUI();
   const W = Dimensions.get('window').width;
-  const seg = W / 5;
-  const x = useRef(new Animated.Value(V.navIdx * seg + (seg - 30) / 2)).current;
+  // A distributor viewing a client gets no Services tab.
+  const items = V.viewing ? NAV.filter(n => n.key !== 'services') : NAV;
+  const activeKey = (NAV[V.navIdx] || {}).key;
+  const idx = Math.max(0, items.findIndex(n => n.key === activeKey));
+  const seg = W / items.length;
+  const x = useRef(new Animated.Value(idx * seg + (seg - 30) / 2)).current;
   useEffect(() => {
     Animated.timing(x, {
-      toValue: V.navIdx * seg + (seg - 30) / 2,
+      toValue: idx * seg + (seg - 30) / 2,
       duration: rm ? 0 : 300, easing: Easing.bezier(0.4, 0, 0.2, 1), useNativeDriver: true,
     }).start();
-  }, [V.navIdx]);
+  }, [idx, seg]);
   return (
     <LinearGradient colors={['#02422B', '#001008']} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingBottom: Math.max(insets.bottom, 16) }}>
       
       <View style={{ flexDirection: 'row', paddingBottom: 8 }}>
-        {NAV.map((n, i) => {
-          const active = V.navIdx === i;
+        {items.map((n, i) => {
+          const active = idx === i;
           const col = active ? C.gold : C.cream55;
           return (
             <Pressable key={n.key} onPress={V[n.go]} style={{ flex: 1, alignItems: 'center', gap: 4, paddingTop: 9, minHeight: 44 }}>

@@ -1,0 +1,347 @@
+// myQode web design system. The phone app and the website share data and brand colours, but not their look:
+// the website is a desktop dashboard — white surfaces with hairline borders on a warm grey canvas, Inter for all
+// interface text and figures (Playfair only for the brand and page titles), sentence-case section titles, light
+// data tables, segmented controls, and the brand green / gold used as accents rather than as surfaces.
+// Every screen in src/web/ builds from these pieces. `C` here is the web palette: it keeps the app's key names so
+// shared code keeps working, with web values.
+import React, { useState } from 'react';
+import { View, Pressable, TextInput, ActivityIndicator, Modal, ScrollView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { C as APP, Tx as AppTx, Amt } from '../ui';
+import { ChevronRight } from '../icons';
+
+export const C = {
+  ...APP,
+  canvas: '#EFECD3',     // page background: the brand cream
+  card: '#F9F7EC',       // surfaces: warm ivory
+  subtle: '#F3F0DF',     // wells, footers
+  hover: 'rgba(218,189,56,0.10)',
+  line: 'rgba(55,88,79,0.15)',   // hairline borders
+  line2: 'rgba(55,88,79,0.3)',   // control borders
+  track: 'rgba(55,88,79,0.10)',  // empty part of bars and skeletons
+  ink: '#0E1A15',
+  ink2: '#4F5C56',       // secondary text
+  ink3: '#86918B',       // tertiary text, labels
+  green: '#02422B',
+  greenTint: 'rgba(2,66,43,0.07)',
+  goldText: '#8A700C',   // gold that reads on white
+  goldTint: 'rgba(218,189,56,0.16)',
+  pos: '#15803D',
+  red: '#C2362F',
+  posTint: 'rgba(21,128,61,0.09)',
+  redTint: 'rgba(194,54,47,0.08)',
+  // app key names, web values
+  cream: '#EFECD3',
+  muted: '#4F5C56',
+  gray: '#86918B',
+  hairline: 'rgba(55,88,79,0.15)',
+  mutedBorder: 'rgba(55,88,79,0.3)',
+  mutedBorder35: 'rgba(55,88,79,0.35)',
+};
+
+// Inter has 400 / 600 / 700; map the app's other weights onto them.
+const IW = { 400: 400, 500: 400, 600: 600, 700: 600, 800: 700, 900: 700 };
+/** Text. Inter by default; f="play" for the brand serif (titles only). */
+export function Tx({ f = 'inter', w = 400, ...rest }) {
+  if (f === 'play') return <AppTx f="play" w={w >= 700 ? 700 : w >= 600 ? 600 : 500} {...rest} />;
+  if (f === 'lato') return <AppTx f="lato" w={w} {...rest} />;
+  return <AppTx f="inter" w={IW[w] || 400} {...rest} />;
+}
+export { Amt };
+
+// Section titles read as sentences on the web ("Strategy accounts"), whatever case the caller passes.
+const KEEP = new Set(['NAV', 'SIP', 'STP', 'PMS', 'SI', 'DD', 'IR', 'PDF', 'FAQ', 'CAGR', 'P&L', 'UCC', 'GST', 'PAN', 'KYC', 'TDS', 'ID', 'XIRR', 'AUM', 'GSTIN', 'IFSC', 'SOA', 'CSV']);
+export function sentence(t) {
+  if (typeof t !== 'string' || t !== t.toUpperCase() || !/[A-Z]/.test(t)) return t;
+  return t.split(' ').map((w, i) => {
+    const bare = w.replace(/[^A-Z&0-9]/g, '');
+    if (KEEP.has(bare) || /^\d/.test(w) || /\d[A-Z]$/.test(w)) return w;
+    const lw = w.toLowerCase();
+    return i === 0 ? lw.charAt(0).toUpperCase() + lw.slice(1) : lw;
+  }).join(' ');
+}
+
+/** Surface: white, hairline border, 12 px corners. */
+export function Card({ style, children }) {
+  return <View style={[{ backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.line }, style]}>{children}</View>;
+}
+
+/** A row of columns with a consistent gutter. */
+export const Row = ({ children, style, gap = 20, top }) => (
+  <View style={[{ flexDirection: 'row', gap, alignItems: top ? 'flex-start' : 'stretch' }, style]}>{children}</View>
+);
+/** Wrapping grid: children get `minWidth` and grow to fill the row. */
+export const Grid = ({ children, min = 260, gap = 16, style }) => (
+  <View style={[{ flexDirection: 'row', flexWrap: 'wrap', gap }, style]}>
+    {React.Children.map(children, ch => ch && <View style={{ flexGrow: 1, flexBasis: min, minWidth: min }}>{ch}</View>)}
+  </View>
+);
+
+/** Heading inside the content area (the top bar holds the page's H1). */
+export function PageIntro({ title, sub, right }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, marginBottom: 20 }}>
+      <View style={{ flex: 1 }}>
+        {!!title && <Tx w={600} s={20} role="heading" aria-level={2}>{sentence(title)}</Tx>}
+        {!!sub && <Tx s={13.5} c={C.ink2} lh={1.55} style={{ marginTop: 6, maxWidth: 760 }}>{sub}</Tx>}
+      </View>
+      {right}
+    </View>
+  );
+}
+
+/** Small label above a figure or field. */
+export const Label = ({ children, style, c = C.ink3 }) => <Tx w={600} s={12} c={c} style={style}>{sentence(children)}</Tx>;
+
+/** Card with a header (title, optional subtitle and actions). pad=0 for edge-to-edge tables. */
+export function Panel({ title, sub, right, children, style, pad = 20, footer }) {
+  return (
+    <Card style={[{ overflow: 'hidden' }, style]}>
+      {(!!title || !!right) && (
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 16, paddingBottom: pad === 0 ? 14 : 0 }}>
+          <View style={{ flexShrink: 1 }}>
+            {typeof title === 'string' ? <Tx w={600} s={14.5} c={C.green} role="heading" aria-level={3}>{sentence(title)}</Tx> : title || null}
+            {!!sub && <Tx s={12} c={C.ink3} style={{ marginTop: 2 }}>{sub}</Tx>}
+          </View>
+          {right}
+        </View>
+      )}
+      <View style={pad ? { padding: pad, paddingTop: title || right ? 14 : pad } : null}>{children}</View>
+      {!!footer && <View style={{ borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 20, paddingVertical: 12, backgroundColor: C.subtle }}>{footer}</View>}
+    </Card>
+  );
+}
+
+/** Change badge: tinted green / red with the figure. */
+export function Delta({ text, neg, zero, s = 12, style }) {
+  if (!text) return null;
+  const fg = zero ? C.ink2 : neg ? C.red : C.pos, bg = zero ? C.track : neg ? C.redTint : C.posTint;
+  return (
+    <View style={[{ alignSelf: 'flex-start', backgroundColor: bg, borderRadius: 6, paddingVertical: 2, paddingHorizontal: 7 }, style]}>
+      <Amt s={s} c={fg}>{text}</Amt>
+    </View>
+  );
+}
+
+/** KPI tile: label, large figure, optional note or delta. */
+export function Stat({ label, value, color = C.ink, note, delta, deltaNeg, style, icon }) {
+  return (
+    <Card style={[{ flexGrow: 1, paddingVertical: 16, paddingHorizontal: 18, justifyContent: 'flex-start', borderTopWidth: 2.5, borderTopColor: C.gold }, style]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {icon}
+        <Label>{label}</Label>
+      </View>
+      <Amt w={600} s={22} c={color} numberOfLines={1} style={{ marginTop: 8, letterSpacing: -0.3 }}>{value}</Amt>
+      {(!!note || !!delta) && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          {!!delta && <Delta text={delta} neg={deltaNeg} s={11.5} />}
+          {!!note && <Tx s={12} c={C.ink3} numberOfLines={1} style={{ flexShrink: 1 }}>{note}</Tx>}
+        </View>
+      )}
+    </Card>
+  );
+}
+
+/** Deep-green feature surface (one per page at most: the headline figure or a call to action). */
+export function DarkCard({ children, style }) {
+  return (
+    <LinearGradient colors={['#034A31', '#012A1C']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[{ borderRadius: 12, padding: 24 }, style]}>
+      {children}
+    </LinearGradient>
+  );
+}
+
+/** Buttons: primary (green), outline (white), ghost (text), gold (on dark surfaces), danger. */
+export function Btn({ label, onPress, kind = 'primary', icon, disabled, busy, style, small }) {
+  const pal = {
+    primary: { bg: C.green, hov: '#012A1C', fg: C.gold, bd: C.green },
+    outline: { bg: C.card, hov: C.hover, fg: C.ink, bd: C.line2 },
+    gold: { bg: C.gold, hov: '#e8cc4e', fg: C.ink, bd: C.gold },
+    ghost: { bg: 'transparent', hov: C.greenTint, fg: C.green, bd: 'transparent' },
+    danger: { bg: C.card, hov: C.redTint, fg: C.red, bd: 'rgba(194,54,47,0.4)' },
+  }[kind];
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled, busy: !!busy }} onPress={disabled || busy ? undefined : onPress} style={({ hovered }) => [{
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      height: small ? 34 : 40, paddingHorizontal: small ? 12 : 16, borderRadius: 8, borderWidth: 1,
+      backgroundColor: hovered && !disabled ? pal.hov : pal.bg, borderColor: pal.bd, opacity: disabled ? 0.45 : 1,
+    }, style]}>
+      {busy ? <ActivityIndicator size="small" color={pal.fg} /> : icon}
+      <Tx w={600} s={small ? 12.5 : 13.5} c={pal.fg}>{label}</Tx>
+    </Pressable>
+  );
+}
+
+/** Segmented control (filters, ranges). options: [[value, label]] */
+export function Chips({ value, options, onChange, style }) {
+  return (
+    <View style={[{ flexDirection: 'row', flexWrap: 'wrap', alignSelf: 'flex-start', backgroundColor: 'rgba(55,88,79,0.09)', borderRadius: 9, padding: 3, gap: 2 }, style]}>
+      {options.map(([k, l]) => {
+        const on = value === k;
+        return (
+          <Pressable key={String(k)} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => onChange(k)} style={({ hovered }) => ({
+            paddingVertical: 6, paddingHorizontal: 12, borderRadius: 7, outlineStyle: 'none',
+            backgroundColor: on ? C.green : hovered ? 'rgba(255,255,255,0.6)' : 'transparent',
+          })}>
+            <Tx w={600} s={12.5} c={on ? C.gold : C.ink2}>{l}</Tx>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Underlined tabs (section switchers). options: [[value, label]] */
+export function Tabs({ value, options, onChange, style }) {
+  return (
+    <View style={[{ flexDirection: 'row', gap: 24, borderBottomWidth: 1, borderColor: C.line }, style]}>
+      {options.map(([k, l]) => {
+        const on = value === k;
+        return (
+          <Pressable key={String(k)} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onChange(k)} style={({ hovered }) => ({ paddingVertical: 11, opacity: hovered && !on ? 0.75 : 1, outlineStyle: 'none' })}>
+            <Tx w={600} s={13.5} c={on ? C.green : C.ink3}>{l}</Tx>
+            <View style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, borderRadius: 1, backgroundColor: on ? C.gold : 'transparent' }} />
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Labelled text field. */
+export function Input({ label, value, onChangeText, placeholder, secure, error, hint, right, multiline, keyboardType, autoFocus, onSubmitEditing, style }) {
+  const [focus, setFocus] = useState(false);
+  return (
+    <View style={style}>
+      {!!label && <Tx w={600} s={12.5} c={C.ink2} style={{ marginBottom: 6 }}>{sentence(label)}</Tx>}
+      <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 8, backgroundColor: C.card,
+        borderColor: error ? C.red : focus ? C.green : C.line2, paddingHorizontal: 12, minHeight: multiline ? 110 : 44,
+        shadowColor: C.green, shadowOpacity: focus ? 0.12 : 0, shadowRadius: 0, shadowOffset: { width: 0, height: 0 }, outlineWidth: focus ? 3 : 0, outlineColor: 'rgba(2,66,43,0.12)', outlineStyle: 'solid' }}>
+        <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={C.ink3}
+          secureTextEntry={secure} multiline={multiline} keyboardType={keyboardType} autoFocus={autoFocus} autoCapitalize="none"
+          onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} onSubmitEditing={onSubmitEditing}
+          style={{ flex: 1, alignSelf: 'stretch', minHeight: multiline ? 96 : 42, width: '100%', paddingVertical: 10, fontSize: 14, lineHeight: 20, backgroundColor: 'transparent', borderWidth: 0, color: C.ink, fontFamily: 'Inter_400Regular', outlineStyle: 'none', textAlignVertical: multiline ? 'top' : 'center' }} />
+        {right}
+      </View>
+      {!!(error || hint) && <Tx s={12} c={error ? C.red : C.ink3} style={{ marginTop: 6 }}>{error || hint}</Tx>}
+    </View>
+  );
+}
+
+/** Data table. cols: [{ key, label, flex?, right?, render?(row) }]; rows: array; onRowPress?(row); selected?(row). */
+export function Table({ cols, rows, onRowPress, empty = 'Nothing to show yet.', dense, selected }) {
+  const cell = { paddingVertical: dense ? 9 : 12, paddingHorizontal: 16 };
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', backgroundColor: C.green }}>
+        {cols.map(c => <Tx key={c.key} w={600} s={11.5} c={C.cream} numberOfLines={1} style={[cell, { paddingVertical: 9, flex: c.flex || 1, textAlign: c.right ? 'right' : 'left' }]}>{sentence(c.label)}</Tx>)}
+      </View>
+      {rows.length === 0 && <Tx s={13} c={C.ink3} style={{ padding: 20 }}>{empty}</Tx>}
+      {rows.map((r, i) => {
+        const inner = cols.map(c => (
+          <View key={c.key} style={[cell, { flex: c.flex || 1, alignItems: c.right ? 'flex-end' : 'flex-start', justifyContent: 'center' }]}>
+            {c.render ? c.render(r) : <Tx s={13.5} numberOfLines={2}>{r[c.key] == null ? '' : String(r[c.key])}</Tx>}
+          </View>
+        ));
+        const sel = selected && selected(r);
+        const base = { flexDirection: 'row', alignItems: 'center', borderBottomWidth: i === rows.length - 1 ? 0 : 1, borderColor: C.line };
+        return onRowPress
+          ? <Pressable key={r.id || i} accessibilityRole="button" onPress={() => onRowPress(r)} style={({ hovered }) => [base, { backgroundColor: sel ? C.greenTint : hovered ? C.hover : 'transparent' }]}>{inner}</Pressable>
+          : <View key={r.id || i} style={base}>{inner}</View>;
+      })}
+    </View>
+  );
+}
+
+/** Horizontal bar list (allocation, breakdowns). items: [{ key, label, sub?, value (text), pct (0-100), color }] */
+export function BarList({ items, style }) {
+  return (
+    <View style={[{ gap: 14 }, style]}>
+      {items.map(it => (
+        <View key={it.key || it.label}>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: it.color || C.green }} />
+            <Tx w={600} s={13} numberOfLines={1} style={{ flex: 1 }}>{it.label}{it.sub ? <Tx s={12} c={C.ink3}>{'  ' + it.sub}</Tx> : null}</Tx>
+            {!!it.value && <Amt s={12.5} c={C.ink2}>{it.value}</Amt>}
+            <Amt w={600} s={13} style={{ width: 48, textAlign: 'right' }}>{Math.round(it.pct)}%</Amt>
+          </View>
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: C.track, marginTop: 7, overflow: 'hidden' }}>
+            <View style={{ width: Math.max(1.5, Math.min(100, it.pct)) + '%', height: 6, borderRadius: 3, backgroundColor: it.color || C.green }} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Key-value list (details panels). items: [[label, value, color?]] */
+export function KeyVals({ items, style }) {
+  return (
+    <View style={style}>
+      {items.map(([k, v, col], i) => (
+        <View key={k} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderColor: C.line }}>
+          <Tx s={13} c={C.ink2}>{k}</Tx>
+          {typeof v === 'string' || typeof v === 'number' ? <Amt s={13.5} w={600} c={col || C.ink}>{v}</Amt> : v}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** "View all ›" style text link. */
+export const TextLink = ({ label, onPress, c = C.green }) => (
+  <Pressable accessibilityRole="link" onPress={onPress} style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 4, opacity: hovered ? 0.7 : 1 })}>
+    <Tx w={600} s={13} c={c}>{label}</Tx><ChevronRight s={11} c={c} />
+  </Pressable>
+);
+
+/** Status badge. tone: 'ok' | 'warn' | 'bad' | 'neutral' */
+export function Pill({ label, tone = 'neutral' }) {
+  const [fg, bg] = { ok: [C.pos, C.posTint], warn: [C.goldText, C.goldTint], bad: [C.red, C.redTint], neutral: [C.ink2, C.track] }[tone];
+  return (
+    <View style={{ backgroundColor: bg, borderRadius: 6, paddingVertical: 3, paddingHorizontal: 8, alignSelf: 'flex-start' }}>
+      <Tx w={600} s={11.5} c={fg}>{sentence(String(label))}</Tx>
+    </View>
+  );
+}
+
+/** Loading / empty / error blocks. */
+export const Loading = ({ rows = 4 }) => (
+  <View style={{ gap: 12 }}>{Array.from({ length: rows }).map((_, i) => <View key={i} style={{ height: 56, borderRadius: 10, backgroundColor: C.track }} />)}</View>
+);
+export const Empty = ({ children, title }) => (
+  <Card style={{ paddingVertical: 36, paddingHorizontal: 28, alignItems: 'center' }}>
+    {!!title && <Tx w={600} s={15} center style={{ marginBottom: 6 }}>{title}</Tx>}
+    <Tx s={13.5} c={C.ink2} center lh={1.6} style={{ maxWidth: 520 }}>{children}</Tx>
+  </Card>
+);
+export function ErrorBlock({ msg, onRetry }) {
+  return (
+    <Card style={{ padding: 28, alignItems: 'center' }}>
+      <Tx w={600} s={15} center>We couldn’t load this</Tx>
+      <Tx s={13} c={C.ink2} center lh={1.5} style={{ marginTop: 6, maxWidth: 520 }}>{/server error|\(5\d\d\)/i.test(msg || '') ? 'This is unavailable right now. Please try again later.' : msg}</Tx>
+      {!!onRetry && <Btn label="Try again" kind="outline" small onPress={onRetry} style={{ marginTop: 14 }} />}
+    </Card>
+  );
+}
+
+/** Centred modal dialog. */
+export function Dialog({ visible, onClose, title, children, width = 560 }) {
+  if (!visible) return null;
+  return (
+    <Modal transparent visible onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(14,26,21,0.45)', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={onClose} />
+        <Card style={{ width, maxWidth: '100%', maxHeight: '88%', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: 12 } }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 22, paddingVertical: 16, borderBottomWidth: 1, borderColor: C.line }}>
+            <Tx w={600} s={16} style={{ flex: 1 }}>{title}</Tx>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={10} style={({ hovered }) => ({ width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: hovered ? C.hover : 'transparent' })}>
+              <Tx w={600} s={15} c={C.ink3}>✕</Tx>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 22 }}>{children}</ScrollView>
+        </Card>
+      </View>
+    </Modal>
+  );
+}

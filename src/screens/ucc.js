@@ -55,7 +55,7 @@ export function UccNotice({ visible, onClose }) {
               ))}
             </View>
             <Tx s={10} c={C.gray} lh={1.45} style={{ marginTop: 8 }}>
-              Nuvama's portal only — your myQode login is unchanged.{res.data.dataAsOf ? ` Portfolio data is available as of ${formatAsOf(res.data.dataAsOf)} due to Nuvama downtime.` : ''}
+              Nuvama's portal only. Your myQode login is unchanged.{res.data.dataAsOf ? ` Portfolio data is available as of ${formatAsOf(res.data.dataAsOf)} due to Nuvama downtime.` : ''}
             </Tx>
             <Pressable onPress={onClose} style={{ alignSelf: 'flex-end', marginTop: 6, paddingVertical: 4, paddingHorizontal: 6 }}>
               <Tx w={700} s={11} c={C.green}>GOT IT</Tx>

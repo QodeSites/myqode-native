@@ -7,7 +7,38 @@ export const num = v => (v == null || v === '' || isNaN(Number(v)) ? null : Numb
 export const initials = name =>
   (String(name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('') || 'Q').toUpperCase();
 
-export const pct = (v, dp = 2) => (v == null ? '—' : (v < 0 ? '−' : '+') + Math.abs(v).toFixed(dp) + '%');
+// ── One set of formatters for the whole app (money, percentages, dates) ─────────────────────────────────────
+// Signs are decided on the ROUNDED value, so nothing ever reads "−0.00%" or "−₹0"; zero carries no sign.
+const MON_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const rnd = (v, dp) => +(+v).toFixed(dp);
+export const pct = (v, dp = 2) => {
+  if (v == null || isNaN(v)) return '–';
+  const r = rnd(v, dp);
+  return (r < 0 ? '−' : r > 0 ? '+' : '') + Math.abs(r).toFixed(dp) + '%';
+};
+// Drawdown is a fall from the peak: shown as "−3.42%", and "0.00%" at a new high (never "+0.00%").
+export const ddPct = v => (v == null || isNaN(v) ? '–' : rnd(Math.abs(v), 2) === 0 ? '0.00%' : '−' + Math.abs(v).toFixed(2) + '%');
+// Money: ₹ with Indian grouping and 2 decimals everywhere (the web's convention).
+export const inr = (v, dp = 2) => {
+  if (v == null || isNaN(v)) return '–';
+  const r = rnd(v, dp);
+  return (r < 0 ? '−' : '') + '₹' + Math.abs(r).toLocaleString('en-IN', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+};
+// Signed money for gains / flows: "+₹1,200.00", "−₹1,200.00", "₹0.00".
+export const sinr = (v, dp = 2) => (v == null || isNaN(v) ? '–' : (rnd(v, dp) > 0 ? '+' : '') + inr(v, dp));
+// Dates: "25 Sep 2026" from ISO ("2026-09-25…"), a Date, or a server string (Node prints September as "Sept").
+export const fmtDate = d => {
+  if (d == null || d === '') return '–';
+  if (typeof d === 'string') {
+    const m = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[3]} ${MON_SHORT[+m[2] - 1]} ${m[1]}`;
+    if (/[A-Za-z]/.test(d)) return d.replace(/\bSept\b/g, 'Sep');
+  }
+  const t = d instanceof Date ? d : new Date(d);
+  return isNaN(t) ? String(d) : `${String(t.getDate()).padStart(2, '0')} ${MON_SHORT[t.getMonth()]} ${t.getFullYear()}`;
+};
+// Chart axis ticks: "Sep 2026".
+export const fmtMonth = d => { const t = new Date(d); return isNaN(t) ? '' : `${MON_SHORT[t.getMonth()]} ${t.getFullYear()}`; };
 
 export const titleCase = s => String(s || '').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
@@ -136,7 +167,7 @@ export function trailingRows(perf) {
     .filter(([, k]) => P[k] != null)
     .map(([p, k]) => ({
       p, pf: pct(P[k]), n: pct(B[k]),
-      x: P[k] != null && B[k] != null ? pct(P[k] - B[k]) : '—',
+      x: P[k] != null && B[k] != null ? pct(P[k] - B[k]) : '–',
       neg: P[k] < 0,
     }));
 }

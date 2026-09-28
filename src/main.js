@@ -2,6 +2,10 @@
 // values ("vals") are ported from the design's DCLogic class, adapted for
 // React Native (text handlers instead of DOM events, active flags instead of
 // inline CSS strings).
+import DesktopShell, { DesktopAuthFrame } from './web/desktop';
+import DesktopDistributor from './web/distributor';
+import DesktopAuth from './web/auth';
+import DesktopAdmin from './web/admin';
 import React from 'react';
 import { View, StatusBar, BackHandler, AppState, Platform, PanResponder } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -20,20 +24,28 @@ import { storeGet, storeSet, storeDel } from './api/session';
 // payment/SIP return link, which reset the in-memory flag and showed it again after each transaction.
 // So the dismissal is remembered on the device against the client code and cleared on sign-out.
 const UCC_SEEN_KEY = 'myqode.uccSeen';
+// Admin mode: while the admin views the app as a user, the admin's own token is kept here too, so an app restart
+// (or a web reload) still offers "Back to admin" instead of stranding the admin inside the user's session.
+const ADMIN_KEY = 'myqode.adminToken';
 import {
   QUARTER_LABELS,
   QS, TYPES, FEES, RES,
 } from './data';
-import { BASE_URL, auth, portfolio, meta, admin, distributor, setViewToken, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
+import { BASE_URL, auth, portfolio, meta, admin, backoffice, onAdminDenied, distributor, setViewToken, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
 import { trackStart, trackStop, screen } from './api/track';
 import { perfFrom, navFrom, ddFrom, cashFrom, plFrom, combineFamily } from './webcalc';
+<<<<<<< HEAD
 import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, titleCase, semverLt, fmtD, fmtDM } from './adapt';
+=======
+import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, ddPct, inr, sinr, fmtDate, fmtMonth, titleCase, semverLt } from './adapt';
+>>>>>>> b838a51276a389524c12537303bb8dd253f963b3
 import Splash from './screens/splash';
 import Carousel from './screens/carousel';
 import { Login, OtpScreen, SetPassword } from './screens/login';
 import Onboarding, { ResumeScreen } from './screens/onboarding';
 import AppShell from './screens/appshell';
 import { DistributorShell } from './screens/distributor';
+import { AdminConsole, ImpersonationFrame } from './screens/admin';
 import Curtain from './screens/curtain';
 // Onboarding (account opening) — a separate, unauthenticated backend; see src/onboarding/config.js.
 import OnboardingStore from './onboarding/store';
@@ -80,6 +92,7 @@ export default class MyQode extends React.Component {
 
   go(t) {
     if (this.state.tab === t) return;
+    if (t === 'services' && this.state.viewing) return;   // a distributor viewing a client: no services, payments or requests
     clearTimeout(this.goT);
     screen(t);
     this.setState({ tab: t, loading: true });
@@ -114,6 +127,7 @@ export default class MyQode extends React.Component {
     this.obRefs = [0, 1, 2, 3, 4, 5].map(() => React.createRef());
     this.seq = 0;
     onUnauthorized(() => this.expire());
+    onAdminDenied(e => this.adminDenied(e));
     this.backSub = BackHandler.addEventListener('hardwareBackPress', () => this.handleBack());
 
     // Razorpay's return page deep-links to …/payment-return. Normally the payment sheet's auth session consumes
@@ -132,7 +146,8 @@ export default class MyQode extends React.Component {
       window.addEventListener('popstate', this.onPop);
     }
     this.appSub = AppState.addEventListener('change', st => {
-      if (st === 'active' && this.state.phase === 'app' && Date.now() - (this.lastLoad || 0) > 60000) this.refresh();
+      // Not while a full-screen page is open (e.g. Reports): coming back from the share sheet must not reset its lists.
+      if (st === 'active' && this.state.phase === 'app' && !this.state.page && Date.now() - (this.lastLoad || 0) > 60000) this.refresh();
       // A release can land while the app sits in the background: look again when it comes back, at most every 30 min.
       if (st === 'active' && Date.now() - (this.lastVersionCheck || 0) > 30 * 60 * 1000) this.checkVersion();
       if (this.store) { if (st === 'active') this.store.onForeground(); else if (st === 'background') this.store.onBackground(); }
@@ -174,10 +189,12 @@ export default class MyQode extends React.Component {
       // Tabs are top-level destinations, not a stack: from any tab, back goes straight to Home.
       if (S.tab !== 'home') { this.go('home'); return true; }
       if (S.viewing) { this.exitView(); return true; }   // a partner viewing an investor: back to the partner panel
+      if (S.imp && !S.imp.backoffice) { this.backToAdmin(); return true; }   // admin viewing as this user
       return soft ? false : this.confirmExit();
     }
-    if (S.phase === 'partner' || S.phase === 'lock') return soft ? false : this.confirmExit();
-    if (S.phase === 'resume') { this.setState({ phase: 'login', resume: null }); return true; }
+    if (S.phase === 'partner' && S.imp && !S.imp.backoffice) { this.backToAdmin(); return true; }
+    if (S.phase === 'partner' || S.phase === 'lock' || S.phase === 'admin') return soft ? false : this.confirmExit();
+    if (S.phase === 'resume') { this.setState({ phase: this.leaveOb(), resume: null }); return true; }
     if (S.phase === 'ob') { this.obVals().obBack(); return true; }
     if (S.phase === 'otp' || S.phase === 'setpw') { this.setState({ phase: 'login', authErr: '', authInfo: '', busy: false }); return true; }
     if (S.phase === 'carousel' && S.car > 0) { this.setState({ car: S.car - 1 }); return true; }
@@ -203,14 +220,16 @@ export default class MyQode extends React.Component {
     biometricAvailable().then(bio => this.setState({ bio })).catch(() => {});
     biometricEnabled().then(on => this.setState({ bioOn: !!on })).catch(() => {});
     const minSplash = new Promise(r => { this.splashT = setTimeout(r, 1200); });
-    let ok = false, partner = false;
+    let ok = false, partner = false, offline = false, adminOn = false;
     const token = await getToken();
     if (token) {
-      // Stay signed in: a token more than a day old is swapped for a fresh 30-day one. Best effort — a failure
-      // (offline, admin/impersonation token) changes nothing.
+      // Stay signed in: a token more than a day old is swapped for a fresh 30-day one. Best effort and in the
+      // background — the current token stays valid for the calls below, so opening the app never waits on it.
       try {
         const iat = JSON.parse(globalThis.atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).iat;
-        if (iat && Date.now() / 1000 - iat > 86400) { const r = await auth.refresh(); if (r && r.token) await setToken(r.token); }
+        if (iat && Date.now() / 1000 - iat > 86400) {
+          auth.refresh().then(r => (r && r.token && getToken().then(cur => (cur === token ? setToken(r.token) : null)))).catch(() => {});
+        }
       } catch {}
       // Face ID / fingerprint gate: the session is intact, the user just has to unlock the app.
       if (!unlocked && await biometricEnabled()) {
@@ -229,28 +248,43 @@ export default class MyQode extends React.Component {
       }
     }
     if (token) {
-      // Load everything the Home screen needs while the splash is showing, so the dashboard appears filled
-      // in. Capped at 8 s: after that the app opens anyway and the skeleton takes over.
-      const cap = new Promise(r => setTimeout(r, 8000));
+      // Load what the Home screen needs while the splash is showing, so the dashboard usually appears filled in.
+      // Capped at 2.5 s (it was 8 s — after Face ID that read as a frozen app): a slower load carries on behind
+      // the Home skeleton and fills it in.
+      const cap = new Promise(r => setTimeout(r, 2500));
       try {
-        const me = await auth.me();
+        const me = await auth.me({ timeout: 10000 });   // start-up: the offline screen beats a long frozen splash
         await new Promise(r => this.setState({ user: me }, r));
-        if (me && me.isDistributor) partner = true;   // partner login: no investor accounts, no portfolio load
+        if (me && me.isImpersonated) {
+          // A token issued by the backoffice to view the app as this user. The admin's own token is saved when the
+          // app's admin mode opened it; without one it came from the web backoffice (/admin), which has its own "Close".
+          const adminToken = await storeGet(ADMIN_KEY);
+          if (adminToken) this.origToken = adminToken;
+          this.setState({ imp: { name: me.name || me.email || 'this user', email: me.email || '', backoffice: !adminToken } });
+        }
+        if (me && me.isAdmin && !me.isImpersonated) { adminOn = true; this.adminUser = me; }   // admin mode: the backoffice console
+        else if (me && me.isDistributor) partner = true;   // partner login: no investor accounts, no portfolio load
         else {
-        trackStart(me.clientCode);
+        if (!me.isImpersonated) trackStart(me.clientCode);   // an admin viewing as the client is not the client's usage
         storeGet(UCC_SEEN_KEY).then(v => { if (v && v === String(me.clientCode)) this.setState({ uccSeen: true }); });
         services.bankDetails().catch(() => {});
         services.warmSwitchInfo();
         await Promise.race([this.openPortfolio(), cap]);
         }
         ok = true;
-      } catch (e) { if (e.status === 401) await clearToken(); }
+      } catch (e) {
+        if (e.status === 401) await clearToken();
+        else if (MyQode.transient(e)) offline = true;   // signed in, server unreachable: never drop to the carousel
+      }
     }
     this.checkVersion();
     await minSplash;
     if (this.unmounted || this.state.phase !== 'splash') return;
-    if (ok && partner) this.setState({ phase: 'partner' });
-    else if (ok) this.startApp(); else this.setState({ phase: 'carousel' });
+    if (offline) { this.setState({ phase: 'lock', lockOffline: true, lockErr: '', lockGone: false, lockBusy: false }); return; }
+    if (ok && adminOn) this.setState({ phase: 'admin' });
+    else if (ok && partner) this.setState({ phase: 'partner' });
+    // Desktop web: the brand panel next to the form already introduces the app, so sign-in comes first.
+    else if (ok) this.startApp(); else this.setState({ phase: this.props.desktop ? 'login' : 'carousel' });
   }
 
   async checkVersion() {
@@ -440,9 +474,11 @@ export default class MyQode extends React.Component {
   // Refresh button / return-to-foreground: refetch everything on screen.
   refresh = async () => {
     if (this.state.refreshing || this.state.phase !== 'app') return;
+    const seq = this.seq;   // signOut bumps seq: a reply that lands after it must not write the old user's data back
     this.setState(s => ({ refreshing: true, rk: s.rk + 1 }));
     try {
       const snap = await portfolio.snapshot();
+      if (seq !== this.seq || this.state.phase !== 'app') { this.setState({ refreshing: false }); return; }
       const scopes = buildScopes(snap, this.codes());
       if (this.state.scopes && !this.state.scopes.family) scopes.family = null;   // keep an earlier step-down
       await new Promise(r => this.setState({ snap, scopes }, r));
@@ -479,6 +515,14 @@ export default class MyQode extends React.Component {
     await setToken(token);
     this.setState({ user: user || null });
     this.offerBiometric();
+    // The app admin (isAdmin on the login or on auth/me) opens the backoffice console, not the investor app.
+    let isAdmin = !!(user && user.isAdmin);
+    if (!isAdmin && user && user.isSuperAdmin) { try { const me = await auth.me(); isAdmin = !!(me && me.isAdmin); if (isAdmin) user = { ...user, ...me }; } catch {} }
+    if (isAdmin) {
+      this.adminUser = user;
+      this.setState({ user, busy: false, pw: '', np: '', np2: '', otp: ['', '', '', '', '', ''], authErr: '', phase: 'admin', adm: null });
+      return;
+    }
     if (user && user.isDistributor) {
       this.setState({ busy: false, pw: '', np: '', np2: '', otp: ['', '', '', '', '', ''], authErr: '', phase: 'partner' });
       return;
@@ -511,6 +555,7 @@ export default class MyQode extends React.Component {
   };
   lockRetry = async () => {
     if (this.state.lockBusy) return;
+    if (this.state.lockOffline) { this.setState({ lockOffline: false, phase: 'splash' }); this.boot(true); return; }   // already unlocked: just try the server again
     this.setState({ lockBusy: true, lockErr: '' });
     const r = await biometricUnlock((this.state.bio || {}).label);
     if (!r.ok) { this.setState({ lockBusy: false, lockErr: r.message }); return; }
@@ -619,21 +664,25 @@ export default class MyQode extends React.Component {
   };
 
   signOut = async (msg = '') => {
-    this.origToken = null;
+    this.origToken = null; this.adminUser = null;
+    storeDel(ADMIN_KEY);
     setViewToken(null); this.partnerUser = null; this.partnerNav = null;
     trackStop();
     setDemo(false);
     clearUserCaches();
     storeDel(UCC_SEEN_KEY);   // next sign-in sees the UCC pop-up once again
+    this.obReturn = null;
     this.seq++;
     await clearToken();
     this.counted = false;
     this.setState({
       phase: 'login', tab: 'home', sheet: null, page: null, user: null, acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {},
       dErr: '', dl: false, pw: '', busy: false, otp: ['', '', '', '', '', ''], authErr: msg, authInfo: '', uccSeen: false, payRecover: null, viewing: null,
+      imp: null, adm: null,
     });
   };
   expire() {
+    if (this.state.phase === 'partner' && this.origToken && !this.state.viewing) return this.backToAdmin('The session for that user has ended.');
     if (this.state.phase === 'partner') return this.signOut('Your session has expired. Please sign in again.');
     if (this.state.phase !== 'app') return;
     if (this.state.viewing) this.exitView('Your view of that account has timed out. Open it again from your investors.');
@@ -652,11 +701,79 @@ export default class MyQode extends React.Component {
     await this.openPortfolio();
   };
   exitImpersonation = async () => {
+    if (this.state.imp && !this.state.imp.backoffice) return this.backToAdmin();
+    if (this.state.imp && this.state.imp.backoffice) return this.closeBackoffice();
     const t = this.origToken; this.origToken = null;
     if (!t) return this.signOut();
     await setToken(t);
     try { const me = await auth.me(); await new Promise(res => this.setState({ user: me, page: null, tab: 'home' }, res)); await this.openPortfolio(); }
     catch { this.signOut('Your admin session has expired. Please sign in again.'); }
+  };
+
+  // ── Admin mode ────────────────────────────────────────────────────────────────────────────────────────────
+  // A 401 / 403 from a backoffice route: the admin session is gone (or never had access). Back to sign-in.
+  adminDenied = e => {
+    if (this.state.phase !== 'admin') return;
+    this.signOut(e && e.status === 403 ? 'This account does not have admin access. Sign in with an admin account.' : 'Your admin session has expired. Please sign in again.');
+  };
+
+  // "Open as user": a 4-hour token for that user, issued by the backoffice. The admin token stays in this.origToken
+  // (and on the device, see ADMIN_KEY); the user is loaded exactly like a normal sign-in.
+  openAsUser = async ({ email, name } = {}) => {
+    if (!email) return;
+    const r = await backoffice.impersonate({ email, target: 'app' });
+    if (!r || !r.token) throw new ApiError('The server did not return a session for this user.');
+    const adminToken = this.origToken || await getToken();
+    this.origToken = adminToken;
+    await storeSet(ADMIN_KEY, adminToken);
+    await setToken(r.token);
+    setViewToken(null); this.partnerUser = null; this.partnerNav = null;
+    clearUserCaches();
+    this.seq++;
+    const user = { ...(r.user || {}), isImpersonated: true };
+    const imp = { name: user.name || name || email, email, backoffice: false };
+    const reset = { user, imp, page: null, sheet: null, tab: 'home', acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '', viewing: null, uccSeen: true };
+    if (user.isDistributor) { this.setState({ ...reset, phase: 'partner' }); return; }
+    await new Promise(res => this.setState(reset, res));
+    await this.openPortfolio();
+    this.startApp();
+  };
+
+  // "Back to admin": drop the user's session and restore the admin token and console (where the admin left it).
+  backToAdmin = async (msg = '') => {
+    const t = this.origToken || await storeGet(ADMIN_KEY);
+    this.origToken = null;
+    storeDel(ADMIN_KEY);
+    if (!t) return this.signOut('Please sign in again.');
+    setViewToken(null); this.partnerUser = null; this.partnerNav = null;
+    clearUserCaches();
+    this.seq++;
+    await setToken(t);
+    this.setState({ phase: 'admin', user: this.adminUser || this.state.user, imp: null, viewing: null, page: null, sheet: null, tab: 'home',
+      acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '', lifting: false });
+    if (msg) this.toast(msg);
+    try {
+      const me = await auth.me();
+      if (!me || !me.isAdmin) return this.signOut('This account does not have admin access. Sign in with an admin account.');
+      this.adminUser = me;
+      if (this.state.phase === 'admin') this.setState({ user: me });
+    } catch (e) {
+      if (e.status === 401 || e.status === 403) this.signOut('Your admin session has expired. Please sign in again.');
+    }
+  };
+
+  // Web: a session opened from the web backoffice (/admin). "Close" ends it and returns to that user in /admin.
+  closeBackoffice = async () => {
+    const email = (this.state.imp && this.state.imp.email) || (this.state.user && this.state.user.email) || '';
+    await clearToken();
+    storeDel(ADMIN_KEY);
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const to = email ? '/admin/users/' + encodeURIComponent(email) : '/admin';
+      try { window.close(); } catch {}
+      setTimeout(() => { if (!window.closed) window.location.assign(to); }, 150);
+      return;
+    }
+    this.signOut();
   };
 
   // Partner "View account" (web: distributors/investors → View account): the investor's own app, read-only, on a
@@ -669,12 +786,19 @@ export default class MyQode extends React.Component {
     setViewToken(r.token);
     clearUserCaches();
     this.seq++;
-    await new Promise(res => this.setState({ user: r.user, viewing: r.user.name || 'Investor', page: null, sheet: null, tab: 'home',
-      acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '' }, res));
-    await this.openPortfolio();
+    try {
+      await new Promise(res => this.setState({ user: r.user, viewing: r.user.name || 'Investor', page: null, sheet: null, tab: 'home',
+        acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '' }, res));
+      await this.openPortfolio();
+    } catch (e) {
+      // Never leave the partner panel holding the investor's read-only token.
+      this.exitView();
+      throw e;
+    }
     this.startApp();
   };
   exitView = (msg = '') => {
+    if (!this.partnerUser) return;   // already back on the partner panel (several 401s can land together)
     setViewToken(null);
     clearUserCaches();
     this.seq++;
@@ -683,9 +807,10 @@ export default class MyQode extends React.Component {
     if (msg) this.toast(msg);
   };
 
-  fmt(v) { return '₹' + v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-  fmt0(v) { return '₹' + v.toLocaleString('en-IN'); }
-  sfmt(v) { return (v < 0 ? '−' : '+') + this.fmt(Math.abs(v)); }
+  // Money formatting lives in src/adapt.js (inr / sinr) so every screen shows the same figures.
+  fmt(v) { return inr(v); }
+  fmt0(v) { return inr(v, 0); }
+  sfmt(v) { return sinr(v); }
 
   startApp = () => {
     const first = !this.counted; this.counted = true;
@@ -748,8 +873,11 @@ export default class MyQode extends React.Component {
     return false;
   }
 
+  leaveOb() { const p = this.obReturn || 'login'; this.obReturn = null; return p; }
   async resumeFrom(token, source) {
     clearTimeout(this.splashT);
+    // A signed-in client or partner who opens a resume link goes back to where they were afterwards, not to sign-in.
+    if (this.state.phase === 'app' || this.state.phase === 'partner') this.obReturn = this.state.phase;
     this.setState({ phase: 'resume', resume: { token, source, loading: true, error: null } });
     try {
       const sub = await this.store.hydrate(token);
@@ -816,7 +944,12 @@ export default class MyQode extends React.Component {
     const busy = S.loading || S.dl || S.sl;   // sl: snapshot / scopes still loading (see openPortfolio)
     const green = C.pos, red = C.red;
     const c = v => (v < 0 ? red : v > 0 ? green : C.muted);   // same rule as the web table: green / red / neutral
+<<<<<<< HEAD
     const asOf = perf ? fmtD(perf.dataAsOf) : '';
+=======
+    const ddColor = v => (v != null && Math.abs(v) >= 0.005 ? red : C.muted);   // drawdown: red below the peak, neutral at a new high
+    const asOf = perf && perf.dataAsOf ? fmtDate(perf.dataAsOf) : '';
+>>>>>>> b838a51276a389524c12537303bb8dd253f963b3
     const benchName = titleCase(perf && perf.strategy && perf.strategy.benchmark) || 'Nifty 50';
     const value = perf ? perf.currentValue : scope ? scope.value : 0;
     const totalReturns = perf ? perf.totalReturns : 0;
@@ -863,8 +996,12 @@ export default class MyQode extends React.Component {
     const p1 = buildPaths(cPts, cBench, 330, 120, null, [axis.lo, axis.hi]);
     const p2 = buildPaths(cPts, cBench, 358, 110, null, [axis.lo, axis.hi]);
     const navNow = rawLine.length ? rawLine[rawLine.length - 1] : 0;   // the real NAV, not the rebased line
+<<<<<<< HEAD
     const dmy = d => fmtD(d);
     const xDates = dates.length > 1 ? [dates[0], dates[Math.floor((dates.length - 1) / 2)], dates[dates.length - 1]].map(dmy) : [];
+=======
+    const xDates = dates.length > 1 ? [dates[0], dates[Math.floor((dates.length - 1) / 2)], dates[dates.length - 1]].map(fmtMonth) : [];
+>>>>>>> b838a51276a389524c12537303bb8dd253f963b3
     // Growth anchor for the full-history chart = the web's: NAV 10 (the PMS starting point) when the first
     // NAV isn't exactly 10, else the first NAV. Shorter ranges are anchored at the window start.
     const isAll = shownRange === 'All';
@@ -873,10 +1010,14 @@ export default class MyQode extends React.Component {
     const growthAt = i => (growthBase != null ? (navs[i] / growthBase - 1) * 100 : (pts[i] / pts[0] - 1) * 100);
 
     // Recent activity from cashflow
+<<<<<<< HEAD
     const dateFmt = d => {
       const t = new Date(d);
       return isNaN(t) ? String(d) : fmtD(t);
     };
+=======
+    const dateFmt = fmtDate;
+>>>>>>> b838a51276a389524c12537303bb8dd253f963b3
     const cashTx = ((S.d && S.d.cash && S.d.cash.transactions) || []).slice()
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     const tx = t => {
@@ -892,7 +1033,7 @@ export default class MyQode extends React.Component {
     const allIdx = Math.min(fys.length, 3);
     const pnlIsYear = S.pnlFy < allIdx, pnlIsAll = S.pnlFy === allIdx && fys.length > 0;
     const fy = fys[Math.min(S.pnlFy, Math.max(allIdx - 1, 0))] || { label: '', m: [] };
-    const spct = p => (p < 0 ? '−' : '+') + Math.abs(p).toFixed(2) + '%';
+    const spct = p => pct(p);
     const fySum = f => (f.tv != null ? f.tv : f.m.reduce((s, x) => s + x[1], 0));
     const fyQ = ((S.d && S.d.fysQ) || []).find(f => f.label === fy.label);
     const qtr = (fyQ ? fyQ.q : []).map(a => ({ m: QUARTER_LABELS[a[4]][0] + ' ' + fy.label, note: QUARTER_LABELS[a[4]][1], v: a[1], p: a[2] }));
@@ -900,13 +1041,17 @@ export default class MyQode extends React.Component {
     // Holdings = strategy accounts inside the selected scope
     const accts = scope ? scope.accounts : [];
     const holdTotal = accts.reduce((s, a) => s + (num(a.portfolioValue) || 0), 0) || 1;
+    // Charts take the strategy's colour when the view holds one strategy; mixed views keep the brand green.
+    const stratColors = [...new Set(accts.map(a => a.strategyColor).filter(Boolean))];
+    const chartColor = stratColors.length === 1 ? stratColors[0] : C.green;
     const holdRows = accts.map(a => {
       const hp = S.hold[a.id], v = num(a.portfolioValue) || 0;
       return {
-        id: a.id, name: a.strategyName, tag: a.type || a.id, alloc: Math.round(v / holdTotal * 100), color: a.strategyColor || C.gray,
+        id: a.id, name: a.strategyName, tag: a.type || a.id, alloc: Math.round(v / holdTotal * 100), w: v / holdTotal * 100, color: a.strategyColor || C.gray,
         value: this.fmt(v),
         gain: hp ? pct(hp.returnsPercent) + ' SI' : '',
-        ret: hp ? pct(hp.returnsPercent) : '', retColor: c(hp ? hp.returnsPercent : 0), mdd: hp ? pct(hp.trailingReturns.portfolio.maxDD) : '', hasM: !!hp,
+        ret: hp ? pct(hp.returnsPercent) : '', retColor: c(hp ? hp.returnsPercent : 0), mdd: hp ? ddPct(hp.trailingReturns.portfolio.maxDD) : '', hasM: !!hp,
+        raw: v, retNum: hp ? num(hp.returnsPercent) : null, tr: hp && hp.trailingReturns ? hp.trailingReturns.portfolio : null,   // web dashboard: totals and per-account returns
       };
     });
 
@@ -923,7 +1068,7 @@ export default class MyQode extends React.Component {
       isCarousel: S.phase === 'carousel', isResume: S.phase === 'resume', isPartner: S.phase === 'partner', isLock: S.phase === 'lock',
       loginAs: S.loginAs, setLoginAs: r => set({ loginAs: r, authErr: '', authInfo: '' }),
       bio: S.bio, bioOn: S.bioOn, bioToggle: () => this.setBiometric(!S.bioOn),
-      lockRetry: this.lockRetry, lockUsePassword: this.lockUsePassword, lockErr: S.lockErr, lockBusy: S.lockBusy, lockGone: S.lockGone, lockLabel: (S.bio && S.bio.label) || 'fingerprint',
+      lockRetry: this.lockRetry, lockOffline: !!S.lockOffline, lockUsePassword: this.lockUsePassword, lockErr: S.lockErr, lockBusy: S.lockBusy, lockGone: S.lockGone, lockLabel: (S.bio && S.bio.label) || 'fingerprint',
       // Expo Go on iPhone can't use Face ID (the prompt falls back to the passcode); a real build can.
       bioNote: S.bio && S.bio.iosFace && inExpoGo ? 'In Expo Go, iPhone asks for your passcode instead of Face ID. Face ID works in the installed app.' : '',
       carIdx: S.car,
@@ -967,7 +1112,7 @@ export default class MyQode extends React.Component {
       resumeErrorCode: S.resume ? S.resume.code : null,
       resumeRetry: () => { if (S.resume) this.resumeFrom(S.resume.token, S.resume.source); },
       resumeStartNew: () => { this.store.forget(); set({ phase: 'ob', ob: this.obDefault(), resume: null }); },
-      resumeToLogin: () => set({ phase: 'login', resume: null }),
+      resumeToLogin: () => set({ phase: this.leaveOb(), resume: null }),
       startApp: this.startApp,
       lifting: S.lifting, liftDone: () => set({ lifting: false }),
       loading: busy, ready: !busy && hasData,
@@ -989,13 +1134,19 @@ export default class MyQode extends React.Component {
       goHome: () => this.go('home'), goPortfolio: () => this.go('portfolio'),
       isPfGroup: S.tab === 'portfolio' || S.tab === 'holdings',
       segPerf: () => this.go('portfolio'), segHold: () => this.go('holdings'),
-      goDocs: () => this.go('docs'), goServices: () => this.go('services'), goMore: () => this.go('more'),
+      goDocs: () => this.go('docs'), goServices: () => this.go('services'), svcJump: S.svcJump || 0,
+      goServicesTx: () => { set({ svcJump: Date.now() }); this.go('services'); },   // Home → Transactions → View all
+      goMore: () => this.go('more'),
       vPortfolio: S.tab === 'portfolio' && !busy && hasData, vHoldings: S.tab === 'holdings' && !busy && hasData,
       vDocs: S.tab === 'docs' && !S.loading, vServices: S.tab === 'services' && !S.loading, vMore: S.tab === 'more' && !S.loading,
       skelOther: S.tab !== 'home' && (['portfolio', 'holdings'].includes(S.tab) ? busy : S.loading),
       navIdx: { home: 0, portfolio: 1, holdings: 1, docs: 2, services: 3, more: 4 }[S.tab],
       heroValue: this.fmt(value * (0.35 + 0.65 * S.cu)),
+<<<<<<< HEAD
       rangeLabel: shownRange === 'All' ? 'all time' : shownRange, rangeLoading, asOf, benchName, sinceLbl: perf ? 'Since ' + fmtD(perf.inceptionDate) : '',
+=======
+      rangeLabel: shownRange === 'All' ? 'all time' : shownRange, rangeLoading, asOf, benchName, sinceLbl: perf && perf.inceptionDate ? 'Since ' + fmtDate(perf.inceptionDate) : '',
+>>>>>>> b838a51276a389524c12537303bb8dd253f963b3
       growthNow: navNow.toFixed(2), navNow: navNow.toFixed(2),
       yTicks: axis.ticks, xDates,
       hasViews: !!S.hist && !S.hist.family,
@@ -1006,13 +1157,13 @@ export default class MyQode extends React.Component {
         { label: 'TOTAL RETURNS', value: this.sfmt(totalReturns), color: c(totalReturns) },
         { label: 'RETURN (SI)', value: pct(perf && perf.returnsPercent), color: c(perf ? perf.returnsPercent : 0) },
         { label: '1Y RETURN', value: pct(P.y1), color: c(P.y1 || 0) },
-        { label: 'CURRENT DRAWDOWN', value: pct(P.currentDD), color: red },
+        { label: 'CURRENT DRAWDOWN', value: ddPct(P.currentDD), color: ddColor(P.currentDD) },
       ],
       perfHead: [
         ['RETURN (SI)', pct(perf && perf.returnsPercent), c(perf ? perf.returnsPercent : 0)],
         ['1Y RETURN', pct(P.y1), c(P.y1 || 0)],
-        ['CURRENT DD', pct(P.currentDD), red],
-        ['EXCESS (SI)', P.sinceInception != null && B.sinceInception != null ? pct(P.sinceInception - B.sinceInception) : '—', c((P.sinceInception || 0) - (B.sinceInception || 0))],
+        ['CURRENT DD', ddPct(P.currentDD), ddColor(P.currentDD)],
+        ['EXCESS (SI)', P.sinceInception != null && B.sinceInception != null ? pct(P.sinceInception - B.sinceInception) : '–', c((P.sinceInception || 0) - (B.sinceInception || 0))],
       ],
       linePath: p1.line, areaPath: p1.area, benchPath: p1.bench,
       // touch tooltips: growth charts show % change since the start of the window (series is rebased to 100)
@@ -1023,7 +1174,7 @@ export default class MyQode extends React.Component {
       perfLine: p2.line, perfBench: p2.bench, hasBench: !!bench,
       ranges: ['1M', '6M', '1Y', '3Y', 'All'].map(id => ({ label: id, pick: () => this.pickRange(id), active: S.range === id, loading: rangeLoading && S.range === id })),
       tx3: cashTx.slice(0, 3).map(tx), txAll: cashTx.map(tx), hasTx: cashTx.length > 0,
-      holdings: holdRows,
+      holdings: holdRows, chartColor,
       holdSlices: holdRows.map(h => ({ id: h.id, pct: h.alloc, color: h.color, name: h.name })),
       holdCount: holdRows.length,
       flows: [
@@ -1037,8 +1188,8 @@ export default class MyQode extends React.Component {
       detHint: S.det ? '' : 'Trailing · drawdown · flows',
       trailing: trailingRows(perf),
       riskRows: [
-        { k: 'MAX DRAWDOWN', v: pct(P.maxDD), vc: red, note: B.maxDD != null ? benchName + ' ' + pct(B.maxDD) : '' },
-        { k: 'CURRENT DRAWDOWN', v: pct(P.currentDD), vc: red, note: B.currentDD != null ? benchName + ' ' + pct(B.currentDD) : '' },
+        { k: 'MAX DRAWDOWN', v: ddPct(P.maxDD), vc: ddColor(P.maxDD), note: B.maxDD != null ? benchName + ' ' + ddPct(B.maxDD) : '' },
+        { k: 'CURRENT DRAWDOWN', v: ddPct(P.currentDD), vc: ddColor(P.currentDD), note: B.currentDD != null ? benchName + ' ' + ddPct(B.currentDD) : '' },
       ],
       credItems: [],
       // Profit & Loss (Portfolio)
@@ -1057,14 +1208,22 @@ export default class MyQode extends React.Component {
         rows: f.m.map(a => ({ m: a[0], v: this.sfmt(a[1]), color: c(a[1]) })),
       })),
       impersonate: this.impersonate, exitImpersonation: this.exitImpersonation,
+      // admin mode
+      isAdmin: S.phase === 'admin', adm: S.adm || {}, setAdm: p => this.setState(s => ({ adm: { ...(s.adm || {}), ...p } })),
+      openAsUser: this.openAsUser, backToAdmin: () => this.backToAdmin(), imp: S.imp || null, closeBackoffice: this.closeBackoffice,
+      toast: m => this.toast(m),
       viewing: S.viewing, viewInvestor: this.viewInvestor, exitView: () => this.exitView(), partnerNav: this.partnerNav || null,
       user: S.user, isSuperAdmin: !!(S.user && S.user.isSuperAdmin), impersonated: !!(S.user && S.user.isImpersonated),
       page: S.page, openPage: k => { screen('page:' + k); set({ page: k }); }, closePage: () => set({ page: null }),
       acctOptions: (scope ? scope.accounts : []).map(a => ({ id: a.id, label: a.strategyPrefix ? a.strategyPrefix + ' · ' + a.id : a.id })),
+<<<<<<< HEAD
       openReq: (k, preset) => set({ sheet: k, sheetPreset: preset || null }), sheetPreset: S.sheetPreset || null,
+=======
+      openReq: k => { if (!S.viewing) set({ sheet: k }); },   // no requests in a client's name while a distributor views the account
+>>>>>>> b838a51276a389524c12537303bb8dd253f963b3
       bumpRefresh: () => set(s => ({ rk: s.rk + 1 })),
-      openAdd: () => set({ sheet: 'r-add' }),
-      openSwitchStrategy: () => set({ sheet: 'r-switch' }),
+      openAdd: () => { if (!S.viewing) set({ sheet: 'r-add' }); },
+      openSwitchStrategy: () => { if (!S.viewing) set({ sheet: 'r-switch' }); },
       // every strategy account in the current scope, with its current value (snapshot) for the switch form
       switchAccounts: (scope ? scope.accounts : []).filter(a => a.strategyPrefix && a.strategyPrefix !== 'QLF').map(a => ({
         id: String(a.id), prefix: a.strategyPrefix, name: a.strategyName || a.id,
@@ -1194,7 +1353,11 @@ export default class MyQode extends React.Component {
     const tracker = (() => {
       if (!SS) return [];
       const sub = SS.submittedAt ? new Date(SS.submittedAt) : null;
+<<<<<<< HEAD
       const when = sub ? fmtDM(sub) + ', ' + sub.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : 'Just now';
+=======
+      const when = sub ? sub.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).replace(/\bSept\b/, 'Sep') : 'Just now';
+>>>>>>> b838a51276a389524c12537303bb8dd253f963b3
       const idV = verP && verP.verified;
       const bankV = !!(verP && verP.bank);
       const esign = checkOf('primary', 'esign');
@@ -1225,7 +1388,7 @@ export default class MyQode extends React.Component {
       obSaveExit: () => { if (store) store.flush(); set({ phase: 'login' }); },
       obSaveLabel: inForm ? saveLabels[saveState] || '' : '',
       obOffline: !!(SS && SS.offline),
-      obOfflineMsg: 'You’re offline. Keep going — everything is kept on this device and saved the moment you’re back online.',
+      obOfflineMsg: 'You’re offline. Keep going. Everything is kept on this device and saved the moment you’re back online.',
       obCreateError: SS && !SS.id && SS.createError && !SS.offline ? SS.createError : null,
       obRetrySave: () => store && store.kick(),
       obNotice: SS ? SS.notice : null,
@@ -1283,7 +1446,7 @@ export default class MyQode extends React.Component {
       obFaceMatch: verP && verP.faceMatch != null ? String(verP.faceMatch) + '%' : '',
       obBank: verP && verP.bank ? { ...verP.bank, masked: maskAccount(verP.bank.accountNumber) } : null,
       obDigioOn: digioOn && individual,
-      obDigioOffMsg: SS && SS.digio === 'disabled' ? 'Online verification isn’t switched on at ' + API_BASE.split('//').pop() + ' right now. Fill in your details below and upload documents on the Documents step — our team verifies them for you.' : null,
+      obDigioOffMsg: SS && SS.digio === 'disabled' ? 'Online verification isn’t switched on at ' + API_BASE.split('//').pop() + ' right now. Fill in your details below and upload documents on the Documents step. Our team verifies them for you.' : null,
       obIdCheck: checkView('primary', 'identity', !!(verP && verP.verified)),
       obBankCheck: checkView('primary', 'bank', !!(verP && verP.bank)),
       obH2Check: checkView('second', 'identity', !!(verS && verS.verified)),
@@ -1361,21 +1524,21 @@ export default class MyQode extends React.Component {
       // Review
       obReviewGroups: [
         { title: 'DETAILS', edit: () => setOb({ step: 'begin' }), rows: [
-          { k: 'Name', v: OB.name || '—' },
+          { k: 'Name', v: OB.name || '–' },
           { k: 'Account', v: accountLabelFor(accountType) + (individual ? ' · ' + RES[OB.subRes] : '') },
-          { k: 'Contact', v: (OB.mobile ? '+91 ' + OB.mobile : '') + (OB.email ? (OB.mobile ? ' · ' : '') + OB.email : '') || '—' },
+          { k: 'Contact', v: (OB.mobile ? '+91 ' + OB.mobile : '') + (OB.email ? (OB.mobile ? ' · ' : '') + OB.email : '') || '–' },
         ] },
         { title: 'IDENTITY', edit: () => setOb({ step: 'identity' }), badge: verP && verP.verified ? 'VERIFIED VIA DIGILOCKER' : null, rows: [
-          { k: 'PAN', v: (verP && verP.pan) || OB.pan || '—' },
+          { k: 'PAN', v: (verP && verP.pan) || OB.pan || '–' },
           ...(verP && verP.aadhaar ? [{ k: 'Aadhaar', v: verP.aadhaar }] : []),
-          { k: 'Date of birth', v: (verP && verP.dob) || OB.dob || '—' },
+          { k: 'Date of birth', v: (verP && verP.dob) || OB.dob || '–' },
           { k: 'Holders', v: OB.h2 ? '2 · ' + ['Single', 'Jointly'][OB.mode] : '1' },
         ] },
         ...(verP && verP.bank ? [{ title: 'BANK', edit: () => setOb({ step: 'identity' }), badge: 'PENNY DROP VERIFIED', rows: [
           { k: 'Bank', v: (verP.bank.bankName || 'Bank') + ' · ' + maskAccount(verP.bank.accountNumber) },
-          { k: 'Name on account', v: verP.bank.beneficiary || '—' },
+          { k: 'Name on account', v: verP.bank.beneficiary || '–' },
         ] }] : []),
-        { title: 'NOMINEES', edit: () => setOb({ step: 'noms' }), rows: OB.noms.length ? OB.noms.map(n => ({ k: n.name || 'Nominee', v: (n.rel || '—') + ' · ' + (parseInt(n.alloc, 10) || 0) + '%' })) : [{ k: OB.nomOptOut ? 'Opted out (SEBI declaration)' : 'None added', v: '—' }] },
+        { title: 'NOMINEES', edit: () => setOb({ step: 'noms' }), rows: OB.noms.length ? OB.noms.map(n => ({ k: n.name || 'Nominee', v: (n.rel || '–') + ' · ' + (parseInt(n.alloc, 10) || 0) + '%' })) : [{ k: OB.nomOptOut ? 'Opted out (SEBI declaration)' : 'None added', v: '–' }] },
         { title: 'RISK & FEE', edit: () => setOb({ step: 'fee' }), rows: [{ k: 'Fee structure', v: FEES[OB.fee].name }, { k: 'Risk profile', v: risk }] },
         { title: 'DOCUMENTS', edit: () => setOb({ step: 'docs' }), rows: [
           { k: 'Fetched automatically', v: String(docCounts.fetched) },
@@ -1413,8 +1576,8 @@ export default class MyQode extends React.Component {
       obAmtFmt: this.fmt(OB.amt || 0),
       obFundErr: OB.fundErr || '',
       obFundConfirm: () => { const err = validateAmount(OB.amt); if (err) return setOb({ fundErr: err }); setOb({ fundDone: true, fundErr: '' }); },
-      obFinish: () => set({ ob: null, phase: 'login' }),
-      obExitToLogin: () => set({ phase: 'login' }),
+      obFinish: () => set({ ob: null, phase: this.leaveOb() }),
+      obExitToLogin: () => set({ phase: this.leaveOb() }),
     };
   }
 
@@ -1424,9 +1587,84 @@ export default class MyQode extends React.Component {
       z: [0.92, 1, 1.08, 1.16][this.state.ts],
       hc: this.state.hc, rm: this.state.rm,
     };
+    // Web on a wide screen: the signed-in app is the desktop dashboard; every other phase (sign-in, onboarding,
+    // partner panel) keeps the phone layout in a centred column.
+    const toastEl = !!this.state.toast && (
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: this.props.desktop ? 40 : 110, alignItems: 'center', pointerEvents: 'none' }}>
+        <View style={{ backgroundColor: 'rgba(0,32,23,0.92)', borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18 }}>
+          <Tx w={700} s={12} c={C.cream}>{this.state.toast}</Tx>
+        </View>
+      </View>
+    );
+    // Admin mode on desktop web: the backoffice console (src/web/admin.js).
+    if (this.props.desktop && V.isAdmin) {
+      return (
+        <UICtx.Provider value={U}>
+          <View style={{ flex: 1 }}>
+            <DesktopAdmin V={V} />
+            {toastEl}
+          </View>
+        </UICtx.Provider>
+      );
+    }
+    if (this.props.desktop && V.isApp) {
+      return (
+        <UICtx.Provider value={U}>
+          <View style={{ flex: 1 }}>
+            <ImpersonationFrame V={V} desktop><DesktopShell V={V} /></ImpersonationFrame>
+            <UpdatePrompt V={V} />
+            {!!this.state.toast && (
+              <View style={{ position: 'absolute', left: 0, right: 0, bottom: 40, alignItems: 'center', pointerEvents: 'none' }}>
+                <View style={{ backgroundColor: 'rgba(0,32,23,0.92)', borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18 }}>
+                  <Tx w={700} s={12} c={C.cream}>{this.state.toast}</Tx>
+                </View>
+              </View>
+            )}
+          </View>
+        </UICtx.Provider>
+      );
+    }
+    // Distributor on desktop: the full-width distributor dashboard (src/web/distributor.js), with the admin
+    // "Viewing as … / Back to admin" bar when an admin opened it.
+    if (this.props.desktop && V.isPartner) {
+      return (
+        <UICtx.Provider value={U}>
+          <View style={{ flex: 1 }}>
+            <ImpersonationFrame V={V} desktop><DesktopDistributor V={V} /></ImpersonationFrame>
+            <UpdatePrompt V={V} />
+            {V.lifting && <Curtain onDone={V.liftDone} rm={this.state.rm} />}
+            {toastEl}
+          </View>
+        </UICtx.Provider>
+      );
+    }
+    // Signed-out phases on desktop: the purpose-built split-screen sign-in (src/web/auth.js).
+    if (this.props.desktop && !V.isPartner) {
+      return (
+        <UICtx.Provider value={U}>
+          <View style={{ flex: 1 }}>
+            <DesktopAuth V={V} />
+            <UpdatePrompt V={V} />
+            {V.lifting && <Curtain onDone={V.liftDone} rm={this.state.rm} />}
+            {!!this.state.toast && (
+              <View style={{ position: 'absolute', left: 0, right: 0, bottom: 40, alignItems: 'center', pointerEvents: 'none' }}>
+                <View style={{ backgroundColor: 'rgba(0,32,23,0.92)', borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18 }}>
+                  <Tx w={700} s={12} c={C.cream}>{this.state.toast}</Tx>
+                </View>
+              </View>
+            )}
+          </View>
+        </UICtx.Provider>
+      );
+    }
+    // Phone layout (and the phone partner panel). Desktop phases all return above, so the frame is not used here.
+    const framed = this.props.desktop;
+    const Frame = framed ? DesktopAuthFrame : React.Fragment;
     return (
       <UICtx.Provider value={U}>
-        <View style={{ flex: 1, backgroundColor: this.state.phase === 'app' || this.state.phase === 'partner' ? C.cream : '#001008' }} {...this.edgeSwipe.panHandlers}>
+        <Frame>
+        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: this.state.phase === 'app' || this.state.phase === 'partner' || this.state.phase === 'admin' ? C.cream : '#001008' }} {...this.edgeSwipe.panHandlers}>
           <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
           {V.isSplash && <Splash V={V} />}
           {V.isCarousel && <Carousel V={V} />}
@@ -1435,8 +1673,9 @@ export default class MyQode extends React.Component {
           {V.isSetPw && <SetPassword V={V} />}
           {V.isResume && <ResumeScreen V={V} />}
           {V.isOb && <Onboarding V={V} />}
-          {V.isApp && <AppShell V={V} />}
-          {V.isPartner && <DistributorShell V={V} />}
+          {V.isApp && <ImpersonationFrame V={V}><AppShell V={V} /></ImpersonationFrame>}
+          {V.isPartner && <ImpersonationFrame V={V}><DistributorShell V={V} /></ImpersonationFrame>}
+          {V.isAdmin && <AdminConsole V={V} />}
           {V.isLock && <LockScreen V={V} />}
           <UpdatePrompt V={V} />
           {V.lifting && <Curtain onDone={V.liftDone} rm={this.state.rm} />}
@@ -1448,6 +1687,8 @@ export default class MyQode extends React.Component {
             </View>
           )}
         </View>
+        </View>
+        </Frame>
       </UICtx.Provider>
     );
   }

@@ -5,7 +5,7 @@ export const PHILOSOPHY = {
   intro: [],
   sections: [
     { h: `Who We Are`, p: [`Qode is a SEBI-registered Portfolio Management Service (PMS) built on the principle that evidence, not opinion, should drive investment decisions. Founded by seasoned professionals with over a decade of experience in Indian markets, we exist to give investors a disciplined, transparent, and performance-oriented platform for long-term wealth creation.`] },
-    { h: `What We Do`, p: [`We design and manage differentiated investment strategies that combine the power of quantitative models with the insight of fundamental research. Our range spans ETF-only portfolios, systematic momentum strategies, diversified growth funds, and high-conviction stock picks—offering clients the flexibility to align with their goals and risk appetite.`] },
+    { h: `What We Do`, p: [`We design and manage differentiated investment strategies that combine the power of quantitative models with the insight of fundamental research. Our range spans ETF-only portfolios, systematic momentum strategies, diversified growth funds, and high-conviction stock picks, offering clients the flexibility to align with their goals and risk appetite.`] },
     { h: `How We Work`, p: [`At Qode, every investment decision is guided by data, tested frameworks, and structured review processes. We believe in clarity over complexity: our clients receive concise updates that explain what we hold, why we hold it, and when we make changes. With bank-grade custody, strong operational controls, and a proactive investor support team, we ensure the experience is as robust as the strategy itself.`] },
     { h: `Why It Matters`, p: [`Markets are noisy and narratives change quickly. Qode’s approach is designed to cut through that noise. By combining systematic rigor with long-term conviction, we aim to protect portfolios in challenging times while positioning them to capture opportunities that can compound meaningfully over years.`] },
   ],
@@ -21,7 +21,7 @@ export const FOUNDATION = {
         `Fund Manager`,
         `Investing, to me, has always been about process. Markets are unpredictable in the short run, but data, when studied carefully, reveals patterns that can guide us with discipline.`,
         `At Qode, our approach is rooted in systematic models that help us identify opportunities objectively, free from bias or noise.`,
-        `But models alone are not enough — they must be applied with judgment, constant review, and a deep respect for risk. That's why we combine quantitative insights with robust portfolio construction, always seeking to maximize outcomes while protecting against drawdowns.`,
+        `But models alone are not enough. They must be applied with judgment, constant review, and a deep respect for risk. That's why we combine quantitative insights with robust portfolio construction, always seeking to maximize outcomes while protecting against drawdowns.`,
         `My goal is simple: to give investors confidence that every decision we take is grounded in evidence, tested rigorously, and aligned with the long-term compounding of their wealth.`,
       ],
     },
@@ -30,9 +30,9 @@ export const FOUNDATION = {
       p: [
         `Fund Manager`,
         `Over the last 15+ years in Indian markets, I've seen cycles of euphoria and panic, trends that come and go, and businesses that either endure or fade.`,
-        `What I've learned is that wealth creation doesn't come from chasing momentum alone — it comes from conviction in the right businesses and the patience to stay invested through volatility.`,
+        `What I've learned is that wealth creation doesn't come from chasing momentum alone. It comes from conviction in the right businesses and the patience to stay invested through volatility.`,
         `At Qode, I focus on marrying deep fundamental research with a long-term mindset. We look beyond stock prices to understand management quality, competitive advantage, financial strength, and industry dynamics.`,
-        `For me, Qode is about trust and transparency — ensuring our investors not only achieve returns, but also understand the rationale behind every decision. That understanding builds confidence, and confidence is what allows compounding to work its magic.`,
+        `For me, Qode is about trust and transparency, ensuring our investors not only achieve returns, but also understand the rationale behind every decision. That understanding builds confidence, and confidence is what allows compounding to work its magic.`,
       ],
     },
     { h: `Mission`, p: [`To support investors with data-driven, high-quality investment solutions that deliver superior risk-adjusted returns.`] },
@@ -146,7 +146,7 @@ export const FAQ = [
     topic: `Risk & Operations`,
     items: [
       { q: `Q17. Can my portfolio lose value?`, a: `All investments carry risk, though Qode's strategies use discipline, diversification, and hedging to manage downside.` },
-      { q: `Q18. How do you manage risk in extreme markets?`, a: `We follow defined risk controls — hedging policy, drawdown protocols, liquidity rules, and concentration discipline.` },
+      { q: `Q18. How do you manage risk in extreme markets?`, a: `We follow defined risk controls: hedging policy, drawdown protocols, liquidity rules, and concentration discipline.` },
       { q: `Q19. Who holds custody of my assets?`, a: `Assets are held in your demat account with SEBI-registered custodians. Qode manages investments via POA only.` },
       { q: `Q20. What happens if Qode's systems go down?`, a: `We follow Business Continuity & Disaster Recovery (BCP/DR) protocols to ensure uninterrupted operations and client access.` },
       { q: `Q21. Can I switch between strategies?`, a: `Yes. Clients can request a strategy switch during the monthly rebalance cycle, subject to reallocation guidelines.` },
@@ -163,7 +163,7 @@ export const GLOSSARY = [
   { term: `Custodian`, def: `A SEBI-registered entity that safeguards client funds and securities.` },
   { term: `Protective Put`, def: `An options contract used to limit downside risk by providing insurance against large market declines.` },
   { term: `Rebalancing`, def: `The process of aligning client portfolios back to the model portfolio to maintain uniformity and discipline.` },
-  { term: `SEBI`, def: `The Securities and Exchange Board of India — the regulator for securities markets.` },
+  { term: `SEBI`, def: `The Securities and Exchange Board of India, the regulator for securities markets.` },
 ];
 
 export const GRIEVANCE = {
@@ -175,7 +175,7 @@ export const GRIEVANCE = {
       level: `Level 1`,
       title: `Investor Relations (IR)`,
       body: [
-        `Role: Your first point of contact for all queries — from portfolio updates to operational requests.`,
+        `Role: Your first point of contact for all queries, from portfolio updates to operational requests.`,
         `Response SLA: Within 1 business day.`,
       ],
       contact: [`investor.relations@qodeinvest.com`, `WhatsApp IR Desk`],
@@ -227,39 +227,39 @@ export const CADENCE = {
       h: `Monthly Report`,
       p: [
         `We will send fund-level performance; individual returns may differ`,
-        `Delivered via Email — How: Sent directly to your registered email ID.`,
-        `Performance Updates — Content: Performance summary across Qode strategies (QAW, QTF, QGF).`,
-        `Timeline & Purpose — Timeline: Within the first 15 days of the following month.`,
+        `Delivered via Email. How: Sent directly to your registered email ID.`,
+        `Performance Updates. Content: Performance summary across Qode strategies (QAW, QTF, QGF).`,
+        `Timeline & Purpose. Timeline: Within the first 15 days of the following month.`,
         `Purpose: Keeps you updated consistently, without waiting for quarterly or annual reviews.`,
       ],
     },
     {
       h: `Quarterly Report`,
       p: [
-        `Regulatory Disclosure — Mandated by SEBI: Shared within 15 days of quarter‑end.`,
+        `Regulatory Disclosure. Mandated by SEBI: Shared within 15 days of quarter‑end.`,
         `What You Receive: Portfolio holdings & transactions`,
         `What You Receive: Performance vs. benchmark`,
         `What You Receive: Regulatory disclosures`,
-        `Why It Matters — Purpose: Ensures full transparency and keeps you aligned with your portfolio on a regulatory‑mandated frequency.`,
+        `Why It Matters. Purpose: Ensures full transparency and keeps you aligned with your portfolio on a regulatory‑mandated frequency.`,
       ],
     },
     {
       h: `Annual Review`,
       p: [
-        `One‑on‑One Engagement — Format: Review session with your Fund Manager and Investor Relations team.`,
+        `One‑on‑One Engagement. Format: Review session with your Fund Manager and Investor Relations team.`,
         `Deep‑Dive Agenda: Annual performance across strategies`,
         `Deep‑Dive Agenda: Risk‑return attribution & positioning`,
         `Deep‑Dive Agenda: Forward outlook & strategic adjustments`,
-        `Cadence & Outcomes — Timeline: Once every year.`,
+        `Cadence & Outcomes. Timeline: Once every year.`,
         `Purpose: Align long‑term goals, review progress, and set expectations for the year ahead.`,
       ],
     },
     {
       h: `Response SLA`,
       p: [
-        `Standard Queries — Email / WhatsApp: Response within 1 business day.`,
-        `Operational Requests — Top‑up, withdrawal, KYC: Acknowledged next day, executed as per regulatory timelines.`,
-        `Escalations — Routing: Escalated within 24 hours to Compliance if not resolved.`,
+        `Standard Queries. Email / WhatsApp: Response within 1 business day.`,
+        `Operational Requests. Top‑up, withdrawal, KYC: Acknowledged next day, executed as per regulatory timelines.`,
+        `Escalations. Routing: Escalated within 24 hours to Compliance if not resolved.`,
       ],
     },
   ],
@@ -283,9 +283,9 @@ export const VOICE = {
   title: `Why Your Feedback Matters`,
   intro: [
     `Every portfolio at Qode is built with discipline, but the way we serve you is shaped by listening. Your input tells us what we’re doing right, what we can refine, and how we can make your experience smoother.`,
-    `Whether it’s the clarity of our reports, the ease of a top-up, or the value of review calls, your perspective helps us get better—step by step.`,
+    `Whether it’s the clarity of our reports, the ease of a top-up, or the value of review calls, your perspective helps us get better, step by step.`,
     `Why Your Experience Matters`,
-    `Numbers tell part of the story. The other part is how you feel as an investor—your confidence, your peace of mind, and your trust in our process. When you share your journey with Qode, it not only guides us but also inspires future investors to invest with conviction.`,
+    `Numbers tell part of the story. The other part is how you feel as an investor: your confidence, your peace of mind, and your trust in our process. When you share your journey with Qode, it not only guides us but also inspires future investors to invest with conviction.`,
     `If you’ve had a positive journey with Qode, we’d love to hear your story. Testimonials may highlight: your onboarding experience, clarity of communication, and confidence in Qode’s investment philosophy.`,
     `With your consent, selected testimonials may be anonymized and featured in our website, decks, and newsletters to inspire other investors.`,
   ],

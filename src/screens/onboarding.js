@@ -10,7 +10,7 @@ import {
   C, Tx, Amt, Card, CTA, ChipRow, CurveCap, Field,
   Radio, Rise, Hairline, GoldThreads, Sheet, useUI, KeyboardScroll,
 } from '../ui';
-import { ChevronLeft, Check, SmallCheck, Copy } from '../icons';
+import { ChevronLeft, Check, SmallCheck, Copy, Camera } from '../icons';
 import { ARTICLES } from '../data';
 import VerifySheet from './verify';
 
@@ -92,7 +92,7 @@ function VerifyBlock({ kind, title, desc, btn, check, onPress, onSkip, bank }) {
       </View>
       {check.done && bank && (
         <View style={{ marginTop: 10 }}>
-          {[['Bank', bank.bankName || 'Bank'], ['Account', bank.masked + (bank.ifsc ? ' · ' + bank.ifsc : '')], ['Name on account', bank.beneficiary || '—']].map(([k, v], i) => (
+          {[['Bank', bank.bankName || 'Bank'], ['Account', bank.masked + (bank.ifsc ? ' · ' + bank.ifsc : '')], ['Name on account', bank.beneficiary || '–']].map(([k, v], i) => (
             <View key={k} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: i < 2 ? 1 : 0, borderColor: C.hairline }}>
               <Tx s={12} c={C.muted}>{k}</Tx>
               {k === 'Account' ? <Amt s={12}>{v}</Amt> : <Tx w={700} s={12}>{v}</Tx>}
@@ -128,7 +128,7 @@ function VerifyBlock({ kind, title, desc, btn, check, onPress, onSkip, bank }) {
   );
 }
 
-const CAM = ({ c = C.green }) => <Tx s={13} c={c}>📷</Tx>;
+const CAM = ({ c = C.green }) => <Camera s={14} c={c} />;
 
 function Pickers({ r }) {
   return (
@@ -305,7 +305,7 @@ export default function Onboarding({ V }) {
             <Pressable onPress={V.obRetrySave}>
               <Note tone="red" style={{ marginTop: V.obOffline ? 0 : -28, marginBottom: 14, zIndex: 2 }}>
                 <Tx w={700} s={11} ls={0.1} c={C.red}>NOT SAVED YET</Tx>
-                <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 3 }}>{V.obCreateError} Keep going — we retry automatically, or tap to retry now.</Tx>
+                <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 3 }}>{V.obCreateError} Keep going. We retry automatically, or tap to retry now.</Tx>
               </Note>
             </Pressable>
           )}
@@ -319,7 +319,7 @@ export default function Onboarding({ V }) {
                 {V.obHasErr && <Tx s={12} c={C.red} style={{ marginTop: 12 }}>{V.obErr}</Tx>}
                 <CTA label="CONTINUE" onPress={V.obBeginNext} style={{ marginTop: 22 }} />
               </Card>
-              <Tx s={12} c={C.muted} center style={{ marginTop: 16 }}>Takes about 15 minutes. Your progress is saved as you go — pick it up on any device.</Tx>
+              <Tx s={12} c={C.muted} center style={{ marginTop: 16 }}>Takes about 15 minutes. Your progress is saved as you go. Pick it up on any device.</Tx>
             </Rise>
           )}
 
@@ -508,7 +508,7 @@ export default function Onboarding({ V }) {
               {V.obNomErr && <Tx s={12} c={C.red} center style={{ marginTop: 12 }}>{V.obNomErrMsg}</Tx>}
               <CTA label="CONTINUE" onPress={V.obNomsNext} style={{ marginTop: 18 }} />
               <Pressable onPress={V.obOptOut} style={{ padding: 8, marginTop: 12 }}>
-                <Tx s={12} c={C.muted} center>I do not wish to nominate anyone — <Tx w={700} s={12} c={C.green}>sign the SEBI opt-out declaration</Tx></Tx>
+                <Tx s={12} c={C.muted} center>I do not wish to nominate anyone: <Tx w={700} s={12} c={C.green}>sign the SEBI opt-out declaration</Tx></Tx>
               </Pressable>
               <Pressable onPress={V.obSkipNoms} style={{ padding: 8, marginTop: 2 }}>
                 <Tx s={12} c={C.muted} center>Decide later</Tx>
@@ -577,7 +577,7 @@ export default function Onboarding({ V }) {
                 ))}
               </View>
               <Tx s={11.5} c={C.muted} lh={1.55} center style={{ marginTop: 12 }}>
-                Anything fetched from DigiLocker or covered by a verified bank account is already done. Save & exit anytime — uploads keep their place.
+                Anything fetched from DigiLocker or covered by a verified bank account is already done. Save & exit anytime. Uploads keep their place.
               </Tx>
               {V.obIsNri && (
                 <Note style={{ marginTop: 14 }}>
@@ -709,7 +709,7 @@ export default function Onboarding({ V }) {
             )}
             <Tx w={700} s={11} ls={0.12} c={C.muted} style={{ marginTop: 20, marginBottom: 8 }}>TRANSFER TO YOUR OWN PMS ACCOUNT</Tx>
             <View style={{ borderWidth: 1, borderColor: 'rgba(55,88,79,0.2)', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 4 }}>
-              {[['Account name', 'Rohan Mehta — PMS'], ['Bank', 'HDFC Bank, Fort, Mumbai'], ['Account no.', '50100 4821 0891'], ['IFSC', 'HDFC0000060']].map(([k, v], i) => (
+              {[['Account name', 'Rohan Mehta (PMS)'], ['Bank', 'HDFC Bank, Fort, Mumbai'], ['Account no.', '50100 4821 0891'], ['IFSC', 'HDFC0000060']].map(([k, v], i) => (
                 <View key={k} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: i < 3 ? 1 : 0, borderColor: C.hairline }}>
                   <Tx s={12} c={C.muted}>{k}</Tx>
                   {k === 'Account no.' ? <Amt s={12}>{v}</Amt> : <Tx w={700} s={12}>{v}</Tx>}

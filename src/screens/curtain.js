@@ -3,7 +3,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Dimensions, Easing, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
-import { C, Tx } from '../ui';
+import { C, Tx, Wordmark } from '../ui';
 
 export default function Curtain({ onDone, rm }) {
   const H = Dimensions.get('window').height;
@@ -18,7 +18,7 @@ export default function Curtain({ onDone, rm }) {
     <Animated.View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: H + 50, pointerEvents: 'none', transform: [{ translateY: y }] }}>
       <LinearGradient colors={C.darkGrad} locations={[0, 0.55, 1]} start={{ x: 0.1, y: 0 }} end={{ x: 0.6, y: 1 }}
         style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Tx f="play" w={600} s={32} c={C.cream}>myQode</Tx>
+        <Wordmark s={32} />
         <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: 12 }} />
       </LinearGradient>
       {/* curved bottom edge with gold trim */}

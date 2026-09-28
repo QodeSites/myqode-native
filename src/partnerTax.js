@@ -42,7 +42,7 @@ export function validateGstin(gstin) {
     const product = code * (i % 2 === 0 ? 1 : 2);
     sum += Math.floor(product / 36) + (product % 36);
   }
-  if (chars[(36 - (sum % 36)) % 36] !== value[14]) return { valid: false, reason: 'That GSTIN fails its check digit — please re-check it' };
+  if (chars[(36 - (sum % 36)) % 36] !== value[14]) return { valid: false, reason: 'That GSTIN fails its check digit. Please re-check it' };
   return { valid: true };
 }
 

@@ -21,22 +21,22 @@ import { InvestorDetail, Fees, Statement, Invoice, Decks, Indicators, Ticket, Po
 import { DateField } from './sip';
 
 // ── Vocabulary: port of myQode/lib/distributorVocabulary.ts ──────────────────
-const S = {
+export const S = {
   invested:    { key: 'invested', label: 'First Fund Initiated', short: 'First fund initiated', detail: 'Money is in the market', tone: 'good' },
   regular:     { key: 'regular', label: 'Regular Investor', short: 'Regular investor', detail: 'Invested again after their first', tone: 'good' },
   smallfunded: { key: 'smallfunded', label: 'Funded Less than 50 lacs', short: 'Below ₹50 L', detail: 'Money is in the market, below the usual ticket', tone: 'good' },
-  opened:      { key: 'opened', label: 'Account Live', short: 'Account live', detail: 'Account open — nothing invested yet', tone: 'normal' },
+  opened:      { key: 'opened', label: 'Account Live', short: 'Account live', detail: 'Account open, nothing invested yet', tone: 'normal' },
   onboarding:  { key: 'onboarding', label: 'Onboarding', short: 'Onboarding', detail: 'Account opening in progress', tone: 'normal' },
   inactive:    { key: 'inactive', label: 'Dormant Investor', short: 'Dormant', detail: 'Account open, nothing moving', tone: 'warn' },
   declined:    { key: 'declined', label: 'Dropped before account opening', short: 'Dropped', detail: 'Never opened an account', tone: 'warn' },
   closed:      { key: 'closed', label: 'Dropped after account opening', short: 'Exited', detail: 'Opened, then exited', tone: 'warn' },
 };
-const STATUS_ORDER = [S.invested, S.regular, S.smallfunded, S.opened, S.onboarding, S.inactive, S.declined, S.closed];
-const ONBOARDING_SEQUENCE = ['Investor added', 'Onboarding Email Sent', 'Documents Received', 'Forms Filled', 'Consent Received',
+export const STATUS_ORDER = [S.invested, S.regular, S.smallfunded, S.opened, S.onboarding, S.inactive, S.declined, S.closed];
+export const ONBOARDING_SEQUENCE = ['Investor added', 'Onboarding Email Sent', 'Documents Received', 'Forms Filled', 'Consent Received',
   'Form Sent to Investor for Signature', 'Forms Received from Investor', 'Esign Received', 'Forms Sent to Nuvama', 'CML Pending', 'Observations'];
 const isStalled = s => /dropped|lost/i.test(s || '');
 // The sub-stage decides (Investor_Stage goes stale behind it); Investor_Stage is the fallback.
-function statusFor(stage, sub) {
+export function statusFor(stage, sub) {
   if (sub) {
     if (isStalled(sub)) return /lost/i.test(sub) ? S.closed : S.declined;
     if (sub === 'First Fund Initiated') return S.invested;
@@ -57,20 +57,20 @@ function statusFor(stage, sub) {
   }
 }
 // Activation_Date first; Date_Of_1st_Investment only for "Funded less than 50L" (web: fundedDate()).
-const fundedDate = c => c.activationDate || (c.onboardingStage === 'Funded less than 50L' ? c.accountLiveDate : null);
+export const fundedDate = c => c.activationDate || (c.onboardingStage === 'Funded less than 50L' ? c.accountLiveDate : null);
 const STRATEGY_COLOR = { 'Qode All Weather': '#008455', 'Qode Growth Fund': '#0A3452', 'Qode Tactical Fund': '#550E0E' };
 const TONE = { good: C.pos, normal: C.gold, warn: C.red };
 // One colour per status for the "Where your investors are" doughnut and its list (funded = greens/blue,
 // in progress = gold/grey, stalled = ambers/reds).
-const STATUS_COLOR = { invested: '#008455', regular: '#0A3452', smallfunded: '#5FB08A', opened: '#DABD38', onboarding: '#9CA3AF', inactive: '#E0A458', declined: '#EF4444', closed: '#991B1B' };
+export const STATUS_COLOR = { invested: '#008455', regular: '#0A3452', smallfunded: '#5FB08A', opened: '#DABD38', onboarding: '#9CA3AF', inactive: '#E0A458', declined: '#EF4444', closed: '#991B1B' };
 // The same colours as text on the cream cards: the light ones (gold, grey, pale green) darkened to stay readable.
-const STATUS_TEXT = { ...STATUS_COLOR, smallfunded: '#3F8F68', opened: '#9A6B12', onboarding: '#5B6470', inactive: '#B26B1E' };
+export const STATUS_TEXT = { ...STATUS_COLOR, smallfunded: '#3F8F68', opened: '#9A6B12', onboarding: '#5B6470', inactive: '#B26B1E' };
 const shortStrategy = n => String(n || '').replace(/^Qode\s+/, '').replace(/\s+Fund$/, '');
 
 // Number and date formats are the web's own (distributors/page.tsx money() / formatDate()), so every figure reads
 // the same on both: crores always 2 decimals, lakhs 1 decimal, below a lakh whole rupees.
 const inr = n => {
-  if (n == null || isNaN(n)) return '—';
+  if (n == null || isNaN(n)) return '–';
   const abs = Math.abs(n), sign = n < 0 ? '−' : '';
   if (abs >= 10000000) return `${sign}₹${(abs / 10000000).toFixed(2)} Cr`;
   if (abs >= 100000) return `${sign}₹${(abs / 100000).toFixed(1)} L`;
@@ -78,30 +78,41 @@ const inr = n => {
 };
 // Exact amount, to the paisa, shown under a rounded headline so nothing is hidden by rounding.
 const exact = n => (n == null || isNaN(n) ? '' : '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-const INFLOW_RANGES = [
+export const INFLOW_RANGES = [
   { key: 'all', label: 'Since inception', months: null },
   { key: '12m', label: 'Last 12 months', months: 12 },
   { key: '6m', label: 'Last 6 months', months: 6 },
   { key: '3m', label: 'Last 3 months', months: 3 },
 ];
 const QAW_GREEN = '#008455';
+<<<<<<< HEAD
 const day = iso => (iso ? fmtD(iso) || '—' : '—');
+=======
+const day = iso => { if (!iso) return '–'; const t = new Date(iso); return isNaN(t.getTime()) ? '–' : t.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); };
+>>>>>>> b838a51276a389524c12537303bb8dd253f963b3
 
 // Icons from the web partner menu (components/qode-distributor-sidebar.tsx, lucide-react), drawn at the
 // same 24-unit size and stroke so the app reads like the web.
 const Lucide = ({ c, s = 22, children }) => (
   <Svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">{children}</Svg>
 );
-const IconDashboard = ({ c, s }) => <Lucide c={c} s={s}><Rect x={3} y={3} width={7} height={9} rx={1} /><Rect x={14} y={3} width={7} height={5} rx={1} /><Rect x={14} y={12} width={7} height={9} rx={1} /><Rect x={3} y={16} width={7} height={5} rx={1} /></Lucide>;
-const IconUsers = ({ c, s }) => <Lucide c={c} s={s}><Path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><Circle cx={9} cy={7} r={4} /><Path d="M22 21v-2a4 4 0 0 0-3-3.87" /><Path d="M16 3.13a4 4 0 0 1 0 7.75" /></Lucide>;
-const IconCalculator = ({ c, s }) => <Lucide c={c} s={s}><Rect x={4} y={2} width={16} height={20} rx={2} /><Path d="M8 6h8" /><Path d="M16 14v4" /><Path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01" /></Lucide>;
-const IconLineChart = ({ c, s }) => <Lucide c={c} s={s}><Path d="M3 3v16a2 2 0 0 0 2 2h16" /><Path d="m19 9-5 5-4-4-3 3" /></Lucide>;
+export const IconDashboard = ({ c, s }) => <Lucide c={c} s={s}><Rect x={3} y={3} width={7} height={9} rx={1} /><Rect x={14} y={3} width={7} height={5} rx={1} /><Rect x={14} y={12} width={7} height={9} rx={1} /><Rect x={3} y={16} width={7} height={5} rx={1} /></Lucide>;
+export const IconUsers = ({ c, s }) => <Lucide c={c} s={s}><Path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><Circle cx={9} cy={7} r={4} /><Path d="M22 21v-2a4 4 0 0 0-3-3.87" /><Path d="M16 3.13a4 4 0 0 1 0 7.75" /></Lucide>;
+export const IconCalculator = ({ c, s }) => <Lucide c={c} s={s}><Rect x={4} y={2} width={16} height={20} rx={2} /><Path d="M8 6h8" /><Path d="M16 14v4" /><Path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01" /></Lucide>;
+export const IconLineChart = ({ c, s }) => <Lucide c={c} s={s}><Path d="M3 3v16a2 2 0 0 0 2 2h16" /><Path d="m19 9-5 5-4-4-3 3" /></Lucide>;
 const IconMore = ({ c, s }) => <Lucide c={c} s={s}><Path d="M4 6h16M4 12h16M4 18h16" /></Lucide>;
+<<<<<<< HEAD
 const IconShare = ({ c, s }) => <Lucide c={c} s={s}><Circle cx={18} cy={5} r={3} /><Circle cx={6} cy={12} r={3} /><Circle cx={18} cy={19} r={3} /><Path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98" /></Lucide>;
 const IconFile = ({ c, s }) => <Lucide c={c} s={s}><Path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><Path d="M14 2v4a2 2 0 0 0 2 2h4M10 9H8M16 13H8M16 17H8" /></Lucide>;
 const IconShield = ({ c, s }) => <Lucide c={c} s={s}><Path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /><Path d="m9 12 2 2 4-4" /></Lucide>;
 const IconLock = ({ c, s }) => <Lucide c={c} s={s}><Rect x={3} y={11} width={18} height={11} rx={2} /><Path d="M7 11V7a5 5 0 0 1 10 0v4" /></Lucide>;
 const IconLifeBuoy = ({ c, s }) => <Lucide c={c} s={s}><Circle cx={12} cy={12} r={10} /><Circle cx={12} cy={12} r={4} /><Path d="m4.93 4.93 4.24 4.24M14.83 9.17l4.24-4.24M14.83 14.83l4.24 4.24M9.17 14.83l-4.24 4.24" /></Lucide>;
+=======
+export const IconShare = ({ c, s }) => <Lucide c={c} s={s}><Circle cx={18} cy={5} r={3} /><Circle cx={6} cy={12} r={3} /><Circle cx={18} cy={19} r={3} /><Path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98" /></Lucide>;
+export const IconFile = ({ c, s }) => <Lucide c={c} s={s}><Path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><Path d="M14 2v4a2 2 0 0 0 2 2h4M10 9H8M16 13H8M16 17H8" /></Lucide>;
+export const IconShield = ({ c, s }) => <Lucide c={c} s={s}><Path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /><Path d="m9 12 2 2 4-4" /></Lucide>;
+export const IconLifeBuoy = ({ c, s }) => <Lucide c={c} s={s}><Circle cx={12} cy={12} r={10} /><Circle cx={12} cy={12} r={4} /><Path d="m4.93 4.93 4.24 4.24M14.83 9.17l4.24-4.24M14.83 14.83l4.24 4.24M9.17 14.83l-4.24 4.24" /></Lucide>;
+>>>>>>> b838a51276a389524c12537303bb8dd253f963b3
 
 const TABS = [
   { key: 'overview', label: 'Overview', Icon: IconDashboard },
@@ -157,7 +168,7 @@ export function DistributorShell({ V }) {
   const journey = useLoad(() => api.journey(), [tick]);
   const split = useLoad(() => api.strategyAum(), [tick]);
   const refresh = () => setTick(t => t + 1);
-  const name = (V.user && V.user.name) || 'Partner';
+  const name = (V.user && V.user.name) || 'Distributor';
   const busy = journey.loading || split.loading;
 
   return (
@@ -168,7 +179,7 @@ export function DistributorShell({ V }) {
           <GoldThreads height={300} />
           <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <View style={{ flex: 1 }}>
-              <Tx w={700} s={10} ls={0.18} c={C.gold}>QODE PARTNER</Tx>
+              <Tx w={700} s={10} ls={0.18} c={C.gold}>QODE DISTRIBUTOR</Tx>
               <Tx f="play" w={600} s={22} c={C.cream} numberOfLines={2} style={{ marginTop: 4 }}>{name}</Tx>
             </View>
             <Pressable onPress={refresh} accessibilityLabel="Refresh" style={{ width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: 'rgba(239,236,211,0.22)', alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.45 : 1 }}>
@@ -229,7 +240,7 @@ export function DistributorShell({ V }) {
 function CrmNotice({ data }) {
   if (!data) return null;
   if (!data.zohoAvailable) return <Notice text="Investor details are temporarily unavailable. Your links and account counts are still correct. Please pull to refresh in a few minutes." />;
-  if (!data.crmLinked) return <Notice text={`Your login address is not yet linked to your partner record, so your ${data.portalClientCount || ''} client accounts cannot be listed here. Please email partnerships@qodeinvest.com and we will link it.`} />;
+  if (!data.crmLinked) return <Notice text={`Your login address is not yet linked to your distributor record, so your ${data.portalClientCount || ''} client accounts cannot be listed here. Please email partnerships@qodeinvest.com and we will link it.`} />;
   return null;
 }
 const Notice = ({ text }) => (
@@ -238,23 +249,20 @@ const Notice = ({ text }) => (
   </Card>
 );
 
-function Overview({ journey, split, onOpen, onDetail, onLinks }) {
-  const d = journey.data;
+// Every Overview figure, from the journey payload and the strategy split (web: distributors/page.tsx). Pure, so the
+// phone Overview and the desktop dashboard (src/web/distributor.js) show the same numbers.
+export function bookFigures(d, splitData) {
   const clients = (d && d.journey && d.journey.clients) || [];
-  const counts = useMemo(() => {
-    const m = new Map();
-    for (const c of clients) { const s = statusFor(c.stage, c.onboardingStage); m.set(s.key, (m.get(s.key) || 0) + 1); }
-    return m;
-  }, [clients]);
+  const counts = new Map();
+  for (const c of clients) { const s = statusFor(c.stage, c.onboardingStage); counts.set(s.key, (counts.get(s.key) || 0) + 1); }
   const visible = STATUS_ORDER.filter(s => (counts.get(s.key) || 0) > 0);
-  // Headline counts (web: investedCount / notYet) — both funded statuses count as funded.
+  // Headline counts (web: investedCount / notYet): both funded statuses count as funded.
   const investedCount = (counts.get('invested') || 0) + (counts.get('regular') || 0) + (counts.get('smallfunded') || 0);
   const notYet = (counts.get('opened') || 0) + (counts.get('onboarding') || 0);
   // Money brought in per month, by the month each investor started investing (web: monthlyInflow). Empty months
   // are real zeros and are kept.
-  const [inflowRange, setInflowRange] = useState('all');
-  const [pickedMonth, setPickedMonth] = useState(null);
-  const monthlyInflow = useMemo(() => {
+  const monthlyInflow = [];
+  {
     const by = new Map();
     for (const c of clients) {
       const when = fundedDate(c);
@@ -265,28 +273,24 @@ function Overview({ journey, split, onOpen, onDetail, onLinks }) {
       by.set(key, row);
     }
     const keys = [...by.keys()].sort();
-    if (!keys.length) return [];
-    const out = [];
-    let [y, m] = keys[0].split('-').map(Number);
-    const [ey, em] = keys[keys.length - 1].split('-').map(Number);
-    while (y < ey || (y === ey && m <= em)) {
-      const key = `${y}-${String(m).padStart(2, '0')}`;
-      const row = by.get(key);
-      out.push({ month: key, label: new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }), amount: row ? row.amount : 0, investors: row ? row.investors : 0 });
-      if (m === 12) { m = 1; y++; } else m++;
+    if (keys.length) {
+      let [y, m] = keys[0].split('-').map(Number);
+      const [ey, em] = keys[keys.length - 1].split('-').map(Number);
+      while (y < ey || (y === ey && m <= em)) {
+        const key = `${y}-${String(m).padStart(2, '0')}`;
+        const row = by.get(key);
+        monthlyInflow.push({ month: key, label: new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }), amount: row ? row.amount : 0, investors: row ? row.investors : 0 });
+        if (m === 12) { m = 1; y++; } else m++;
+      }
     }
-    return out;
-  }, [clients]);
-  const visibleInflow = useMemo(() => {
-    const def = INFLOW_RANGES.find(r => r.key === inflowRange) || INFLOW_RANGES[0];
-    return def.months == null ? monthlyInflow : monthlyInflow.slice(-def.months);
-  }, [monthlyInflow, inflowRange]);
+  }
   // Web rule (distributors/page.tsx): the exact split comes from strategy-aum (pms_master_sheet) and is scaled so it
-  // totals the partner's Zoho book value — the same "current value" as the top card. When there is no exact split,
+  // totals the partner's Zoho book value, the same "current value" as the top card. When there is no exact split,
   // each investor's value is shared evenly across the strategies they hold (indicative).
-  const strat = useMemo(() => {
-    const exactRows = (split.data && split.data.strategies) || [];
-    let rows, exact = exactRows.length > 0;
+  let strat;
+  {
+    const exactRows = (splitData && splitData.strategies) || [];
+    let rows; const exact = exactRows.length > 0;
     if (exact) rows = exactRows.map(r => ({ name: r.name, value: r.value }));
     else {
       const by = new Map();
@@ -301,27 +305,61 @@ function Overview({ journey, split, onOpen, onDetail, onLinks }) {
     const book = d && d.totals ? d.totals.currentValue : null;
     const scale = exact && raw > 0 && (book || 0) > 0 ? book / raw : 1;
     // pct is the web's figure exactly: the UNSCALED value over the SCALED total (distributors/page.tsx:769). That
-    // is a web bug — the shares then don't add up to 100% whenever the scale isn't 1 — kept here so both agree;
+    // is a web bug (the shares then don't add up to 100% whenever the scale isn't 1), kept here so both agree;
     // fix it on the web first, then here (pct: r.value / raw * 100).
     const total = raw * scale;
-    return { exact, rows: rows.map(r => ({ ...r, value: r.value * scale, pct: total > 0 ? (r.value / total) * 100 : null })), total };
-  }, [split.data, clients, d]);
+    strat = { exact, rows: rows.map(r => ({ ...r, value: r.value * scale, pct: total > 0 ? (r.value / total) * 100 : null })), total };
+  }
   const recent = clients.filter(c => { const w = fundedDate(c); const t = w ? new Date(w).getTime() : NaN; return !isNaN(t) && Date.now() - t < 30 * 864e5; })
     .sort((a, b) => String(fundedDate(b) || '').localeCompare(String(fundedDate(a) || '')));
   // Web rule (distributors/page.tsx onboardingSteps): count investors still in onboarding by their sub-stage, then
-  // show the whole path from the first step to the furthest one anyone has reached — an empty step between two
+  // show the whole path from the first step to the furthest one anyone has reached; an empty step between two
   // occupied ones says that stage was passed.
-  const journeySteps = useMemo(() => {
-    const counts = new Map();
+  let journeySteps = [];
+  {
+    const n = new Map();
     for (const c of clients) {
       if (statusFor(c.stage, c.onboardingStage).key !== 'onboarding' || !c.onboardingStage) continue;
-      counts.set(c.onboardingStage, (counts.get(c.onboardingStage) || 0) + 1);
+      n.set(c.onboardingStage, (n.get(c.onboardingStage) || 0) + 1);
     }
-    if (!counts.size) return [];
-    const rank = st => { const i = ONBOARDING_SEQUENCE.indexOf(st); return i === -1 ? ONBOARDING_SEQUENCE.length : i; };
-    const last = Math.max(...[...counts.keys()].map(rank));
-    return ONBOARDING_SEQUENCE.slice(0, last + 1).map(step => ({ step, count: counts.get(step) || 0 }));
-  }, [clients]);
+    if (n.size) {
+      const rank = st => { const i = ONBOARDING_SEQUENCE.indexOf(st); return i === -1 ? ONBOARDING_SEQUENCE.length : i; };
+      const last = Math.max(...[...n.keys()].map(rank));
+      journeySteps = ONBOARDING_SEQUENCE.slice(0, last + 1).map(step => ({ step, count: n.get(step) || 0 }));
+    }
+  }
+  return { clients, counts, visible, investedCount, notYet, monthlyInflow, strat, recent, journeySteps };
+}
+
+// Web: distributors/investors filters (status, onboarding step, strategy, date basis) and search (name, email,
+// strategy), largest holdings first. Returns [{ c, s }] with each investor's status.
+export function filterInvestors(clients, status, f, q) {
+  const needle = String(q || '').trim().toLowerCase();
+  const dateOf = c => (f.basis === 'opened' ? c.accountLiveDate : fundedDate(c));
+  return clients.map(c => ({ c, s: statusFor(c.stage, c.onboardingStage) }))
+    .filter(x => status === 'all' || x.s.key === status)
+    .filter(x => !f.stage || x.c.onboardingStage === f.stage)
+    .filter(x => !f.strategy || (x.c.strategies || []).includes(f.strategy))
+    .filter(x => {
+      if (!f.basis || (!f.from && !f.to)) return true;
+      const raw = dateOf(x.c); if (!raw) return false;
+      const dd = String(raw).slice(0, 10);
+      return !(f.from && dd < f.from) && !(f.to && dd > f.to);
+    })
+    .filter(x => !needle || [x.c.name, x.c.email, ...(x.c.strategies || [])].some(v => String(v || '').toLowerCase().includes(needle)))
+    .sort((a, b) => (b.c.currentValue || 0) - (a.c.currentValue || 0));
+}
+
+function Overview({ journey, split, onOpen, onDetail, onLinks }) {
+  const d = journey.data;
+  const { clients, counts, visible, investedCount, notYet, monthlyInflow, strat, recent, journeySteps } = useMemo(() => bookFigures(d, split.data), [d, split.data]);
+  // Money brought in per month: the range picked above the chart.
+  const [inflowRange, setInflowRange] = useState('all');
+  const [pickedMonth, setPickedMonth] = useState(null);
+  const visibleInflow = useMemo(() => {
+    const def = INFLOW_RANGES.find(r => r.key === inflowRange) || INFLOW_RANGES[0];
+    return def.months == null ? monthlyInflow : monthlyInflow.slice(-def.months);
+  }, [monthlyInflow, inflowRange]);
 
   if (journey.loading && !d) return <View style={{ marginTop: -30 }}><Loading rows={3} h={96} /></View>;
   if (journey.err) return <View style={{ marginTop: -30 }}><ErrorBox msg="We couldn’t load your overview. Please refresh, or contact partnerships@qodeinvest.com if this keeps happening." onRetry={journey.reload} /></View>;
@@ -394,7 +432,7 @@ function Overview({ journey, split, onOpen, onDetail, onLinks }) {
                   <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: STRATEGY_COLOR[s.name] || C.gray }} />
                   <Tx w={700} s={12.5} style={{ flex: 1 }}>{s.name}</Tx>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Tx w={700} s={12.5}>{s.pct != null ? s.pct.toFixed(1) + '%' : '—'}</Tx>
+                    <Tx w={700} s={12.5}>{s.pct != null ? s.pct.toFixed(1) + '%' : '–'}</Tx>
                     <Amt s={11} c={C.muted}>{inr(s.value)}</Amt>
                   </View>
                 </Pressable>
@@ -410,7 +448,7 @@ function Overview({ journey, split, onOpen, onDetail, onLinks }) {
           <Donut slices={visible.map(s => ({ key: s.key, value: counts.get(s.key) || 0, color: STATUS_COLOR[s.key] }))}
             label="INVESTORS" value={String(clients.length)} onPick={k => onOpen({ status: k })} />
           {visible.map(s => (
-            <Pressable key={s.key} onPress={() => onOpen({ status: s.key })} accessibilityRole="button" accessibilityLabel={`${counts.get(s.key)} ${s.label} — show these investors`}
+            <Pressable key={s.key} onPress={() => onOpen({ status: s.key })} accessibilityRole="button" accessibilityLabel={`${counts.get(s.key)} ${s.label}: show these investors`}
               style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, paddingVertical: 6, paddingHorizontal: 6, marginHorizontal: -6, borderRadius: 8, backgroundColor: pressed ? 'rgba(2,66,43,0.06)' : 'transparent' })}>
               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: STATUS_COLOR[s.key] }} />
               <View style={{ flex: 1 }}>
@@ -463,7 +501,7 @@ function Overview({ journey, split, onOpen, onDetail, onLinks }) {
             <Pressable key={(c.email || '') + i} onPress={() => (c.email ? onDetail(c, statusFor(c.stage, c.onboardingStage)) : onOpen(null))}
               style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: i < a.length - 1 ? 1 : 0, borderColor: C.hairline, backgroundColor: pressed ? 'rgba(2,66,43,0.05)' : 'transparent' })}>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Tx w={700} s={12.5} numberOfLines={1}>{c.name || '—'}</Tx>
+                <Tx w={700} s={12.5} numberOfLines={1}>{c.name || '–'}</Tx>
                 {(c.strategies || []).length > 0 && <Tx s={11} c={C.muted} numberOfLines={1} style={{ marginTop: 1 }}>{c.strategies.join(', ')}</Tx>}
               </View>
               <View style={{ alignItems: 'flex-end' }}>
@@ -472,7 +510,7 @@ function Overview({ journey, split, onOpen, onDetail, onLinks }) {
                   ? <Amt s={12.5}>{inr(c.currentValue)}</Amt>
                   : c.investedAmount != null
                     ? <Tx><Amt s={12.5}>{inr(c.investedAmount)}</Amt><Tx s={10.5} c={C.muted}> invested</Tx></Tx>
-                    : <Tx s={12.5} c={C.muted}>—</Tx>}
+                    : <Tx s={12.5} c={C.muted}>–</Tx>}
                 <Tx s={11} c={C.muted} style={{ marginTop: 1 }}>{day(fundedDate(c))}</Tx>
               </View>
             </Pressable>
@@ -610,20 +648,8 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
   const clients = (d && d.journey && d.journey.clients) || [];
   const withStatus = clients.map(c => ({ c, s: statusFor(c.stage, c.onboardingStage) }));
   const present = STATUS_ORDER.filter(s => withStatus.some(x => x.s.key === s.key));
-  const needle = q.trim().toLowerCase();
   const dateOf = c => (f.basis === 'opened' ? c.accountLiveDate : fundedDate(c));
-  const rows = withStatus
-    .filter(x => status === 'all' || x.s.key === status)
-    .filter(x => !f.stage || x.c.onboardingStage === f.stage)
-    .filter(x => !f.strategy || (x.c.strategies || []).includes(f.strategy))
-    .filter(x => {
-      if (!f.basis || (!f.from && !f.to)) return true;
-      const raw = dateOf(x.c); if (!raw) return false;
-      const dd = String(raw).slice(0, 10);
-      return !(f.from && dd < f.from) && !(f.to && dd > f.to);
-    })
-    .filter(x => !needle || [x.c.name, x.c.email, ...(x.c.strategies || [])].some(v => String(v || '').toLowerCase().includes(needle)))
-    .sort((a, b) => (b.c.currentValue || 0) - (a.c.currentValue || 0));
+  const rows = filterInvestors(clients, status, f, q);
   // Web: duplicate CRM records are counted across the whole book, not just the rows on screen.
   const dupes = (() => { const seen = new Set(); let extra = 0; for (const c of clients) { const k = String(c.email || '').toLowerCase() + '|' + String(c.name || '').toLowerCase(); if (seen.has(k)) extra++; else seen.add(k); } return extra; })();
   // Web: how many the date filter set aside purely for having no date — reported, not silently dropped.
@@ -739,7 +765,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
             <Card style={{ marginBottom: 10, borderLeftWidth: 3, borderLeftColor: STATUS_COLOR[s.key] || TONE[s.tone], padding: 14 }}>
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Tx w={700} s={13} numberOfLines={1}><Tx s={11} c={C.gray}>{i + 1}.  </Tx>{c.name || '—'}</Tx>
+                  <Tx w={700} s={13} numberOfLines={1}><Tx s={11} c={C.gray}>{i + 1}.  </Tx>{c.name || '–'}</Tx>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                     <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: STATUS_COLOR[s.key] || TONE[s.tone] }} />
                     <Tx w={700} s={9.5} ls={0.06} c={STATUS_TEXT[s.key] || (s.tone === 'warn' ? C.red : C.green)}>{s.label.toUpperCase()}</Tx>
@@ -749,7 +775,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   {/* Web: today's value (— when none), then the change — or "No holdings yet" where there is no change to show */}
-                  {c.currentValue != null ? <Amt s={13}>{inr(c.currentValue)}</Amt> : <Tx w={700} s={13} c={C.muted}>—</Tx>}
+                  {c.currentValue != null ? <Amt s={13}>{inr(c.currentValue)}</Amt> : <Tx w={700} s={13} c={C.muted}>–</Tx>}
                   {delta != null
                     ? <Tx w={700} s={11} c={delta >= 0 ? '#008455' : C.red} style={{ marginTop: 2 }}>{delta >= 0 ? '▲' : '▼'} {inr(Math.abs(delta))}</Tx>
                     : <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>No holdings yet</Tx>}
@@ -804,7 +830,11 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
   );
 }
 // Web's date filter choices (investors page): what the From / To range applies to.
+<<<<<<< HEAD
 const DATE_BASES = [['', 'Any date', 'Show every investor'], ['opened', 'Account Opened Between', 'By the Account Live date'], ['invested', 'First Fund Initiated Between', 'By the date the first money arrived']];
+=======
+export const DATE_BASES = [['', 'Any date', 'Show every investor'], ['opened', 'Account opened between', 'By the Account Live date'], ['invested', 'First Fund Initiated between', 'By the date the first money arrived']];
+>>>>>>> b838a51276a389524c12537303bb8dd253f963b3
 // A compact dropdown button: small label above the current choice, chevron on the right; green when filtering.
 function Dropdown({ label, value, active, onPress }) {
   return (
@@ -852,7 +882,7 @@ function Links({ journey, inner }) {   // inner: opened from More, under its bac
           <View style={{ marginTop: 2 }}><MailIcon /></View>
           <View style={{ flex: 1 }}>
             <Tx w={700} s={13}>Questions about your investors or payouts?</Tx>
-            <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 3 }}>Email partnerships@qodeinvest.com — we usually reply the same day.</Tx>
+            <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 3 }}>Email partnerships@qodeinvest.com. We usually reply the same day.</Tx>
           </View>
         </Card>
       </Pressable>
@@ -891,10 +921,10 @@ function More({ V, open }) {
     <Fade>
       <Card big style={{ marginTop: -34, padding: 18 }}>
         <Tx w={700} s={10.5} ls={0.12} c={C.muted}>SIGNED IN AS</Tx>
-        <Tx w={700} s={14} style={{ marginTop: 6 }}>{u.name || 'Partner'}</Tx>
+        <Tx w={700} s={14} style={{ marginTop: 6 }}>{u.name || 'Distributor'}</Tx>
         <Tx s={12} c={C.muted} style={{ marginTop: 2 }}>{u.email || ''}</Tx>
       </Card>
-      <SectionLabel>PARTNER TOOLS</SectionLabel>
+      <SectionLabel>DISTRIBUTOR TOOLS</SectionLabel>
       <Card style={{ overflow: 'hidden' }}>
         {MORE_ITEMS.map(([k, t, sub], i) => (
           <Pressable key={k} onPress={() => open(k)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: i < MORE_ITEMS.length - 1 ? 1 : 0, borderColor: C.hairline }}>

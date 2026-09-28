@@ -68,7 +68,7 @@ export function SwitchSheet({ V }) {
   return (
     <Sheet visible={V.sheetSwitch} onClose={V.closeSheet}>
       <View style={{ paddingHorizontal: 22, paddingTop: 12, paddingBottom: 24 }}>
-        <Tx f="play" w={600} s={21}>Family Accounts</Tx>
+        <Tx f="play" w={600} s={21}>Family accounts</Tx>
         <Tx s={12} c={C.muted} style={{ marginTop: 3 }}>Switch between linked PMS accounts</Tx>
         <View style={{ marginTop: 18, borderWidth: 1, borderColor: 'rgba(55,88,79,0.2)', borderRadius: 8, overflow: 'hidden' }}>
           {V.acctList.map((a, i) => (
