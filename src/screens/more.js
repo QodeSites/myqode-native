@@ -8,19 +8,11 @@ import { SignOutButton } from './kit';
 import { SectionLabel } from './kit';
 
 const GROUPS = [
-<<<<<<< HEAD
-  { title: 'EXPERIENCE', items: [['Family Accounts', 'family'], ['Investor Portal Guide', 'guide'], ['Service Cadence', 'cadence']] },
+  { title: 'EXPERIENCE', items: [['Reports', 'reports'], ['Family Accounts', 'family'], ['Your Details on Nuvama', 'nuvama'], ['Investor Portal Guide', 'guide'], ['Service Cadence', 'cadence']] },
   { title: 'ENGAGEMENT', items: [['Insights', 'insights'], ['Referral Programme', 'referral']] },
   { title: 'ABOUT QODE', items: [['Qode Philosophy', 'philosophy'], ['Strategy Snapshot', 'strategies'], ['Note from Our Fund Managers', 'foundation'], ['Your Team at Qode', 'team']] },
   { title: 'TRUST', items: [['FAQ & Glossary', 'faq'], ['Risk Management', 'risk'], ['Grievance Redressal', 'grievance']] },
   { title: 'SUPPORT & LEGAL', items: [['Contact Us', 'contact'], ['Privacy Policy', 'privacy'], ['Terms & Conditions', 'terms']] },
-=======
-  { title: 'EXPERIENCE', items: [['Reports', 'reports'], ['Family accounts', 'family'], ['Your details on Nuvama', 'nuvama'], ['Investor portal guide', 'guide'], ['Service cadence', 'cadence']] },
-  { title: 'ENGAGEMENT', items: [['Insights', 'insights'], ['Referral programme', 'referral']] },
-  { title: 'ABOUT QODE', items: [['Qode philosophy', 'philosophy'], ['Strategy snapshot', 'strategies'], ['Note from our fund managers', 'foundation'], ['Your team at Qode', 'team']] },
-  { title: 'TRUST', items: [['FAQ & glossary', 'faq'], ['Risk management', 'risk'], ['Grievance redressal', 'grievance']] },
-  { title: 'SUPPORT & LEGAL', items: [['Contact us', 'contact'], ['Privacy policy', 'privacy'], ['Terms & conditions', 'terms']] },
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
 ];
 
 const go = url => Linking.openURL(url).catch(() => {});

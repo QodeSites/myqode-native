@@ -3,14 +3,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View } from 'react-native';
 import Svg, { Path, Line, Circle, Defs, LinearGradient as SvgGrad, Stop, Text as SvgText } from 'react-native-svg';
 import { C, Tx } from '../ui';
-import { fmtD } from '../adapt';
+import { fmtD, pct, ddPct } from '../adapt';
 
-<<<<<<< HEAD
 const fmtDate = d => fmtD(d) || String(d);
-const signed = (v, dp = 2) => (v < 0 ? '−' : '+') + Math.abs(v).toFixed(dp) + '%';
-=======
-import { fmtDate, pct, ddPct } from '../adapt';
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
 
 // Touch / hover tooltip over a chart, like the web's: date, portfolio and benchmark at that point,
 // plus the raw NAV / index level when the API sends them.

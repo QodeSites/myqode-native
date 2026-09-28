@@ -2,11 +2,7 @@ import React from 'react';
 import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
-<<<<<<< HEAD
-import { C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise, KeyboardScroll, useKeyboardHeight } from '../ui';
-=======
-import { C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise, KeyboardScroll, Wordmark } from '../ui';
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
+import { C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise, KeyboardScroll, useKeyboardHeight, Wordmark } from '../ui';
 
 function DarkHead({ children, pct = 0.42 }) {
   return (
@@ -39,15 +35,9 @@ export function Login({ V }) {
   const headPct = kb > 0 ? 0.16 : V.devBypass && V.devOpen ? 0.26 : 0.42;
   return (
     <View style={{ flex: 1, backgroundColor: C.cream }}>
-<<<<<<< HEAD
       <DarkHead pct={headPct}>
-        <Tx f="play" w={600} s={kb > 0 ? 24 : 32} c={C.cream}>myQode</Tx>
+        <Wordmark s={kb > 0 ? 24 : 32} />
         <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: kb > 0 ? 6 : 12, marginBottom: kb > 0 ? 0 : 10 }} />
-=======
-      <DarkHead>
-        <Wordmark s={32} />
-        <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: 12, marginBottom: 10 }} />
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
       </DarkHead>
       <View style={{ marginTop: -46 }}>
         <CurveCap height={46} />
@@ -99,7 +89,6 @@ export function Login({ V }) {
                       <Tx w={700} s={11} c={C.green} style={{ marginTop: 4 }}>Tap to retry</Tx>
                     </Pressable>
                   )}
-<<<<<<< HEAD
                   {V.devLoaded && !V.devErr && V.devClients.length === 0 && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>{V.loginAs === 'distributor' ? 'No partner login matches that search.' : 'No Discretionary client matches that search. Non-Discretionary accounts aren’t listed — type the code above and use the button instead.'}</Tx>}
                   {V.devClients.length > 0 && (
                     <View style={{ marginTop: 8, maxHeight: 260, borderWidth: 1, borderColor: C.hairline, borderRadius: 8 }}>
@@ -114,15 +103,6 @@ export function Login({ V }) {
                       <Tx s={10} c={C.gray} center style={{ paddingVertical: 4 }}>{V.devClients.length} {V.devClients.length === 1 ? 'match' : 'matches'} · scroll the list</Tx>
                     </View>
                   )}
-=======
-                  {V.devLoaded && !V.devErr && V.devClients.length === 0 && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>{V.loginAs === 'distributor' ? 'No distributor login matches that search.' : 'No Discretionary client matches that search. Non-Discretionary accounts aren’t listed. Type the code above and use the button instead.'}</Tx>}
-                  {V.devClients.map((c, i) => (
-                    <Pressable key={c.clientCode || 'p:' + i + ':' + c.email} onPress={() => V.bypassLogin(c.email || c.clientCode)} style={{ paddingVertical: 10, borderBottomWidth: 1, borderColor: C.hairline }}>
-                      <Tx w={700} s={12}>{c.name || c.clientCode}</Tx>
-                      <Tx s={10.5} c={C.muted} style={{ marginTop: 2 }}>{[c.clientCode, c.email, c.schemeName].filter(Boolean).join(' · ')}</Tx>
-                    </Pressable>
-                  ))}
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
                 </View>
               )}
             </Card>

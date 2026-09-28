@@ -12,6 +12,18 @@
         "EXPO_PUBLIC_DEV_BYPASS": "0",
         "EXPO_PUBLIC_ONBOARDING_API_BASE": "https://onboarding.qodeinvest.com"
       }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://d34g7zx3-2069.inc1.devtunnels.ms",
+        "EXPO_PUBLIC_TEST_MODE": "0",
+        "EXPO_PUBLIC_DEV_BYPASS": "0",
+        "EXPO_PUBLIC_ONBOARDING_API_BASE": "https://onboarding.qodeinvest.com"
+      }
     }
   },
   "submit": {

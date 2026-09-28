@@ -39,11 +39,7 @@ export const money = n => {
   if (abs >= 100000) return `${sign}₹${(abs / 100000).toFixed(1)} L`;
   return `${sign}₹${abs.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 };
-<<<<<<< HEAD
 export const formatDate = iso => (iso ? fmtD(iso) || '—' : '—');
-=======
-export const formatDate = iso => { if (!iso) return '–'; const d = new Date(iso); return isNaN(d.getTime()) ? '–' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); };
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
 
 export function BackRow({ label, onPress }) {
   return (
@@ -220,21 +216,12 @@ export function InvestorDetail({ c, status, onBack, onboardingSequence, view }) 
 export const num = s => parseFloat(String(s ?? '').replace(/,/g, '')) || 0;
 export const commissionOf = r => (r.yourCommission != null ? num(r.yourCommission) : num(r.distributorShare));
 const inr = n => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-<<<<<<< HEAD
-const inrCompact = n => (Math.abs(n) >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : Math.abs(n) >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${inr(n)}`);
-const displayDate = iso => (iso ? fmtD(String(iso).slice(0, 10)) : '');
-const SCHEME = { QAW: 'Qode All Weather', QGF: 'Qode Growth Fund', QTF: 'Qode Tactical Fund', QFH: 'Qode Fund of Holdings', QLF: 'Qode Liquid Fund' };
-const SCHEME_COLOR = { QAW: '#008455', QGF: '#0A3452', QTF: '#550E0E' };
-const code3 = r => String(r.strategy || r.accountcode || '').slice(0, 3).toUpperCase();
-const parseBillgroup = bg => {
-=======
 export const inrCompact = n => (Math.abs(n) >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : Math.abs(n) >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${inr(n)}`);
-export const displayDate = iso => (iso ? new Date(`${String(iso).slice(0, 10)}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
+export const displayDate = iso => (iso ? fmtD(String(iso).slice(0, 10)) : '');
 export const SCHEME = { QAW: 'Qode All Weather', QGF: 'Qode Growth Fund', QTF: 'Qode Tactical Fund', QFH: 'Qode Fund of Holdings', QLF: 'Qode Liquid Fund' };
 export const SCHEME_COLOR = { QAW: '#008455', QGF: '#0A3452', QTF: '#550E0E' };
 export const code3 = r => String(r.strategy || r.accountcode || '').slice(0, 3).toUpperCase();
 export const parseBillgroup = bg => {
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
   const s = String(bg || '');
   const m = s.match(/MF([\d.]+)/), p = s.match(/PF([\d.]+)/), h = s.match(/H([\d.]+)/);
   if (!m && !p && !h) return null;
@@ -1160,13 +1147,8 @@ export function Invoice({ period, distributorName, onBack }) {
 }
 
 // ── Decks (web: distributors/documents) ──────────────────────────────────────
-<<<<<<< HEAD
-const DECKS = [
-  { slug: 'corporate-overview', title: 'Corporate Overview', asOf: 'August 2026' },
-=======
 export const DECKS = [
-  { slug: 'corporate-overview', title: 'Corporate overview', asOf: 'August 2026' },
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
+  { slug: 'corporate-overview', title: 'Corporate Overview', asOf: 'August 2026' },
   { slug: 'qode-all-weather', title: 'Qode All Weather', asOf: 'August 2026', strategy: 'Qode All Weather' },
   { slug: 'qode-all-weather-factsheet', title: 'Qode All Weather Factsheet', asOf: 'August 2026', strategy: 'Qode All Weather', kind: 'factsheet' },
   { slug: 'qode-growth-fund', title: 'Qode Growth Fund', asOf: 'August 2026', strategy: 'Qode Growth Fund' },
@@ -1231,11 +1213,7 @@ const HISTORY_START = Date.UTC(2006, 0, 1);
 export const RISK_OFF = 70, RISK_ON = 30;
 export const VSI = { ink: '#37584F', line: '#02422B', redOuter: '#f5bfc9', redInner: '#fee5e9', greenInner: '#e5f3ef', greenOuter: '#bdead2', redLabel: '#c00', greenLabel: '#028a3d', gold: '#DABD38', dark: '#002017' };
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-<<<<<<< HEAD
-const ddmmyyyy = t => fmtD(t, { utc: true });
-=======
-export const ddmmyyyy = t => { const d = new Date(t); return isNaN(d) ? '' : `${String(d.getUTCDate()).padStart(2, '0')}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${d.getUTCFullYear()}`; };
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
+export const ddmmyyyy = t => fmtD(t, { utc: true });
 
 // web toSeries(): skip null / NaN, skip anything before 2006; keep the upstream order.
 export function toSeries(entry) {

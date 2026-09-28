@@ -1,22 +1,12 @@
 // Services tab + request sheets. Every request posts to /api/mobile/services/* or
 // /engagement/referral, which email Investor Relations and return an inquiry id.
-<<<<<<< HEAD
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Pressable, ActivityIndicator, Modal, ScrollView, TextInput } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { C, Tx, Amt, Card, Sheet, Field, CTA, Fade } from '../ui';
 import { Plus, ChevronRight, ChevronDown, Copy, Check } from '../icons';
 import { services, payments, documents, isDemo } from '../api';
-import { titleCase, fmtD } from '../adapt';
-=======
-import React, { useState, useEffect } from 'react';
-import { View, Pressable, ActivityIndicator } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
-import { C, Tx, Amt, Card, Sheet, Field, CTA, Fade } from '../ui';
-import { Plus, ChevronRight, ChevronDown, Copy, Check } from '../icons';
-import { services, payments, isDemo } from '../api';
-import { titleCase, inr, fmtDate } from '../adapt';
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
+import { titleCase, inr, fmtD } from '../adapt';
 import { useLoad, SectionLabel, AccountChips, Loading, ErrorBox } from './kit';
 import { PayOnline } from './pay';
 import { clean, check, LIMITS } from '../validate';
@@ -149,11 +139,7 @@ function Investments({ V, opts, accountId, onPickAccount, inv, all }) {
   const items = all
     .filter(it => kind === 'all' || (kind === 'sip') === (it.paymentType === 'SIP'))
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-<<<<<<< HEAD
   const when = iso => { const d = new Date(iso); return isNaN(d) ? '' : fmtD(d) + ', ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }); };
-=======
-  const when = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\bSept\b/, 'Sep'); };
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
   const counts = { all: all.length, 'one-time': all.filter(i => i.paymentType !== 'SIP').length, sip: all.filter(i => i.paymentType === 'SIP').length };
   const isOpen = it => (it.orderId in open ? open[it.orderId] : !it.isTerminal);
 

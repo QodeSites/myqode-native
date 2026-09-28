@@ -34,11 +34,7 @@ import {
 import { BASE_URL, auth, portfolio, meta, admin, backoffice, onAdminDenied, distributor, setViewToken, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
 import { trackStart, trackStop, screen } from './api/track';
 import { perfFrom, navFrom, ddFrom, cashFrom, plFrom, combineFamily } from './webcalc';
-<<<<<<< HEAD
-import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, titleCase, semverLt, fmtD, fmtDM } from './adapt';
-=======
-import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, ddPct, inr, sinr, fmtDate, fmtMonth, titleCase, semverLt } from './adapt';
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
+import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, ddPct, inr, sinr, titleCase, semverLt, fmtD, fmtDM } from './adapt';
 import Splash from './screens/splash';
 import Carousel from './screens/carousel';
 import { Login, OtpScreen, SetPassword } from './screens/login';
@@ -944,12 +940,8 @@ export default class MyQode extends React.Component {
     const busy = S.loading || S.dl || S.sl;   // sl: snapshot / scopes still loading (see openPortfolio)
     const green = C.pos, red = C.red;
     const c = v => (v < 0 ? red : v > 0 ? green : C.muted);   // same rule as the web table: green / red / neutral
-<<<<<<< HEAD
-    const asOf = perf ? fmtD(perf.dataAsOf) : '';
-=======
     const ddColor = v => (v != null && Math.abs(v) >= 0.005 ? red : C.muted);   // drawdown: red below the peak, neutral at a new high
-    const asOf = perf && perf.dataAsOf ? fmtDate(perf.dataAsOf) : '';
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
+    const asOf = perf && perf.dataAsOf ? fmtD(perf.dataAsOf) : '';
     const benchName = titleCase(perf && perf.strategy && perf.strategy.benchmark) || 'Nifty 50';
     const value = perf ? perf.currentValue : scope ? scope.value : 0;
     const totalReturns = perf ? perf.totalReturns : 0;
@@ -996,12 +988,8 @@ export default class MyQode extends React.Component {
     const p1 = buildPaths(cPts, cBench, 330, 120, null, [axis.lo, axis.hi]);
     const p2 = buildPaths(cPts, cBench, 358, 110, null, [axis.lo, axis.hi]);
     const navNow = rawLine.length ? rawLine[rawLine.length - 1] : 0;   // the real NAV, not the rebased line
-<<<<<<< HEAD
     const dmy = d => fmtD(d);
     const xDates = dates.length > 1 ? [dates[0], dates[Math.floor((dates.length - 1) / 2)], dates[dates.length - 1]].map(dmy) : [];
-=======
-    const xDates = dates.length > 1 ? [dates[0], dates[Math.floor((dates.length - 1) / 2)], dates[dates.length - 1]].map(fmtMonth) : [];
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
     // Growth anchor for the full-history chart = the web's: NAV 10 (the PMS starting point) when the first
     // NAV isn't exactly 10, else the first NAV. Shorter ranges are anchored at the window start.
     const isAll = shownRange === 'All';
@@ -1010,14 +998,10 @@ export default class MyQode extends React.Component {
     const growthAt = i => (growthBase != null ? (navs[i] / growthBase - 1) * 100 : (pts[i] / pts[0] - 1) * 100);
 
     // Recent activity from cashflow
-<<<<<<< HEAD
     const dateFmt = d => {
       const t = new Date(d);
       return isNaN(t) ? String(d) : fmtD(t);
     };
-=======
-    const dateFmt = fmtDate;
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
     const cashTx = ((S.d && S.d.cash && S.d.cash.transactions) || []).slice()
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     const tx = t => {
@@ -1142,11 +1126,7 @@ export default class MyQode extends React.Component {
       skelOther: S.tab !== 'home' && (['portfolio', 'holdings'].includes(S.tab) ? busy : S.loading),
       navIdx: { home: 0, portfolio: 1, holdings: 1, docs: 2, services: 3, more: 4 }[S.tab],
       heroValue: this.fmt(value * (0.35 + 0.65 * S.cu)),
-<<<<<<< HEAD
-      rangeLabel: shownRange === 'All' ? 'all time' : shownRange, rangeLoading, asOf, benchName, sinceLbl: perf ? 'Since ' + fmtD(perf.inceptionDate) : '',
-=======
-      rangeLabel: shownRange === 'All' ? 'all time' : shownRange, rangeLoading, asOf, benchName, sinceLbl: perf && perf.inceptionDate ? 'Since ' + fmtDate(perf.inceptionDate) : '',
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
+      rangeLabel: shownRange === 'All' ? 'all time' : shownRange, rangeLoading, asOf, benchName, sinceLbl: perf && perf.inceptionDate ? 'Since ' + fmtD(perf.inceptionDate) : '',
       growthNow: navNow.toFixed(2), navNow: navNow.toFixed(2),
       yTicks: axis.ticks, xDates,
       hasViews: !!S.hist && !S.hist.family,
@@ -1216,11 +1196,8 @@ export default class MyQode extends React.Component {
       user: S.user, isSuperAdmin: !!(S.user && S.user.isSuperAdmin), impersonated: !!(S.user && S.user.isImpersonated),
       page: S.page, openPage: k => { screen('page:' + k); set({ page: k }); }, closePage: () => set({ page: null }),
       acctOptions: (scope ? scope.accounts : []).map(a => ({ id: a.id, label: a.strategyPrefix ? a.strategyPrefix + ' · ' + a.id : a.id })),
-<<<<<<< HEAD
-      openReq: (k, preset) => set({ sheet: k, sheetPreset: preset || null }), sheetPreset: S.sheetPreset || null,
-=======
-      openReq: k => { if (!S.viewing) set({ sheet: k }); },   // no requests in a client's name while a distributor views the account
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
+      // no requests in a client's name while a distributor views the account
+      openReq: (k, preset) => { if (!S.viewing) set({ sheet: k, sheetPreset: preset || null }); }, sheetPreset: S.sheetPreset || null,
       bumpRefresh: () => set(s => ({ rk: s.rk + 1 })),
       openAdd: () => { if (!S.viewing) set({ sheet: 'r-add' }); },
       openSwitchStrategy: () => { if (!S.viewing) set({ sheet: 'r-switch' }); },
@@ -1353,11 +1330,7 @@ export default class MyQode extends React.Component {
     const tracker = (() => {
       if (!SS) return [];
       const sub = SS.submittedAt ? new Date(SS.submittedAt) : null;
-<<<<<<< HEAD
       const when = sub ? fmtDM(sub) + ', ' + sub.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : 'Just now';
-=======
-      const when = sub ? sub.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).replace(/\bSept\b/, 'Sep') : 'Just now';
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
       const idV = verP && verP.verified;
       const bankV = !!(verP && verP.bank);
       const esign = checkOf('primary', 'esign');

@@ -11,11 +11,7 @@ import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/d
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { C, Tx, Amt, Field, CTA } from '../ui';
-<<<<<<< HEAD
-import { fmtD } from '../adapt';
-=======
-import { inr } from '../adapt';
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
+import { fmtD, inr } from '../adapt';
 import { Check } from '../icons';
 import { services, BASE_URL, isDemo } from '../api';
 import { AccountChips, useLoad } from './kit';

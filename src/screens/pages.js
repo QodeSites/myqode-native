@@ -5,11 +5,7 @@ import { View, Pressable, ScrollView, Linking, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, Tx, Amt, Card, CTA, Fade, KeyboardScroll } from '../ui';
-<<<<<<< HEAD
-import { fmtD } from '../adapt';
-=======
-import { inr } from '../adapt';
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
+import { fmtD, inr } from '../adapt';
 import { ChevronLeft, ChevronRight, Phone, MailIcon } from '../icons';
 import { experience, engagement, admin } from '../api';
 import * as content from '../content';
@@ -339,11 +335,12 @@ function AdminPage({ V }) {
   );
 }
 
-<<<<<<< HEAD
-const PAGES = {
+export const PAGES = {
+  reports: { title: 'Reports', body: V => <ReportsPage V={V} /> },
   requirements: { title: 'Data Requirements & API Coverage', body: () => <Requirements /> },
   admin: { title: 'Admin', body: V => <AdminPage V={V} /> },
   family: { title: 'Family Accounts', body: () => <Family /> },
+  nuvama: { title: 'Your Details on Nuvama', body: () => <NuvamaPage /> },
   insights: { title: 'Insights', body: () => <Insights /> },
   guide: { title: 'Investor Portal Guide', body: () => <PortalGuide /> },
   referral: { title: 'Referral Programme', body: V => <Referral V={V} /> },
@@ -356,26 +353,6 @@ const PAGES = {
   grievance: { title: 'Escalation Framework', body: () => <Escalation /> },
   risk: { title: 'Risk Management', body: () => <Risk /> },
   contact: { title: 'Contact Us', body: () => <Contact /> },
-=======
-export const PAGES = {
-  reports: { title: 'Reports', body: V => <ReportsPage V={V} /> },
-  requirements: { title: 'Data requirements & API coverage', body: () => <Requirements /> },
-  admin: { title: 'Admin', body: V => <AdminPage V={V} /> },
-  family: { title: 'Family accounts', body: () => <Family /> },
-  nuvama: { title: 'Your details on Nuvama', body: () => <NuvamaPage /> },
-  insights: { title: 'Insights', body: () => <Insights /> },
-  guide: { title: 'Investor portal guide', body: () => <PortalGuide /> },
-  referral: { title: 'Referral programme', body: V => <Referral V={V} /> },
-  cadence: { title: 'Service cadence', body: () => <ReportsReviews /> },
-  philosophy: { title: 'Qode philosophy', body: () => <Article data={content.PHILOSOPHY} /> },
-  foundation: { title: 'Note from our fund managers', body: () => <Foundation /> },
-  strategies: { title: 'Strategy snapshot', body: () => <StrategySnapshot /> },
-  team: { title: 'Your team at Qode', body: V => <TeamPage V={V} /> },
-  faq: { title: 'FAQ & glossary', body: () => <Faq /> },
-  grievance: { title: 'Grievance redressal', body: () => <Escalation /> },
-  risk: { title: 'Risk management', body: () => <Risk /> },
-  contact: { title: 'Contact us', body: () => <Contact /> },
->>>>>>> b838a51276a389524c12537303bb8dd253f963b3
   privacy: { title: content.LEGAL.privacy.title || 'Privacy policy', body: () => <Article data={content.LEGAL.privacy} /> },
   terms: { title: content.LEGAL.terms.title || 'Terms & conditions', body: () => <Article data={content.LEGAL.terms} /> },
   cancellation: { title: content.LEGAL.cancellation.title || 'Cancellation & refund', body: () => <Article data={content.LEGAL.cancellation} /> },
