@@ -11,7 +11,7 @@ import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/d
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { C, Tx, Amt, Field, CTA } from '../ui';
-import { fmtD } from '../adapt';
+import { fmtD, inr } from '../adapt';
 import { Check } from '../icons';
 import { services, BASE_URL, isDemo } from '../api';
 import { AccountChips, useLoad } from './kit';
@@ -20,7 +20,7 @@ import { savePendingPayment, clearPendingPayment, hintFromReturnUrl, autoReturn 
 const CHIPS = [5000, 10000, 25000, 50000];
 const MIN = 100, MAX = 500000;
 const FREQS = [['monthly', 'Monthly'], ['quarterly', 'Quarterly'], ['yearly', 'Yearly']];
-const fmt = v => '₹' + Number(v || 0).toLocaleString('en-IN');
+const fmt = v => inr(Number(v || 0));
 const Lbl = ({ children, style }) => <Tx w={700} s={10} ls={0.12} c={C.gray} style={[{ marginTop: 18 }, style]}>{children}</Tx>;
 
 // Start and end dates come from the investor through the platform's own date picker. Every charge falls on
@@ -88,10 +88,10 @@ export function DateField({ label, value, min, max, onChange, hint, placeholder 
 }
 
 const RESULT = {
-  success: { title: 'SIP set up', text: 'Your mandate is registered. Razorpay will debit your account automatically on each due date — no further action needed here. Pause becomes available once the first instalment has been charged.' },
+  success: { title: 'SIP set up', text: 'Your mandate is registered. Razorpay will debit your account automatically on each due date. No further action needed here. Pause becomes available once the first instalment has been charged.' },
   failed:  { title: 'SIP not set up', text: 'The bank did not authorise the mandate and nothing was charged. You can try again with another account.' },
-  cancelled: { title: 'SIP not completed', text: 'The mandate was not authorised — the window was closed or nothing was submitted. Nothing was charged. Try again whenever you like.' },
-  pending: { title: 'Almost there', text: 'Your authorisation went through and Razorpay is finalising the mandate. Tap Check status in a moment — nothing else is needed.' },
+  cancelled: { title: 'SIP not completed', text: 'The mandate was not authorised: the window was closed or nothing was submitted. Nothing was charged. Try again whenever you like.' },
+  pending: { title: 'Almost there', text: 'Your authorisation went through and Razorpay is finalising the mandate. Tap Check status in a moment. Nothing else is needed.' },
   expired: { title: 'Set-up link expired', text: 'This set-up was not completed in time. Please start again.' },
   error:   { title: 'Could not confirm the SIP', text: 'We could not reach Qode to confirm the mandate. Check your connection and tap Check status.' },
 };
@@ -224,7 +224,7 @@ export function SetupSip({ V, onDone, recover }) {
     <View>
       {opts.length > 1 && <><Lbl style={{ marginTop: 14 }}>ACCOUNT</Lbl><AccountChips options={opts} value={acct} onPick={setAcct} /></>}
       <Lbl style={{ marginTop: 14 }}>AMOUNT PER CYCLE</Lbl>
-      <Field value={amt ? amt.toLocaleString('en-IN') : ''} onChangeText={t => { const n = parseInt(t.replace(/\D/g, '') || '0', 10); setAmt(Math.min(n, MAX)); set({ err: n > MAX ? `SIP amount is capped at ${fmt(MAX)} per cycle — amount set to the maximum.` : '' }); }} numeric s={26} prefix="₹" />
+      <Field value={amt ? amt.toLocaleString('en-IN') : ''} onChangeText={t => { const n = parseInt(t.replace(/\D/g, '') || '0', 10); setAmt(Math.min(n, MAX)); set({ err: n > MAX ? `SIP amount is capped at ${fmt(MAX)} per cycle. Amount set to the maximum.` : '' }); }} numeric s={26} prefix="₹" />
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
         {CHIPS.map(v => (
           <Pressable key={v} onPress={() => { setAmt(v); set({ err: '' }); }} style={{ borderWidth: 1, borderColor: C.greenBorder, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 }}>
@@ -252,14 +252,14 @@ export function SetupSip({ V, onDone, recover }) {
             <>
               <Tx w={700} s={13}>{bank.bankCode} ••••{bank.last4}</Tx>
               <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>{bank.holderName} · IFSC {bank.ifsc}{bank.verified ? ' · verified' : ''}</Tx>
-              <Tx s={10.5} c={C.gray} lh={1.45} style={{ marginTop: 4 }}>Your registered bank account. Razorpay's mandate form opens filled in with it — you only authorise.</Tx>
+              <Tx s={10.5} c={C.gray} lh={1.45} style={{ marginTop: 4 }}>Your registered bank account. Razorpay's mandate form opens filled in with it: you only authorise.</Tx>
             </>
           ) : (
-            <Tx s={11.5} c={C.muted} lh={1.5}>No registered bank account on file for this account. You will enter the account details on Razorpay's page — the mandate must be on the bank account registered with Qode, or the bank will reject the debits.</Tx>
+            <Tx s={11.5} c={C.muted} lh={1.5}>No registered bank account on file for this account. You will enter the account details on Razorpay's page. The mandate must be on the bank account registered with Qode, or the bank will reject the debits.</Tx>
           )}
       </View>
       {!!st.err && <Tx s={12} c={C.red} lh={1.45} style={{ marginTop: 12 }}>{st.err}</Tx>}
-      <Tx s={11} c={C.gray} lh={1.5} style={{ marginTop: 12 }}>You'll authorise a recurring mandate on Razorpay's secure page (UPI Autopay or net banking) and be brought back here. Razorpay then debits automatically each cycle — no app interaction needed. Minimum {fmt(MIN)}, maximum {fmt(MAX)} per cycle.{isDemo() ? ' Demo: no real mandate is created.' : ''}</Tx>
+      <Tx s={11} c={C.gray} lh={1.5} style={{ marginTop: 12 }}>You'll authorise a recurring mandate on Razorpay's secure page (UPI Autopay or net banking) and be brought back here. Razorpay then debits automatically each cycle. No app interaction needed. Minimum {fmt(MIN)}, maximum {fmt(MAX)} per cycle.{isDemo() ? ' Demo: no real mandate is created.' : ''}</Tx>
       <CTA label={st.busy ? 'PLEASE WAIT…' : 'AUTHORISE SIP OF ' + fmt(amt)} onPress={start} style={{ marginTop: 16, opacity: st.busy ? 0.6 : 1 }} />
     </View>
   );

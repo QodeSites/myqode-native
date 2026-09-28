@@ -113,7 +113,7 @@ export function isAdult(iso, now = new Date()) {
 export function validateDob(display, now = new Date()) {
   const iso = dobToIso(display);
   if (!iso) return 'Please enter the date of birth as DD / MM / YYYY.';
-  if (+iso.slice(0, 4) < now.getUTCFullYear() - 120) return 'That date of birth looks too far back — please check the year.';
+  if (+iso.slice(0, 4) < now.getUTCFullYear() - 120) return 'That date of birth looks too far back. Please check the year.';
   if (!isAdult(iso, now)) return 'Account holders must be 18 or older.';
   return null;
 }
@@ -350,7 +350,7 @@ export function resolveDocs(slots, uploads, satisfiedKeys) {
 
 export function validateBegin(ob) {
   if (!isValidName(ob.name)) return 'Please add your full name (letters only) so we know what to call you.';
-  if (!isValidEmail(ob.email)) return 'That email doesn’t look complete — mind checking it?';
+  if (!isValidEmail(ob.email)) return 'That email doesn’t look complete. Mind checking it?';
   if (!isValidMobile(ob.mobile)) return 'Your mobile number should be 10 digits, starting with 6 to 9.';
   return null;
 }
@@ -364,7 +364,7 @@ export function validateIdentity(ob, server) {
   if (ob.type === 0) {
     if (!locked.pan) {
       if (!isValidPan(ob.pan)) return 'PAN should look like ABCPE1234F.';
-      if (!isIndividualPan(ob.pan)) return 'This PAN isn’t an individual’s PAN — the 4th letter should be P.';
+      if (!isIndividualPan(ob.pan)) return 'This PAN isn’t an individual’s PAN: the 4th letter should be P.';
     }
     if (!locked.dob) { const e = validateDob(ob.dob); if (e) return e; }
     if (!locked.addr) {
@@ -381,7 +381,7 @@ export function validateIdentity(ob, server) {
     if (!isValidMobile(ob.h2Mobile) && !isValidEmail(ob.h2Email)) return 'Add a mobile or email for the second holder so we can verify them.';
     if (!locked2.h2Pan) {
       if (!isValidPan(ob.h2Pan)) return 'Second holder’s PAN should look like ABCPE1234F.';
-      if (!isIndividualPan(ob.h2Pan)) return 'The second holder’s PAN isn’t an individual’s PAN — the 4th letter should be P.';
+      if (!isIndividualPan(ob.h2Pan)) return 'The second holder’s PAN isn’t an individual’s PAN: the 4th letter should be P.';
       if (clean(ob.h2Pan).toUpperCase() === clean(ob.pan).toUpperCase()) return 'The second holder can’t have the same PAN as holder 1.';
     }
     if (!locked2.h2Dob) { const e = validateDob(ob.h2Dob); if (e) return e.replace('the date of birth', 'the second holder’s date of birth'); }

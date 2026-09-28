@@ -16,6 +16,7 @@
 import React, { useState } from 'react';
 import { View, Pressable } from 'react-native';
 import { C, Tx, Amt, Field, CTA, useBackHandler } from '../ui';
+import { inr } from '../adapt';
 import { Check, ChevronDown } from '../icons';
 import { services } from '../api';
 import { useLoad, Loading, ErrorBox } from './kit';
@@ -24,8 +25,8 @@ const STRATS = ['QAW', 'QTF', 'QGF'];
 const NAMES = { QAW: 'Qode All Weather', QTF: 'Qode Tactical Fund', QGF: 'Qode Growth Fund' };
 const PCTS = [25, 50, 75];   // Partial — 100% is Full
 const STEPS = [['Switch from', ''], ['Switch to', 'Where the money goes'], ['Review', 'Check the details and send']];
-const fmt = v => '₹' + Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmt0 = v => '₹' + Math.round(Number(v || 0)).toLocaleString('en-IN');
+const fmt = v => inr(Number(v || 0));
+const fmt0 = fmt;   // one money format app-wide (src/adapt.js)
 const digits = t => parseInt(String(t || '').replace(/\D/g, '') || '0', 10);
 const initials = n => String(n || '').replace(/^(mr|mrs|ms|dr)\.?\s+/i, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'Q';
 const Lbl = ({ children, style }) => <Tx w={700} s={10} ls={0.12} c={C.gray} style={[{ marginTop: 20, marginBottom: 8 }, style]}>{children}</Tx>;
@@ -119,7 +120,7 @@ export function SwitchForm({ onClose, preferName }) {
   const toLimit = s => Math.max(0, outTotal - toList.filter(x => x !== s).reduce((t, x) => t + toFixed(x), 0));
   const toAmt = s => { const c = to[s]; if (!c) return 0; if (!splitNeeded) return outTotal; return c.rest ? toLimit(s) : Math.min(toFixed(s), toLimit(s)); };
   const totalTo = toList.reduce((t, s) => t + toAmt(s), 0);
-  const balanced = Math.abs(outTotal - totalTo) < 0.5;
+  const balanced = Math.abs(outTotal - totalTo) <= 0.005;   // same tolerance as the server
   const isFull = allFull && toList.length === 1;   // Full Switch in CRM terms
 
   const clearErr = () => setSt(s => ({ ...s, err: '' }));
@@ -138,7 +139,7 @@ export function SwitchForm({ onClose, preferName }) {
     <View style={{ marginBottom: 10, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(218,189,56,0.45)', backgroundColor: 'rgba(218,189,56,0.08)' }}>
       <Tx s={11.5} c={C.muted} lh={1.5}>
         {replaced[side]
-          ? <>Only one strategy can be selected at a time — <Tx w={700} s={11.5} c={C.ink}>{NAMES[STRATS.find(x => (side === 'from' ? from : to)[x])] || ''}</Tx> replaced {NAMES[replaced[side]]}.</>
+          ? <>Only one strategy can be selected at a time: <Tx w={700} s={11.5} c={C.ink}>{NAMES[STRATS.find(x => (side === 'from' ? from : to)[x])] || ''}</Tx> replaced {NAMES[replaced[side]]}.</>
           : side === 'from'
             ? 'Only one strategy can be selected at a time. To switch out of another as well, send a separate request.'
             : 'Only one strategy can be selected at a time. To move into another as well, send a separate request.'}
@@ -155,7 +156,7 @@ export function SwitchForm({ onClose, preferName }) {
   };
   const step2Err = () => {
     if (!toList.length) return 'Choose where the money should go.';
-    if (splitNeeded && !balanced) return `Split the full ${fmt(outTotal)} — ${fmt(Math.abs(outTotal - totalTo))} is ${totalTo < outTotal ? 'still to allocate' : 'over'}.`;
+    if (splitNeeded && !balanced) return `Split the full ${fmt(outTotal)}: ${fmt(Math.abs(outTotal - totalTo))} is ${totalTo < outTotal ? 'still to allocate' : 'over'}.`;
     return '';
   };
   const next = () => { const e = step === 0 ? step1Err() : step2Err(); if (e) return setSt(s => ({ ...s, err: e })); clearErr(); setStep(step + 1); };
@@ -292,7 +293,7 @@ export function SwitchForm({ onClose, preferName }) {
         {splitNeeded && (
           <View style={{ marginTop: 4, borderRadius: 10, backgroundColor: balanced ? 'rgba(2,66,43,0.06)' : 'rgba(239,68,68,0.08)', paddingVertical: 10, paddingHorizontal: 14 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Tx s={11.5} c={C.muted}>Allocated</Tx><Amt s={12.5} c={balanced ? C.ink : C.red}>{fmt(totalTo)} of {fmt(outTotal)}</Amt></View>
-            {!balanced && <Tx s={11} c={C.red} lh={1.4} style={{ marginTop: 4 }}>{totalTo < outTotal ? `${fmt(outTotal - totalTo)} still to allocate — use Rest on one strategy.` : `${fmt(totalTo - outTotal)} more than is moving out.`}</Tx>}
+            {!balanced && <Tx s={11} c={C.red} lh={1.4} style={{ marginTop: 4 }}>{totalTo < outTotal ? `${fmt(outTotal - totalTo)} still to allocate. Use Rest on one strategy.` : `${fmt(totalTo - outTotal)} more than is moving out.`}</Tx>}
           </View>
         )}
       </>)}

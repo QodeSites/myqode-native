@@ -34,7 +34,7 @@ export async function blobFilePart(file) {
 
 // file: { uri, name, mimeType, size }
 export async function uploadDocument(submissionId, fieldKey, file, toPart = blobFilePart) {
-  if (typeof console !== 'undefined' && console.log) {
+  if (typeof __DEV__ !== 'undefined' && __DEV__ && typeof console !== 'undefined' && console.log) {
     console.log(`[onboarding] upload ${fieldKey}: ${String(file.uri).slice(0, 60)}… name=${file.name} type=${file.mimeType} size=${file.size}`);
   }
   const part = await toPart(file);

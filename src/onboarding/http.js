@@ -76,7 +76,7 @@ export async function request(path, { method = 'GET', body, formData, headers = 
     // The investor-facing message cannot say why; the console line can. RN reports every
     // native failure (DNS, TLS, an unreadable file:// part, a dropped tunnel) as the same
     // "Network request failed", so the elapsed time and the request shape matter.
-    if (typeof console !== 'undefined' && console.warn) {
+    if (typeof __DEV__ !== 'undefined' && __DEV__ && typeof console !== 'undefined' && console.warn) {
       console.warn(`[onboarding] ${method} ${url} failed after ${Date.now() - startedAt} ms: ${e && e.name}: ${e && e.message}` + (formData ? ' (multipart)' : ''));
     }
     if (e && e.name === 'AbortError') {

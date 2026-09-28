@@ -1,12 +1,12 @@
 // Services tab + request sheets. Every request posts to /api/mobile/services/* or
 // /engagement/referral, which email Investor Relations and return an inquiry id.
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Pressable, ActivityIndicator, Modal, ScrollView, TextInput } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { C, Tx, Amt, Card, Sheet, Field, CTA, Fade } from '../ui';
 import { Plus, ChevronRight, ChevronDown, Copy, Check } from '../icons';
 import { services, payments, documents, isDemo } from '../api';
-import { titleCase, fmtD } from '../adapt';
+import { titleCase, inr, fmtD } from '../adapt';
 import { useLoad, SectionLabel, AccountChips, Loading, ErrorBox } from './kit';
 import { PayOnline } from './pay';
 import { clean, check, LIMITS } from '../validate';
@@ -38,7 +38,8 @@ export function accountRequest(user) {
 export function ServicesCream({ V }) {
   // Activity lives in one place with a switch, instead of three sections stacked under each other:
   // ONLINE & SIPs (Razorpay orders + SIP mandates, per account) | TRANSACTIONS (every cash movement).
-  const [view, setView] = useState('online');
+  const [view, setView] = useState(V.svcJump && Date.now() - V.svcJump < 2000 ? 'cash' : 'online');
+  useEffect(() => { if (V.svcJump && Date.now() - V.svcJump < 2000) setView('cash'); }, [V.svcJump]);   // Home → Transactions → View all
   const opts = V.acctOptions;
   const [sel, setSel] = useState(null);
   const accountId = sel && opts.some(o => o.id === sel) ? sel : opts[0] && opts[0].id;
@@ -191,18 +192,19 @@ function Investments({ V, opts, accountId, onPickAccount, inv, all }) {
         const canCancel = sip && !it.isTerminal;
         const charges = sip ? (it.chargeHistory || (it.sip && it.sip.charges) || []) : [];
         const exp = isOpen(it);
-        const next = it.sip && it.sip.nextChargeDate ? String(it.sip.nextChargeDate).slice(0, 10) : '';
+        const nd = it.nextChargeDate || (it.sip && it.sip.nextChargeDate);
+        const next = nd ? fmtDate(nd) : '';
         return (
           <Card key={it.orderId} style={{ marginBottom: 10, borderLeftWidth: 3, borderLeftColor: it.statusColor || C.gold, overflow: 'hidden' }}>
             <Pressable onPress={() => setOpen(o => ({ ...o, [it.orderId]: !exp }))} style={{ padding: 14 }}>
               <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
                 <Tx w={700} s={13} style={{ flex: 1 }}>{sip ? 'SIP · ' + titleCase((it.sip && it.sip.frequency) || it.frequency || '') : it.isNewStrategy ? 'New strategy' : 'One-time investment'}</Tx>
-                <Amt s={14}>{it.formattedAmount || '₹' + Number(it.amount || 0).toLocaleString('en-IN')}</Amt>
+                <Amt s={14}>{inr(Number(it.amount || 0))}</Amt>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
                 <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: it.statusColor || C.gold }} />
                 <Tx w={700} s={11} c={C.muted} numberOfLines={1} style={{ flex: 1 }}>
-                  {it.statusLabel || st}
+                  {it.statusLabel || titleCase(String(st || '').replace(/_/g, ' '))}
                   {!!next && <Tx s={11} c={C.gray}>{'  · next ' + next}</Tx>}
                   {charges.length > 0 && <Tx s={11} c={C.gray}>{'  · ' + charges.length + (charges.length === 1 ? ' instalment' : ' instalments')}</Tx>}
                 </Tx>
@@ -232,8 +234,8 @@ function Investments({ V, opts, accountId, onPickAccount, inv, all }) {
                       <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
                         <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: ch.status === 'SUCCESS' ? C.pos : ch.status === 'FAILED' ? C.red : C.gold }} />
                         <Tx s={11} c={C.muted} style={{ flex: 1 }}>{ch.installmentNumber ? '#' + ch.installmentNumber + ' · ' : ''}{when(ch.paidAt || ch.chargeDate)}</Tx>
-                        <Amt s={11.5}>{ch.formattedAmount || '₹' + Number(ch.amount || 0).toLocaleString('en-IN')}</Amt>
-                        <Tx w={700} s={9.5} c={ch.status === 'SUCCESS' ? C.pos : ch.status === 'FAILED' ? C.red : C.muted}>{ch.status}</Tx>
+                        <Amt s={11.5}>{inr(Number(ch.amount || 0))}</Amt>
+                        <Tx w={700} s={9.5} c={ch.status === 'SUCCESS' ? C.pos : ch.status === 'FAILED' ? C.red : C.muted}>{({ SUCCESS: 'PAID', FAILED: 'FAILED' })[ch.status] || String(ch.status || '').replace(/_/g, ' ')}</Tx>
                       </View>
                     ))}
                   </View>
@@ -460,7 +462,7 @@ function AddFunds({ V }) {
   const b = bank.data || (!bank.err && !isDemo() ? { payableTo: 'Qode Advisors LLP', accountNumber: '43377275922', bank: 'SBI Bank – Corporate Account Group Branch', ifsc: 'SBIN0009995', micr: '40000213' } : null);
   const rec = V.payRecover;   // set by main.js when an order / SIP was in the browser and the app reloaded
   const [mode, setMode] = useState(rec && rec.kind === 'sip' ? 'sip' : 'online');
-  const subs = { online: 'Top up your investment with a one-time online payment.', sip: 'Set up a recurring investment — authorise once, Razorpay debits automatically on schedule.', bank: 'Transfer from your registered bank account by NEFT, RTGS or IMPS using the details below.' };
+  const subs = { online: 'Top up your investment with a one-time online payment.', sip: 'Set up a recurring investment: authorise once, Razorpay debits automatically on schedule.', bank: 'Transfer from your registered bank account by NEFT, RTGS or IMPS using the details below.' };
   return (
     <Shell V={V} title="Add funds" sub={subs[mode]}>
       <View style={{ marginTop: 14, flexDirection: 'row', borderWidth: 1, borderColor: 'rgba(55,88,79,0.25)', borderRadius: 999, padding: 3 }}>

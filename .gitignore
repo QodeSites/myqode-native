@@ -42,3 +42,8 @@ yarn-error.*
 
 # local env
 .env
+/build
+
+# local environment variants (never committed)
+.env.production
+.env.backup-*

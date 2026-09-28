@@ -27,13 +27,13 @@ import * as content from '../content';
 import { computeTax, GST_STATE_CODES, validateGstin, validatePan, amountInWords, QODE_ENTITY, qodeAddressLines, isQodeEntityComplete } from '../partnerTax';
 
 // ── shared ───────────────────────────────────────────────────────────────────
-const STRATEGY_COLOR = { 'Qode All Weather': '#008455', 'Qode Growth Fund': '#0A3452', 'Qode Tactical Fund': '#550E0E' };
+export const STRATEGY_COLOR = { 'Qode All Weather': '#008455', 'Qode Growth Fund': '#0A3452', 'Qode Tactical Fund': '#550E0E' };
 const NEUTRAL = '#9CA3AF';
 const QAW = '#008455';
-const shortStrategy = n => String(n || '').replace(/^Qode\s+/, '').replace(/\s+Fund$/, '');
+export const shortStrategy = n => String(n || '').replace(/^Qode\s+/, '').replace(/\s+Fund$/, '');
 // web money() / formatDate()
 export const money = n => {
-  if (n == null || isNaN(n)) return '—';
+  if (n == null || isNaN(n)) return '–';
   const abs = Math.abs(n), sign = n < 0 ? '−' : '';
   if (abs >= 10000000) return `${sign}₹${(abs / 10000000).toFixed(2)} Cr`;
   if (abs >= 100000) return `${sign}₹${(abs / 100000).toFixed(1)} L`;
@@ -53,7 +53,7 @@ export function BackRow({ label, onPress }) {
 const KV = ({ k, v, last }) => (
   <View style={{ flexDirection: 'row', gap: 10, paddingVertical: 10, borderBottomWidth: last ? 0 : 1, borderColor: C.hairline }}>
     <Tx w={700} s={10} ls={0.08} c={C.muted} style={{ flex: 1, marginTop: 2 }}>{String(k).toUpperCase()}</Tx>
-    <Tx w={700} s={12.5} style={{ flex: 1.3, textAlign: 'right' }}>{v == null || v === '' ? '—' : v}</Tx>
+    <Tx w={700} s={12.5} style={{ flex: 1.3, textAlign: 'right' }}>{v == null || v === '' ? '–' : v}</Tx>
   </View>
 );
 const Msg = ({ text, tone = 'muted' }) => !text ? null : (
@@ -82,7 +82,7 @@ export async function openPdf(body, fail) {
 }
 
 // ── Investor detail (web: investors/[email]) ─────────────────────────────────
-const ACCOUNT_JOURNEY = [
+export const ACCOUNT_JOURNEY = [
   ['Onboarding', 'Opening the account', null],
   ['Account Live', 'Open, nothing invested', 'accountLiveDate'],
   ['First Fund Initiated', 'Money invested', 'activationDate'],
@@ -213,19 +213,19 @@ export function InvestorDetail({ c, status, onBack, onboardingSequence, view }) 
 }
 
 // ── Fees & payouts (web: distributor/fees-distribution) ──────────────────────
-const num = s => parseFloat(String(s ?? '').replace(/,/g, '')) || 0;
-const commissionOf = r => (r.yourCommission != null ? num(r.yourCommission) : num(r.distributorShare));
+export const num = s => parseFloat(String(s ?? '').replace(/,/g, '')) || 0;
+export const commissionOf = r => (r.yourCommission != null ? num(r.yourCommission) : num(r.distributorShare));
 const inr = n => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const inrCompact = n => (Math.abs(n) >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : Math.abs(n) >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${inr(n)}`);
-const displayDate = iso => (iso ? fmtD(String(iso).slice(0, 10)) : '');
-const SCHEME = { QAW: 'Qode All Weather', QGF: 'Qode Growth Fund', QTF: 'Qode Tactical Fund', QFH: 'Qode Fund of Holdings', QLF: 'Qode Liquid Fund' };
-const SCHEME_COLOR = { QAW: '#008455', QGF: '#0A3452', QTF: '#550E0E' };
-const code3 = r => String(r.strategy || r.accountcode || '').slice(0, 3).toUpperCase();
-const parseBillgroup = bg => {
+export const inrCompact = n => (Math.abs(n) >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : Math.abs(n) >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${inr(n)}`);
+export const displayDate = iso => (iso ? fmtD(String(iso).slice(0, 10)) : '');
+export const SCHEME = { QAW: 'Qode All Weather', QGF: 'Qode Growth Fund', QTF: 'Qode Tactical Fund', QFH: 'Qode Fund of Holdings', QLF: 'Qode Liquid Fund' };
+export const SCHEME_COLOR = { QAW: '#008455', QGF: '#0A3452', QTF: '#550E0E' };
+export const code3 = r => String(r.strategy || r.accountcode || '').slice(0, 3).toUpperCase();
+export const parseBillgroup = bg => {
   const s = String(bg || '');
   const m = s.match(/MF([\d.]+)/), p = s.match(/PF([\d.]+)/), h = s.match(/H([\d.]+)/);
   if (!m && !p && !h) return null;
-  return { mf: m ? m[1] + '%' : '—', pf: p ? p[1] + '%' : '—', h: h ? h[1] + '%' : '—' };
+  return { mf: m ? m[1] + '%' : '–', pf: p ? p[1] + '%' : '–', h: h ? h[1] + '%' : '–' };
 };
 const GST_RATE = 18;
 
@@ -237,7 +237,7 @@ export function warmPartnerData() {
 }
 
 // Web default: the current FY (last Year in API order) → latest quarter → suggested → last.
-function defaultPeriod(data) {
+export function defaultPeriod(data) {
   const ps = (data && data.periods) || [];
   const years = ps.filter(p => p.type === 'Year'), qs = ps.filter(p => p.type === 'Quarter');
   return years[years.length - 1] || qs[qs.length - 1] || data.suggestedPeriod || ps[ps.length - 1] || null;
@@ -268,6 +268,21 @@ export function summarise(rows, search = '') {
   return { clients, all, totals: t };
 }
 
+// The Fees CSV, one row per account (web: the Fees page's CSV export). Returns the lines, header first.
+export function feesCsvLines(clients) {
+  const head = ['Client', 'Account Code', 'Strategy', 'Inception Date', 'Fee Structure', 'Standard Fixed %', 'Standard Performance %', 'Hurdle %',
+    'Client Assets', 'Management Fee (before GST)', 'Performance Fee (before GST)', 'Charged Fixed %', 'Your %', 'Your Share', 'Discount',
+    'Your Net Rate % p.a.', 'Your Commission (before GST)', 'Rate Source'];
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [head.join(',')];
+  for (const g of clients) for (const a of g.accounts) {
+    lines.push([q(g.name), a.accountcode ?? '', a.strategy ?? '', a.inceptionDate ?? '', q(a.feeStructureLabel ?? ''), a.rackFixedFeePct ?? '', a.rackPerfFeePct ?? '', a.hurdlePct ?? '',
+      num(a.averageAum).toFixed(2), num(a.fixedFees).toFixed(2), num(a.performanceFees).toFixed(2), a.actualFeeChargedPct ?? '', a.distributorPercentage ?? '',
+      num(a.yourShareOfFee).toFixed(2), num(a.shareDiscount).toFixed(2), a.netFeePctOfAum != null ? Number(a.netFeePctOfAum).toFixed(2) : '', commissionOf(a).toFixed(2), a.rateSource ?? ''].join(','));
+  }
+  return lines;
+}
+
 export function Fees({ onStatement, onInvoice }) {
   const periods = useLoad(() => api.feePeriods(), []);
   const [period, setPeriod] = useState(null);
@@ -283,16 +298,7 @@ export function Fees({ onStatement, onInvoice }) {
     if (csvBusy || !period) return;
     setCsvBusy(true);
     try {
-      const head = ['Client', 'Account Code', 'Strategy', 'Inception Date', 'Fee Structure', 'Standard Fixed %', 'Standard Performance %', 'Hurdle %',
-        'Client Assets', 'Management Fee (before GST)', 'Performance Fee (before GST)', 'Charged Fixed %', 'Your %', 'Your Share', 'Discount',
-        'Your Net Rate % p.a.', 'Your Commission (before GST)', 'Rate Source'];
-      const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-      const lines = [head.join(',')];
-      for (const g of clients) for (const a of g.accounts) {
-        lines.push([q(g.name), a.accountcode ?? '', a.strategy ?? '', a.inceptionDate ?? '', q(a.feeStructureLabel ?? ''), a.rackFixedFeePct ?? '', a.rackPerfFeePct ?? '', a.hurdlePct ?? '',
-          num(a.averageAum).toFixed(2), num(a.fixedFees).toFixed(2), num(a.performanceFees).toFixed(2), a.actualFeeChargedPct ?? '', a.distributorPercentage ?? '',
-          num(a.yourShareOfFee).toFixed(2), num(a.shareDiscount).toFixed(2), a.netFeePctOfAum != null ? Number(a.netFeePctOfAum).toFixed(2) : '', commissionOf(a).toFixed(2), a.rateSource ?? ''].join(','));
-      }
+      const lines = feesCsvLines(clients);
       const name = `qode-fees-${String(period.label).replace(/\s+/g, '-')}.csv`;
       if (Platform.OS === 'web') { openUrl('data:text/csv;charset=utf-8,' + encodeURIComponent(lines.join('\n'))); return; }
       const uri = FileSystem.cacheDirectory + name;
@@ -383,7 +389,7 @@ export function Fees({ onStatement, onInvoice }) {
             </View>
             <Tx s={11.5} c={C.muted} style={{ marginTop: 6 }}>of the standard fee for your clients{t.discount > 0 ? ', less the discounts you’ve given' : ''}</Tx>
           </>)}
-          {t.shareNet > 0 && <Tx s={11.5} lh={1.5} style={{ marginTop: 6 }}>Plus GST of <Tx w={700} s={11.5}>₹ {inr(t.shareGst)}</Tx> — invoice ₹ {inr(t.share)} in total</Tx>}
+          {t.shareNet > 0 && <Tx s={11.5} lh={1.5} style={{ marginTop: 6 }}>Plus GST of <Tx w={700} s={11.5}>₹ {inr(t.shareGst)}</Tx>: invoice ₹ {inr(t.share)} in total</Tx>}
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
             <IconButton label="RAISE INVOICE" icon={<DocIcon s={15} c={C.gold} w={1.8} />} primary onPress={() => onInvoice(period)} style={{ flex: 1.35 }} />
             <IconButton label="STATEMENT" onPress={() => onStatement(period)} style={{ flex: 1 }} />
@@ -409,7 +415,7 @@ export function Fees({ onStatement, onInvoice }) {
                   ? [[`Your share, ${t.sharePct} of those fees`, 'your revenue share, per your agreement with Qode', t.shareOfFee], ['Less the discount you gave', 'the lower fee you agreed with your clients', -t.shareDiscount, 'neg'], ['Your commission', 'at your net fee rate in the CRM', t.shareNet, 'sub']]
                   : [[`Your commission, ${t.sharePct} of those fees`, 'your revenue share, per your agreement with Qode', t.shareNet, 'sub']]),
                 ['Plus GST at 18%', 'the statutory rate on your commission', t.shareGst],
-                ['Payable to you', 'invoice this amount in full — GST is already included', t.share, 'total'],
+                ['Payable to you', 'invoice this amount in full (GST is already included)', t.share, 'total'],
               ].map(([k, sub, v, kind], i, arr) => (
                 <View key={k} style={{ flexDirection: 'row', gap: 10, paddingVertical: 10, borderBottomWidth: i < arr.length - 1 && kind !== 'sub' ? 1 : 0, borderColor: C.hairline, ...(kind === 'total' || kind === 'sub' ? { borderTopWidth: 1.5, borderTopColor: kind === 'total' ? C.green : C.hairline } : null) }}>
                   <View style={{ flex: 1 }}>
@@ -425,7 +431,7 @@ export function Fees({ onStatement, onInvoice }) {
 
         {t.unmappedCount > 0 && (
           <View style={{ marginTop: 14 }}>
-            <Msg text={`${t.unmappedCount} ${t.unmappedCount === 1 ? 'client has' : 'clients have'} no fee rate configured. Their share shows as ₹0 because no rate has been set — not because none is due. Contact investor.relations@qodeinvest.com to have these confirmed.`} />
+            <Msg text={`${t.unmappedCount} ${t.unmappedCount === 1 ? 'client has' : 'clients have'} no fee rate configured. Their share shows as ₹0 because no rate has been set, not because none is due. Contact investor.relations@qodeinvest.com to have these confirmed.`} />
           </View>
         )}
 
@@ -468,7 +474,7 @@ export function Fees({ onStatement, onInvoice }) {
               </Pressable>
               {exp && (
                 <View style={{ paddingHorizontal: 14, paddingBottom: 14 }}>
-                  {/* Web: the client's fee terms as three labelled values, each "—" when absent. */}
+                  {/* Web: the client's fee terms as three labelled values, each "–" when absent. */}
                   {terms && (
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 2, marginBottom: 8 }}>
                       {[['Management', terms.mf], ['Performance', terms.pf], ['Hurdle', terms.h]].map(([k, v]) => (
@@ -485,7 +491,7 @@ export function Fees({ onStatement, onInvoice }) {
                       <View key={i} style={{ borderTopWidth: 1, borderColor: C.hairline, paddingTop: 10, marginTop: i ? 10 : 0 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                           <View style={{ width: 9, height: 9, borderRadius: 2, backgroundColor: SCHEME_COLOR[code3(a)] || NEUTRAL }} />
-                          <Tx w={700} s={12.5} style={{ flex: 1 }}>{SCHEME[code3(a)] || a.strategy || a.accountcode || '—'}</Tx>
+                          <Tx w={700} s={12.5} style={{ flex: 1 }}>{SCHEME[code3(a)] || a.strategy || a.accountcode || '–'}</Tx>
                         </View>
                         {!!a.isZeroFee && <Tx s={11} c={C.muted} style={{ marginTop: 2, paddingLeft: 15 }}>No fee arrangement</Tx>}
                         <Tx s={10.5} c={C.gray} style={{ marginTop: 2, paddingLeft: 15 }}>{a.accountcode}{a.inceptionDate ? ' · opened ' + displayDate(a.inceptionDate) : ''}</Tx>
@@ -494,10 +500,10 @@ export function Fees({ onStatement, onInvoice }) {
                           {a.isZeroFee ? <Tx s={11.5} c={C.muted} style={{ marginTop: 4, fontStyle: 'italic', textAlign: 'right' }}>No fees charged on this account</Tx> : (<>
                             <FeeLine k="Management fee (before GST)" v={a.fixedFees}
                               sub={[num(a.fixedFees) > 0 && a.actualFeeChargedPct != null ? `(${a.actualFeeChargedPct}%)` : '', isDiscounted && a.rackFixedFeePct != null ? `standard ${a.rackFixedFeePct}%` : ''].filter(Boolean).join('\n')} />
-                            <FeeLine k="Performance fee (before GST)" v={num(a.performanceFees) > 0 ? a.performanceFees : '—'}
+                            <FeeLine k="Performance fee (before GST)" v={num(a.performanceFees) > 0 ? a.performanceFees : '–'}
                               sub={num(a.performanceFees) > 0 ? (a.rackPerfFeePct != null && num(a.rackPerfFeePct) > 0 ? `(${a.rackPerfFeePct}% over ${a.hurdlePct ?? 0}%)` : '') : 'billed annually'} />
-                            <FeeLine k="Your share (share category × fee)" v={unmapped ? '—' : a.yourShareOfFee} sub={unmapped ? '' : `(${a.distributorPercentage}%)`} />
-                            <FeeLine k="Discount (share − commission)" v={a.netFeePct != null && num(a.shareDiscount) > 0 ? '− ' + a.shareDiscount : '—'} red={a.netFeePct != null && num(a.shareDiscount) > 0} />
+                            <FeeLine k="Your share (share category × fee)" v={unmapped ? '–' : a.yourShareOfFee} sub={unmapped ? '' : `(${a.distributorPercentage}%)`} />
+                            <FeeLine k="Discount (share − commission)" v={a.netFeePct != null && num(a.shareDiscount) > 0 ? '− ' + a.shareDiscount : '–'} red={a.netFeePct != null && num(a.shareDiscount) > 0} />
                             <FeeLine k="Your commission (before GST)" v={a.yourCommission ?? a.distributorShare} bold sub={a.netFeePctOfAum != null ? `(${a.netFeePctOfAum}% ${a.netFeePctBasis === 'performance' ? 'of gains' : 'p.a.'})` : ''} />
                           </>)}
                         </View>
@@ -512,7 +518,7 @@ export function Fees({ onStatement, onInvoice }) {
                       <FeeLine k="Management fee (before GST)" v={inr(g.fixedFees)} />
                       <FeeLine k="Performance fee (before GST)" v={inr(g.perfFees)} />
                       <FeeLine k="Your share" v={inr(g.shareOfFee)} />
-                      <FeeLine k="Discount" v={g.shareDiscount > 0 ? '− ' + inr(g.shareDiscount) : '—'} red={g.shareDiscount > 0} />
+                      <FeeLine k="Discount" v={g.shareDiscount > 0 ? '− ' + inr(g.shareDiscount) : '–'} red={g.shareDiscount > 0} />
                       <FeeLine k="Your commission (before GST)" v={inr(g.commission)} bold />
                     </View>
                   )}
@@ -521,7 +527,7 @@ export function Fees({ onStatement, onInvoice }) {
             </Card>
           );
         })}
-        <Tx s={11} c={C.muted} lh={1.55} style={{ marginTop: 6 }}><Tx w={700} s={11} c={C.ink}>Raising an invoice:</Tx> management fees are charged quarterly and performance fees annually. <Tx w={700} s={11} c={C.ink}>The commission shown is before GST — add 18% when you invoice.</Tx> Every figure above is exclusive of GST, and the total to invoice is stated at the top.</Tx>
+        <Tx s={11} c={C.muted} lh={1.55} style={{ marginTop: 6 }}><Tx w={700} s={11} c={C.ink}>Raising an invoice:</Tx> management fees are charged quarterly and performance fees annually. <Tx w={700} s={11} c={C.ink}>The commission shown is before GST: add 18% when you invoice.</Tx> Every figure above is exclusive of GST, and the total to invoice is stated at the top.</Tx>
       </>)}
     </Fade>
   );
@@ -547,7 +553,7 @@ const FeeLine = ({ k, v, sub, bold, red }) => (
 );
 
 // Shared: rows for one period (statement / invoice screens)
-function usePeriodRows(period) {
+export function usePeriodRows(period) {
   const r = useLoad(() => api.feeRows(period), [period.label]);
   const rows = Array.isArray(r.data) ? r.data : [];
   return { ...r, rows, sum: useMemo(() => summarise(rows), [r.data]) };
@@ -568,7 +574,7 @@ const PDF_DIR_KEY = 'myqode.partner.pdfDir';
 let pdfJob = null;
 const pdfMade = new Map();   // html → file uri (this session)
 const folderName = dirUri => { const tail = decodeURIComponent(String(dirUri)).split(/[:/]/).filter(Boolean).pop(); return tail || 'your folder'; };
-async function makePdf(html, safe) {
+async function makePdf(html, safe, landscape = false) {
   let out = pdfMade.get(html);
   if (out && Platform.OS !== 'web') {
     const info = await FileSystem.getInfoAsync(out).catch(() => null);
@@ -578,8 +584,8 @@ async function makePdf(html, safe) {
   // A4 on both platforms. iOS ignores the page's own @page size and margins (it prints US Letter, edge to edge),
   // so it is given the same margins here: the statement's 22 / 24 / 18 mm, in points.
   const { uri } = await Print.printToFileAsync({
-    html, width: 595, height: 842,
-    ...(Platform.OS === 'ios' ? { margins: { top: 62, right: 68, bottom: 51, left: 68 } } : null),
+    html, width: landscape ? 842 : 595, height: landscape ? 595 : 842,
+    ...(Platform.OS === 'ios' ? { margins: landscape ? { top: 30, right: 30, bottom: 34, left: 30 } : (html.includes('data-report') ? { top: 30, right: 30, bottom: 34, left: 30 } : { top: 62, right: 68, bottom: 51, left: 68 }) } : null),
   });
   out = uri;
   if (Platform.OS !== 'web') {
@@ -608,12 +614,48 @@ async function saveToFolder(file, safe) {
   await storeSet(PDF_DIR_KEY, perm.directoryUri);
   return write(perm.directoryUri);
 }
-async function savePdf(html, fileName, { share = false } = {}) {
+// Web: there is no PDF engine in the browser build (expo-print's web printAsync prints the whole app window), so
+// the report's own HTML is printed from a hidden frame. The browser's print dialog offers "Save as PDF", and the
+// file name is the report title.
+function printHtmlWeb(html, title) {
+  return new Promise((resolve, reject) => {
+    try {
+      const frame = document.createElement('iframe');
+      frame.setAttribute('aria-hidden', 'true');
+      Object.assign(frame.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0', visibility: 'hidden' });
+      document.body.appendChild(frame);
+      const esc = String(title).replace(/[<&>]/g, c => ({ '<': '&lt;', '&': '&amp;', '>': '&gt;' }[c]));
+      const doc = frame.contentWindow.document;
+      doc.open();
+      doc.write(/<head>/i.test(html) ? html.replace(/<head>/i, '<head><title>' + esc + '</title>') : '<title>' + esc + '</title>' + html);
+      doc.close();
+      const go = () => {
+        const prev = document.title;
+        document.title = title;   // Chrome and Safari name the saved PDF after the top page's title
+        const done = () => { document.title = prev; setTimeout(() => frame.remove(), 500); resolve({}); };
+        frame.contentWindow.addEventListener('afterprint', done, { once: true });
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+        setTimeout(done, 60000);   // browsers that never fire afterprint
+      };
+      // Let web fonts and images in the report load before the dialog opens.
+      const fonts = doc.fonts && doc.fonts.ready ? doc.fonts.ready : Promise.resolve();
+      Promise.race([fonts, new Promise(r => setTimeout(r, 1500))]).then(() => setTimeout(go, 150));
+    } catch (e) { reject(e); }
+  });
+}
+
+export async function savePdf(html, fileName, { share = false, landscape = false } = {}) {
   if (pdfJob) return pdfJob;
+  if (Platform.OS === 'web') {
+    const safe = String(fileName || 'document').replace(/[^\w .()-]/g, '-').replace(/\s+/g, ' ').trim() || 'document';
+    pdfJob = printHtmlWeb(html, safe).finally(() => { pdfJob = null; });
+    return pdfJob;
+  }
   pdfJob = (async () => {
     const safe = String(fileName || 'document').replace(/[^\w .()-]/g, '-').replace(/\s+/g, ' ').trim() || 'document';
     let out;
-    try { out = await makePdf(html, safe); }
+    try { out = await makePdf(html, safe, landscape); }
     catch (first) {
       try { await Print.printAsync({ html }); return {}; }
       catch (second) { throw new Error('We couldn’t create the PDF on this phone. ' + ((second && second.message) || (first && first.message) || '')); }
@@ -636,7 +678,7 @@ async function savePdf(html, fileName, { share = false } = {}) {
 // ── Fee statement (web: fees-distribution/statement) ─────────────────────────
 // The web statement's own figures, field for field: share = Σ distributorShare (GST-inclusive), standard fee
 // = Σ (totalRackRateFee or totalFees), your share at the rate = Σ distributorGrossShare, discount = Σ discountAmount.
-function statementOf(rows) {
+export function statementOf(rows) {
   const byName = new Map();
   for (const r of rows) {
     const key = String(r.clientName || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -655,18 +697,16 @@ function statementOf(rows) {
     totals: {
       aum: sum('aum'), fixed: sum('fixed'), perf: sum('perf'), fees: sum('fees'), rack, discount, grossShare: sum('grossShare'),
       discountPctOfRack: rack > 0 ? (discount / rack) * 100 : 0, share, shareGst, shareNet: share - shareGst,
-      ratePct: first ? (first.distributorShareCategory ?? `${first.distributorPercentage}%`) : '—',
+      ratePct: first ? (first.distributorShareCategory ?? `${first.distributorPercentage}%`) : '–',
       unmapped: rows.some(r => r.rateSource === 'unmapped'), isLegacyRate: rows.some(r => r.rateSource === 'legacy'),
     },
   };
 }
 
-export function Statement({ period, distributorName, onBack, onInvoice }) {
-  const { loading, err, rows, reload } = usePeriodRows(period);
-  const [busy, setBusy] = useState(false);
-  const { clients, totals: t } = useMemo(() => statementOf(rows), [rows]);
-  const [pdfErr, setPdfErr] = useState('');
-  const [pdfSaved, setPdfSaved] = useState('');   // Android: the folder the PDF was saved to
+// Everything the statement shows, and its printable page (html()), for one period's rows. Shared by the phone
+// Statement screen and the desktop dashboard (src/web/distributor.js).
+export function statementDoc(period, distributorName, rows) {
+  const { clients, totals: t } = statementOf(rows);
   const initials = String(distributorName || '').replace(/[^a-zA-Z ]/g, '').split(/\s+/).filter(Boolean).slice(0, 3).map(w => w[0].toUpperCase()).join('');
   const ref = `QFS-${String(period.label).replace(/\s+/g, '')}-${initials || 'DST'}`;
   const issued = formatDate(new Date().toISOString());
@@ -674,7 +714,7 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
   const calc = [
     ['Standard fees for your clients', null, t.rack],
     [`Your share at ${t.ratePct}`, null, t.grossShare],
-    ...(disc ? [['Less: the discount you agreed with your clients', `${t.discountPctOfRack.toFixed(1)}% of the standard fee — funded from your share`, -t.discount]] : []),
+    ...(disc ? [['Less: the discount you agreed with your clients', `${t.discountPctOfRack.toFixed(1)}% of the standard fee, funded from your share`, -t.discount]] : []),
     ['Your share for the period', null, t.shareNet, 'sub'],
     [`Add: GST at ${GST_RATE}%`, null, t.shareGst],
     ['Payable to you', null, t.share, 'total'],
@@ -722,15 +762,15 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
         <div class="muted" style="font-size:9.5px;margin-top:6px;line-height:1.6">Ref ${esc(ref)}<br>Issued ${esc(issued)}</div></td>
     </tr></table>
     <table class="rule" style="margin-top:18px"><tr>
-      <td style="padding:16px 0;vertical-align:top"><div class="lbl">Statement for</div><div style="font-size:12px;font-weight:700;margin-top:6px">${esc(distributorName || '—')}</div></td>
+      <td style="padding:16px 0;vertical-align:top"><div class="lbl">Statement for</div><div style="font-size:12px;font-weight:700;margin-top:6px">${esc(distributorName || '–')}</div></td>
       <td style="padding:16px 0;vertical-align:top;text-align:right"><div class="lbl">Period</div><div style="font-size:12px;margin-top:6px">${esc(period.label)}<span class="muted"> · ${esc(period.startDate)} – ${esc(period.endDate)}</span></div></td>
     </tr></table>
     <div class="rule" style="padding:16px 0 18px">
-      <div class="lbl">Total payable to you — inclusive of GST</div>
+      <div class="lbl">Total payable to you, inclusive of GST</div>
       <div style="font-size:26px;font-weight:700;margin-top:8px;letter-spacing:-.01em">₹ ${inr(t.share)}</div>
       <div class="muted" style="font-style:italic;font-size:10px;margin-top:4px">${esc(amountInWords(t.share))}</div>
       <div class="box"><div style="font-weight:700;font-size:10.5px">This amount already includes GST. Do not add GST on top.</div>
-        <div class="muted" style="font-size:10px;margin-top:4px">Invoice Qode Advisors LLP for <b style="color:#002017">₹ ${inr(t.share)}</b> in total — shown on your invoice as <b style="color:#002017">₹ ${inr(t.shareNet)}</b> plus GST of <b style="color:#002017">₹ ${inr(t.shareGst)}</b>.</div></div>
+        <div class="muted" style="font-size:10px;margin-top:4px">Invoice Qode Advisors LLP for <b style="color:#002017">₹ ${inr(t.share)}</b> in total, shown on your invoice as <b style="color:#002017">₹ ${inr(t.shareNet)}</b> plus GST of <b style="color:#002017">₹ ${inr(t.shareGst)}</b>.</div></div>
       <table class="calc" style="margin-top:12px">${calc.map(([k, sub, v, kind]) => `<tr class="${kind === 'total' ? 'grand' : kind === 'sub' ? 'sub' : ''}"><td>${esc(k)}${sub ? `<span class="why">${esc(sub)}</span>` : ''}</td><td class="num${v < 0 ? ' neg' : ''}">${money2(v)}</td></tr>`).join('')}</table>
     </div>
     <div class="rule" style="padding-top:18px">
@@ -738,7 +778,7 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
       <table class="bk">
         <thead><tr><th>Client</th><th>Avg AUM</th><th>Fixed Fees</th><th>Perf. Fees</th>${disc ? '<th>Standard Fee</th>' : ''}<th>${disc ? 'Fee Charged' : 'Total Fees'}</th>${disc ? '<th>Your Discount</th>' : ''}<th>You Receive (incl. GST)<span class="s">${esc(t.ratePct)} of standard fee${disc ? ', less your discount' : ''}</span></th></tr></thead>
         <tbody>
-        ${clients.map(c => `<tr><td>${esc(c.name)}${c.accounts > 1 ? `<span class="acc">${c.accounts} accounts</span>` : ''}</td><td class="num">${inr(c.aum)}</td><td class="num">${inr(c.fixed)}</td><td class="num">${inr(c.perf)}</td>${disc ? `<td class="num">${inr(c.rack)}</td>` : ''}<td class="num">${inr(c.fees)}</td>${disc ? `<td class="num">${c.discount > 0 ? '− ' + inr(c.discount) : '—'}</td>` : ''}<td class="num"><b>${inr(c.share)}</b></td></tr>`).join('')}
+        ${clients.map(c => `<tr><td>${esc(c.name)}${c.accounts > 1 ? `<span class="acc">${c.accounts} accounts</span>` : ''}</td><td class="num">${inr(c.aum)}</td><td class="num">${inr(c.fixed)}</td><td class="num">${inr(c.perf)}</td>${disc ? `<td class="num">${inr(c.rack)}</td>` : ''}<td class="num">${inr(c.fees)}</td>${disc ? `<td class="num">${c.discount > 0 ? '− ' + inr(c.discount) : '–'}</td>` : ''}<td class="num"><b>${inr(c.share)}</b></td></tr>`).join('')}
         <tr class="tot"><td>Total</td><td class="num">${inr(t.aum)}</td><td class="num">${inr(t.fixed)}</td><td class="num">${inr(t.perf)}</td>${disc ? `<td class="num">${inr(t.rack)}</td>` : ''}<td class="num">${inr(t.fees)}</td>${disc ? `<td class="num">− ${inr(t.discount)}</td>` : ''}<td class="num">${inr(t.share)}</td></tr>
         </tbody>
       </table>
@@ -747,16 +787,25 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
     ${t.isLegacyRate ? '<div class="box" style="margin-top:10px;font-size:10px"><b>Provisional rate.</b> <span class="muted">This statement uses a share rate held in our portal records rather than a confirmed CRM rate. Please confirm before invoicing.</span></div>' : ''}
     <div class="rule" style="margin-top:36px;padding-top:18px">
     <p class="note"><b>This is not a tax invoice.</b> It is a statement of fees earned, issued for your records. Please raise your own invoice on Qode Advisors LLP for the total shown above.</p>
-    <p class="note"><b>The total payable to you is inclusive of GST at 18%.</b> Your revenue share of ${esc(t.ratePct)} is calculated on the fees billed to your clients, and GST at 18% is added to your share. Do not add GST on top of the total — the amount payable to you is ₹ ${inr(t.share)} in full. On your invoice this is ₹ ${inr(t.shareNet)} plus GST of ₹ ${inr(t.shareGst)}. Client fee amounts in the table are shown before GST, with GST in its own column.</p>
+    <p class="note"><b>The total payable to you is inclusive of GST at 18%.</b> Your revenue share of ${esc(t.ratePct)} is calculated on the fees billed to your clients, and GST at 18% is added to your share. Do not add GST on top of the total: the amount payable to you is ₹ ${inr(t.share)} in full. On your invoice this is ₹ ${inr(t.shareNet)} plus GST of ₹ ${inr(t.shareGst)}. Client fee amounts in the table are shown before GST, with GST in its own column.</p>
     <p class="note">Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact investor.relations@qodeinvest.com before invoicing.</p>
     </div></body></html>`;
+  return { clients, t, ref, issued, disc, calc, money2, html };
+}
+
+export function Statement({ period, distributorName, onBack, onInvoice }) {
+  const { loading, err, rows, reload } = usePeriodRows(period);
+  const [busy, setBusy] = useState(false);
+  const { clients, t, ref, issued, disc, calc, money2, html } = useMemo(() => statementDoc(period, distributorName, rows), [rows, period, distributorName]);
+  const [pdfErr, setPdfErr] = useState('');
+  const [pdfSaved, setPdfSaved] = useState('');   // Android: the folder the PDF was saved to
   return (
     <Fade>
       <BackRow label="Back to fees" onPress={onBack} />
       {loading && <Tx s={12} c={C.muted}>Preparing your statement…</Tx>}
       {!!err && <ErrorBox msg={`We couldn’t prepare the statement. ${err}. Please go back and try again, or contact investor.relations@qodeinvest.com.`} onRetry={reload} />}
       {!loading && !err && (<>
-        <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginBottom: 10 }}>Save it as a PDF for your records. This statement is not a tax invoice — use <Tx w={700} s={11.5} c={C.ink}>Raise invoice</Tx> to generate one.</Tx>
+        <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginBottom: 10 }}>Save it as a PDF for your records. This statement is not a tax invoice. Use <Tx w={700} s={11.5} c={C.ink}>Raise invoice</Tx> to generate one.</Tx>
         <Card style={{ padding: 0, overflow: 'hidden' }}>
           {/* Letterhead: the Qode band (as on the Qode signature), then the web's text letterhead */}
           <View style={{ backgroundColor: C.green, paddingVertical: 14, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -773,7 +822,7 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, paddingBottom: 12, borderBottomWidth: 1, borderColor: C.hairline }}>
             <View style={{ flex: 1 }}>
               <Tx w={700} s={9.5} ls={0.12} c={C.muted}>STATEMENT FOR</Tx>
-              <Tx w={700} s={12.5} style={{ marginTop: 3 }}>{distributorName || '—'}</Tx>
+              <Tx w={700} s={12.5} style={{ marginTop: 3 }}>{distributorName || '–'}</Tx>
             </View>
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
               <Tx w={700} s={9.5} ls={0.12} c={C.muted}>PERIOD</Tx>
@@ -781,11 +830,11 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
               <Tx s={11} c={C.muted} style={{ textAlign: 'right' }}>{period.startDate} – {period.endDate}</Tx>
             </View>
           </View>
-          <Tx s={11} c={C.muted} style={{ marginTop: 14 }}>Total payable to you — inclusive of GST</Tx>
+          <Tx s={11} c={C.muted} style={{ marginTop: 14 }}>Total payable to you, inclusive of GST</Tx>
           <Amt w={700} s={26}>₹ {inr(t.share)}</Amt>
           <Tx s={11} c={C.muted} style={{ fontStyle: 'italic', marginTop: 2 }}>{amountInWords(t.share)}</Tx>
           <View style={{ marginTop: 12, padding: 10, borderRadius: 8, backgroundColor: '#FFF6DC', borderWidth: 1, borderColor: C.gold }}>
-            <Tx s={11.5} lh={1.5}>This amount already includes GST. Do not add GST on top. Invoice Qode Advisors LLP for <Tx w={700} s={11.5}>₹ {inr(t.share)}</Tx> in total — shown on your invoice as <Tx w={700} s={11.5}>₹ {inr(t.shareNet)}</Tx> plus GST of <Tx w={700} s={11.5}>₹ {inr(t.shareGst)}</Tx>.</Tx>
+            <Tx s={11.5} lh={1.5}>This amount already includes GST. Do not add GST on top. Invoice Qode Advisors LLP for <Tx w={700} s={11.5}>₹ {inr(t.share)}</Tx> in total, shown on your invoice as <Tx w={700} s={11.5}>₹ {inr(t.shareNet)}</Tx> plus GST of <Tx w={700} s={11.5}>₹ {inr(t.shareGst)}</Tx>.</Tx>
           </View>
           </View>
         </Card>
@@ -832,7 +881,7 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
               {[['Avg AUM', c.aum], ['Fixed fees', c.fixed], ['Perf. fees', c.perf], ...(disc ? [['Standard fee', c.rack]] : []), [disc ? 'Fee charged' : 'Total fees', c.fees], ...(disc ? [['Your discount', -c.discount]] : [])].map(([k, v]) => (
                 <View key={k} style={{ width: '50%', paddingVertical: 3 }}>
                   <Tx s={10} c={C.muted}>{k}</Tx>
-                  <Tx s={11.5} c={v < 0 ? C.red : C.ink}>{v < 0 ? '− ' + inr(-v) : v === 0 && k === 'Your discount' ? '—' : inr(v)}</Tx>
+                  <Tx s={11.5} c={v < 0 ? C.red : C.ink}>{v < 0 ? '− ' + inr(-v) : v === 0 && k === 'Your discount' ? '–' : inr(v)}</Tx>
                 </View>
               ))}
             </View>
@@ -863,7 +912,7 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
         {/* The web statement's closing notes, verbatim */}
         <Card style={{ padding: 16, marginTop: 14 }}>
           <Tx s={11.5} c={C.muted} lh={1.6}><Tx w={700} s={11.5} c={C.ink}>This is not a tax invoice.</Tx> It is a statement of fees earned, issued for your records. Please raise your own invoice on Qode Advisors LLP for the total shown above.</Tx>
-          <Tx s={11.5} c={C.muted} lh={1.6} style={{ marginTop: 10 }}><Tx w={700} s={11.5} c={C.ink}>The total payable to you is inclusive of GST at 18%.</Tx> Your revenue share of {t.ratePct} is calculated on the fees billed to your clients, and GST at 18% is added to your share. Do not add GST on top of the total — the amount payable to you is ₹ {inr(t.share)} in full. On your invoice this is ₹ {inr(t.shareNet)} plus GST of ₹ {inr(t.shareGst)}. Client fee amounts in the table are shown before GST, with GST in its own column.</Tx>
+          <Tx s={11.5} c={C.muted} lh={1.6} style={{ marginTop: 10 }}><Tx w={700} s={11.5} c={C.ink}>The total payable to you is inclusive of GST at 18%.</Tx> Your revenue share of {t.ratePct} is calculated on the fees billed to your clients, and GST at 18% is added to your share. Do not add GST on top of the total: the amount payable to you is ₹ {inr(t.share)} in full. On your invoice this is ₹ {inr(t.shareNet)} plus GST of ₹ {inr(t.shareGst)}. Client fee amounts in the table are shown before GST, with GST in its own column.</Tx>
           <Tx s={11.5} c={C.muted} lh={1.6} style={{ marginTop: 10 }}>Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact investor.relations@qodeinvest.com before invoicing.</Tx>
         </Card>
       </>)}
@@ -872,22 +921,58 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
 }
 
 // ── Raise invoice (web: fees-distribution/invoice) ───────────────────────────
-const EMPTY_PROFILE = { legalName: '', gstin: '', pan: '', addressLine1: '', addressLine2: '', city: '', state: '', stateCode: '', pincode: '', bankAccountName: '', bankAccountNumber: '', bankIfsc: '', bankName: '', invoicePrefix: '', lastInvoiceNumber: 0, notes: '' };
-const todayIst = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+export const EMPTY_PROFILE = { legalName: '', gstin: '', pan: '', addressLine1: '', addressLine2: '', city: '', state: '', stateCode: '', pincode: '', bankAccountName: '', bankAccountNumber: '', bankIfsc: '', bankName: '', invoicePrefix: '', lastInvoiceNumber: 0, notes: '' };
+export const todayIst = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
 
-function validateProfile(p, invoiceNumber, invoiceDate) {
+export function validateProfile(p, invoiceNumber, invoiceDate) {
   const e = {};
   if (!p.legalName.trim()) e.legalName = 'Enter the name your invoices are raised in';
   if (!p.addressLine1.trim()) e.addressLine1 = 'Enter your registered address';
   if (p.gstin.trim()) {
     const g = validateGstin(p.gstin); if (!g.valid) e.gstin = g.reason;
-    else if (p.stateCode && p.gstin.slice(0, 2) !== String(p.stateCode).padStart(2, '0')) e.stateCode = `Your GSTIN is registered in ${GST_STATE_CODES[p.gstin.slice(0, 2)] || 'another state'} — choose that state`;
+    else if (p.stateCode && p.gstin.slice(0, 2) !== String(p.stateCode).padStart(2, '0')) e.stateCode = `Your GSTIN is registered in ${GST_STATE_CODES[p.gstin.slice(0, 2)] || 'another state'}. Choose that state`;
   }
   const pn = validatePan(p.pan); if (!pn.valid) e.pan = pn.reason;
   else if (p.pan.trim() && p.gstin.trim().length === 15 && p.pan.trim().toUpperCase() !== p.gstin.trim().toUpperCase().slice(2, 12)) e.pan = `This doesn't match the PAN inside your GSTIN (${p.gstin.trim().toUpperCase().slice(2, 12)})`;
   if (!String(invoiceNumber).trim()) e.invoiceNumber = 'Enter an invoice number';
   if (!invoiceDate) e.invoiceDate = 'Enter the invoice date';
   return e;
+}
+
+// Invoice amounts for one period's rows and the partner's invoice details (web: fees-distribution/invoice).
+export function invoiceFigures(rows, sum, p) {
+  const taxable = rows.reduce((n, r) => n + num(r.yourCommission), 0);
+  const tax = computeTax(taxable, p.stateCode, QODE_ENTITY.stateCode, Boolean(p.gstin.trim()));
+  const discount = rows.reduce((n, r) => n + num(r.shareDiscount), 0);
+  const clientCount = new Set(rows.map(r => String(r.clientName || '').trim().toLowerCase())).size;
+  const ratePct = sum.totals.sharePct || '–';
+  return { taxable, tax, discount, clientCount, ratePct };
+}
+// The printable tax invoice, line for line the web's invoice sheet. Shared with src/web/distributor.js.
+export function invoiceHtml({ p, period, invoiceNumber, date, tax, ratePct, clientCount, discount, distributorName }) {
+  const lines = [p.addressLine1, p.addressLine2, [p.city, p.state, p.pincode].filter(Boolean).join(', ')].filter(Boolean);
+  // Line for line the web's invoice sheet: optional lines only when filled, tax labels from the computed rates.
+  const lbl = 'font-size:10px;font-weight:bold;letter-spacing:.12em;text-transform:uppercase;color:#37584F';
+  const row = (k, v) => `<tr><td class="r muted s">${k}</td><td class="r">${v}</td></tr>`;
+  const pay = [p.bankAccountName, p.bankName, p.bankAccountNumber && 'A/c ' + p.bankAccountNumber, p.bankIfsc && 'IFSC ' + p.bankIfsc].filter(Boolean);
+  return `<html><head><meta charset="utf-8"><style>@page{size:A4;margin:22mm 24mm 18mm}body{font-family:Arial,sans-serif;color:#002017;margin:0;font-size:12px}table{width:100%;border-collapse:collapse}td,th{padding:7px 0;vertical-align:top}.r{text-align:right;white-space:nowrap}.muted{color:#37584F}.s{font-size:11px}.sec{padding:14px 0;border-bottom:1px solid #d9d6c3}</style></head><body>
+    <table class="sec" style="border-bottom:1px solid #d9d6c3"><tr><td style="padding-bottom:14px"><div style="${lbl}">Tax Invoice</div>
+      <div style="font-family:Georgia,serif;font-size:20px;margin-top:4px">${esc(p.legalName || distributorName || 'Your registered name')}</div>
+      <div class="muted s" style="margin-top:6px;line-height:1.5">${lines.map(esc).join('<br>')}${p.gstin ? '<br>GSTIN: ' + esc(p.gstin) : ''}${p.pan ? '<br>PAN: ' + esc(p.pan) : ''}</div></td>
+    <td class="r s" style="padding-bottom:14px;line-height:1.7"><span class="muted">Invoice no.</span> <b>${esc(invoiceNumber || '–')}</b><br><span class="muted">Date</span> <b>${esc(displayDate(date))}</b><br><span class="muted">Period</span> <b>${esc(period.label)}</b></td></tr></table>
+    <div class="sec"><div style="${lbl};margin-bottom:6px">Bill to</div><b>${esc(QODE_ENTITY.name)}</b>
+      <div class="muted s" style="margin-top:4px;line-height:1.5">${qodeAddressLines().map(esc).join('<br>')}${QODE_ENTITY.gstin ? '<br>GSTIN: ' + esc(QODE_ENTITY.gstin) : ''}<br>SEBI Registered Portfolio Manager · ${esc(QODE_ENTITY.sebiRegistration)}</div></div>
+    <div style="padding:14px 0"><table><tr style="border-bottom:1px solid #d9d6c3"><th style="text-align:left;${lbl}">Description</th><th class="r" style="${lbl}">Amount</th></tr>
+    <tr style="border-bottom:1px solid #eee"><td style="padding-right:12px">Distribution fees: ${esc(period.label)}<div class="muted s" style="margin-top:3px">${esc(ratePct)} share of fees on ${clientCount} ${clientCount === 1 ? 'client' : 'clients'}${discount > 0 ? `, net of ₹ ${inr(discount)} in discounts given to clients` : ''}. ${esc(period.startDate)} to ${esc(period.endDate)}.</div></td><td class="r">₹ ${inr(tax.taxableValue)}</td></tr>
+    ${row('Taxable value', `₹ ${inr(tax.taxableValue)}`)}
+    ${tax.treatment === 'intra_state' ? row(`CGST @ ${tax.cgstRate}%`, `₹ ${inr(tax.cgst)}`) + row(`SGST @ ${tax.sgstRate}%`, `₹ ${inr(tax.sgst)}`) : ''}
+    ${tax.treatment === 'inter_state' ? row(`IGST @ ${tax.igstRate}%`, `₹ ${inr(tax.igst)}`) : ''}
+    ${tax.treatment === 'unregistered' ? '<tr><td class="r muted s" colspan="2">No GST charged (not registered under GST)</td></tr>' : ''}
+    <tr style="border-top:2px solid #b9b6a3"><td class="r"><b>Total</b></td><td class="r" style="font-size:14px"><b>₹ ${inr(tax.total)}</b></td></tr></table>
+    <div class="muted s" style="margin-top:8px;font-style:italic">${esc(amountInWords(tax.total))}</div></div>
+    ${p.bankAccountNumber || p.bankIfsc ? `<div class="sec" style="border-top:1px solid #d9d6c3;border-bottom:0"><div style="${lbl};margin-bottom:6px">Payment details</div><div class="muted s" style="line-height:1.5">${pay.map(esc).join('<br>')}</div></div>` : ''}
+    ${p.notes ? `<div class="sec muted s" style="border-top:1px solid #d9d6c3;border-bottom:0">${esc(p.notes).replace(/\n/g, '<br>')}</div>` : ''}
+    <div class="muted" style="font-size:10.5px;border-top:1px solid #d9d6c3;padding-top:12px;line-height:1.5">Amounts are for distribution fees earned on client portfolios managed by ${esc(QODE_ENTITY.name)} for the period stated. This invoice is raised by the distributor named above.</div></body></html>`;
 }
 
 export function Invoice({ period, distributorName, onBack }) {
@@ -904,11 +989,7 @@ export function Invoice({ period, distributorName, onBack }) {
   if (loading || !p) return <View><BackRow label="Back to fees" onPress={onBack} /><Loading rows={3} h={80} /></View>;
   if (err) return <View><BackRow label="Back to fees" onPress={onBack} /><ErrorBox msg={`We couldn’t load your invoice. ${err}`} /></View>;
 
-  const taxable = rows.reduce((n, r) => n + num(r.yourCommission), 0);
-  const tax = computeTax(taxable, p.stateCode, QODE_ENTITY.stateCode, Boolean(p.gstin.trim()));
-  const discount = rows.reduce((n, r) => n + num(r.shareDiscount), 0);
-  const clientCount = new Set(rows.map(r => String(r.clientName || '').trim().toLowerCase())).size;
-  const ratePct = sum.totals.sharePct || '—';
+  const { taxable, tax, discount, clientCount, ratePct } = invoiceFigures(rows, sum, p);
   const last = Number(p.lastInvoiceNumber || 0);
   const invoiceNumber = num0 != null ? num0 : (p.invoicePrefix ? p.invoicePrefix + String(last + 1).padStart(3, '0') : String(last + 1));
   const set = (k, v) => { setP(o => ({ ...o, [k]: v })); if (errs[k]) setErrs(e => ({ ...e, [k]: '' })); setState(s => ({ ...s, saved: false })); };
@@ -923,31 +1004,7 @@ export function Invoice({ period, distributorName, onBack }) {
     try { await api.saveInvoiceProfile({ ...p, gstin: p.gstin.trim().toUpperCase(), pan: p.pan.trim().toUpperCase(), bankIfsc: p.bankIfsc.trim().toUpperCase() }); setState(s => ({ ...s, saving: false, saved: true })); return true; }
     catch (x) { setErrs(o => ({ ...o, ...((x.data && x.data.errors) || {}) })); setState(s => ({ ...s, saving: false, err: x.message })); return false; }
   };
-  const html = () => {
-    const lines = [p.addressLine1, p.addressLine2, [p.city, p.state, p.pincode].filter(Boolean).join(', ')].filter(Boolean);
-    // Line for line the web's invoice sheet: optional lines only when filled, tax labels from the computed rates.
-    const lbl = 'font-size:10px;font-weight:bold;letter-spacing:.12em;text-transform:uppercase;color:#37584F';
-    const row = (k, v) => `<tr><td class="r muted s">${k}</td><td class="r">${v}</td></tr>`;
-    const pay = [p.bankAccountName, p.bankName, p.bankAccountNumber && 'A/c ' + p.bankAccountNumber, p.bankIfsc && 'IFSC ' + p.bankIfsc].filter(Boolean);
-    return `<html><head><meta charset="utf-8"><style>@page{size:A4;margin:22mm 24mm 18mm}body{font-family:Arial,sans-serif;color:#002017;margin:0;font-size:12px}table{width:100%;border-collapse:collapse}td,th{padding:7px 0;vertical-align:top}.r{text-align:right;white-space:nowrap}.muted{color:#37584F}.s{font-size:11px}.sec{padding:14px 0;border-bottom:1px solid #d9d6c3}</style></head><body>
-      <table class="sec" style="border-bottom:1px solid #d9d6c3"><tr><td style="padding-bottom:14px"><div style="${lbl}">Tax Invoice</div>
-        <div style="font-family:Georgia,serif;font-size:20px;margin-top:4px">${esc(p.legalName || distributorName || 'Your registered name')}</div>
-        <div class="muted s" style="margin-top:6px;line-height:1.5">${lines.map(esc).join('<br>')}${p.gstin ? '<br>GSTIN: ' + esc(p.gstin) : ''}${p.pan ? '<br>PAN: ' + esc(p.pan) : ''}</div></td>
-      <td class="r s" style="padding-bottom:14px;line-height:1.7"><span class="muted">Invoice no.</span> <b>${esc(invoiceNumber || '—')}</b><br><span class="muted">Date</span> <b>${esc(displayDate(date))}</b><br><span class="muted">Period</span> <b>${esc(period.label)}</b></td></tr></table>
-      <div class="sec"><div style="${lbl};margin-bottom:6px">Bill to</div><b>${esc(QODE_ENTITY.name)}</b>
-        <div class="muted s" style="margin-top:4px;line-height:1.5">${qodeAddressLines().map(esc).join('<br>')}${QODE_ENTITY.gstin ? '<br>GSTIN: ' + esc(QODE_ENTITY.gstin) : ''}<br>SEBI Registered Portfolio Manager · ${esc(QODE_ENTITY.sebiRegistration)}</div></div>
-      <div style="padding:14px 0"><table><tr style="border-bottom:1px solid #d9d6c3"><th style="text-align:left;${lbl}">Description</th><th class="r" style="${lbl}">Amount</th></tr>
-      <tr style="border-bottom:1px solid #eee"><td style="padding-right:12px">Distribution fees — ${esc(period.label)}<div class="muted s" style="margin-top:3px">${esc(ratePct)} share of fees on ${clientCount} ${clientCount === 1 ? 'client' : 'clients'}${discount > 0 ? `, net of ₹ ${inr(discount)} in discounts given to clients` : ''}. ${esc(period.startDate)} to ${esc(period.endDate)}.</div></td><td class="r">₹ ${inr(tax.taxableValue)}</td></tr>
-      ${row('Taxable value', `₹ ${inr(tax.taxableValue)}`)}
-      ${tax.treatment === 'intra_state' ? row(`CGST @ ${tax.cgstRate}%`, `₹ ${inr(tax.cgst)}`) + row(`SGST @ ${tax.sgstRate}%`, `₹ ${inr(tax.sgst)}`) : ''}
-      ${tax.treatment === 'inter_state' ? row(`IGST @ ${tax.igstRate}%`, `₹ ${inr(tax.igst)}`) : ''}
-      ${tax.treatment === 'unregistered' ? '<tr><td class="r muted s" colspan="2">No GST charged — not registered under GST</td></tr>' : ''}
-      <tr style="border-top:2px solid #b9b6a3"><td class="r"><b>Total</b></td><td class="r" style="font-size:14px"><b>₹ ${inr(tax.total)}</b></td></tr></table>
-      <div class="muted s" style="margin-top:8px;font-style:italic">${esc(amountInWords(tax.total))}</div></div>
-      ${p.bankAccountNumber || p.bankIfsc ? `<div class="sec" style="border-top:1px solid #d9d6c3;border-bottom:0"><div style="${lbl};margin-bottom:6px">Payment details</div><div class="muted s" style="line-height:1.5">${pay.map(esc).join('<br>')}</div></div>` : ''}
-      ${p.notes ? `<div class="sec muted s" style="border-top:1px solid #d9d6c3;border-bottom:0">${esc(p.notes).replace(/\n/g, '<br>')}</div>` : ''}
-      <div class="muted" style="font-size:10.5px;border-top:1px solid #d9d6c3;padding-top:12px;line-height:1.5">Amounts are for distribution fees earned on client portfolios managed by ${esc(QODE_ENTITY.name)} for the period stated. This invoice is raised by the distributor named above.</div></body></html>`;
-  };
+  const html = () => invoiceHtml({ p, period, invoiceNumber, date, tax, ratePct, clientCount, discount, distributorName });
   const generate = async () => {
     const e = validateProfile(p, invoiceNumber, date);
     if (Object.keys(e).length) { setErrs(e); return; }
@@ -969,10 +1026,10 @@ export function Invoice({ period, distributorName, onBack }) {
       <BackRow label="Back to fees" onPress={onBack} />
       {!qodeOk && <Msg tone="red" text="Invoicing isn't available yet. Qode's GST details haven't been configured in the portal, and an invoice without them wouldn't be valid. Please contact investor.relations@qodeinvest.com." />}
       <SectionLabel>YOUR INVOICE DETAILS</SectionLabel>
-      <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: -4, marginLeft: 2 }}>These appear on the invoice as the party raising it. We save them, so you only need to enter them once — the amounts come from your fees for the period and can't be edited.</Tx>
+      <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: -4, marginLeft: 2 }}>These appear on the invoice as the party raising it. We save them, so you only need to enter them once. The amounts come from your fees for the period and can't be edited.</Tx>
       <Card style={{ padding: 16, marginTop: 10 }}>
-        {F('legalName', 'REGISTERED NAME *', { placeholder: 'As registered — e.g. Acme Capital Services LLP' })}
-        {F('gstin', 'GSTIN', { placeholder: '27AABCU9603R1ZX', maxLength: 15, upper: true, autoCapitalize: 'characters', hint: "Leave blank if you aren't GST-registered — the invoice will show no GST." })}
+        {F('legalName', 'REGISTERED NAME *', { placeholder: 'As registered, e.g. Acme Capital Services LLP' })}
+        {F('gstin', 'GSTIN', { placeholder: '27AABCU9603R1ZX', maxLength: 15, upper: true, autoCapitalize: 'characters', hint: "Leave blank if you aren't GST-registered. The invoice will show no GST." })}
         {F('pan', 'PAN', { placeholder: 'AABCU9603R', maxLength: 10, upper: true, autoCapitalize: 'characters' })}
         {F('addressLine1', 'REGISTERED ADDRESS *', { placeholder: 'Building, street' })}
         {F('addressLine2', 'ADDRESS LINE 2', { placeholder: 'Area, landmark' })}
@@ -984,17 +1041,17 @@ export function Invoice({ period, distributorName, onBack }) {
             <ChevronDown s={10} c={C.muted} />
           </View>
           {!!errs.stateCode && <Tx s={11} c={C.red} style={{ marginTop: 5 }}>{errs.stateCode}</Tx>}
-          {!errs.stateCode && !!p.stateCode && !!p.gstin.trim() && <Tx s={10.5} c={C.gray} style={{ marginTop: 5 }}>{String(p.stateCode).padStart(2, '0') === QODE_ENTITY.stateCode ? 'Same state as Qode — your invoice will show CGST and SGST.' : 'Different state from Qode — your invoice will show IGST.'}</Tx>}
+          {!errs.stateCode && !!p.stateCode && !!p.gstin.trim() && <Tx s={10.5} c={C.gray} style={{ marginTop: 5 }}>{String(p.stateCode).padStart(2, '0') === QODE_ENTITY.stateCode ? 'Same state as Qode: your invoice will show CGST and SGST.' : 'Different state from Qode: your invoice will show IGST.'}</Tx>}
         </Pressable>
         {F('pincode', 'PIN CODE', { placeholder: '400001', maxLength: 6, keyboardType: 'number-pad' })}
-        <Field label="INVOICE NUMBER *" value={String(invoiceNumber)} onChangeText={setNum} error={errs.invoiceNumber} hint={last ? `Your last invoice here was number ${last}.` : 'Use your own series — we’ll suggest the next one after this.'} style={{ marginTop: 14 }} />
+        <Field label="INVOICE NUMBER *" value={String(invoiceNumber)} onChangeText={setNum} error={errs.invoiceNumber} hint={last ? `Your last invoice here was number ${last}.` : 'Use your own series. We’ll suggest the next one after this.'} style={{ marginTop: 14 }} />
         {/* Web: a date input — here the platform's own date picker */}
         <View style={{ marginTop: 14 }}>
           <DateField label="INVOICE DATE *" value={new Date(`${date}T00:00:00`)}
             onChange={d => { setDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`); if (errs.invoiceDate) setErrs(e => ({ ...e, invoiceDate: '' })); }} />
           {!!errs.invoiceDate && <Tx s={11} c={C.red} style={{ marginTop: 5 }}>{errs.invoiceDate}</Tx>}
         </View>
-        {F('invoicePrefix', 'INVOICE PREFIX', { placeholder: 'e.g. ACS/25-26/', hint: 'Optional — used to suggest your next invoice number.' })}
+        {F('invoicePrefix', 'INVOICE PREFIX', { placeholder: 'e.g. ACS/25-26/', hint: 'Optional. Used to suggest your next invoice number.' })}
         <Tx w={700} s={11} ls={0.1} c={C.muted} style={{ marginTop: 20 }}>BANK DETAILS FOR PAYMENT</Tx>
         {F('bankAccountName', 'ACCOUNT NAME')}
         {F('bankAccountNumber', 'ACCOUNT NUMBER', { keyboardType: 'number-pad' })}
@@ -1012,7 +1069,7 @@ export function Invoice({ period, distributorName, onBack }) {
               <Tx f="play" w={600} s={17} style={{ marginTop: 3 }}>{p.legalName || distributorName || 'Your registered name'}</Tx>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              {[['Invoice no.', invoiceNumber || '—'], ['Date', displayDate(date)], ['Period', period.label]].map(([k, v]) => (
+              {[['Invoice no.', invoiceNumber || '–'], ['Date', displayDate(date)], ['Period', period.label]].map(([k, v]) => (
                 <Tx key={k} s={11} c={C.muted} style={{ marginTop: 2 }}>{k} <Tx w={700} s={11} c={C.ink}>{v}</Tx></Tx>
               ))}
             </View>
@@ -1036,7 +1093,7 @@ export function Invoice({ period, distributorName, onBack }) {
           </View>
           <View style={{ flexDirection: 'row', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderColor: C.hairline }}>
             <View style={{ flex: 1 }}>
-              <Tx s={12.5}>Distribution fees — {period.label}</Tx>
+              <Tx s={12.5}>Distribution fees: {period.label}</Tx>
               <Tx s={10.5} c={C.muted} lh={1.5} style={{ marginTop: 3 }}>{ratePct} share of fees on {clientCount} {clientCount === 1 ? 'client' : 'clients'}{discount > 0 ? `, net of ₹ ${inr(discount)} in discounts given to clients` : ''}. {period.startDate} to {period.endDate}.</Tx>
             </View>
             <Tx s={12.5}>₹ {inr(tax.taxableValue)}</Tx>
@@ -1049,7 +1106,7 @@ export function Invoice({ period, distributorName, onBack }) {
               <Tx s={12.5} style={{ minWidth: 96, textAlign: 'right' }}>₹ {inr(v)}</Tx>
             </View>
           ))}
-          {tax.treatment === 'unregistered' && <Tx s={11} c={C.muted} style={{ textAlign: 'right', paddingVertical: 6 }}>No GST charged — not registered under GST</Tx>}
+          {tax.treatment === 'unregistered' && <Tx s={11} c={C.muted} style={{ textAlign: 'right', paddingVertical: 6 }}>No GST charged (not registered under GST)</Tx>}
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 16, paddingVertical: 10, borderTopWidth: 2, borderColor: C.hairline, marginTop: 2 }}>
             <Tx w={700} s={12.5}>Total</Tx>
             <Tx w={700} s={15} style={{ minWidth: 96, textAlign: 'right' }}>₹ {inr(tax.total)}</Tx>
@@ -1090,7 +1147,7 @@ export function Invoice({ period, distributorName, onBack }) {
 }
 
 // ── Decks (web: distributors/documents) ──────────────────────────────────────
-const DECKS = [
+export const DECKS = [
   { slug: 'corporate-overview', title: 'Corporate Overview', asOf: 'August 2026' },
   { slug: 'qode-all-weather', title: 'Qode All Weather', asOf: 'August 2026', strategy: 'Qode All Weather' },
   { slug: 'qode-all-weather-factsheet', title: 'Qode All Weather Factsheet', asOf: 'August 2026', strategy: 'Qode All Weather', kind: 'factsheet' },
@@ -1151,15 +1208,15 @@ export function Decks({ onBack }) {
 // Layout from the Qode OneView app's VSI screen (Qode_mobile_app/mobile-app, src/app/(tabs)/vsi.tsx): one card per
 // segment, stacked, each with its own period filter and touch tooltip, instead of the web's one chart with a
 // segment switch. The period filter is an addition (the web zooms by dragging); "Max" is the web's full view.
-const SEGMENTS = [['overall', 'Overall VSI', 'Top 750', 'Top 750 companies'], ['large', 'Largecaps', 'Top 100', 'Top 100'], ['mid', 'Midcaps', '101-250', 'Ranks 101–250'], ['small', 'Smallcaps', '251-500', 'Ranks 251–500'], ['micro', 'Microcaps', '500-750', 'Ranks 500–750']];
+export const SEGMENTS = [['overall', 'Overall VSI', 'Top 750', 'Top 750 companies'], ['large', 'Largecaps', 'Top 100', 'Top 100'], ['mid', 'Midcaps', '101-250', 'Ranks 101–250'], ['small', 'Smallcaps', '251-500', 'Ranks 251–500'], ['micro', 'Microcaps', '500-750', 'Ranks 500–750']];
 const HISTORY_START = Date.UTC(2006, 0, 1);
-const RISK_OFF = 70, RISK_ON = 30;
-const VSI = { ink: '#37584F', line: '#02422B', redOuter: '#f5bfc9', redInner: '#fee5e9', greenInner: '#e5f3ef', greenOuter: '#bdead2', redLabel: '#c00', greenLabel: '#028a3d', gold: '#DABD38', dark: '#002017' };
+export const RISK_OFF = 70, RISK_ON = 30;
+export const VSI = { ink: '#37584F', line: '#02422B', redOuter: '#f5bfc9', redInner: '#fee5e9', greenInner: '#e5f3ef', greenOuter: '#bdead2', redLabel: '#c00', greenLabel: '#028a3d', gold: '#DABD38', dark: '#002017' };
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const ddmmyyyy = t => fmtD(t, { utc: true });
+export const ddmmyyyy = t => fmtD(t, { utc: true });
 
 // web toSeries(): skip null / NaN, skip anything before 2006; keep the upstream order.
-function toSeries(entry) {
+export function toSeries(entry) {
   const pts = [];
   for (const p of (entry && entry.points) || []) {
     if (p.value === null || p.value === undefined || Number.isNaN(p.value)) continue;
@@ -1229,7 +1286,7 @@ function VsiCard({ seg, pts }) {
 }
 
 const PLOT_H = 220, AXIS_H = 18, GUTTER = 30, TIP_W = 124;
-function VsiChart({ pts, zone }) {
+export function VsiChart({ pts, zone }) {
   const [w, setW] = useState(0);
   const [at, setAt] = useState(null);   // index into pts under the finger
   const wRef = React.useRef(0);
@@ -1315,7 +1372,7 @@ function VsiChart({ pts, zone }) {
 }
 
 // ── Raise a ticket (web: distributors/support) ───────────────────────────────
-const TOPICS = [
+export const TOPICS = [
   ['onboarding', 'Onboarding help', 'An account that is stuck or needs chasing'],
   ['investor', 'Question about an investor', 'Anything specific to one of your clients'],
   ['payout', 'Payout or brokerage', 'What you are due, and when'],

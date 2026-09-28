@@ -15,6 +15,7 @@ import { View, Pressable, Platform, ActivityIndicator, AppState } from 'react-na
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { C, Tx, Amt, Field, CTA } from '../ui';
+import { inr } from '../adapt';
 import { Check } from '../icons';
 import { payments, BASE_URL, isDemo } from '../api';
 import { storeGet, storeSet, storeDel } from '../api/session';
@@ -63,14 +64,14 @@ export function autoReturn(params, ret) {
 // the field will not accept more (server rejects > MAX too, in create-order).
 const CHIPS = [100000, 250000, 500000];
 const MIN = 100, MAX = 500000;
-const fmt = v => '₹' + Number(v || 0).toLocaleString('en-IN');
+const fmt = v => inr(Number(v || 0));
 const Lbl = ({ children, style }) => <Tx w={700} s={10} ls={0.12} c={C.gray} style={[{ marginTop: 18 }, style]}>{children}</Tx>;
 
 const RESULT = {
   success: { title: 'Payment successful', text: 'Funds received. Units are allotted at the next applicable NAV, and the status appears under Online investments.' },
   failed:  { title: 'Payment failed', text: 'The payment did not go through and nothing was charged. You can try again or use a bank transfer.' },
-  pending: { title: 'Payment pending', text: 'We have not received a confirmation yet. If money was debited it will show under Online investments once the bank confirms — usually within a few minutes.' },
-  cancelled: { title: 'Payment not completed', text: 'The payment window was closed before a payment was recorded. If you did pay, tap Check status — nothing is charged twice.' },
+  pending: { title: 'Payment pending', text: 'We have not received a confirmation yet. If money was debited it will show under Online investments once the bank confirms, usually within a few minutes.' },
+  cancelled: { title: 'Payment not completed', text: 'The payment window was closed before a payment was recorded. If you did pay, tap Check status. Nothing is charged twice.' },
   expired: { title: 'Payment link expired', text: 'This payment link is no longer valid. Please start again.' },
   error:   { title: 'Could not confirm the payment', text: 'We could not reach Qode to confirm the payment. Check your connection and tap Check status.' },
 };
@@ -198,7 +199,7 @@ export function PayOnline({ V, onDone, recover }) {
     <View>
       {opts.length > 1 && <><Lbl style={{ marginTop: 14 }}>ACCOUNT</Lbl><AccountChips options={opts} value={acct} onPick={setAcct} /></>}
       <Lbl style={{ marginTop: 14 }}>AMOUNT</Lbl>
-      <Field value={amt ? amt.toLocaleString('en-IN') : ''} onChangeText={t => { const n = parseInt(t.replace(/\D/g, '') || '0', 10); setAmt(Math.min(n, MAX)); set({ err: n > MAX ? `Online payments are capped at ${fmt(MAX)} per transaction — amount set to the maximum. For more, use a bank transfer.` : '' }); }} numeric s={26} prefix="₹" />
+      <Field value={amt ? amt.toLocaleString('en-IN') : ''} onChangeText={t => { const n = parseInt(t.replace(/\D/g, '') || '0', 10); setAmt(Math.min(n, MAX)); set({ err: n > MAX ? `Online payments are capped at ${fmt(MAX)} per transaction. Amount set to the maximum. For more, use a bank transfer.` : '' }); }} numeric s={26} prefix="₹" />
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
         {CHIPS.map(v => (
           <Pressable key={v} onPress={() => { setAmt(v); set({ err: '' }); }} style={{ borderWidth: 1, borderColor: amt === v ? C.green : C.greenBorder, backgroundColor: amt === v ? C.green : 'transparent', borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 }}>

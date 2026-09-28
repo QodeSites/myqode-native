@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
-import { C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise, KeyboardScroll, useKeyboardHeight } from '../ui';
+import { C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise, KeyboardScroll, useKeyboardHeight, Wordmark } from '../ui';
 
 function DarkHead({ children, pct = 0.42 }) {
   return (
@@ -36,7 +36,7 @@ export function Login({ V }) {
   return (
     <View style={{ flex: 1, backgroundColor: C.cream }}>
       <DarkHead pct={headPct}>
-        <Tx f="play" w={600} s={kb > 0 ? 24 : 32} c={C.cream}>myQode</Tx>
+        <Wordmark s={kb > 0 ? 24 : 32} />
         <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: kb > 0 ? 6 : 12, marginBottom: kb > 0 ? 0 : 10 }} />
       </DarkHead>
       <View style={{ marginTop: -46 }}>
@@ -53,7 +53,7 @@ export function Login({ V }) {
                   </Pressable>
                 ))}
               </View>
-              <Field label={V.loginAs === 'distributor' ? 'PARTNER EMAIL' : 'EMAIL OR CLIENT CODE'} value={V.email} onChangeText={V.onEmail} placeholder={V.loginAs === 'distributor' ? 'partner@firm.com' : 'you@example.com'} autoCapitalize="none" style={{ marginTop: 18 }} />
+              <Field label={V.loginAs === 'distributor' ? 'DISTRIBUTOR EMAIL' : 'EMAIL OR CLIENT CODE'} value={V.email} onChangeText={V.onEmail} placeholder={V.loginAs === 'distributor' ? 'name@firm.com' : 'you@example.com'} autoCapitalize="none" style={{ marginTop: 18 }} />
               <Field label="PASSWORD" value={V.pw} onChangeText={V.onPw} placeholder="••••••••" secure style={{ marginTop: 16 }} />
               <Msg V={V} />
               <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'SIGN IN SECURELY'} onPress={V.doLogin} style={{ marginTop: 22, opacity: V.authBusy ? 0.6 : 1 }} />
@@ -80,7 +80,7 @@ export function Login({ V }) {
                 <View style={{ marginTop: 12 }}>
                   <Tx s={11} c={C.muted} lh={1.5}>Uses the email or client code typed above. The myQode server must be running in development (NODE_ENV=development).</Tx>
                   <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'SIGN IN AS THIS USER (NO PASSWORD)'} onPress={() => V.bypassLogin()} outline style={{ marginTop: 12, opacity: V.authBusy ? 0.6 : 1 }} />
-                  <Field label={V.loginAs === 'distributor' ? 'FIND A PARTNER' : 'FIND A CLIENT'} value={V.devQ} onChangeText={V.onDevQ} placeholder="name, email or code" autoCapitalize="none" style={{ marginTop: 14 }} />
+                  <Field label={V.loginAs === 'distributor' ? 'FIND A DISTRIBUTOR' : 'FIND A CLIENT'} value={V.devQ} onChangeText={V.onDevQ} placeholder="name, email or code" autoCapitalize="none" style={{ marginTop: 14 }} />
                   <Tx s={10} c={C.gray} style={{ marginTop: 6 }}>Server: {V.apiBase}</Tx>
                   {!V.devLoaded && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>Loading clients…</Tx>}
                   {!!V.devErr && (

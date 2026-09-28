@@ -2,15 +2,27 @@
 import React from 'react';
 import { View, Pressable, Modal, Linking, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { C, Tx, CTA, Card } from '../ui';
+import { C, Tx, CTA, Card, Wordmark } from '../ui';
 import { FaceID } from '../icons';
 
 // Start-up lock when the user has turned on Face ID / fingerprint. The session is intact underneath; a
 // failed or cancelled prompt just waits here. "Sign in with password" signs the session out.
 export function LockScreen({ V }) {
+  // Signed in, but the server could not be reached on start-up: keep the session and offer a retry.
+  if (V.lockOffline) {
+    return (
+      <LinearGradient colors={C.darkGrad} locations={[0, 0.55, 1]} start={{ x: 0.1, y: 0 }} end={{ x: 0.6, y: 1 }} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
+        <Wordmark s={34} />
+        <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: 14, marginBottom: 34 }} />
+        <Tx w={700} s={14} c={C.cream}>We can’t reach Qode right now</Tx>
+        <Tx s={12} c={C.cream60} center lh={1.5} style={{ marginTop: 6 }}>Check your internet connection and try again. You are still signed in.</Tx>
+        <CTA label="TRY AGAIN" onPress={V.lockRetry} style={{ marginTop: 26, alignSelf: 'stretch' }} />
+      </LinearGradient>
+    );
+  }
   return (
     <LinearGradient colors={C.darkGrad} locations={[0, 0.55, 1]} start={{ x: 0.1, y: 0 }} end={{ x: 0.6, y: 1 }} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
-      <Tx f="play" w={600} s={34} c={C.cream}>myQode</Tx>
+      <Wordmark s={34} />
       <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: 14, marginBottom: 34 }} />
       <Pressable onPress={V.lockGone ? undefined : V.lockRetry} style={{ width: 72, height: 72, borderRadius: 36, borderWidth: 1, borderColor: 'rgba(239,236,211,0.3)', alignItems: 'center', justifyContent: 'center' }}>
         <FaceID s={30} c={C.gold} />
@@ -49,7 +61,7 @@ export function UpdatePrompt({ V }) {
           )}
           <Tx w={700} s={10.5} ls={0.14} c={C.muted}>{u.force ? 'UPDATE REQUIRED' : 'UPDATE AVAILABLE'}</Tx>
           <Tx f="play" w={600} s={21} style={{ marginTop: 8 }}>myQode {u.latestVersion ? 'v' + u.latestVersion : 'update'}</Tx>
-          <Tx s={12.5} c={C.muted} lh={1.6} style={{ marginTop: 8 }}>{u.message || 'A new version of myQode is available. Please update for the latest features.'}</Tx>
+          <Tx s={12.5} c={C.muted} lh={1.6} style={{ marginTop: 8 }}>{u.force ? 'This version of myQode is no longer supported. Please update to continue.' : (u.message || 'A new version of myQode is available. Please update for the latest features.')}</Tx>
           <CTA label={Platform.OS === 'ios' ? 'OPEN THE APP STORE' : 'OPEN GOOGLE PLAY'} onPress={() => url && Linking.openURL(url).catch(() => {})} style={{ marginTop: 20 }} />
           {!u.force && <CTA label="LATER" outline onPress={V.dismissUpdate} style={{ marginTop: 10 }} />}
         </Card>
