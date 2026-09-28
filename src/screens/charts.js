@@ -3,8 +3,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View } from 'react-native';
 import Svg, { Path, Line, Circle, Defs, LinearGradient as SvgGrad, Stop, Text as SvgText } from 'react-native-svg';
 import { C, Tx } from '../ui';
+import { fmtD } from '../adapt';
 
-const fmtDate = d => { const t = new Date(d); return isNaN(t) ? String(d) : t.getDate() + '/' + (t.getMonth() + 1) + '/' + t.getFullYear(); };
+const fmtDate = d => fmtD(d) || String(d);
 const signed = (v, dp = 2) => (v < 0 ? '−' : '+') + Math.abs(v).toFixed(dp) + '%';
 
 // Touch / hover tooltip over a chart, like the web's: date, portfolio and benchmark at that point,

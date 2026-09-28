@@ -9,8 +9,8 @@ const DAY = 86400000;
 const n = v => Number(v) || 0;
 const key = d => new Date(d).toISOString().slice(0, 10);
 const r2 = v => (v == null || !isFinite(v) ? null : +v.toFixed(2));
-const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
-const fmtDate = d => { const t = new Date(d); return isNaN(t) ? '' : String(t.getDate()).padStart(2, '0') + ' ' + MON[t.getMonth()] + ' ' + t.getFullYear(); };
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fmtDate = d => { const t = new Date(d); return isNaN(t) ? '' : String(t.getDate()).padStart(2, '0') + '-' + MON[t.getMonth()] + '-' + t.getFullYear(); };   // DD-Mon-YYYY, the app's date format
 const asc = (rows, k) => [...rows].sort((a, b) => new Date(a[k]) - new Date(b[k]));
 
 const orbisRow = o => ({ report_date: o.date, nav: n(o.nav), portfolio_value: n(o.market_value), drawdown_percent: 0, cash_in_out: n(o.net_capital_flow) });
@@ -116,7 +116,7 @@ function enrich(rows, bench) {
     rows = [synthetic, ...rows];
   }
   return rows.map(x => {
-    if (x._synthetic) return { date: x.report_date, nav: 10, dd: 0, bench: hasBench ? 10 : null, benchValue: hasBench ? firstBench : null, bdd: hasBench ? 0 : null };
+    if (x._synthetic) return { date: x.report_date, nav: 10, dd: 0, bench: hasBench ? 10 : null, benchValue: hasBench ? firstBench : null, bdd: hasBench ? 0 : null, synthetic: true };
     const nav = n(x.nav);
     if (nav > peak) peak = nav;
     const out = { date: x.report_date, nav, dd: peak > 0 ? ((nav - peak) / peak) * 100 : 0, bench: null, benchValue: null, bdd: null };
@@ -164,7 +164,7 @@ export function perfFrom(h, view) {
     accountId: h.accountId, isClosed: false, closedAt: null, strategy: h.strategy,
     amountInvested: r2(invested), currentValue: r2(current), totalReturns: r2(current - invested),
     returnsPercent: r2(anchoredReturn(rows)), isNegative: current - invested < 0,
-    inceptionDate: fmtDate(first.report_date), dataAsOf: fmtDate(last.report_date), grossValue: r2(current),
+    inceptionDate: fmtDate(first.report_date), dataAsOf: fmtDate(M && view === 'orbis' && M.latestDate ? M.latestDate : last.report_date), grossValue: r2(current),
     trailingReturns: { portfolio: P, benchmark: B, benchmarkUnavailable: !benchIn.length },
   };
 }
@@ -191,6 +191,7 @@ export function navFrom(h, view, period) {
     date: x.date, portfolio: +((x.nav / e[0].nav) * 100).toFixed(4),
     benchmark: x.bench != null && b0 ? +((x.bench / b0.bench) * 100).toFixed(4) : null,
     nav: +x.nav.toFixed(4), benchmarkValue: x.benchValue,
+    ...(x.synthetic ? { synthetic: true } : {}),   // the web's NAV=10 anchor the day before inception (not a real day)
   })) };
 }
 

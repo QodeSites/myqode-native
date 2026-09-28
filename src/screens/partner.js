@@ -16,8 +16,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 import { C, Tx, Amt, Card, CTA, Fade, Field } from '../ui';
+import { fmtD } from '../adapt';
+import { Check } from '../icons';
 import { ChevronDown, ChevronLeft, ChevronRight, DocIcon, MailIcon, Phone, Download } from '../icons';
-import { distributor as api, BASE_URL } from '../api';
+import { distributor as api, auth, BASE_URL } from '../api';
 import { useLoad, openUrl, SectionLabel, Loading, ErrorBox } from './kit';
 import { DateField } from './sip';
 import { storeGet, storeSet, storeDel } from '../api/session';
@@ -37,7 +39,7 @@ export const money = n => {
   if (abs >= 100000) return `${sign}₹${(abs / 100000).toFixed(1)} L`;
   return `${sign}₹${abs.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 };
-export const formatDate = iso => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); };
+export const formatDate = iso => (iso ? fmtD(iso) || '—' : '—');
 
 export function BackRow({ label, onPress }) {
   return (
@@ -215,7 +217,7 @@ const num = s => parseFloat(String(s ?? '').replace(/,/g, '')) || 0;
 const commissionOf = r => (r.yourCommission != null ? num(r.yourCommission) : num(r.distributorShare));
 const inr = n => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const inrCompact = n => (Math.abs(n) >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : Math.abs(n) >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${inr(n)}`);
-const displayDate = iso => (iso ? new Date(`${String(iso).slice(0, 10)}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
+const displayDate = iso => (iso ? fmtD(String(iso).slice(0, 10)) : '');
 const SCHEME = { QAW: 'Qode All Weather', QGF: 'Qode Growth Fund', QTF: 'Qode Tactical Fund', QFH: 'Qode Fund of Holdings', QLF: 'Qode Liquid Fund' };
 const SCHEME_COLOR = { QAW: '#008455', QGF: '#0A3452', QTF: '#550E0E' };
 const code3 = r => String(r.strategy || r.accountcode || '').slice(0, 3).toUpperCase();
@@ -1089,7 +1091,7 @@ export function Invoice({ period, distributorName, onBack }) {
 
 // ── Decks (web: distributors/documents) ──────────────────────────────────────
 const DECKS = [
-  { slug: 'corporate-overview', title: 'Corporate overview', asOf: 'August 2026' },
+  { slug: 'corporate-overview', title: 'Corporate Overview', asOf: 'August 2026' },
   { slug: 'qode-all-weather', title: 'Qode All Weather', asOf: 'August 2026', strategy: 'Qode All Weather' },
   { slug: 'qode-all-weather-factsheet', title: 'Qode All Weather Factsheet', asOf: 'August 2026', strategy: 'Qode All Weather', kind: 'factsheet' },
   { slug: 'qode-growth-fund', title: 'Qode Growth Fund', asOf: 'August 2026', strategy: 'Qode Growth Fund' },
@@ -1154,7 +1156,7 @@ const HISTORY_START = Date.UTC(2006, 0, 1);
 const RISK_OFF = 70, RISK_ON = 30;
 const VSI = { ink: '#37584F', line: '#02422B', redOuter: '#f5bfc9', redInner: '#fee5e9', greenInner: '#e5f3ef', greenOuter: '#bdead2', redLabel: '#c00', greenLabel: '#028a3d', gold: '#DABD38', dark: '#002017' };
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const ddmmyyyy = t => { const d = new Date(t); return isNaN(d) ? '' : `${String(d.getUTCDate()).padStart(2, '0')}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${d.getUTCFullYear()}`; };
+const ddmmyyyy = t => fmtD(t, { utc: true });
 
 // web toSeries(): skip null / NaN, skip anything before 2006; keep the upstream order.
 function toSeries(entry) {
@@ -1341,7 +1343,7 @@ export function Ticket({ onBack }) {
     <Fade>
       <BackRow label="More" onPress={onBack} />
       <Card style={{ padding: 20, alignItems: 'center' }}>
-        <Tx f="play" w={600} s={20}>Ticket raised</Tx>
+        <Tx f="play" w={600} s={20}>Ticket Raised</Tx>
         <Tx s={12.5} c={C.muted} lh={1.6} center style={{ marginTop: 8 }}>The partnerships team has it and will reply to you by email. You do not need to send it again.</Tx>
         <CTA label="RAISE ANOTHER" onPress={() => { setTopic(''); setAbout(''); setMessage(''); setSt({ busy: false, err: '', done: false }); }} style={{ marginTop: 18, alignSelf: 'stretch' }} />
         <CTA label="BACK" outline onPress={onBack} style={{ marginTop: 10, alignSelf: 'stretch' }} />
@@ -1393,6 +1395,59 @@ export function Policies({ onBack }) {
           {!!p.pdf && <CTA label="VIEW POLICY (PDF)" outline onPress={() => openUrl(p.pdf)} style={{ marginTop: 12, paddingVertical: 11 }} />}
         </Card>
       ))}
+    </Fade>
+  );
+}
+
+// ── Change password (partner More) ───────────────────────────────────────────────────────────────────────────
+// The same rules as the web's reset page, plus no spaces. The server checks the current password.
+const noSpaces = t => String(t || '').replace(/\s+/g, '');
+function passwordProblem(a, b) {
+  if (!a) return 'Enter a new password.';
+  if (a.length < 8) return 'Use at least 8 characters.';
+  if (!/[a-z]/.test(a) || !/[A-Z]/.test(a) || !/[0-9]/.test(a) || !/[^A-Za-z0-9]/.test(a)) return 'Include upper and lower case letters, a number and a symbol.';
+  if (a === 'Qode@123') return 'Please choose a different password.';
+  if (a !== b) return 'The two passwords don’t match.';
+  return '';
+}
+export function ChangePassword({ onBack }) {
+  const [cur, setCur] = useState('');
+  const [np, setNp] = useState('');
+  const [np2, setNp2] = useState('');
+  const [st, setSt] = useState({ busy: false, err: '', done: false });
+  const submit = async () => {
+    if (st.busy) return;
+    const e = passwordProblem(np, np2);
+    if (e) return setSt({ busy: false, err: e, done: false });
+    setSt({ busy: true, err: '', done: false });
+    try { await auth.changePassword(cur, np); setSt({ busy: false, err: '', done: true }); }
+    catch (x) { setSt({ busy: false, err: x.message || 'Could not change the password. Please try again.', done: false }); }
+  };
+  if (st.done) {
+    return (
+      <Fade>
+        <BackRow label="More" onPress={onBack} />
+        <Card style={{ padding: 22, alignItems: 'center' }}>
+          <View style={{ width: 52, height: 52, borderRadius: 26, borderWidth: 1.5, borderColor: C.green, alignItems: 'center', justifyContent: 'center' }}><Check s={22} w={2.4} /></View>
+          <Tx w={700} s={15} style={{ marginTop: 14 }}>Password changed</Tx>
+          <Tx s={12.5} c={C.muted} lh={1.6} center style={{ marginTop: 8 }}>Use the new password the next time you sign in. We’ve emailed you a confirmation.</Tx>
+          <CTA label="DONE" onPress={onBack} style={{ marginTop: 18, alignSelf: 'stretch' }} />
+        </Card>
+      </Fade>
+    );
+  }
+  return (
+    <Fade>
+      <BackRow label="More" onPress={onBack} />
+      <Tx s={12.5} c={C.muted} lh={1.5}>Choose a new password for this partner login.</Tx>
+      <Card style={{ padding: 16, marginTop: 14 }}>
+        <Field label="CURRENT PASSWORD" value={cur} onChangeText={t => { setCur(noSpaces(t)); setSt(s => ({ ...s, err: '' })); }} placeholder="••••••••" secure />
+        <Field label="NEW PASSWORD" value={np} onChangeText={t => { setNp(noSpaces(t)); setSt(s => ({ ...s, err: '' })); }} placeholder="••••••••" secure style={{ marginTop: 16 }} />
+        <Field label="CONFIRM NEW PASSWORD" value={np2} onChangeText={t => { setNp2(noSpaces(t)); setSt(s => ({ ...s, err: '' })); }} placeholder="••••••••" secure style={{ marginTop: 16 }} />
+        <Tx s={11} c={C.gray} lh={1.5} style={{ marginTop: 12 }}>At least 8 characters, with upper and lower case letters, a number and a symbol. No spaces.</Tx>
+        {!!st.err && <Tx s={12} c={C.red} lh={1.45} style={{ marginTop: 12 }}>{st.err}</Tx>}
+        <CTA label={st.busy ? 'PLEASE WAIT…' : 'CHANGE PASSWORD'} onPress={submit} style={{ marginTop: 20, opacity: st.busy ? 0.6 : 1 }} />
+      </Card>
     </Fade>
   );
 }

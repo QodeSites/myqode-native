@@ -26,6 +26,11 @@ function Header({ V, insets }) {
         </View>
         <Tx w={700} s={13} c={C.cream} numberOfLines={1} style={{ flexShrink: 1 }}>{V.acctName}</Tx>
         {!!V.acctTag && <Tx w={700} s={13} c={C.gold}>· {V.acctTag}</Tx>}
+        {V.hasViews && (
+          <View style={{ borderWidth: 1, borderColor: 'rgba(239,236,211,0.35)', borderRadius: 4, paddingVertical: 1, paddingHorizontal: 5 }}>
+            <Tx w={700} s={8} ls={0.06} c={C.cream60}>ORBIS+NUVAMA</Tx>
+          </View>
+        )}
         {V.multiAcct && <ChevronDown />}
       </Pressable>
       <View style={{ flex: 1 }} />
@@ -66,18 +71,6 @@ function DarkZone({ V }) {
         <View style={{ paddingTop: 10, paddingHorizontal: 22, flexDirection: 'row' }}>
           <View style={{ backgroundColor: C.gold, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 }}>
             <Tx w={700} s={9.5} ls={0.18} c={C.ink}>DEMO · SAMPLE DATA</Tx>
-          </View>
-        </View>
-      )}
-      {V.hasViews && (
-        <View style={{ marginTop: 12, marginHorizontal: 22 }}>
-          <Tx w={700} s={9.5} ls={0.14} c={C.cream60}>DATA SOURCE</Tx>
-          <View style={{ marginTop: 6, flexDirection: 'row', borderWidth: 1, borderColor: 'rgba(239,236,211,0.25)', borderRadius: 999, padding: 3 }}>
-            {V.viewChips.map(ch => (
-              <Pressable key={ch.label} onPress={ch.pick} style={{ flex: 1, paddingVertical: 7, borderRadius: 999, alignItems: 'center', backgroundColor: ch.active ? C.gold : 'transparent' }}>
-                <Tx w={700} s={10.5} c={ch.active ? C.ink : C.cream60} numberOfLines={1}>{ch.label}</Tx>
-              </Pressable>
-            ))}
           </View>
         </View>
       )}

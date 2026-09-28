@@ -14,6 +14,8 @@ export const clean = {
     if (d.length > 10 && d.startsWith('0')) d = d.slice(1);
     return d.slice(0, 10);
   },
+  // With a country code picked: Indian numbers keep the 10-digit rule; any other country takes 6–15 digits.
+  phoneIntl: (t, cc) => (!cc || cc === '+91' ? clean.phone(t) : String(t || '').replace(/\D/g, '').slice(0, 15)),
   email: t => String(t || '').replace(/\s/g, '').slice(0, LIMITS.email),
   // Person's name: letters, spaces and . ' - only (no digits or symbols), single spaces.
   name: t => String(t || '').replace(/[^A-Za-zÀ-ɏ .'-]/g, '').replace(/\s{2,}/g, ' ').slice(0, LIMITS.name),
@@ -34,6 +36,13 @@ export const check = {
     if (!d) return 'Please enter a mobile number.';
     if (d.length !== 10) return 'Mobile number must be 10 digits.';
     if (!isValidMobile(d)) return 'Enter a valid Indian mobile number (starting with 6, 7, 8 or 9).';
+    return '';
+  },
+  phoneIntl: (v, cc) => {
+    if (!cc || cc === '+91') return check.phone(v);
+    const d = String(v || '').replace(/\D/g, '');
+    if (!d) return 'Please enter a mobile number.';
+    if (d.length < 6 || d.length > 15) return 'Enter a valid mobile number (6 to 15 digits).';
     return '';
   },
   text: (v, { min = 5, max = LIMITS.message, what = 'a few words' } = {}) => {

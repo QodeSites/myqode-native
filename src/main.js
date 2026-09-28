@@ -27,7 +27,7 @@ import {
 import { BASE_URL, auth, portfolio, meta, admin, distributor, setViewToken, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
 import { trackStart, trackStop, screen } from './api/track';
 import { perfFrom, navFrom, ddFrom, cashFrom, plFrom, combineFamily } from './webcalc';
-import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, titleCase, semverLt } from './adapt';
+import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, titleCase, semverLt, fmtD, fmtDM } from './adapt';
 import Splash from './screens/splash';
 import Carousel from './screens/carousel';
 import { Login, OtpScreen, SetPassword } from './screens/login';
@@ -364,7 +364,8 @@ export default class MyQode extends React.Component {
         try { const h = await portfolio.history(legacyId); if (h && h.orbis && h.orbis.length) hist = h; } catch {}
         if (seq !== this.seq) return;
       }
-      if (hist) { this.setState({ hist }, () => this.applyView(this.state.dv)); this.lastLoad = Date.now(); this.loadHoldings(scope, seq); return; }
+      // Web default (performance page): Orbis + Nuvama (Combined) whenever the account has Orbis rows.
+      if (hist) { this.setState({ hist }, () => this.applyView('consolidated')); this.lastLoad = Date.now(); this.loadHoldings(scope, seq); return; }
       this.setState({ hist: null, d: { id: scope.id, kind: k, perf, cash, fys: buildFys(monthly), fysQ: buildFysQ(quarterly) }, navs: { [period]: { nav, dd } }, dl: false, pnlFy: 0, pnlOpen: null });
       this.lastLoad = Date.now();
       this.loadHoldings(scope, seq);
@@ -815,7 +816,7 @@ export default class MyQode extends React.Component {
     const busy = S.loading || S.dl || S.sl;   // sl: snapshot / scopes still loading (see openPortfolio)
     const green = C.pos, red = C.red;
     const c = v => (v < 0 ? red : v > 0 ? green : C.muted);   // same rule as the web table: green / red / neutral
-    const asOf = perf ? perf.dataAsOf : '';
+    const asOf = perf ? fmtD(perf.dataAsOf) : '';
     const benchName = titleCase(perf && perf.strategy && perf.strategy.benchmark) || 'Nifty 50';
     const value = perf ? perf.currentValue : scope ? scope.value : 0;
     const totalReturns = perf ? perf.totalReturns : 0;
@@ -828,7 +829,11 @@ export default class MyQode extends React.Component {
       : (Object.keys(PERIOD).find(r => entryFor(r)) || S.range);
     const rangeLoading = shownRange !== S.range;
     const navEntry = entryFor(shownRange) || {};
-    const { pts, bench, dates, navs, bvals } = navSeries(navEntry.nav);
+    // The NAV chart plots real days only: the web's synthetic NAV=10 anchor (one day before inception, added when
+    // the first NAV isn't 10 — e.g. Orbis series start at 100) would put a jump at the left edge and, with both
+    // lines rebased to 10 from it, squash the benchmark flat under a 100-scale series. Returns and drawdown keep it.
+    const navForChart = navEntry.nav && Array.isArray(navEntry.nav.series) ? { ...navEntry.nav, series: navEntry.nav.series.filter(p => !p.synthetic) } : navEntry.nav;
+    const { pts, bench, dates, navs, bvals } = navSeries(navForChart);
     const rawByDate = {}; dates.forEach((d, i) => { rawByDate[d] = [navs[i], bvals[i]]; });
     const { pts: ddPts, bench: ddBench, dates: ddDates } = navSeries(navEntry.dd);
     const p3 = buildPaths(ddPts, ddBench, 330, 100, 0);
@@ -858,7 +863,7 @@ export default class MyQode extends React.Component {
     const p1 = buildPaths(cPts, cBench, 330, 120, null, [axis.lo, axis.hi]);
     const p2 = buildPaths(cPts, cBench, 358, 110, null, [axis.lo, axis.hi]);
     const navNow = rawLine.length ? rawLine[rawLine.length - 1] : 0;   // the real NAV, not the rebased line
-    const dmy = d => { const t = new Date(d); return isNaN(t) ? '' : t.getDate() + '/' + (t.getMonth() + 1) + '/' + t.getFullYear(); };
+    const dmy = d => fmtD(d);
     const xDates = dates.length > 1 ? [dates[0], dates[Math.floor((dates.length - 1) / 2)], dates[dates.length - 1]].map(dmy) : [];
     // Growth anchor for the full-history chart = the web's: NAV 10 (the PMS starting point) when the first
     // NAV isn't exactly 10, else the first NAV. Shorter ranges are anchored at the window start.
@@ -870,7 +875,7 @@ export default class MyQode extends React.Component {
     // Recent activity from cashflow
     const dateFmt = d => {
       const t = new Date(d);
-      return isNaN(t) ? String(d) : t.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      return isNaN(t) ? String(d) : fmtD(t);
     };
     const cashTx = ((S.d && S.d.cash && S.d.cash.transactions) || []).slice()
       .sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -990,11 +995,13 @@ export default class MyQode extends React.Component {
       skelOther: S.tab !== 'home' && (['portfolio', 'holdings'].includes(S.tab) ? busy : S.loading),
       navIdx: { home: 0, portfolio: 1, holdings: 1, docs: 2, services: 3, more: 4 }[S.tab],
       heroValue: this.fmt(value * (0.35 + 0.65 * S.cu)),
-      rangeLabel: shownRange === 'All' ? 'all time' : shownRange, rangeLoading, asOf, benchName, sinceLbl: perf ? 'Since ' + perf.inceptionDate : '',
+      rangeLabel: shownRange === 'All' ? 'all time' : shownRange, rangeLoading, asOf, benchName, sinceLbl: perf ? 'Since ' + fmtD(perf.inceptionDate) : '',
       growthNow: navNow.toFixed(2), navNow: navNow.toFixed(2),
       yTicks: axis.ticks, xDates,
       hasViews: !!S.hist && !S.hist.family,
-      viewChips: [['nuvama', 'Nuvama'], ['orbis', 'Orbis (Legacy)'], ['consolidated', 'Combined']].map(([id, label]) => ({ label, active: S.dv === id, pick: () => this.applyView(id) })),
+      viewChips: [['nuvama', 'Nuvama'], ['orbis', 'Orbis (Legacy)'], ['consolidated', 'Orbis + Nuvama']].map(([id, label]) => ({ label, active: S.dv === id, pick: () => this.applyView(id) })),
+      // Web note under the returns table: in the Orbis and Combined views the invested / current figures come from Orbis' latest records.
+      orbisNote: !!(S.hist && !S.hist.family && S.hist.orbisMetrics && (S.dv === 'orbis' || S.dv === 'consolidated')),
       tiles: [
         { label: 'TOTAL RETURNS', value: this.sfmt(totalReturns), color: c(totalReturns) },
         { label: 'RETURN (SI)', value: pct(perf && perf.returnsPercent), color: c(perf ? perf.returnsPercent : 0) },
@@ -1054,7 +1061,7 @@ export default class MyQode extends React.Component {
       user: S.user, isSuperAdmin: !!(S.user && S.user.isSuperAdmin), impersonated: !!(S.user && S.user.isImpersonated),
       page: S.page, openPage: k => { screen('page:' + k); set({ page: k }); }, closePage: () => set({ page: null }),
       acctOptions: (scope ? scope.accounts : []).map(a => ({ id: a.id, label: a.strategyPrefix ? a.strategyPrefix + ' · ' + a.id : a.id })),
-      openReq: k => set({ sheet: k }),
+      openReq: (k, preset) => set({ sheet: k, sheetPreset: preset || null }), sheetPreset: S.sheetPreset || null,
       bumpRefresh: () => set(s => ({ rk: s.rk + 1 })),
       openAdd: () => set({ sheet: 'r-add' }),
       openSwitchStrategy: () => set({ sheet: 'r-switch' }),
@@ -1070,7 +1077,7 @@ export default class MyQode extends React.Component {
       hcOn: S.hc, rmOn: S.rm,
       hcToggle: () => set({ hc: !S.hc }), rmToggle: () => set({ rm: !S.rm }),
       sheetOpen: !!S.sheet, sheetSwitch: S.sheet === 'switch',
-      openSwitch: () => set({ sheet: 'switch' }), closeSheet: () => set({ sheet: null, payRecover: null }),
+      openSwitch: () => set({ sheet: 'switch' }), closeSheet: () => set({ sheet: null, sheetPreset: null, payRecover: null }),
       payRecover: S.payRecover || null,
       // primary-UCC pop-up: once per sign-in, over Home, after the dashboard has loaded and while no sheet/page is open
       showUcc: S.tab === 'home' && !S.uccSeen && !busy && hasData && !S.sheet && !S.page && !isDemo() && S.phase === 'app' && !S.lifting,
@@ -1081,6 +1088,7 @@ export default class MyQode extends React.Component {
         value: this.fmt(a.value), pick: () => this.pickScope(i), active: S.acct === i,
         subs: a.accounts.map(x => ({
           id: String(x.id), name: x.strategyName || x.id, code: x.id, color: x.strategyColor || C.gray,
+          orbis: !!x.hasOrbis,   // web: "Orbis+Nuvama" badge on accounts with legacy Orbis rows
           value: this.fmt(num(x.portfolioValue) || 0), pick: () => this.pickScope('a:' + x.id), active: S.acct === 'a:' + x.id,
         })),
       })),
@@ -1186,7 +1194,7 @@ export default class MyQode extends React.Component {
     const tracker = (() => {
       if (!SS) return [];
       const sub = SS.submittedAt ? new Date(SS.submittedAt) : null;
-      const when = sub ? sub.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'Just now';
+      const when = sub ? fmtDM(sub) + ', ' + sub.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : 'Just now';
       const idV = verP && verP.verified;
       const bankV = !!(verP && verP.bank);
       const esign = checkOf('primary', 'esign');

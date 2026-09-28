@@ -35,6 +35,8 @@ export const auth = {
   login: (username, password, role) => api('/auth/login', { method: 'POST', auth: false, body: { username, password, platform, role } }),
   // Re-issues a 30-day token for a valid one (called on start-up once the token is a day old) — the client stays signed in.
   refresh: () => api('/auth/refresh', { method: 'POST' }),
+  // Signed-in user (investor or partner) sets a new password; the server checks the current one.
+  changePassword: (currentPassword, newPassword) => api('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } }),
   // Dev-server only: NODE_ENV=development makes the password optional.
   loginBypass: username => api('/auth/login', { method: 'POST', auth: false, body: { username, platform } }),
   devClients: () => api('/dev/clients', { auth: false }),
@@ -87,6 +89,8 @@ export const documents = {
   // Warm the category counts for an account while the user is elsewhere (errors are ignored, the tab retries).
   warm: accountId => { if (accountId) documents.list(accountId).catch(() => {}); },
   forget: () => { docCache = {}; },
+  // "Request document": emails Investor Relations (and an acknowledgement to the investor)
+  request: body => post('/documents/request', body),
 };
 
 export const engagement = {
@@ -95,6 +99,7 @@ export const engagement = {
   events: () => call('/engagement/events', {}, () => demo.articles('Event')),
   portalGuide: () => call('/engagement/portal-guide', {}, () => ({ videos: [], snapshots: [], byReport: { snapshots: {}, videos: {} }, counts: { videos: 0, snapshots: 0 } })),
   referral: body => post('/engagement/referral', body),
+  referrals: () => (demoOn ? mock(() => ({ referrals: [] })) : api('/engagement/referral/list')),   // past referrals, newest first
   // Analytics only writes to pms_mobile_analytics; it never contacts the client.
   analytics: events => (demoOn ? Promise.resolve({ ok: true }) : api('/engagement/analytics', { method: 'POST', body: { events } })),
 };

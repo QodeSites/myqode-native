@@ -5,6 +5,7 @@ import { View, Pressable, ScrollView, Linking, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, Tx, Amt, Card, CTA, Fade, KeyboardScroll } from '../ui';
+import { fmtD } from '../adapt';
 import { ChevronLeft, ChevronRight, Phone, MailIcon } from '../icons';
 import { experience, engagement, admin } from '../api';
 import * as content from '../content';
@@ -113,13 +114,20 @@ const REFERRAL_FORM = {
   fields: [
     { k: 'name', label: 'REFERRED PERSON’S NAME', kind: 'name', placeholder: 'Full name', validate: x => check.name(x, 'their name') },
     { k: 'email', label: 'EMAIL', kind: 'email', placeholder: 'name@example.com', validate: check.email },
-    { k: 'phone', label: 'MOBILE NUMBER', kind: 'phone', placeholder: 'Enter mobile number', validate: check.phone },
+    { k: 'phone', label: 'MOBILE NUMBER', kind: 'phone', placeholder: 'Enter mobile number', validate: (x, v) => check.phoneIntl(x, v.phoneCc || '+91') },
     { k: 'desc', label: 'NOTE (OPTIONAL)', kind: 'multiline', max: LIMITS.note, validate: x => (String(x || '').length > LIMITS.note ? `Please keep the note under ${LIMITS.note} characters.` : '') },
   ],
-  submit: (a, v) => engagement.referral({ accountId: a, name: v.name.trim(), email: v.email.trim().toLowerCase(), phone: v.phone, description: (v.desc || '').trim() || undefined }),
+  submit: (a, v) => engagement.referral({ accountId: a, name: v.name.trim(), email: v.email.trim().toLowerCase(), phone: `${v.phoneCc || '+91'} ${v.phone}`, description: (v.desc || '').trim() || undefined }),
 };
 
+const REF_STATUS = { pending: ['Under review', C.gold], resolved: ['Reviewed', C.green] };
+const refDate = iso => fmtD(iso);
+
 function Referral({ V }) {
+  // Past referrals (app addition — the web page has no history). A new one reloads the list and clears the form.
+  const [tick, setTick] = useState(0);
+  const past = useLoad(() => engagement.referrals(), [tick]);
+  const list = (past.data && past.data.referrals) || [];
   return (
     <>
       <Article data={{ intro: content.REFERRAL.intro }} />
@@ -135,8 +143,31 @@ function Referral({ V }) {
       )}
       <SectionLabel>REFER SOMEONE</SectionLabel>
       <Card style={{ padding: 16, paddingTop: 4 }}>
-        <FormBody cfg={REFERRAL_FORM} opts={V.acctOptions} onDone={V.closePage} />
+        <FormBody key={tick} cfg={REFERRAL_FORM} opts={V.acctOptions} onDone={() => setTick(t => t + 1)} doneLabel="REFER SOMEONE ELSE" />
       </Card>
+      <SectionLabel>YOUR REFERRALS</SectionLabel>
+      {past.loading && !past.data && <Loading rows={2} h={56} />}
+      {!!past.err && <Tx s={12} c={C.muted} style={{ marginLeft: 2 }}>We couldn’t load your past referrals just now.</Tx>}
+      {!!past.data && list.length === 0 && <Empty>You haven’t referred anyone yet. Referrals you make appear here with their status.</Empty>}
+      {list.length > 0 && (
+        <Card style={{ overflow: 'hidden' }}>
+          {list.map((r, i) => {
+            const [label, color] = REF_STATUS[r.status] || REF_STATUS.pending;
+            return (
+              <View key={r.id || i} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: i < list.length - 1 ? 1 : 0, borderColor: C.hairline }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Tx w={700} s={13} numberOfLines={1}>{r.name || '—'}</Tx>
+                  <Tx s={11} c={C.muted} numberOfLines={1} style={{ marginTop: 2 }}>{[r.email, r.phone].filter(Boolean).join(' · ')}</Tx>
+                  <Tx s={10.5} c={C.gray} style={{ marginTop: 2 }}>{refDate(r.createdAt)}{r.accountId ? ' · ' + r.accountId : ''}</Tx>
+                </View>
+                <View style={{ borderWidth: 1, borderColor: color, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 }}>
+                  <Tx w={700} s={10} c={color}>{label.toUpperCase()}</Tx>
+                </View>
+              </View>
+            );
+          })}
+        </Card>
+      )}
     </>
   );
 }
@@ -303,21 +334,21 @@ function AdminPage({ V }) {
 }
 
 const PAGES = {
-  requirements: { title: 'Data requirements & API coverage', body: () => <Requirements /> },
+  requirements: { title: 'Data Requirements & API Coverage', body: () => <Requirements /> },
   admin: { title: 'Admin', body: V => <AdminPage V={V} /> },
-  family: { title: 'Family accounts', body: () => <Family /> },
+  family: { title: 'Family Accounts', body: () => <Family /> },
   insights: { title: 'Insights', body: () => <Insights /> },
-  guide: { title: 'Investor portal guide', body: () => <PortalGuide /> },
-  referral: { title: 'Referral programme', body: V => <Referral V={V} /> },
+  guide: { title: 'Investor Portal Guide', body: () => <PortalGuide /> },
+  referral: { title: 'Referral Programme', body: V => <Referral V={V} /> },
   cadence: { title: 'Reports & Reviews', body: () => <ReportsReviews /> },
-  philosophy: { title: 'Qode philosophy', body: () => <Article data={content.PHILOSOPHY} /> },
+  philosophy: { title: 'Qode Philosophy', body: () => <Article data={content.PHILOSOPHY} /> },
   foundation: { title: 'Note from Fund Managers', body: () => <Foundation /> },
   strategies: { title: 'Strategy Snapshot', body: () => <StrategySnapshot /> },
   team: { title: 'Your Team at Qode', body: V => <TeamPage V={V} /> },
-  faq: { title: 'FAQ & glossary', body: () => <Faq /> },
+  faq: { title: 'FAQ & Glossary', body: () => <Faq /> },
   grievance: { title: 'Escalation Framework', body: () => <Escalation /> },
-  risk: { title: 'Risk management', body: () => <Risk /> },
-  contact: { title: 'Contact us', body: () => <Contact /> },
+  risk: { title: 'Risk Management', body: () => <Risk /> },
+  contact: { title: 'Contact Us', body: () => <Contact /> },
   privacy: { title: content.LEGAL.privacy.title || 'Privacy policy', body: () => <Article data={content.LEGAL.privacy} /> },
   terms: { title: content.LEGAL.terms.title || 'Terms & conditions', body: () => <Article data={content.LEGAL.terms} /> },
   cancellation: { title: content.LEGAL.cancellation.title || 'Cancellation & refund', body: () => <Article data={content.LEGAL.cancellation} /> },

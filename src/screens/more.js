@@ -8,11 +8,11 @@ import { SignOutButton } from './kit';
 import { SectionLabel } from './kit';
 
 const GROUPS = [
-  { title: 'EXPERIENCE', items: [['Family accounts', 'family'], ['Investor portal guide', 'guide'], ['Service cadence', 'cadence']] },
-  { title: 'ENGAGEMENT', items: [['Insights', 'insights'], ['Referral programme', 'referral']] },
-  { title: 'ABOUT QODE', items: [['Qode philosophy', 'philosophy'], ['Strategy snapshot', 'strategies'], ['Note from our fund managers', 'foundation'], ['Your team at Qode', 'team']] },
-  { title: 'TRUST', items: [['FAQ & glossary', 'faq'], ['Risk management', 'risk'], ['Grievance redressal', 'grievance']] },
-  { title: 'SUPPORT & LEGAL', items: [['Contact us', 'contact'], ['Privacy policy', 'privacy'], ['Terms & conditions', 'terms']] },
+  { title: 'EXPERIENCE', items: [['Family Accounts', 'family'], ['Investor Portal Guide', 'guide'], ['Service Cadence', 'cadence']] },
+  { title: 'ENGAGEMENT', items: [['Insights', 'insights'], ['Referral Programme', 'referral']] },
+  { title: 'ABOUT QODE', items: [['Qode Philosophy', 'philosophy'], ['Strategy Snapshot', 'strategies'], ['Note from Our Fund Managers', 'foundation'], ['Your Team at Qode', 'team']] },
+  { title: 'TRUST', items: [['FAQ & Glossary', 'faq'], ['Risk Management', 'risk'], ['Grievance Redressal', 'grievance']] },
+  { title: 'SUPPORT & LEGAL', items: [['Contact Us', 'contact'], ['Privacy Policy', 'privacy'], ['Terms & Conditions', 'terms']] },
 ];
 
 const go = url => Linking.openURL(url).catch(() => {});

@@ -10,7 +10,7 @@ export function NotifsSheet({ V }) {
   return (
     <Sheet visible={V.sheetNotifs} onClose={V.closeSheet}>
       <View style={{ paddingHorizontal: 22, paddingTop: 12, paddingBottom: 24 }}>
-        <Tx f="play" w={600} s={21}>For your attention</Tx>
+        <Tx f="play" w={600} s={21}>For Your Attention</Tx>
         <Tx s={12} c={C.muted} style={{ marginTop: 3 }}>Everything that needs you, in one place</Tx>
         {V.notifEmpty && (
           <View style={{ alignItems: 'center', paddingTop: 34, paddingHorizontal: 20, paddingBottom: 18 }}>
@@ -107,7 +107,14 @@ export function SwitchSheet({ V }) {
               }}>
                 <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: x.color }} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Tx w={700} s={12}>{x.name}</Tx>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <Tx w={700} s={12}>{x.name}</Tx>
+                    {x.orbis && (
+                      <View style={{ borderWidth: 1, borderColor: C.mutedBorder35, borderRadius: 4, paddingVertical: 1, paddingHorizontal: 5 }}>
+                        <Tx w={700} s={8} ls={0.06} c={C.muted}>ORBIS+NUVAMA</Tx>
+                      </View>
+                    )}
+                  </View>
                   <Tx s={10} c={C.gray} style={{ marginTop: 1 }}>{x.code}</Tx>
                 </View>
                 <Amt s={12}>{x.value}</Amt>
@@ -140,7 +147,7 @@ export function SettingsSheet({ V }) {
   return (
     <Sheet visible={V.sheetSettings} onClose={V.closeSheet}>
       <View style={{ paddingHorizontal: 22, paddingTop: 12, paddingBottom: 24 }}>
-        <Tx f="play" w={600} s={21}>Display & accessibility</Tx>
+        <Tx f="play" w={600} s={21}>Display & Accessibility</Tx>
         <Tx s={12} c={C.muted} style={{ marginTop: 3 }}>Applies immediately across the app</Tx>
         <Tx w={700} s={11} ls={0.12} c={C.muted} style={{ marginTop: 22, marginBottom: 8 }}>TEXT SIZE</Tx>
         <ChipRow chips={V.tsChips} flex py={11} s={12} round={false} />

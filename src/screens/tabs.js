@@ -211,6 +211,7 @@ function DetailedMetrics({ V }) {
             ))}
           </View>
           <Tx s={11} c={C.gray} style={{ marginTop: 12 }}>As of {V.asOf} · NAV-based, net of fees</Tx>
+          {V.orbisNote && <Tx s={11} c={C.gray} lh={1.5} style={{ marginTop: 6 }}><Tx w={700} s={11} c={C.gray}>Orbis data:</Tx> amount invested and current value are the latest non-zero capital amount and market value from Orbis records.</Tx>}
         </Fade>
       )}
     </Card>
@@ -289,7 +290,20 @@ function ProfitLoss({ V }) {
 export function PortfolioCream({ V }) {
   return (
     <Fade>
-      <Card big style={{ marginTop: -34, padding: 16, flexDirection: 'row' }}>
+      {/* Web's Data Source View (only for an account with Orbis rows): Nuvama · Orbis (Legacy) · Orbis + Nuvama.
+          A solid segmented bar on the cream, so it is not part of the header's scroll parallax and never drifts. */}
+      {V.hasViews && (
+        <View style={{ marginTop: -34, marginBottom: 12, flexDirection: 'row', backgroundColor: '#fff', borderRadius: 999, padding: 4,
+          shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 }}>
+          {V.viewChips.map(ch => (
+            <Pressable key={ch.label} onPress={ch.pick} accessibilityRole="button" accessibilityState={{ selected: ch.active }}
+              style={{ flex: 1, paddingVertical: 9, paddingHorizontal: 4, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: ch.active ? C.green : 'transparent' }}>
+              <Tx w={700} s={10.5} c={ch.active ? C.gold : C.muted} center numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{ch.label}</Tx>
+            </Pressable>
+          ))}
+        </View>
+      )}
+      <Card big style={{ marginTop: V.hasViews ? 0 : -34, padding: 16, flexDirection: 'row' }}>
         {V.perfHead.map(([k, v, col]) => (
           <View key={k} style={{ flex: 1, alignItems: 'center' }}>
             <Tx w={700} s={9.5} ls={0.1} c={C.muted} center>{k}</Tx>
