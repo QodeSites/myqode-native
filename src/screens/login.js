@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
-import { C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise, KeyboardScroll, Wordmark } from '../ui';
+import { C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise, KeyboardScroll, useKeyboardHeight, Wordmark } from '../ui';
 
 function DarkHead({ children, pct = 0.42 }) {
   return (
@@ -27,15 +27,21 @@ function Msg({ V }) {
 }
 
 export function Login({ V }) {
+  // The sign-in card never scrolls: the dark head and the card are fixed, and only what sits below them (the DEV
+  // sign-in with its client list, the demo link, a saved application, "Begin your journey") scrolls in its own
+  // area. The head gives up height while the keyboard is open, and while the DEV list is expanded, so the card
+  // always stays on screen.
+  const kb = useKeyboardHeight();
+  const headPct = kb > 0 ? 0.16 : V.devBypass && V.devOpen ? 0.26 : 0.42;
   return (
     <View style={{ flex: 1, backgroundColor: C.cream }}>
-      <DarkHead>
-        <Wordmark s={32} />
-        <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: 12, marginBottom: 10 }} />
+      <DarkHead pct={headPct}>
+        <Wordmark s={kb > 0 ? 24 : 32} />
+        <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: kb > 0 ? 6 : 12, marginBottom: kb > 0 ? 0 : 10 }} />
       </DarkHead>
-      <KeyboardScroll style={{ flex: 1, marginTop: -46 }} contentContainerStyle={{ flexGrow: 1 }} >
+      <View style={{ marginTop: -46 }}>
         <CurveCap height={46} />
-        <View style={{ backgroundColor: C.cream, flexGrow: 1, paddingHorizontal: 24, paddingBottom: 30 }}>
+        <View style={{ backgroundColor: C.cream, paddingHorizontal: 24 }}>
           <Rise>
             <Card big style={{ marginTop: -30, paddingVertical: 24, paddingHorizontal: 22 }}>
               <Tx w={700} s={11} ls={0.14} c={C.muted}>WELCOME BACK</Tx>
@@ -53,9 +59,14 @@ export function Login({ V }) {
               <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'SIGN IN SECURELY'} onPress={V.doLogin} style={{ marginTop: 22, opacity: V.authBusy ? 0.6 : 1 }} />
             </Card>
           </Rise>
-          <Pressable onPress={V.doForgot} style={{ marginTop: 18 }}>
+          <Pressable onPress={V.doForgot} style={{ marginTop: 14, minHeight: 32, justifyContent: 'center' }}>
             <Tx s={12} c={C.muted} center>Forgot password</Tx>
           </Pressable>
+        </View>
+      </View>
+      {/* Everything below the card scrolls on its own; the card above stays put. */}
+      <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 30 }}>
+        <View>
           {V.devBypass && (
             <Card style={{ marginTop: 18, padding: 16, borderWidth: 1, borderColor: C.gold45 }}>
               <Pressable onPress={V.toggleDev} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -78,13 +89,20 @@ export function Login({ V }) {
                       <Tx w={700} s={11} c={C.green} style={{ marginTop: 4 }}>Tap to retry</Tx>
                     </Pressable>
                   )}
-                  {V.devLoaded && !V.devErr && V.devClients.length === 0 && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>{V.loginAs === 'distributor' ? 'No distributor login matches that search.' : 'No Discretionary client matches that search. Non-Discretionary accounts aren’t listed. Type the code above and use the button instead.'}</Tx>}
-                  {V.devClients.map((c, i) => (
-                    <Pressable key={c.clientCode || 'p:' + i + ':' + c.email} onPress={() => V.bypassLogin(c.email || c.clientCode)} style={{ paddingVertical: 10, borderBottomWidth: 1, borderColor: C.hairline }}>
-                      <Tx w={700} s={12}>{c.name || c.clientCode}</Tx>
-                      <Tx s={10.5} c={C.muted} style={{ marginTop: 2 }}>{[c.clientCode, c.email, c.schemeName].filter(Boolean).join(' · ')}</Tx>
-                    </Pressable>
-                  ))}
+                  {V.devLoaded && !V.devErr && V.devClients.length === 0 && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>{V.loginAs === 'distributor' ? 'No distributor login matches that search.' : 'No Discretionary client matches that search. Non-Discretionary accounts aren’t listed — type the code above and use the button instead.'}</Tx>}
+                  {V.devClients.length > 0 && (
+                    <View style={{ marginTop: 8, maxHeight: 260, borderWidth: 1, borderColor: C.hairline, borderRadius: 8 }}>
+                      <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 10 }}>
+                        {V.devClients.map((c, i) => (
+                          <Pressable key={c.clientCode || 'p:' + i + ':' + c.email} onPress={() => V.bypassLogin(c.email || c.clientCode)} style={{ paddingVertical: 10, borderBottomWidth: i < V.devClients.length - 1 ? 1 : 0, borderColor: C.hairline }}>
+                            <Tx w={700} s={12}>{c.name || c.clientCode}</Tx>
+                            <Tx s={10.5} c={C.muted} style={{ marginTop: 2 }}>{[c.clientCode, c.email, c.schemeName].filter(Boolean).join(' · ')}</Tx>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                      <Tx s={10} c={C.gray} center style={{ paddingVertical: 4 }}>{V.devClients.length} {V.devClients.length === 1 ? 'match' : 'matches'} · scroll the list</Tx>
+                    </View>
+                  )}
                 </View>
               )}
             </Card>
@@ -115,7 +133,9 @@ export function Login({ V }) {
           </Pressable>
           <Tx s={10} ls={0.08} c={C.gray} center style={{ marginTop: 26 }}>PROTECTED BY 256-BIT ENCRYPTION</Tx>
         </View>
-      </KeyboardScroll>
+      </ScrollView>
+      {/* iOS does not resize the window for the keyboard: keep the card above it */}
+      {Platform.OS === 'ios' && kb > 0 && <View style={{ height: kb }} />}
     </View>
   );
 }
@@ -124,7 +144,7 @@ export function OtpScreen({ V }) {
   return (
     <View style={{ flex: 1, backgroundColor: C.cream }}>
       <DarkHead pct={0.36}>
-        <Tx f="play" w={600} s={26} c={C.cream}>Verify it's you</Tx>
+        <Tx f="play" w={600} s={26} c={C.cream}>Verify It's You</Tx>
         <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: 12, marginBottom: 10 }} />
         <Tx s={12} c={C.cream65}>Code sent to {V.otpEmailMask}</Tx>
       </DarkHead>
@@ -157,7 +177,7 @@ export function SetPassword({ V }) {
   return (
     <View style={{ flex: 1, backgroundColor: C.cream }}>
       <DarkHead pct={0.36}>
-        <Tx f="play" w={600} s={26} c={C.cream}>Set your password</Tx>
+        <Tx f="play" w={600} s={26} c={C.cream}>Set Your Password</Tx>
         <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: 12, marginBottom: 10 }} />
         <Tx s={12} c={C.cream65}>Choose a password for {V.otpEmailMask}</Tx>
       </DarkHead>

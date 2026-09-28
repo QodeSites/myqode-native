@@ -3,28 +3,61 @@
 // The web builds three views from raw rows — Nuvama, Orbis (Legacy), Orbis + Nuvama (Combined) — so the app
 // does the same from GET /api/mobile/portfolio/history. Every function returns the SAME SHAPE as the matching
 // /api/mobile/portfolio/* response, so the rest of the app doesn't know the difference.
-// Keep this file in step with the web page; do not "improve" the formulas.
+// Keep this file in step with the web page, EXCEPT for the Orbis corrections below (orbisSeries, consolidate,
+// the NAV-10 anchor), where the web's numbers were wrong. Checked on all 14 Orbis accounts on 28 Sep 2026:
+//  - Orbis NAVs start at 100 on a row before any money arrives; the web anchored them at 10 (returns ×10).
+//  - orbis_master_sheet.net_capital_flow is 0 on every row; the real flows are the changes in capital_amount
+//    (with them, NAV and value agree on every day but a handful).
+//  - Some accounts book the move to Nuvama as an Orbis withdrawal (QGF0003, QGF00061): value collapses on the last
+//    row, so Orbis must stop the day before.
 
 const DAY = 86400000;
 const n = v => Number(v) || 0;
 const key = d => new Date(d).toISOString().slice(0, 10);
 const r2 = v => (v == null || !isFinite(v) ? null : +v.toFixed(2));
-const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
-const fmtDate = d => { const t = new Date(d); return isNaN(t) ? '' : String(t.getDate()).padStart(2, '0') + ' ' + MON[t.getMonth()] + ' ' + t.getFullYear(); };
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fmtDate = d => { const t = new Date(d); return isNaN(t) ? '' : String(t.getDate()).padStart(2, '0') + ' ' + MON[t.getMonth()] + ' ' + t.getFullYear(); };   // DD Mon YYYY, the app's date format
 const asc = (rows, k) => [...rows].sort((a, b) => new Date(a[k]) - new Date(b[k]));
 
-const orbisRow = o => ({ report_date: o.date, nav: n(o.nav), portfolio_value: n(o.market_value), drawdown_percent: 0, cash_in_out: n(o.net_capital_flow) });
+const nuvamaRows = h => asc((h.nuvama || []).map(x => ({ ...x, nav: n(x.nav), portfolio_value: n(x.portfolio_value), cash_in_out: n(x.cash_in_out), drawdown_percent: n(x.drawdown_percent) })), 'report_date');
 
-// web: createConsolidatedData — Orbis NAVs rebased onto the Nuvama scale at the hand-over, Nuvama rows after it kept as-is.
-export function consolidate(orbis, nuvama, code) {
-  if (!orbis || !orbis.length) return nuvama;
-  if (!nuvama || !nuvama.length) return orbis.map(orbisRow);
-  if (code === 'QAW00026') return nuvama;
-  const so = asc(orbis, 'date'), last = so[so.length - 1];
-  const after = asc(nuvama, 'report_date').filter(x => new Date(x.report_date) > new Date(last.date));
-  if (!after.length) return so.map(orbisRow);
-  const factor = n(last.nav) > 0 ? n(after[0].nav) / n(last.nav) : 1;
-  return [...so.map(o => ({ ...orbisRow(o), nav: n(o.nav) * factor })), ...after.map(x => ({ ...x, nav: n(x.nav) }))];
+// The Orbis history as the app uses it: rows before Nuvama took over (and before a hand-over booked as an Orbis
+// withdrawal), with each day's cash flow = the change in capital_amount (a missing capital carries the last one).
+export function orbisSeries(h) {
+  const o = asc(h.orbis || [], 'date');
+  const nuv = nuvamaRows(h);
+  let rows = nuv.length ? o.filter(r => new Date(r.date) < new Date(nuv[0].report_date)) : o;
+  while (rows.length > 1) {
+    const a = rows[rows.length - 2], b = rows[rows.length - 1];
+    if (n(b.market_value) < 0.5 * n(a.market_value) && b.capital_amount != null && n(b.capital_amount) < n(a.capital_amount)) rows = rows.slice(0, -1);
+    else break;
+  }
+  let cap = 0;
+  return rows.map(r => {
+    const c = r.capital_amount == null ? cap : n(r.capital_amount), cf = c - cap;
+    cap = c;
+    return { report_date: r.date, nav: n(r.nav), portfolio_value: n(r.market_value), drawdown_percent: 0, cash_in_out: cf };
+  });
+}
+
+// Orbis + Nuvama. Nuvama books the holdings it received as money in on its first day; that is a transfer, not new
+// money, so it is taken out of that day's flow. Across the hand-over the value moved from Orbis's last figure to
+// Nuvama's first with no money in or out: that change is part of the return, so the Nuvama NAVs are chained on
+// from Orbis's last NAV by value (not rebased to show 0% that day, as the web did).
+export function consolidate(h) {
+  const nuv = nuvamaRows(h), orb = orbisSeries(h);
+  if (!orb.length) return nuv;
+  if (!nuv.length) return orb;
+  if (h.accountId === 'QAW00026') return nuv;   // the web's own exception (no reason given there); kept
+  const end = orb[orb.length - 1];
+  const after = nuv.filter(x => new Date(x.report_date) > new Date(end.report_date));
+  if (!after.length) return orb;
+  const first = after[0];
+  const transferIn = Math.max(0, n(first.cash_in_out));   // the whole first-day inflow: new money that same day can't be told apart
+  const cfFirst = n(first.cash_in_out) - transferIn;
+  const bridge = end.portfolio_value > 0 ? (n(first.portfolio_value) - cfFirst) / end.portfolio_value : 1;
+  const factor = n(first.nav) > 0 ? (end.nav * bridge) / n(first.nav) : 1;
+  return [...orb, ...after.map((x, i) => ({ ...x, nav: n(x.nav) * factor, cash_in_out: i ? n(x.cash_in_out) : cfFirst }))];
 }
 
 // Entire Family built from the members' own aggregate rows — the same way the backend builds its group rows in
@@ -56,11 +89,13 @@ export function combineFamily(histories) {
 
 // The three views for one account. h = the /portfolio/history response.
 export function viewRows(h, view) {
-  const nuvama = (h.nuvama || []).map(x => ({ ...x, nav: n(x.nav), portfolio_value: n(x.portfolio_value), cash_in_out: n(x.cash_in_out), drawdown_percent: n(x.drawdown_percent) }));
-  if (view === 'orbis') return asc((h.orbis || []).map(orbisRow), 'report_date');
-  if (view === 'consolidated') return consolidate(h.orbis || [], nuvama, h.accountId);
-  return nuvama;
+  if (view === 'orbis') return orbisSeries(h);
+  if (view === 'consolidated') return consolidate(h);
+  return nuvamaRows(h);
 }
+// The web's NAV-10 anchor the day before inception is right for a Nuvama series (it starts at 10 and its first row
+// already carries a day's return). An Orbis series starts on a base row at NAV 100 before any money: no anchor.
+const anchorsAt10 = view => view !== 'orbis' && view !== 'consolidated';
 
 const isMonthEnd = d => { const x = new Date(d); x.setDate(x.getDate() + 1); return x.getMonth() !== d.getMonth(); };
 
@@ -88,10 +123,10 @@ function trailing(data, inceptionDate, tenDDate) {
 }
 
 // NAV 10 anchor the day before inception when the first NAV isn't 10 (web: returns % card and portfolio SI).
-function anchoredReturn(rows) {
+function anchoredReturn(rows, anchor = true) {
   const first = rows.find(x => n(x.nav) > 0), last = [...rows].reverse().find(x => n(x.nav) > 0);
   if (!first || !last) return 0;
-  const synthetic = n(first.nav) !== 10, baseNav = synthetic ? 10 : n(first.nav);
+  const synthetic = anchor && n(first.nav) !== 10, baseNav = synthetic ? 10 : n(first.nav);
   const baseDate = new Date(first.report_date); if (synthetic) baseDate.setDate(baseDate.getDate() - 1);
   const years = (new Date(last.report_date) - baseDate) / DAY / 365.25;
   const v = years >= 1 ? (Math.pow(n(last.nav) / baseNav, 1 / years) - 1) * 100 : (n(last.nav) / baseNav - 1) * 100;
@@ -104,19 +139,20 @@ const benchOnOrBefore = (bench, date) => { const t = new Date(date); let hit = n
 // benchmark rebased to 10 at inception. Drawdowns returned as NEGATIVE numbers (the mobile API's convention).
 // Like the web, a synthetic NAV=10 row is prepended one day before inception when the first NAV isn't 10
 // (its benchmark = the inception anchor, i.e. rebased 10). Callers that slice by row index must allow for it.
-function enrich(rows, bench) {
+function enrich(rows, bench, anchor = true) {
   if (!rows.length) return [];
   const firstNav = n(rows[0].nav);
   const firstB = bench.length ? benchOnOrBefore(bench, rows[0].report_date) : null;
   const firstBench = firstB ? firstB.nav : 0, hasBench = bench.length > 0 && firstBench > 0;
-  let peak = firstNav !== 10 ? 10 : firstNav, bPeak = hasBench ? 10 : 0;
-  if (firstNav !== 10) {
+  const synth = anchor && firstNav !== 10;
+  let peak = synth ? 10 : firstNav, bPeak = hasBench ? 10 : 0;
+  if (synth) {
     const d = new Date(rows[0].report_date); d.setDate(d.getDate() - 1);
     const synthetic = { report_date: d.toISOString().split('T')[0], nav: 10, _synthetic: true };
     rows = [synthetic, ...rows];
   }
   return rows.map(x => {
-    if (x._synthetic) return { date: x.report_date, nav: 10, dd: 0, bench: hasBench ? 10 : null, benchValue: hasBench ? firstBench : null, bdd: hasBench ? 0 : null };
+    if (x._synthetic) return { date: x.report_date, nav: 10, dd: 0, bench: hasBench ? 10 : null, benchValue: hasBench ? firstBench : null, bdd: hasBench ? 0 : null, synthetic: true };
     const nav = n(x.nav);
     if (nav > peak) peak = nav;
     const out = { date: x.report_date, nav, dd: peak > 0 ? ((nav - peak) / peak) * 100 : 0, bench: null, benchValue: null, bdd: null };
@@ -134,19 +170,11 @@ export function perfFrom(h, view) {
   const rows = viewRows(h, view);
   if (!rows.length) return null;
   const bench = asc(h.benchmark || [], 'date');
-  const nuvama = viewRows(h, 'nuvama'), orbisRows = viewRows(h, 'orbis');
-  const M = h.orbisMetrics, sum = a => a.reduce((t, x) => t + n(x.cash_in_out), 0);
-  const nuvamaNow = nuvama.length ? n(nuvama[nuvama.length - 1].portfolio_value) : 0;
-
-  // web: totalInvested / currentValue, single-account branches
-  let invested, current;
-  if (M && view === 'orbis') { invested = M.latestCapitalAmount; current = M.latestMarketValue; }
-  else if (M && view === 'consolidated') { invested = sum(nuvama) - (n(M.latestMarketValue) - n(M.latestCapitalAmount)); current = nuvamaNow; }
-  else {
-    invested = sum(rows);
-    current = view === 'consolidated' && orbisRows.length ? n(orbisRows[orbisRows.length - 1].portfolio_value) + nuvamaNow
-      : view === 'orbis' ? n(rows[rows.length - 1].portfolio_value) : nuvamaNow;
-  }
+  const anchor = anchorsAt10(view);
+  // Every view's rows carry its real cash flows (Orbis: capital changes; Orbis + Nuvama: without the transfer), so
+  // net invested = the sum of the flows and the current value = the last row's value.
+  const invested = rows.reduce((t, x) => t + n(x.cash_in_out), 0);
+  const current = n(rows[rows.length - 1].portfolio_value);
 
   const first = rows[0], last = rows[rows.length - 1];
   // The web loads the benchmark over the account's whole (Orbis + Nuvama) span and only caps it at the latest date,
@@ -154,16 +182,16 @@ export function perfFrom(h, view) {
   const benchIn = bench.filter(b => new Date(b.date) <= new Date(last.report_date));
   const tenD = benchIn.length > 10 ? key(benchIn[benchIn.length - 11].date) : null;
   const P = trailing(rows.map(x => ({ nav: n(x.nav), date: x.report_date })), first.report_date, tenD);
-  P.sinceInception = r2(anchoredReturn(rows));
+  P.sinceInception = r2(anchoredReturn(rows, anchor));
   const B = benchIn.length ? trailing(benchIn.map(b => ({ nav: b.nav, date: b.date })), first.report_date, tenD) : {};
-  const e = enrich(rows, benchIn);
+  const e = enrich(rows, benchIn, anchor);
   P.currentDD = r2(e[e.length - 1].dd); P.maxDD = r2(Math.min(...e.map(x => x.dd)));
   if (benchIn.length) { B.currentDD = r2(e[e.length - 1].bdd); B.maxDD = r2(Math.min(...e.map(x => x.bdd ?? 0))); }
 
   return {
     accountId: h.accountId, isClosed: false, closedAt: null, strategy: h.strategy,
     amountInvested: r2(invested), currentValue: r2(current), totalReturns: r2(current - invested),
-    returnsPercent: r2(anchoredReturn(rows)), isNegative: current - invested < 0,
+    returnsPercent: r2(anchoredReturn(rows, anchor)), isNegative: current - invested < 0,
     inceptionDate: fmtDate(first.report_date), dataAsOf: fmtDate(last.report_date), grossValue: r2(current),
     trailingReturns: { portfolio: P, benchmark: B, benchmarkUnavailable: !benchIn.length },
   };
@@ -174,7 +202,7 @@ function windowed(h, view, period) {
   const rows = viewRows(h, view);
   if (!rows.length) return { rows: [], e: [] };
   const lastT = new Date(rows[rows.length - 1].report_date);
-  const e = enrich(rows, asc(h.benchmark || [], 'date').filter(b => new Date(b.date) <= lastT));
+  const e = enrich(rows, asc(h.benchmark || [], 'date').filter(b => new Date(b.date) <= lastT), anchorsAt10(view));
   const days = PERIOD_DAYS[period];
   if (!days) return { rows, e };   // "SI" (ALL) = the web chart, synthetic starting row included
   const from = new Date(rows[rows.length - 1].report_date).getTime() - days * DAY;
@@ -191,6 +219,7 @@ export function navFrom(h, view, period) {
     date: x.date, portfolio: +((x.nav / e[0].nav) * 100).toFixed(4),
     benchmark: x.bench != null && b0 ? +((x.bench / b0.bench) * 100).toFixed(4) : null,
     nav: +x.nav.toFixed(4), benchmarkValue: x.benchValue,
+    ...(x.synthetic ? { synthetic: true } : {}),   // the web's NAV=10 anchor the day before inception (not a real day)
   })) };
 }
 

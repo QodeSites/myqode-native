@@ -4,11 +4,11 @@
 // data tables, segmented controls, and the brand green / gold used as accents rather than as surfaces.
 // Every screen in src/web/ builds from these pieces. `C` here is the web palette: it keeps the app's key names so
 // shared code keeps working, with web values.
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Pressable, TextInput, ActivityIndicator, Modal, ScrollView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { C as APP, Tx as AppTx, Amt, useUI } from '../ui';
-import { ChevronRight } from '../icons';
+import { ChevronRight, ChevronDown } from '../icons';
 
 export const C = {
   ...APP,
@@ -192,21 +192,75 @@ export function Btn({ label, onPress, kind = 'primary', icon, disabled, busy, st
   );
 }
 
-/** Segmented control (filters, ranges). options: [[value, label]] */
-export function Chips({ value, options, onChange, style }) {
+/** Segmented control (filters, ranges). options: [[value, label]]; small for a compact one (table header rows). */
+export function Chips({ value, options, onChange, style, small }) {
   return (
     <View style={[{ flexDirection: 'row', flexWrap: 'wrap', alignSelf: 'flex-start', backgroundColor: 'rgba(55,88,79,0.09)', borderRadius: 9, padding: 3, gap: 2 }, style]}>
       {options.map(([k, l]) => {
         const on = value === k;
         return (
           <Pressable key={String(k)} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => onChange(k)} style={({ hovered }) => ({
-            paddingVertical: 6, paddingHorizontal: 12, borderRadius: 7, outlineStyle: 'none',
+            paddingVertical: small ? 4 : 6, paddingHorizontal: small ? 10 : 12, borderRadius: 7, outlineStyle: 'none',
             backgroundColor: on ? C.green : hovered ? 'rgba(255,255,255,0.6)' : 'transparent',
           })}>
-            <Tx w={600} s={12.5} c={on ? C.gold : C.ink2}>{l}</Tx>
+            <Tx w={600} s={small ? 12 : 12.5} c={on ? C.gold : C.ink2}>{l}</Tx>
           </Pressable>
         );
       })}
+    </View>
+  );
+}
+
+/** Dropdown: a field-like trigger (optional muted label, the current text, a chevron) that opens a floating menu.
+ *  options: [{ id, label, note? }] or { section: 'Heading' } rows; value: the selected id; onPick(id) closes the menu
+ *  unless the id is in keepOpen (e.g. 'custom', to show extra fields). children: extra content under the options,
+ *  or a function (close) => node. Clicking outside or pressing Escape closes it. Give the row it sits in a zIndex
+ *  so the menu floats over what follows. */
+export function Dropdown({ label, text, options = [], value, onPick, keepOpen = [], children, width, maxWidth = 380, menuWidth = 300, align = 'left', disabled, a11yLabel }) {
+  const [open, setOpen] = useState(false);
+  const close = () => setOpen(false);
+  useEffect(() => {
+    if (!open || Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
+    const onKey = e => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
+  const extra = typeof children === 'function' ? children(close) : children;
+  return (
+    <View style={{ zIndex: open ? 60 : 1, width, maxWidth, flexShrink: 1 }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={a11yLabel || label || text} accessibilityState={{ expanded: open, disabled: !!disabled }}
+        onPress={disabled ? undefined : () => setOpen(o => !o)}
+        style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, height: 36, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1,
+          backgroundColor: C.card, borderColor: open || (hovered && !disabled) ? C.green : C.line2, opacity: disabled ? 0.5 : 1, outlineStyle: 'none' })}>
+        {!!label && <Tx w={600} s={12} c={C.ink3}>{label}</Tx>}
+        <Tx w={600} s={13} numberOfLines={1} style={{ flexShrink: 1 }}>{text}</Tx>
+        <ChevronDown s={10} c={C.ink2} />
+      </Pressable>
+      {open && (
+        <>
+          <Pressable accessibilityLabel="Close menu" onPress={close}
+            style={{ position: Platform.OS === 'web' ? 'fixed' : 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, cursor: 'default' }} />
+          <View style={{ position: 'absolute', top: 40, [align === 'right' ? 'right' : 'left']: 0, zIndex: 1, width: menuWidth, borderWidth: 1, borderColor: C.line,
+            borderRadius: 10, backgroundColor: C.card, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } }}>
+            {options.length > 0 && (
+              <ScrollView style={{ maxHeight: 340 }} contentContainerStyle={{ paddingVertical: 4 }}>
+                {options.map((o, i) => (o.section ? (
+                  <Tx key={'s' + i} w={600} s={11.5} c={C.ink3} style={{ paddingHorizontal: 14, paddingTop: i ? 10 : 6, paddingBottom: 4 }}>{o.section}</Tx>
+                ) : (
+                  <Pressable key={String(o.id)} accessibilityRole="menuitem" accessibilityState={{ selected: o.id === value }}
+                    onPress={() => { if (onPick) onPick(o.id); if (!keepOpen.includes(o.id)) close(); }}
+                    style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'baseline', gap: 10, paddingVertical: 9, paddingHorizontal: 14, outlineStyle: 'none',
+                      backgroundColor: o.id === value ? C.greenTint : hovered ? C.hover : 'transparent' })}>
+                    <Tx w={o.id === value ? 600 : 400} s={13} c={o.id === value ? C.green : C.ink} numberOfLines={1} style={{ flex: 1 }}>{o.label}</Tx>
+                    {!!o.note && <Tx s={12} c={C.ink3} numberOfLines={1}>{o.note}</Tx>}
+                  </Pressable>
+                )))}
+              </ScrollView>
+            )}
+            {!!extra && <View style={{ padding: 14, borderTopWidth: options.length ? 1 : 0, borderColor: C.line }}>{extra}</View>}
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -279,12 +333,12 @@ export function Table({ cols, rows, onRowPress, empty = 'Nothing to show yet.', 
   return (
     <View>
       <View style={{ flexDirection: 'row', backgroundColor: C.green }}>
-        {cols.map(c => <Tx key={c.key} w={600} s={11.5} c={C.cream} numberOfLines={1} style={[cell, { paddingVertical: 9, flex: c.flex || 1, textAlign: c.right ? 'right' : 'left' }]}>{sentence(c.label)}</Tx>)}
+        {cols.map(c => <Tx key={c.key} w={600} s={11.5} c={C.cream} numberOfLines={1} style={[cell, { paddingVertical: 9, ...(c.w ? { width: c.w, flexShrink: 0 } : { flex: c.flex || 1 }), textAlign: c.right ? 'right' : 'left' }]}>{sentence(c.label)}</Tx>)}
       </View>
       {rows.length === 0 && <Tx s={13} c={C.ink3} style={{ padding: 20 }}>{empty}</Tx>}
       {rows.map((r, i) => {
         const inner = cols.map(c => (
-          <View key={c.key} style={[cell, { flex: c.flex || 1, alignItems: c.right ? 'flex-end' : 'flex-start', justifyContent: 'center' }]}>
+          <View key={c.key} style={[cell, { ...(c.w ? { width: c.w, flexShrink: 0 } : { flex: c.flex || 1 }), alignItems: c.right ? 'flex-end' : 'flex-start', justifyContent: 'center' }]}>
             {c.render ? c.render(r) : <Tx s={13.5} numberOfLines={2}>{r[c.key] == null ? '' : String(r[c.key])}</Tx>}
           </View>
         ));

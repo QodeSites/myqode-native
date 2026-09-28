@@ -11,7 +11,7 @@ import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/d
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { C, Tx, Amt, Field, CTA } from '../ui';
-import { inr } from '../adapt';
+import { fmtD, inr } from '../adapt';
 import { Check } from '../icons';
 import { services, BASE_URL, isDemo } from '../api';
 import { AccountChips, useLoad } from './kit';
@@ -31,7 +31,7 @@ const pad = n => String(n).padStart(2, '0');
 const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const niceDate = d => `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+const niceDate = d => fmtD(d);
 const ordinal = n => n + ([, 'st', 'nd', 'rd'][(n % 100 >> 3 ^ 1 && n % 10)] || 'th');
 const addMonths = (d, n) => new Date(d.getFullYear(), d.getMonth() + n, d.getDate());
 function today() { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }

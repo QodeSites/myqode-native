@@ -29,6 +29,7 @@ import {
   EMPTY_PROFILE, todayIst, validateProfile, DECKS, SEGMENTS, toSeries, VsiChart, RISK_OFF, RISK_ON, VSI, ddmmyyyy, TOPICS,
 } from '../screens/partner';
 import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, ErrorBlock, Empty, Btn, PageIntro, Chips, Input, KeyVals, Pill, Dialog, FitAmt } from './kit';
+import { ClientReportsDialog } from './clientReports';
 
 /* ── sections, addresses ────────────────────────────────────────────────────────────────────────────────── */
 const DocSmall = ({ c, s }) => <DocIcon s={s || 18} c={c} w={1.6} />;
@@ -66,7 +67,13 @@ const UserGlyph = ({ c, s = 18 }) => (
 /* ── helpers ────────────────────────────────────────────────────────────────────────────────────────────── */
 // Sentence case for CRM values ("First Fund Initiated" → "First fund initiated"), keeping acronyms (CML).
 const noSept = t => String(t || '').replace(/\bSept\b/g, 'Sep');
-const dday = x => noSept(displayDate(x));
+// Fee periods come from the calculator as "1-Apr-26"; everything else is ISO.
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const dday = x => {
+  const m = /^(\d{1,2})-([A-Za-z]{3})-(\d{2}|\d{4})$/.exec(String(x || '').trim());
+  if (m && MON.includes(m[2])) return `${m[1].padStart(2, '0')} ${m[2]} ${m[3].length === 2 ? '20' + m[3] : m[3]}`;
+  return noSept(displayDate(x));
+};
 const sc = t => String(t || '').split(' ').map((w, i) => (i === 0 || /^[A-Z0-9]{2,}$/.test(w) || /^(Nuvama|Qode|Zoho)$/.test(w) ? w : w.toLowerCase())).join(' ');
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const PARTNERSHIPS = 'partnerships@qodeinvest.com';
@@ -522,6 +529,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
   useEffect(() => { if (f.status) setStatus(f.status); }, [f.status]);
   const [soaBusy, setSoaBusy] = useState('');
   const [soaMsg, setSoaMsg] = useState('');
+  const [reportsFor, setReportsFor] = useState(null);   // investor whose "Download reports" dialog is open
   const d = journey.data;
   const clients = (d && d.journey && d.journey.clients) || [];
   const counts = useMemo(() => { const m = new Map(); for (const c of clients) { const k = statusFor(c.stage, c.onboardingStage).key; m.set(k, (m.get(k) || 0) + 1); } return m; }, [clients]);
@@ -564,12 +572,13 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
           {delta != null ? <Amt s={11.5} c={delta >= 0 ? C.pos : C.red}>{delta >= 0 ? '+' : '−'}{money(Math.abs(delta))}</Amt> : <Tx s={11.5} c={C.ink3}>No holdings yet</Tx>}
         </View>);
     } },
-    { key: 'date', label: f.basis === 'opened' ? 'Account opened' : 'First funded', right: true, flex: 0.95, render: ({ c }) => <Tx s={12.5} c={C.ink2}>{fmtDate(f.basis === 'opened' ? c.accountLiveDate : fundedDate(c) || c.accountLiveDate)}</Tx> },
-    { key: 'act', label: 'Actions', right: true, flex: 1.7, render: ({ c }) => (
+    { key: 'date', label: f.basis === 'opened' ? 'Account opened' : 'First funded', right: true, flex: 0.95, render: ({ c }) => <Tx s={12.5} c={C.ink2} numberOfLines={1}>{fmtDate(f.basis === 'opened' ? c.accountLiveDate : fundedDate(c) || c.accountLiveDate)}</Tx> },
+    { key: 'act', label: 'Actions', right: true, w: 336, render: ({ c }) => (
       <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
         {c.clientCode
           ? <Btn small label={view.opening === c.clientCode ? 'Opening…' : 'View account'} onPress={() => view.open(c)} disabled={!!view.opening && view.opening !== c.clientCode} />
           : <View style={{ height: 34, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, justifyContent: 'center' }}><Tx s={12} c={C.ink3}>Not in portal yet</Tx></View>}
+        {!!c.clientCode && <Btn small kind="outline" label="Reports" icon={<Download s={13} c={C.ink2} />} onPress={() => setReportsFor(c)} />}
         {!!c.email && <Btn small kind="outline" label={soaBusy === c.email ? 'Fetching…' : 'SOA'} icon={<Download s={13} c={C.ink2} />} onPress={() => soa(c)} disabled={!!soaBusy && soaBusy !== c.email} />}
       </View>) },
   ];
@@ -636,6 +645,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
           </Panel>
         </View>
       </Row>
+      <ClientReportsDialog c={reportsFor} visible={!!reportsFor} onClose={() => setReportsFor(null)} />
     </View>
   );
 }
@@ -665,6 +675,7 @@ function Stepper({ items }) {   // items: [{ label, note, state: 'done' | 'here'
 
 function InvestorPage({ c, status, view, onBack }) {
   const [busy, setBusy] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);
   const [msg, setMsg] = useState('');
   const delta = c.currentValue != null && c.investedAmount != null ? c.currentValue - c.investedAmount : null;
   const deltaPct = delta != null && c.investedAmount ? (delta / c.investedAmount) * 100 : null;
@@ -698,6 +709,7 @@ function InvestorPage({ c, status, view, onBack }) {
           </View>
         </View>
         {!!c.clientCode && <Btn label={view.opening === c.clientCode ? 'Opening…' : 'View account'} onPress={() => view.open(c)} />}
+        {!!c.clientCode && <Btn kind="outline" label="Download reports" icon={<Download s={14} c={C.ink2} />} onPress={() => setReportsOpen(true)} />}
         {!!c.email && <Btn kind="outline" label={busy ? 'Fetching…' : 'Download SOA'} icon={<Download s={14} c={C.ink2} />} onPress={soa} />}
         {!!c.email && <Btn kind="outline" label="Email" icon={<MailIcon s={14} c={C.ink2} />} onPress={() => mail(c.email)} />}
         {!!c.mobile && <Btn kind="outline" label="Call" icon={<Phone s={14} c={C.ink2} />} onPress={() => Linking.openURL('tel:' + String(c.mobile).replace(/[^\d+]/g, '')).catch(() => {})} />}
@@ -754,6 +766,7 @@ function InvestorPage({ c, status, view, onBack }) {
           )}
         </Row>
       )}
+      <ClientReportsDialog c={c} visible={reportsOpen} onClose={() => setReportsOpen(false)} />
     </View>
   );
 }
@@ -832,7 +845,7 @@ function Fees({ periods, period, setPeriod, go }) {
       <View style={{ gap: 20 }}>
         <PeriodBar periods={periods} period={period} setPeriod={setPeriod} />
         {rows.loading && <Loading rows={4} />}
-        {!rows.loading && !!rows.err && <ErrorBlock msg={`We couldn’t load your fees. ${rows.err}. Please refresh, or contact investor.relations@qodeinvest.com.`} onRetry={rows.reload} />}
+        {!rows.loading && !!rows.err && <ErrorBlock msg={`We couldn’t load your fees. ${rows.err}. Please refresh, or contact partnerships@qodeinvest.com.`} onRetry={rows.reload} />}
         {!rows.loading && !rows.err && list.length === 0 && !!period && (
           <Empty title="No fees in this period">No fees were billed to your clients between {dday(period.startDate)} and {dday(period.endDate)}. Try an earlier period.</Empty>
         )}
@@ -862,7 +875,7 @@ function Fees({ periods, period, setPeriod, go }) {
               </Row>
             </View>
           </Row>
-          {t.unmappedCount > 0 && <Notice>{`${plural(t.unmappedCount, 'client has', 'clients have')} no fee rate configured. Their share shows as ₹0 because no rate has been set, not because none is due. Contact investor.relations@qodeinvest.com to have these confirmed.`}</Notice>}
+          {t.unmappedCount > 0 && <Notice>{`${plural(t.unmappedCount, 'client has', 'clients have')} no fee rate configured. Their share shows as ₹0 because no rate has been set, not because none is due. Contact partnerships@qodeinvest.com to have these confirmed.`}</Notice>}
           <Row top>
             <Panel title="By client" sub="Click a client for each account's fees" pad={0} style={{ flex: 2, minWidth: 0 }}
               right={<Input value={search} onChangeText={setSearch} placeholder="Search by client or account code" style={{ width: 280 }} />}>
@@ -973,7 +986,7 @@ function StatementBody({ period, name, go }) {
   const [busy, setBusy] = useState(false);
   const [pdfErr, setPdfErr] = useState('');
   if (loading) return <Loading rows={4} />;
-  if (err) return <ErrorBlock msg={`We couldn’t prepare the statement. ${err}. Please try again, or contact investor.relations@qodeinvest.com.`} onRetry={reload} />;
+  if (err) return <ErrorBlock msg={`We couldn’t prepare the statement. ${err}. Please try again, or contact partnerships@qodeinvest.com.`} onRetry={reload} />;
   if (!rows.length) return <Empty title="No fees in this period">There is nothing to put on a statement for {period.label}. Try an earlier period.</Empty>;
   const pdf = async () => { if (busy) return; setBusy(true); setPdfErr(''); try { await savePdf(doc.html(), 'Fee statement ' + ref); } catch (e) { setPdfErr(e.message); } setBusy(false); };
   const cols = [
@@ -1015,12 +1028,12 @@ function StatementBody({ period, name, go }) {
       <Panel title="Breakdown by client" sub={`You receive ${t.ratePct} of the standard fee${disc ? ', less your discount' : ''}, including GST`} pad={0}>
         <Table dense rows={[...clients.map((c, i) => ({ ...c, id: c.name + i })), totalRow]} cols={cols} />
       </Panel>
-      {t.unmapped && <Notice>Some clients are not included. One or more clients have no fee share configured, so no amount is shown against them. Contact investor.relations@qodeinvest.com before invoicing.</Notice>}
+      {t.unmapped && <Notice>Some clients are not included. One or more clients have no fee share configured, so no amount is shown against them. Contact partnerships@qodeinvest.com before invoicing.</Notice>}
       {t.isLegacyRate && <Notice>Provisional rate. This statement uses a share rate held in our portal records rather than a confirmed CRM rate. Please confirm before invoicing.</Notice>}
       <Panel title="Notes">
         <Tx s={13} c={C.ink2} lh={1.6}><Tx w={600} s={13}>This is not a tax invoice.</Tx> It is a statement of fees earned, issued for your records. Please raise your own invoice on Qode Advisors LLP for the total shown above.</Tx>
         <Tx s={13} c={C.ink2} lh={1.6} style={{ marginTop: 10 }}><Tx w={600} s={13}>The total payable to you is inclusive of GST at 18%.</Tx> Your revenue share of {t.ratePct} is calculated on the fees billed to your clients, and GST at 18% is added to your share. Do not add GST on top of the total: the amount payable to you is {inr(t.share)} in full. On your invoice this is {inr(t.shareNet)} plus GST of {inr(t.shareGst)}.</Tx>
-        <Tx s={13} c={C.ink2} lh={1.6} style={{ marginTop: 10 }}>Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact investor.relations@qodeinvest.com before invoicing.</Tx>
+        <Tx s={13} c={C.ink2} lh={1.6} style={{ marginTop: 10 }}>Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact partnerships@qodeinvest.com before invoicing.</Tx>
       </Panel>
     </>
   );
@@ -1104,7 +1117,7 @@ function InvoiceBody({ period, name, onIssued }) {
   return (
     <Row top>
       <View style={{ flex: 1, gap: 20, minWidth: 0 }}>
-        {!qodeOk && <Notice tone="bad">Invoicing isn’t available yet. Qode’s GST details haven’t been configured in the portal, and an invoice without them wouldn’t be valid. Please contact investor.relations@qodeinvest.com.</Notice>}
+        {!qodeOk && <Notice tone="bad">Invoicing isn’t available yet. Qode’s GST details haven’t been configured in the portal, and an invoice without them wouldn’t be valid. Please contact partnerships@qodeinvest.com.</Notice>}
         <Panel title="Your invoice details" sub="They appear on the invoice as the party raising it. We save them, so you only enter them once.">
           <View style={{ gap: 14 }}>
             <Row gap={14}>{F('legalName', 'Registered name *', { placeholder: 'As registered, e.g. Acme Capital Services LLP' })}</Row>

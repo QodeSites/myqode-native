@@ -3,6 +3,8 @@
 // zebra rows. The content follows the custodian's (Nuvama WealthSpectrum) statements clients already know.
 // Each builder returns { html, landscape } for savePdf (src/screens/partner.js); iOS supplies the page margins.
 
+import { transactionsSummary, capitalGainsSummary, expensesSummary, factsheetSummary, pnlSummary } from '../reportSummary.js';
+
 const K = {
   ink: '#002017', green: '#02422B', gold: '#DABD38', cream: '#EFECD3', card: '#F7F5E9', muted: '#37584F',
   hair: '#DCD8C0', pos: '#15803D', neg: '#C62828', goldTint: '#F5EDC8',
@@ -75,8 +77,22 @@ const CSS = landscape => `
   .ft { margin-top: 16px; border-top: 1.4px solid ${K.gold}; padding-top: 5px; display: table; width: 100%; font-size: 6.6pt; color: ${K.muted}; }
   .ft > div { display: table-cell; vertical-align: top; }
   .pb { page-break-before: always; }
+  .sum { margin-top: 8px; border: 1px solid ${K.hair}; border-left: 3px solid ${K.gold}; border-radius: 5px; background: ${K.card}; padding: 8px 12px; }
+  .sum p { margin: 3px 0 0; font-size: 8.6pt; line-height: 1.5; }
+  table.stmt td { border-bottom: none; padding: 3.5px 6px; }
+  table.stmt tr.sh td { color: #8A700C; font-weight: 700; font-size: .86em; letter-spacing: 1px; text-transform: uppercase; padding-top: 9px; }
+  table.stmt tr.sub td:first-child { padding-left: 16px; }
+  table.stmt tr.st td { font-weight: 700; border-top: .8px solid ${K.muted}; }
+  table.stmt tr.gt td { font-weight: 700; color: ${K.green}; border-top: 1.2px solid ${K.green}; border-bottom: 2.6px double ${K.green}; }
+  table.stmt td.mid { color: ${K.muted}; }
+  .bs { display: table; width: 100%; table-layout: fixed; border: 1px solid ${K.hair}; border-radius: 5px; }
+  .bs > div { display: table-cell; vertical-align: top; padding: 6px 8px 8px; }
+  .bs > div + div { border-left: 1px solid ${K.hair}; }
+  .bs h4 { margin: 2px 0 4px; font-size: 8.4pt; color: ${K.green}; font-weight: 700; letter-spacing: .3px; }
 `;
-const page = (landscape, head, body) => `<!doctype html><html data-report="1"><head><meta charset="utf-8"><style>${CSS(landscape)}</style></head><body>${head}${body}
+// summary: plain sentences (src/reportSummary.js) printed under the header, before any figures or tables.
+const summaryBlock = lines => (lines && lines.length ? `<div class="sum"><div class="lbl">Summary</div><p>${esc(lines.join(' '))}</p></div>` : '');
+const page = (landscape, head, body, summary) => `<!doctype html><html data-report="1"><head><meta charset="utf-8"><style>${CSS(landscape)}</style></head><body>${head}${summaryBlock(summary)}${body}
 <div class="ft"><div><b style="color:${K.green}">Qode Advisors LLP</b> · SEBI Registered Portfolio Manager · Data: Nuvama WealthSpectrum (custodian)<br>This is a computer generated report and does not require a signature.</div><div class="rt">Generated ${today()}<br>from the myQode app</div></div></body></html>`;
 
 // Reporting period line under the title: both ends, one open end, or (when allowed) "All records".
@@ -105,7 +121,7 @@ export function transactionsPdf(r, accountId, groupLabel) {
   const body = flows + `${r.items.length ? '' : '<p class="note">No transactions in this period.</p>'}<h3>Transactions${r.hasMore ? ' <span class="note">(latest 5,000)</span>' : ''}</h3>
     <table class="fixed"><colgroup><col style="width:9%"><col style="width:9%"><col style="width:17%"><col><col style="width:10%"><col style="width:10%"><col style="width:14%"></colgroup>
     <thead><tr><th>Date</th><th>Settled</th><th>Transaction</th><th>Security / details</th><th class="r">Quantity</th><th class="r">Rate</th><th class="r">Amount (₹)</th></tr></thead><tbody>${rows}</tbody></table>`;
-  return { html: page(false, head, body), landscape: false };
+  return { html: page(false, head, body, transactionsSummary(r, false)), landscape: false };
 }
 
 // ── Capital gain / loss (landscape; per category, with the advance-tax quarter summary) ──────────────────
@@ -121,7 +137,7 @@ const quarterOf = iso => {
 export function capitalGainsPdf(r, accountId) {
   const head = header('Statement of Capital Gain / Loss', r.asOf, [...acctFields(accountId, r.holder), ['Period', cgPeriod(r)]],
     r.fy ? `Financial year ${r.fy}` : periodLine(r.from, r.to));
-  return { html: page(true, head, cgBody(r)), landscape: true };
+  return { html: page(true, head, cgBody(r), capitalGainsSummary(r, false)), landscape: true };
 }
 // Period text of a capital gains answer: by financial year (fy set) or by a sale-date range (fy null, from / to set).
 function cgPeriod(r) {
@@ -183,7 +199,7 @@ export function expensesPdf(r, accountId) {
     <table class="fixed"><colgroup><col style="width:10%"><col style="width:10%"><col style="width:24%"><col><col style="width:15%"></colgroup>
     <thead><tr><th>Date</th><th>Settled</th><th>Charge</th><th>Description</th><th class="r">Amount (₹)</th></tr></thead><tbody>
     ${block('Expenses paid', 'paid')}${block('Expenses payable', 'payable')}</tbody></table>${r.items.length ? '' : '<p class="note">No expense entries in this period.</p>'}`;
-  return { html: page(false, head, body), landscape: false };
+  return { html: page(false, head, body, expensesSummary(r, false, r.byType)), landscape: false };
 }
 
 // ── Portfolio fact sheet ──────────────────────────────────────────────────────────────────────────────────
@@ -209,7 +225,7 @@ function barChart(periods, a, b) {
   return s + '</svg>';
 }
 export function factsheetPdf(r, accountId) {
-  return { html: page(false, ...factsheetParts(r, accountId)), landscape: false };
+  return { html: page(false, ...factsheetParts(r, accountId), factsheetSummary(r, false)), landscape: false };
 }
 // [header, body] of one account's fact sheet (also used per account in the all-accounts fact sheet).
 function factsheetParts(r, accountId) {
@@ -259,7 +275,7 @@ export function transactionsAllPdf(r, groupLabel) {
   const body = failedNote(r) + flows + `${r.items.length ? '' : '<p class="note">No transactions in this period.</p>'}<h3>Transactions · ${r.items.length}${capNote(r)}</h3>
     <table class="fixed"><colgroup><col style="width:8%"><col style="width:8%"><col style="width:10%"><col style="width:15%"><col><col style="width:9%"><col style="width:9%"><col style="width:13%"></colgroup>
     <thead><tr><th>Date</th><th>Settled</th><th>Account</th><th>Transaction</th><th>Security / details</th><th class="r">Quantity</th><th class="r">Rate</th><th class="r">Amount (₹)</th></tr></thead><tbody>${rows}</tbody></table>`;
-  return { html: page(false, head, body), landscape: false };
+  return { html: page(false, head, body, transactionsSummary(r, true)), landscape: false };
 }
 
 export function capitalGainsAllPdf(r) {
@@ -269,7 +285,7 @@ export function capitalGainsAllPdf(r) {
   const cats = byCat.length ? `<h3>By category · all accounts</h3><table class="fixed"><colgroup><col><col style="width:16%"><col style="width:16%"><col style="width:16%"><col style="width:16%"></colgroup>
     <thead><tr><th>Category</th><th class="r">Short term</th><th class="r">Long term</th><th class="r">Long term (effective)</th><th class="r">Total</th></tr></thead><tbody>
     ${byCat.map(c => `<tr class="z"><td>${esc(c.category)}</td><td class="r ${cls(c.st)}">${nf(c.st)}</td><td class="r ${cls(c.lt)}">${nf(c.lt)}</td><td class="r">${nf(c.ltTaxable)}</td><td class="r ${cls((c.st || 0) + (c.lt || 0))}">${nf((c.st || 0) + (c.lt || 0))}</td></tr>`).join('')}</tbody></table>` : '';
-  return { html: page(true, head, failedNote(r) + cgBody({ ...r, hasMore: false }, true, cats) + (r.truncated ? '<p class="note">Showing the latest 5,000 lots per account.</p>' : '')), landscape: true };
+  return { html: page(true, head, failedNote(r) + cgBody({ ...r, hasMore: false }, true, cats) + (r.truncated ? '<p class="note">Showing the latest 5,000 lots per account.</p>' : ''), capitalGainsSummary(r, true)), landscape: true };
 }
 
 export function expensesAllPdf(r) {
@@ -290,7 +306,7 @@ export function expensesAllPdf(r) {
     <table class="fixed"><colgroup><col style="width:9%"><col style="width:9%"><col style="width:11%"><col style="width:21%"><col><col style="width:14%"></colgroup>
     <thead><tr><th>Date</th><th>Settled</th><th>Account</th><th>Charge</th><th>Description</th><th class="r">Amount (₹)</th></tr></thead><tbody>
     ${block('Expenses paid', 'paid')}${block('Expenses payable', 'payable')}</tbody></table>${r.items.length ? '' : '<p class="note">No expense entries in this period.</p>'}`;
-  return { html: page(false, head, body), landscape: false };
+  return { html: page(false, head, body, expensesSummary(r, true, r.byType)), landscape: false };
 }
 
 // Combined summary (values summed; returns are not additive), then each account's own fact sheet on a new page.
@@ -306,5 +322,89 @@ export function factsheetAllPdf(r) {
     <tr class="tot"><td>Total</td><td></td><td></td><td class="r">${nf(r.portfolioValue, 0)}</td><td class="r">${nf(r.profitLoss, 0)}</td><td class="r">${nf(r.contribution, 0)}</td><td class="r">${nf(r.withdrawal, 0)}</td></tr></tbody></table>
     <p class="note">${esc(r.note || 'Returns are per account; values are summed.')}</p>`;
   const each = sheets.filter(s => s.data && s.data.asOf).map(({ accountId, data }) => `<div class="pb"></div>${factsheetParts(data, accountId).join('')}`).join('');
-  return { html: page(false, head, failedNote(r) + top + table + each), landscape: false };
+  return { html: page(false, head, failedNote(r) + top + table + each, factsheetSummary(r, true)), landscape: false };
+}
+
+// ── Profit and loss account - Balance sheet ───────────────────────────────────────────────────────────────
+// r: /api/mobile/reports/pnl (myQode/lib/plbsCompute.ts), one account or several summed on the server (accountId
+// null → "All accounts", r.accounts lists the codes). Nuvama's layout: the P&L (income, expenses, surplus), the
+// unrealised gain block (not part of the surplus), then the balance sheet at cost, liabilities and assets side by
+// side with their totals on the same ruled line, and the reconciliation to the portfolio value.
+// rows: [{ k: 'sh' | 'line' | 'sub' | 'st' | 'gt', label, mid, amt, note }]
+const stmtRow = x => x.k === 'sh'
+  ? `<tr class="sh"><td colspan="3">${esc(x.label)}</td></tr>`
+  : `<tr class="${x.k === 'line' ? '' : x.k}"><td class="wrap">${esc(x.label)}${x.note ? `<div class="note" style="margin-top:1px">${esc(x.note)}</div>` : ''}</td>
+     <td class="r mid">${x.mid == null ? '' : nf(x.mid)}</td><td class="r ${x.k === 'gt' || x.k === 'st' ? cls(x.amt) : ''}">${x.amt == null ? '' : nf(x.amt)}</td></tr>`;
+const stmtTable = (rows, amtHead = 'Amount (₹)') => `<table class="fixed stmt"><colgroup><col><col style="width:22%"><col style="width:22%"></colgroup>
+  <thead><tr><th></th><th class="r"></th><th class="r">${amtHead}</th></tr></thead><tbody>${rows.map(stmtRow).join('')}</tbody></table>`;
+export function plbsPdf(r, accountId) {
+  const all = !accountId;
+  const fields = all ? allFields(r) : acctFields(accountId, r.holder);
+  const head = header('Profit and Loss Account - Balance Sheet', r.to, [...fields, ['Basis', r.computed ? 'Computed by Qode' : 'Nuvama report']],
+    `Period: ${dl(r.from)} to ${dl(r.to)}`)
+    + (r.computed && r.note ? `<p class="note" style="margin:6px 0 4px">${esc(r.note)}</p>` : '')
+    + (r.omitted && r.omitted.length ? `<p class="note" style="color:${K.neg}">Not included (not available to this login): ${esc(r.omitted.join(', '))}.</p>` : '');
+  const P = r.pnl, U = r.unrealised, L = r.balanceSheet.liabilities, A = r.balanceSheet.assets, R = r.reconciliation || {};
+  const top = tiles([['Total income', inr(P.incomeTotal), cls(P.incomeTotal)], ['Total expenses', inr(P.expenseTotal)], ['Surplus for the period', inr(P.surplus), cls(P.surplus)],
+    ['Unrealised, net', inr(U.net), cls(U.net)], ...(R.portfolioValue != null ? [[`Portfolio value · ${dl(r.to)}`, inr(R.portfolioValue)]] : [])]);
+  const pnl = stmtTable([
+    { k: 'sh', label: 'Income' },
+    ...P.income.map(x => ({ k: 'line', label: x.label, amt: x.amount, note: x.note })),
+    { k: 'st', label: 'Total', amt: P.incomeTotal },
+    { k: 'sh', label: 'Expenses' },
+    ...P.expenses.map(x => ({ k: 'line', label: x.label, amt: x.amount })),
+    { k: 'st', label: 'Total', amt: P.expenseTotal },
+    { k: 'gt', label: 'Surplus for the period', amt: P.surplus },
+  ]);
+  const unreal = stmtTable([
+    { k: 'line', label: 'At the end of the period', mid: U.investments.end },
+    { k: 'line', label: 'At the beginning of the period', mid: U.investments.begin },
+    { k: 'st', label: 'Net unrealised gain / loss during the period', amt: U.investments.net },
+    ...(U.options ? [
+      { k: 'line', label: 'At the end of the period (options)', mid: U.options.end },
+      { k: 'line', label: 'At the beginning of the period (options)', mid: U.options.begin },
+      { k: 'st', label: 'Net unrealised gain / loss during the period (options)', amt: U.options.net },
+    ] : []),
+    { k: 'gt', label: 'Net unrealised gain / loss', amt: U.net },
+  ]);
+  const liab = [
+    { k: 'line', label: 'Capital contribution', amt: L.capital },
+    { k: 'line', label: 'Less: withdrawals', amt: L.withdrawals },
+    { k: 'sh', label: 'Reserves and surplus' },
+    { k: 'sub', label: 'Beginning', mid: L.reserves.begin },
+    { k: 'sub', label: 'For the period', mid: L.reserves.period },
+    { k: 'sub', label: 'Ending', amt: L.reserves.end },
+    { k: 'sh', label: 'Current liabilities and provisions' },
+    ...L.current.map(x => ({ k: 'sub', label: x.label, mid: x.amount })),
+    { k: 'sub', label: 'Total current liabilities', amt: L.currentTotal },
+    ...(L.difference ? [{ k: 'line', label: 'Other / reconciliation', amt: L.difference, note: 'Gap between the value on record and the computed surplus' }] : []),
+  ];
+  const assets = [
+    { k: 'line', label: 'Investments at cost', amt: A.investmentsAtCost },
+    ...(A.optionsPosition != null ? [{ k: 'line', label: 'Net options purchase position', amt: A.optionsPosition }] : []),
+    ...(A.futuresMargin != null ? [{ k: 'line', label: 'Futures margin account', amt: A.futuresMargin }] : []),
+    ...(A.optionsMargin != null ? [{ k: 'line', label: 'Options margin account', amt: A.optionsMargin }] : []),
+    { k: 'sh', label: 'Current assets' },
+    ...A.current.map(x => ({ k: 'sub', label: x.label, mid: x.amount, note: x.note })),
+    { k: 'sub', label: 'Total current assets', amt: A.currentTotal },
+  ];
+  // Pad the shorter side so both totals sit on the same line.
+  const n = Math.max(liab.length, assets.length), pad = list => list.concat(Array.from({ length: n - list.length }, () => ({ k: 'line', label: '' })));
+  const side = (title, rows, total) => `<div><h4>${title}</h4>${stmtTable([...pad(rows), { k: 'gt', label: 'Total', amt: total }])}</div>`;
+  const bs = `<div class="bs">${side('Liabilities', liab, L.total)}${side('Assets', assets, A.total)}</div>`;
+  const diff = v => (v == null ? '–' : nf(v) + (Math.abs(v) <= 1 ? ' (within ₹1)' : ''));
+  const recon = (R.portfolioValue != null || R.expected != null) ? `<h3>Reconciliation</h3><table class="fixed stmt"><colgroup><col><col style="width:26%"></colgroup><tbody>
+    ${R.portfolioValue != null ? `<tr><td>Portfolio value on ${dl(r.to)}</td><td class="r">${nf(R.portfolioValue)}</td></tr>
+      <tr><td>Total assets at cost + unrealised gain − current liabilities</td><td class="r">${nf(R.valueFromStatement)}</td></tr>
+      <tr class="st"><td>Difference</td><td class="r">${diff(R.valueDiff)}</td></tr>` : ''}
+    ${R.expected != null ? `<tr><td>Surplus implied by the change in value (after unrealised gains and capital flows)</td><td class="r">${nf(R.expected)}</td></tr>
+      <tr><td>Surplus in the profit and loss account</td><td class="r">${nf(R.computed)}</td></tr>
+      <tr class="st"><td>Difference</td><td class="r">${diff(R.diff)}</td></tr>` : ''}
+    </tbody></table>${R.note ? `<p class="note">${esc(R.note)}</p>` : ''}` : '';
+  const body = top
+    + `<h3>Profit and loss account · ${dl(r.from)} to ${dl(r.to)}</h3>${pnl}`
+    + `<h3>Unrealised gain / loss in the value of investments</h3>${unreal}<p class="note">Shown for information; not part of the surplus.</p>`
+    + `<div class="pb"></div><h3>Balance sheet as of ${dl(r.to)} · at cost</h3>${bs}`
+    + recon + (r.basis ? `<p class="note">${esc(r.basis)}</p>` : '');
+  return { html: page(false, head, body, pnlSummary(r, !accountId)), landscape: false };
 }

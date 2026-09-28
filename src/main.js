@@ -32,10 +32,10 @@ import {
   QS, TYPES, FEES, RES,
 } from './data';
 import { irrPeriod, fmtIrr, irrLabel } from './irr';
-import { BASE_URL, auth, portfolio, meta, admin, backoffice, onAdminDenied, distributor, setViewToken, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
+import { BASE_URL, auth, portfolio, meta, admin, notifications, backoffice, onAdminDenied, distributor, setViewToken, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
 import { trackStart, trackStop, screen } from './api/track';
 import { perfFrom, navFrom, ddFrom, cashFrom, plFrom, combineFamily } from './webcalc';
-import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, ddPct, inr, sinr, fmtDate, fmtMonth, fmtDayMon, titleCase, semverLt } from './adapt';
+import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, ddPct, inr, sinr, fmtDate, fmtMonth, fmtDayMon, titleCase, semverLt, fmtD, fmtDM } from './adapt';
 import Splash from './screens/splash';
 import Carousel from './screens/carousel';
 import { Login, OtpScreen, SetPassword } from './screens/login';
@@ -58,7 +58,8 @@ import {
   cleanName, validateAmount, ENTITY_LABELS,
 } from './onboarding/mapping';
 import { API_BASE, RESUME_HOSTS, UPLOAD } from './onboarding/config';
-import { PAGE_ALIASES } from './nav';
+import { PAGE_ALIASES, openLink } from './nav';
+import * as push from './push';
 
 const MIME_BY_EXT = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 const guessMime = name => MIME_BY_EXT[(String(name || '').split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
@@ -173,13 +174,22 @@ export default class MyQode extends React.Component {
     this.appSub = AppState.addEventListener('change', st => {
       // Not while a full-screen page is open (e.g. Reports): coming back from the share sheet must not reset its lists.
       if (st === 'active' && this.state.phase === 'app' && !this.state.page && Date.now() - (this.lastLoad || 0) > 60000) this.refresh();
+      if (st === 'active' && this.state.phase === 'app') { this.loadNotifs(); this.pushSync(); }
       // A release can land while the app sits in the background: look again when it comes back, at most every 30 min.
       if (st === 'active' && Date.now() - (this.lastVersionCheck || 0) > 30 * 60 * 1000) this.checkVersion();
       if (this.store) { if (st === 'active') this.store.onForeground(); else if (st === 'background') this.store.onBackground(); }
     });
+    // Notifications: popups arriving while the app is open refresh the bell; a tap opens its destination (a tap that
+    // launched the app waits in pendingTap until the app is ready).
+    this.pushOff = push.listen({
+      onReceive: () => this.loadNotifs(),
+      onTap: (link, id) => this.onNoteTap(link, id),
+      onToken: () => this.pushSync(),
+    });
     this.boot();
   }
   componentWillUnmount() {
+    if (this.pushOff) this.pushOff();
     this.unmounted = true;
     if (this.backSub) this.backSub.remove();
     if (this.linkSub) this.linkSub.remove();
@@ -306,7 +316,7 @@ export default class MyQode extends React.Component {
     await minSplash;
     if (this.unmounted || this.state.phase !== 'splash') return;
     if (offline) { this.setState({ phase: 'lock', lockOffline: true, lockErr: '', lockGone: false, lockBusy: false }); return; }
-    if (ok && adminOn) this.setState({ phase: 'admin' });
+    if (ok && adminOn) { this.setState({ phase: 'admin' }); this.pushSync(); }
     else if (ok && partner) this.setState({ phase: 'partner' });
     // Desktop web: the brand panel next to the form already introduces the app, so sign-in comes first.
     else if (ok) this.startApp(); else this.setState({ phase: this.props.desktop ? 'login' : 'carousel' });
@@ -554,7 +564,7 @@ export default class MyQode extends React.Component {
     if (!isAdmin && user && user.isSuperAdmin) { try { const me = await auth.me(); isAdmin = !!(me && me.isAdmin); if (isAdmin) user = { ...user, ...me }; } catch {} }
     if (isAdmin) {
       this.adminUser = user;
-      this.setState({ user, busy: false, pw: '', np: '', np2: '', otp: ['', '', '', '', '', ''], authErr: '', phase: 'admin', adm: null });
+      this.setState({ user, busy: false, pw: '', np: '', np2: '', otp: ['', '', '', '', '', ''], authErr: '', phase: 'admin', adm: null }); this.pushSync();
       return;
     }
     if (user && user.isDistributor) {
@@ -698,6 +708,7 @@ export default class MyQode extends React.Component {
   };
 
   signOut = async (msg = '') => {
+    if (!this.origToken && !isDemo()) await push.unregister();   // before the session goes: this phone stops getting their popups
     this.origToken = null; this.adminUser = null;
     storeDel(ADMIN_KEY);
     setViewToken(null); this.partnerUser = null; this.partnerNav = null;
@@ -712,7 +723,7 @@ export default class MyQode extends React.Component {
     this.setState({
       phase: 'login', tab: 'home', sheet: null, page: null, user: null, acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {},
       dErr: '', dl: false, pw: '', busy: false, otp: ['', '', '', '', '', ''], authErr: msg, authInfo: '', uccSeen: false, payRecover: null, viewing: null,
-      imp: null, adm: null,
+      imp: null, adm: null, notes: null, pushOffer: false,
     });
   };
   expire() {
@@ -846,6 +857,48 @@ export default class MyQode extends React.Component {
   fmt0(v) { return inr(v, 0); }
   sfmt(v) { return sinr(v); }
 
+  // ── Notifications (server: myQode lib/appNotify.ts; device: src/push.js) ─────────────────────────────────────
+  // The login's own session only: never while admin views a client, a distributor views an investor, or in demo.
+  ownSession() { return !isDemo() && !this.origToken && !this.state.viewing && !(this.state.user && this.state.user.isImpersonated); }
+  pushSync = async () => {
+    if (!this.ownSession() || this.pushBusy) return;
+    this.pushBusy = true;
+    try {
+      await push.register();
+      if (this.state.phase === 'app' && !this.state.pushOffer && (await push.shouldOffer())) this.setState({ pushOffer: true });
+    } finally { this.pushBusy = false; }
+  };
+  loadNotifs = async () => {
+    if (this.state.phase !== 'app' || this.notesBusy) return;
+    this.notesBusy = true;
+    const cur = this.state.notes;
+    this.setState({ notes: { ...(cur || { items: [], unread: 0 }), loading: true, err: '' } });
+    try {
+      const r = await notifications.list();
+      this.setState({ notes: { items: r.items || [], unread: r.unread || 0, hasMore: !!r.hasMore, loading: false, err: '' } });
+      if (this.ownSession()) push.setBadge(r.unread || 0);
+    } catch (e) {
+      this.setState({ notes: { ...(cur || { items: [], unread: 0 }), loading: false, err: e.message || 'We couldn’t load your notifications.' } });
+    } finally { this.notesBusy = false; }
+  };
+  markNotes = (ids, all) => {
+    const n = this.state.notes;
+    if (!n || !this.ownSession()) return;
+    const items = n.items.map(x => (all || ids.includes(x.id) ? { ...x, read: true } : x));
+    const unread = items.filter(x => !x.read).length;
+    this.setState({ notes: { ...n, items, unread } });
+    push.setBadge(unread);
+    notifications.read(all ? { all: true } : { ids }).then(r => { if (r && typeof r.unread === 'number') push.setBadge(r.unread); }).catch(() => {});
+  };
+  onNoteTap = (link, id) => {
+    if (this.state.phase !== 'app') { this.pendingTap = { link, id }; return; }   // opened from a popup before sign-in finished
+    if (this.state.viewing || (this.state.user && this.state.user.isImpersonated)) return;
+    if (id) this.markNotes([id]);
+    this.setState({ sheet: null });
+    openLink(this.vals(), link);
+    this.loadNotifs();
+  };
+
   startApp = () => {
     const first = !this.counted; this.counted = true;
     const ready = !!this.state.d;
@@ -854,6 +907,8 @@ export default class MyQode extends React.Component {
     services.bankDetails().catch(() => {});
     services.warmSwitchInfo();
     const sc = this.curScope(); if (sc && sc.accounts[0]) documents.warm(sc.accounts[0].id);   // Documents tab: category counts
+    this.loadNotifs(); this.pushSync();
+    if (this.pendingTap) { const t = this.pendingTap; this.pendingTap = null; setTimeout(() => this.onNoteTap(t.link, t.id), 600); }
     if (!first || this.state.viewing) return;
     this.resumePayment();
     const t0 = Date.now(), D = 400;
@@ -992,7 +1047,11 @@ export default class MyQode extends React.Component {
       : (Object.keys(PERIOD).find(r => entryFor(r)) || S.range);
     const rangeLoading = shownRange !== S.range;
     const navEntry = entryFor(shownRange) || {};
-    const { pts, bench, dates, navs, bvals } = navSeries(navEntry.nav);
+    // The NAV chart plots real days only: the web's synthetic NAV=10 anchor (one day before inception, added when
+    // the first NAV isn't 10 — e.g. Orbis series start at 100) would put a jump at the left edge and, with both
+    // lines rebased to 10 from it, squash the benchmark flat under a 100-scale series. Returns and drawdown keep it.
+    const navForChart = navEntry.nav && Array.isArray(navEntry.nav.series) ? { ...navEntry.nav, series: navEntry.nav.series.filter(p => !p.synthetic) } : navEntry.nav;
+    const { pts, bench, dates, navs, bvals } = navSeries(navForChart);
     const rawByDate = {}; dates.forEach((d, i) => { rawByDate[d] = [navs[i], bvals[i]]; });
     const { pts: ddPts, bench: ddBench, dates: ddDates } = navSeries(navEntry.dd);
     const p3 = buildPaths(ddPts, ddBench, 330, 100, 0);
@@ -1139,11 +1198,19 @@ export default class MyQode extends React.Component {
       acctName: scope ? scope.name : '', acctInitials: scope ? scope.initials : '', acctTag: (scope && scope.tag) || '', acctCode: scope ? scope.code : '',
       isFamily: S.acct === -1 && !!family,
       multiAcct: owners.length > 0,   // owner aggregate vs its strategy accounts are different views, so the switcher always applies
-      // notifications (no inbox API yet)
+      // notifications: the bell's inbox and the "turn on notifications" card
       needsYou: false, needsYouMsg: '',
-      hasNotif: false, openNotifs: () => set({ sheet: 'notifs' }),
-      sheetNotifs: S.sheet === 'notifs', notifEmpty: true, notifHas: false,
-      notifList: [],
+      hasNotif: !!(S.notes && S.notes.unread), notifUnread: (S.notes && S.notes.unread) || 0,
+      openNotifs: () => { set({ sheet: 'notifs' }); this.loadNotifs(); },
+      sheetNotifs: S.sheet === 'notifs',
+      notes: (S.notes && S.notes.items) || [], notesLoading: !!(S.notes && S.notes.loading) && !(S.notes.items || []).length,
+      notesErr: (S.notes && S.notes.err) || '', notesRetry: () => this.loadNotifs(),
+      noteOpen: nt => this.onNoteTap(nt.link, nt.id),
+      notesMarkAll: () => this.markNotes([], true), notesCanMark: this.ownSession(),
+      openNotifSettings: () => { set({ sheet: null }); screen('page:notifications'); set({ page: 'notifications' }); },
+      pushOffer: !!S.pushOffer && !S.viewing,
+      pushOfferYes: async () => { set({ pushOffer: false }); const p = await push.ask(); if (p === 'granted') this.pushSync(); },
+      pushOfferNo: () => { set({ pushOffer: false }); push.snooze(); },
       svcPending: false, svcNone: true, svcPendingSub: '',
       tab: S.tab, scopeKey: S.acct,
       isHome: S.tab === 'home', isPortfolio: S.tab === 'portfolio', isHoldings: S.tab === 'holdings',
@@ -1163,7 +1230,9 @@ export default class MyQode extends React.Component {
       growthNow: navNow.toFixed(2), navNow: navNow.toFixed(2),
       yTicks: axis.ticks, xDates,
       hasViews: !!S.hist && !S.hist.family,
-      viewChips: [['nuvama', 'Nuvama'], ['orbis', 'Orbis (Legacy)'], ['consolidated', 'Combined']].map(([id, label]) => ({ label, active: S.dv === id, pick: () => this.applyView(id) })),
+      viewChips: [['nuvama', 'Nuvama'], ['orbis', 'Orbis (Legacy)'], ['consolidated', 'Orbis + Nuvama']].map(([id, label]) => ({ label, active: S.dv === id, pick: () => this.applyView(id) })),
+      // Web note under the returns table: in the Orbis and Combined views the invested / current figures come from Orbis' latest records.
+      orbisNote: !!(S.hist && !S.hist.family && S.hist.orbisMetrics && (S.dv === 'orbis' || S.dv === 'consolidated')),
       tiles: [
         { label: 'TOTAL RETURNS', value: this.sfmt(totalReturns), color: c(totalReturns) },
         { label: 'RETURN (SI)', value: pct(perf && perf.returnsPercent), color: c(perf ? perf.returnsPercent : 0) },
@@ -1229,7 +1298,7 @@ export default class MyQode extends React.Component {
       user: S.user, isSuperAdmin: !!(S.user && S.user.isSuperAdmin), impersonated: !!(S.user && S.user.isImpersonated),
       page: S.page, openPage: k => { k = PAGE_ALIASES[k] || k; screen('page:' + k); set({ page: k }); }, closePage: () => set({ page: null }),
       acctOptions: (scope ? scope.accounts : []).map(a => ({ id: a.id, label: a.strategyPrefix ? a.strategyPrefix + ' · ' + a.id : a.id })),
-      openReq: k => { if (!S.viewing) set({ sheet: k }); },   // no requests in a client's name while a distributor views the account
+      openReq: (k, preset) => { if (!S.viewing) set({ sheet: k, sheetPreset: preset || null }); }, sheetPreset: S.sheetPreset || null,   // no requests in a client's name while a distributor views the account
       bumpRefresh: () => set(s => ({ rk: s.rk + 1 })),
       openAdd: () => { if (!S.viewing) set({ sheet: 'r-add' }); },
       openSwitchStrategy: () => { if (!S.viewing) set({ sheet: 'r-switch' }); },
@@ -1245,7 +1314,7 @@ export default class MyQode extends React.Component {
       hcOn: S.hc, rmOn: S.rm,
       hcToggle: () => set({ hc: !S.hc }), rmToggle: () => set({ rm: !S.rm }),
       sheetOpen: !!S.sheet, sheetSwitch: S.sheet === 'switch',
-      openSwitch: () => set({ sheet: 'switch' }), closeSheet: () => set({ sheet: null, payRecover: null }),
+      openSwitch: () => set({ sheet: 'switch' }), closeSheet: () => set({ sheet: null, sheetPreset: null, payRecover: null }),
       payRecover: S.payRecover || null,
       // primary-UCC pop-up: once per sign-in, over Home, after the dashboard has loaded and while no sheet/page is open
       showUcc: S.tab === 'home' && !S.uccSeen && !busy && hasData && !S.sheet && !S.page && !isDemo() && S.phase === 'app' && !S.lifting,
@@ -1256,6 +1325,7 @@ export default class MyQode extends React.Component {
         value: this.fmt(a.value), pick: () => this.pickScope(i), active: S.acct === i,
         subs: a.accounts.map(x => ({
           id: String(x.id), name: x.strategyName || x.id, code: x.id, color: x.strategyColor || C.gray,
+          orbis: !!x.hasOrbis,   // web: "Orbis+Nuvama" badge on accounts with legacy Orbis rows
           value: this.fmt(num(x.portfolioValue) || 0), pick: () => this.pickScope('a:' + x.id), active: S.acct === 'a:' + x.id,
         })),
       })),

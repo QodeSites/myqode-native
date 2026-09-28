@@ -179,12 +179,12 @@ function demoStatement(accountId, from, to) {
     unrealised: { investments, options, net: unrealisedNet },
     balanceSheet: {
       asOf: to,
-      liabilities: { capital: lines.capital, withdrawals: lines.withdrawals, reserves, current, currentTotal, difference: r2(assetsTotal - liabTotal), total: assetsTotal },
+      liabilities: { capital: lines.capital, withdrawals: lines.withdrawals, reserves, current, currentTotal, difference: 0, total: liabTotal },
       assets: { investmentsAtCost: lines.investmentsAtCost, optionsPosition: lines.optionsPosition, futuresMargin: null, optionsMargin: lines.optionsMargin, current: curA, currentTotal: curATotal, total: assetsTotal },
     },
-    totals: { income: incomeTotal, expenses: expenseTotal, surplus, unrealised: unrealisedNet, liabilities: assetsTotal, assets: assetsTotal, portfolioValue: r2(value) },
+    totals: { income: incomeTotal, expenses: expenseTotal, surplus, unrealised: unrealisedNet, liabilities: liabTotal, assets: assetsTotal, portfolioValue: r2(value) },
     reconciliation: {
-      expected: surplus, computed: surplus, diff: 0, portfolioValue: r2(value), valueFromStatement, valueDiff: r2(value - valueFromStatement),
+      expected: surplus, computed: surplus, diff: 0, balanceDiff: r2(assetsTotal - liabTotal), portfolioValue: r2(value), valueFromStatement, valueDiff: r2(value - valueFromStatement),
       note: 'The computed surplus agrees with the change in portfolio value (after unrealised gains and capital flows) within ₹1.',
     },
   };

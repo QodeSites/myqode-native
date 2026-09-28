@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View } from 'react-native';
 import Svg, { Path, Line, Circle, Defs, LinearGradient as SvgGrad, Stop, Text as SvgText } from 'react-native-svg';
 import { C, Tx } from '../ui';
+import { fmtD } from '../adapt';
 
 import { fmtDate, pct, ddPct } from '../adapt';
 

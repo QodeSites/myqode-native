@@ -6,12 +6,13 @@ import React, { useState } from 'react';
 import { View, Pressable, Modal, ScrollView } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { C, Tx } from '../ui';
+import { fmtD } from '../adapt';
 import { Copy, Check } from '../icons';
 import { meta } from '../api';
 import { useLoad } from './kit';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const formatAsOf = iso => { const [y, m, d] = String(iso).split('-').map(Number); return y && m && d ? `${d} ${MONTHS[m - 1]} ${y}` : iso; };
+const formatAsOf = iso => fmtD(iso) || iso;
 
 export function UccNotice({ visible, onClose }) {
   const res = useLoad(() => (visible ? meta.primaryUcc() : Promise.resolve(null)), [visible]);

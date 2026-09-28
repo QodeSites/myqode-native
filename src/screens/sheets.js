@@ -3,38 +3,84 @@
 import React from 'react';
 import { View, Pressable } from 'react-native';
 import { C, Tx, Amt, Sheet, Field, CTA, Chip, ChipRow, Toggle, Hairline } from '../ui';
-import { Crown, ChevronRight, FamilyIcon } from '../icons';
+import { Crown, ChevronRight, FamilyIcon, Bell, DocIcon, Gear, GroupIcon } from '../icons';
 
-// "For your attention" — notifications sheet (v2).
+// The bell: every notification the login has had (myQode app_notifications), newest first. Popups on the phone
+// are the same items; tapping either opens its destination (src/nav.js openLink) and marks it read.
+const ago = iso => {
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (m < 1) return 'Just now';
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.round(h / 24);
+  if (d < 7) return d === 1 ? 'Yesterday' : `${d} days ago`;
+  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\bSept\b/, 'Sep');
+};
+
+function NoteIcon({ category }) {
+  const box = { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(2,66,43,0.07)' };
+  if (category === 'money') return <View style={box}><Tx w={700} s={15} c={C.green}>₹</Tx></View>;
+  if (category === 'portfolio') return <View style={box}><GroupIcon name="chart" s={16} c={C.green} /></View>;
+  if (category === 'reading') return <View style={box}><DocIcon s={15} c={C.green} /></View>;
+  return <View style={box}><Bell s={15} c={C.green} /></View>;
+}
+
 export function NotifsSheet({ V }) {
+  const list = V.notes || [];
   return (
     <Sheet visible={V.sheetNotifs} onClose={V.closeSheet}>
       <View style={{ paddingHorizontal: 22, paddingTop: 12, paddingBottom: 24 }}>
-        <Tx f="play" w={600} s={21}>For your attention</Tx>
-        <Tx s={12} c={C.muted} style={{ marginTop: 3 }}>Everything that needs you, in one place</Tx>
-        {V.notifEmpty && (
-          <View style={{ alignItems: 'center', paddingTop: 34, paddingHorizontal: 20, paddingBottom: 18 }}>
-            <View style={{ width: 44, height: 2, backgroundColor: C.gold }} />
-            <Tx s={13} c={C.muted} lh={1.6} center style={{ marginTop: 16 }}>Nothing needs your attention right now.</Tx>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Tx f="play" w={600} s={21}>Notifications</Tx>
+            <Tx s={12} c={C.muted} style={{ marginTop: 3 }}>{V.notifUnread ? `${V.notifUnread} unread` : 'You’re all caught up'}</Tx>
+          </View>
+          {!!V.notifUnread && V.notesCanMark && (
+            <Pressable onPress={V.notesMarkAll} hitSlop={8} accessibilityRole="button"><Tx w={700} s={12} c={C.green}>Mark all read</Tx></Pressable>
+          )}
+        </View>
+
+        {V.notesLoading && <Tx s={12.5} c={C.muted} center style={{ paddingVertical: 34 }}>Loading…</Tx>}
+        {!V.notesLoading && !!V.notesErr && !list.length && (
+          <View style={{ alignItems: 'center', paddingVertical: 28, gap: 12 }}>
+            <Tx s={12.5} c={C.muted} center lh={1.5}>{V.notesErr}</Tx>
+            <Pressable onPress={V.notesRetry} hitSlop={8}><Tx w={700} s={12.5} c={C.green}>Try again</Tx></Pressable>
           </View>
         )}
-        {V.notifHas && (
-          <View style={{ marginTop: 16, borderWidth: 1, borderColor: 'rgba(55,88,79,0.2)', borderRadius: 8, overflow: 'hidden' }}>
-            {V.notifList.map((nt, i) => (
-              <Pressable key={nt.title} onPress={nt.pick} style={{
-                flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16,
-                minHeight: 44, borderBottomWidth: i < V.notifList.length - 1 ? 1 : 0, borderColor: C.hairline,
-              }}>
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.gold }} />
+        {!V.notesLoading && !V.notesErr && !list.length && (
+          <View style={{ alignItems: 'center', paddingTop: 34, paddingHorizontal: 20, paddingBottom: 18 }}>
+            <View style={{ width: 44, height: 2, backgroundColor: C.gold }} />
+            <Tx s={13} c={C.muted} lh={1.6} center style={{ marginTop: 16 }}>No notifications yet. Money in and out of your accounts, portfolio updates and new reading from Qode will appear here.</Tx>
+          </View>
+        )}
+
+        {!!list.length && (
+          <View style={{ marginTop: 16, borderWidth: 1, borderColor: 'rgba(55,88,79,0.2)', borderRadius: 10, overflow: 'hidden' }}>
+            {list.map((nt, i) => (
+              <Pressable key={nt.id} onPress={() => V.noteOpen(nt)} accessibilityRole="button"
+                style={({ pressed }) => ({
+                  flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 14, paddingHorizontal: 14,
+                  borderBottomWidth: i < list.length - 1 ? 1 : 0, borderColor: C.hairline,
+                  backgroundColor: pressed ? 'rgba(2,66,43,0.05)' : nt.read ? 'transparent' : 'rgba(218,189,56,0.09)',
+                })}>
+                <NoteIcon category={nt.category} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Tx w={700} s={13}>{nt.title}</Tx>
-                  <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>{nt.sub}</Tx>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Tx w={700} s={13} style={{ flex: 1 }} numberOfLines={2}>{nt.title}</Tx>
+                    {!nt.read && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: C.gold }} />}
+                  </View>
+                  <Tx s={12} c={C.ink} lh={1.45} style={{ marginTop: 3, opacity: 0.8 }}>{nt.body}</Tx>
+                  <Tx s={10.5} c={C.muted} style={{ marginTop: 5 }}>{ago(nt.createdAt)}</Tx>
                 </View>
-                <ChevronRight />
               </Pressable>
             ))}
           </View>
         )}
+
+        <Pressable onPress={V.openNotifSettings} hitSlop={6} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 18 }}>
+          <Gear s={14} c={C.muted} /><Tx w={700} s={12} c={C.muted}>Notification settings</Tx>
+        </Pressable>
       </View>
     </Sheet>
   );
@@ -107,7 +153,14 @@ export function SwitchSheet({ V }) {
               }}>
                 <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: x.color }} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Tx w={700} s={12}>{x.name}</Tx>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <Tx w={700} s={12}>{x.name}</Tx>
+                    {x.orbis && (
+                      <View style={{ borderWidth: 1, borderColor: C.mutedBorder35, borderRadius: 4, paddingVertical: 1, paddingHorizontal: 5 }}>
+                        <Tx w={700} s={8} ls={0.06} c={C.muted}>ORBIS+NUVAMA</Tx>
+                      </View>
+                    )}
+                  </View>
                   <Tx s={10} c={C.gray} style={{ marginTop: 1 }}>{x.code}</Tx>
                 </View>
                 <Amt s={12}>{x.value}</Amt>
@@ -140,7 +193,7 @@ export function SettingsSheet({ V }) {
   return (
     <Sheet visible={V.sheetSettings} onClose={V.closeSheet}>
       <View style={{ paddingHorizontal: 22, paddingTop: 12, paddingBottom: 24 }}>
-        <Tx f="play" w={600} s={21}>Display & accessibility</Tx>
+        <Tx f="play" w={600} s={21}>Display & Accessibility</Tx>
         <Tx s={12} c={C.muted} style={{ marginTop: 3 }}>Applies immediately across the app</Tx>
         <Tx w={700} s={11} ls={0.12} c={C.muted} style={{ marginTop: 22, marginBottom: 8 }}>TEXT SIZE</Tx>
         <ChipRow chips={V.tsChips} flex py={11} s={12} round={false} />

@@ -5,7 +5,7 @@ import { View, Pressable, ScrollView, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, Tx, Amt, Card, CTA, Fade, KeyboardScroll } from '../ui';
-import { inr } from '../adapt';
+import { inr, fmtD } from '../adapt';
 import { ChevronLeft, ChevronRight } from '../icons';
 import { experience, engagement, admin } from '../api';
 import * as content from '../content';
@@ -15,6 +15,7 @@ import { Foundation, ReportsReviews, StrategySnapshot, PortalGuide, Team as Team
 import { useLoad, openUrl, fmtSize, Loading, ErrorBox, Empty, SectionLabel, LinkRow } from './kit';
 import { ReportsPage } from './reports';
 import { NuvamaPage } from './nuvama';
+import { NotificationSettings } from './notifications';
 import { VoicePage } from './voice';
 import { CashList } from './services';
 
@@ -121,13 +122,20 @@ const REFERRAL_FORM = {
   fields: [
     { k: 'name', label: 'REFERRED PERSON’S NAME', kind: 'name', placeholder: 'Full name', validate: x => check.name(x, 'their name') },
     { k: 'email', label: 'EMAIL', kind: 'email', placeholder: 'name@example.com', validate: check.email },
-    { k: 'phone', label: 'MOBILE NUMBER', kind: 'phone', placeholder: 'Enter mobile number', validate: check.phone },
+    { k: 'phone', label: 'MOBILE NUMBER', kind: 'phone', placeholder: 'Enter mobile number', validate: (x, v) => check.phoneIntl(x, v.phoneCc || '+91') },
     { k: 'desc', label: 'NOTE (OPTIONAL)', kind: 'multiline', max: LIMITS.note, validate: x => (String(x || '').length > LIMITS.note ? `Please keep the note under ${LIMITS.note} characters.` : '') },
   ],
-  submit: (a, v) => engagement.referral({ accountId: a, name: v.name.trim(), email: v.email.trim().toLowerCase(), phone: v.phone, description: (v.desc || '').trim() || undefined }),
+  submit: (a, v) => engagement.referral({ accountId: a, name: v.name.trim(), email: v.email.trim().toLowerCase(), phone: `${v.phoneCc || '+91'} ${v.phone}`, description: (v.desc || '').trim() || undefined }),
 };
 
+const REF_STATUS = { pending: ['Under review', C.gold], resolved: ['Reviewed', C.green] };
+const refDate = iso => fmtD(iso);
+
 function Referral({ V }) {
+  // Past referrals (app addition — the web page has no history). A new one reloads the list and clears the form.
+  const [tick, setTick] = useState(0);
+  const past = useLoad(() => engagement.referrals(), [tick]);
+  const list = (past.data && past.data.referrals) || [];
   return (
     <>
       <Article data={{ intro: content.REFERRAL.intro }} />
@@ -143,8 +151,31 @@ function Referral({ V }) {
       )}
       <SectionLabel>REFER SOMEONE</SectionLabel>
       <Card style={{ padding: 16, paddingTop: 4 }}>
-        <FormBody cfg={REFERRAL_FORM} opts={V.acctOptions} onDone={V.closePage} />
+        <FormBody key={tick} cfg={REFERRAL_FORM} opts={V.acctOptions} onDone={() => setTick(t => t + 1)} doneLabel="REFER SOMEONE ELSE" />
       </Card>
+      <SectionLabel>YOUR REFERRALS</SectionLabel>
+      {past.loading && !past.data && <Loading rows={2} h={56} />}
+      {!!past.err && <Tx s={12} c={C.muted} style={{ marginLeft: 2 }}>We couldn’t load your past referrals just now.</Tx>}
+      {!!past.data && list.length === 0 && <Empty>You haven’t referred anyone yet. Referrals you make appear here with their status.</Empty>}
+      {list.length > 0 && (
+        <Card style={{ overflow: 'hidden' }}>
+          {list.map((r, i) => {
+            const [label, color] = REF_STATUS[r.status] || REF_STATUS.pending;
+            return (
+              <View key={r.id || i} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: i < list.length - 1 ? 1 : 0, borderColor: C.hairline }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Tx w={700} s={13} numberOfLines={1}>{r.name || '—'}</Tx>
+                  <Tx s={11} c={C.muted} numberOfLines={1} style={{ marginTop: 2 }}>{[r.email, r.phone].filter(Boolean).join(' · ')}</Tx>
+                  <Tx s={10.5} c={C.gray} style={{ marginTop: 2 }}>{refDate(r.createdAt)}{r.accountId ? ' · ' + r.accountId : ''}</Tx>
+                </View>
+                <View style={{ borderWidth: 1, borderColor: color, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 }}>
+                  <Tx w={700} s={10} c={color}>{label.toUpperCase()}</Tx>
+                </View>
+              </View>
+            );
+          })}
+        </Card>
+      )}
     </>
   );
 }
@@ -208,7 +239,7 @@ const REQS = [
   { s: 'Documents', ok: true, has: 'documents/list + documents/files/{category}: the web’s Account Documents page, section for section (PMS Agreement, Account Opening Documents, CML) from S3 docs/client-documents/{clientid}/, 5-minute signed links.', gap: 'Statements, factsheets, capital-gains and fee invoices are not stored anywhere yet: add S3 folders under docs/client-documents/{clientid}/ plus category ids in documents/list. S3 listing needs valid AWS keys on the server (the dev server currently answers InvalidAccessKeyId). Owner/family ids return 404, so the app asks per account code.' },
   { s: 'Services · requests', ok: true, has: 'services/withdrawal, switch, strategy-inquiry, discussion, account-request, engagement/referral, services/bank-details.', gap: 'No history: every request only returns an inquiry_id. To show past requests add GET /api/mobile/services/inquiries reading pms_clients_tracker.qode_microsite_inquiries by user_email.' },
   { s: 'Services · pay online / SIP', ok: true, has: 'One-time top-ups through Razorpay: payments/razorpay/create-order → hosted Checkout in a WebView → payments/razorpay/verify (signature + gateway check) → payments/investment-status; a signed webhook (payments/razorpay/webhook) keeps the status current. Existing SIPs: verify-sip, pause-resume-sip, cancel-sip.', gap: 'New SIP mandates (UPI Autopay / eMandate) need Razorpay Subscriptions (not built). The Cashfree routes remain for the web. Client notifications for Razorpay payments are off unless RAZORPAY_NOTIFY_CLIENT=true on the server. Production needs live Razorpay keys, the webhook registered on the live URL, and a store build if you later switch to the native Razorpay SDK.' },
-  { s: 'Notifications (bell)', ok: false, has: 'services/register-push-token (POST/DELETE). Push is sent by the Cashfree webhook via lib/notifications.ts.', gap: 'No inbox endpoint. Needs a notifications table written wherever notifyClientById is called + GET /api/mobile/notifications. Push itself needs expo-notifications, an EAS project id, and Firebase (FCM) credentials for Android. Registration is blocked in test mode so the client is never pushed.' },
+  { s: 'Notifications (bell + popups)', ok: true, has: 'GET notifications, POST notifications/read, GET/PUT notifications/prefs; services/register-push-token with app: myqode (app_push_devices). Server: lib/appNotify.ts (inbox-first outbox, Expo push with retries and receipts), lib/appNotifyTriggers.ts (money, portfolio, reading), admin campaigns at /api/admin/bo/notifications.', gap: 'Android popups need Firebase (FCM) credentials in EAS. Sends to clients start only with PUSH_LIVE=1 on the server; registration is blocked in test mode.' },
   { s: 'Family accounts', ok: true, has: 'experience/family (group → owner → accounts with masked PAN, mobile, city, status).', gap: 'Family-mapping changes go through services/account-request (email to IR); there is no self-service edit.' },
   { s: 'Insights & events, Portal guide', ok: true, has: 'engagement/newsletters, perspectives, events (S3 docs/newsletters, docs/prespectives, docs/events), engagement/portal-guide (S3 videos/reports-tutorial, images/reports-snapshot).', gap: 'Lists are empty until files exist in those S3 prefixes. Report descriptions are static text from the web page.' },
   { s: 'Profile, KYC, bank & nominee', ok: false, has: 'auth/me (name, email, client code, account codes only).', gap: 'Needs GET /api/mobile/profile from pms_clients_master (PAN masked, address, mobile, bank, nominee, KYC status). Edits should stay request-based (services/account-request).' },
@@ -297,6 +328,7 @@ export const PAGES = {
   grievance: { title: 'Escalation and Grievance Redressal', body: () => <Escalation /> },
   risk: { title: 'Risk Management & Controls', body: () => <Risk /> },
   voice: { title: 'Your Voice Matters', body: V => <VoicePage V={V} /> },
+  notifications: { title: 'Notifications', body: () => <NotificationSettings /> },
   transactions: { title: 'Transactions', body: V => <CashList V={V} full /> },
   privacy: { title: content.LEGAL.privacy.title || 'Privacy policy', body: () => <Article data={content.LEGAL.privacy} /> },
   terms: { title: content.LEGAL.terms.title || 'Terms & conditions', body: () => <Article data={content.LEGAL.terms} /> },

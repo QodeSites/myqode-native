@@ -83,7 +83,15 @@
         }
       ],
       "expo-sharing",
-      "./plugins/withSceneLifecycle"
+      "./plugins/withSceneLifecycle",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#02422B",
+          "defaultChannel": "default"
+        }
+      ]
     ],
     "scheme": "myqode",
     "owner": "qodetech",

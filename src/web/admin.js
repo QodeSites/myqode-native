@@ -8,7 +8,7 @@ import { backoffice } from '../api';
 import { useLoad } from '../screens/kit';
 import {
   fmtWhen, fmtDay, fmtAgo, fmtN, pwProblem, isEmail, userBadges, detailsText, useUserList, useUserActions, DailyBars,
-  TYPE_OPTS, STATUS_OPTS, ADMIN_TABS,
+  TYPE_OPTS, STATUS_OPTS, ADMIN_TABS, useNotifAdmin, NOTE_SAMPLES, NOTE_LINKS, AUDIENCES, campaignStats, audienceText,
 } from '../screens/admin';
 
 const Badges = ({ u }) => (
@@ -304,6 +304,69 @@ function Audit({ V, tick }) {
   );
 }
 
+// Notifications: write one, try it on your own phone, then send it. Delivery health for every campaign.
+function Notifications({ tick }) {
+  const { q, f, set, sample, problem, send, busy, msg } = useNotifAdmin(tick);
+  const d = q.data;
+  if (q.loading && !d) return <Loading rows={4} />;
+  if (q.err && !d) return <ErrorBlock msg={q.err} onRetry={q.reload} />;
+  if (d && d.ready === false) return <Empty title="Notification tables aren’t created yet">Run the migration on the server (node scripts/migrate-app-notifications.mjs --apply), then refresh.</Empty>;
+  const audienceOpts = AUDIENCES.filter(([k]) => k === 'test' || d.live);
+  return (
+    <View style={{ gap: 20 }}>
+      <PageIntro title="Notifications" sub="Popups on clients’ phones and the inbox under the bell. Money, portfolio and reading notifications are sent automatically." />
+      <Grid>
+        <Stat label="Status" value={d.live ? 'Live' : 'Test only'} note={d.live ? 'Clients receive notifications' : `Only ${(d.testEmails || []).join(', ')} until PUSH_LIVE=1`} />
+        <Stat label="Phones registered" value={fmtN(d.devices && d.devices.active)} note={`${fmtN(d.devices && d.devices.logins)} logins · ${fmtN(d.devices && d.devices.ios)} iOS · ${fmtN(d.devices && d.devices.android)} Android`} />
+        <Stat label="Last 24 hours" value={fmtN(d.outbox && d.outbox.created24h)} note={`${fmtN(d.outbox && d.outbox.pending)} waiting · ${fmtN(d.outbox && d.outbox.failed24h)} failed`} />
+      </Grid>
+      <Row top>
+        <Panel title="New notification" sub="Try it on your own phone first" style={{ flex: 1 }}>
+          <View style={{ gap: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <Tx s={12.5} c={C.ink3}>Fill with a sample:</Tx>
+              {NOTE_SAMPLES.map(x => <Btn key={x.key} small kind="outline" label={x.label} onPress={() => sample(x)} />)}
+            </View>
+            <Input label={`Title (${f.title.length}/90)`} value={f.title} onChangeText={t => set({ title: t })} placeholder="Your September update" />
+            <Input label={`Message (${f.body.length}/300)`} value={f.body} onChangeText={t => set({ body: t })} multiline placeholder="What should the client know?" />
+            <View style={{ gap: 6 }}><Tx s={12.5} w={600} c={C.ink2}>Opens</Tx><Chips small value={f.link} options={NOTE_LINKS} onChange={v => set({ link: v })} /></View>
+            <View style={{ gap: 6 }}><Tx s={12.5} w={600} c={C.ink2}>Send to</Tx><Chips small value={f.type} options={audienceOpts} onChange={v => set({ type: v, value: '' })} /></View>
+            {!d.live && <Tx s={12} c={C.ink3}>Sending to clients unlocks when PUSH_LIVE=1 is set on the server.</Tx>}
+            {f.type === 'strategy' && <Chips small value={f.value} options={(d.strategies || []).map(x => [x, x.replace(/^QODE ADVISORS LLP\s*-\s*/i, '')])} onChange={v => set({ value: v })} />}
+            {f.type === 'emails' && <Input label="Client emails" value={f.value} onChangeText={t => set({ value: t })} multiline placeholder="one@example.com, two@example.com" />}
+            {!!msg && <Tx s={13} c={msg.ok ? C.pos : C.red}>{msg.text}</Tx>}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Btn label={busy ? 'Sending…' : f.type === 'test' ? 'Send to my phone' : 'Send'} onPress={send} disabled={!!problem || busy} />
+              {!!problem && <Tx s={12.5} c={C.ink3}>{problem}</Tx>}
+            </View>
+          </View>
+        </Panel>
+        <Panel title="Preview" sub="How it appears on the phone" style={{ width: 360 }}>
+          <View style={{ borderRadius: 16, backgroundColor: 'rgba(30,30,30,0.06)', padding: 12, gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ width: 20, height: 20, borderRadius: 5, backgroundColor: C.green }} />
+              <Tx s={11.5} c={C.ink3} style={{ flex: 1 }}>MYQODE</Tx><Tx s={11.5} c={C.ink3}>now</Tx>
+            </View>
+            <Tx w={700} s={13.5}>{f.title || 'Title'}</Tx>
+            <Tx s={13} c={C.ink2} numberOfLines={4}>{f.body || 'Your message'}</Tx>
+          </View>
+        </Panel>
+      </Row>
+      <Panel title="Sent" sub="Delivered means Apple or Google accepted it for the phone" pad={0}>
+        {(d.campaigns || []).length ? (
+          <Table rows={d.campaigns} cols={[
+            { key: 'at', label: 'When', render: c => small(fmtWhen(c.createdAt), C.ink) },
+            { key: 'title', label: 'Notification', flex: 2.4, render: c => <View><Tx w={600} s={13} numberOfLines={1}>{c.title}</Tx>{small(c.body, C.ink3)}</View> },
+            { key: 'to', label: 'To', render: c => small(audienceText(c.audience)) },
+            { key: 'stats', label: 'Delivery', flex: 1.8, render: c => small(campaignStats(c.stats)) },
+            { key: 'by', label: 'By', render: c => small(c.createdBy, C.ink3) },
+          ]} />
+        ) : <Empty title="Nothing sent yet">Your first test will show here.</Empty>}
+      </Panel>
+    </View>
+  );
+}
+
 export default function DesktopAdmin({ V }) {
   const tab = V.adm.tab || 'overview', email = V.adm.email || null;
   const [tick, setTick] = useState(0);
@@ -313,6 +376,7 @@ export default function DesktopAdmin({ V }) {
   else if (tab === 'users') body = <UserList key="users" V={V} tick={tick} />;
   else if (tab === 'distributors') body = <UserList key="dist" V={V} fixedType="distributor" tick={tick} />;
   else if (tab === 'audit') body = <Audit V={V} tick={tick} />;
+  else if (tab === 'notifications') body = <Notifications tick={tick} />;
   else body = <Overview tick={tick} />;
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>

@@ -40,7 +40,7 @@ export const NAV_GROUPS = [
 export const LEGAL_LINKS = [['privacy', 'Privacy Policy'], ['terms', 'Terms and Conditions'], ['cancellation', 'Cancellation and Refund']];
 
 // Old page keys that now live elsewhere: 'contact' was folded into "Your Team at Qode".
-export const PAGE_ALIASES = { contact: 'team' };
+export const PAGE_ALIASES = { contact: 'team', newsletters: 'insights', perspectives: 'insights' };
 
 const ALL = NAV_GROUPS.flatMap(g => g.items.map(it => ({ ...it, group: g })));
 /** The menu item for a tab or page key (tab 'holdings', page 'team'…), or undefined. */
@@ -55,4 +55,16 @@ export function openItem(V, it) {
   if (it.page) { V.openPage(it.page); return; }
   if (V.page) V.closePage();
   ({ home: V.goHome, portfolio: V.goPortfolio, holdings: V.segHold, docs: V.goDocs, services: V.goServices, reports: V.goReports }[it.tab] || V.goHome)();
+}
+
+/**
+ * Opens a notification's destination (app_notifications.link on the server): 'tab:portfolio', 'page:transactions',
+ * 'page:sip' (SIPs live under Account Services), 'sheet:add'. Anything unknown opens Home.
+ */
+export function openLink(V, link) {
+  const [kind, key] = String(link || '').split(':');
+  if (kind === 'page' && key === 'sip') return openItem(V, { tab: 'services' });
+  if (kind === 'page' && key) return openItem(V, { page: key });
+  if (kind === 'sheet' && key === 'add') { if (V.page) V.closePage(); V.goServices(); if (V.openAdd) V.openAdd(); return; }
+  openItem(V, { tab: kind === 'tab' ? key : 'home' });
 }

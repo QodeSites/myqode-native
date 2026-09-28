@@ -13,10 +13,11 @@ import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { C, Tx, Amt, Card, CTA, Fade, GoldThreads, CurveCap, KeyboardScroll, useBackHandler } from '../ui';
+import { fmtD, fmtDM } from '../adapt';
 import { ChevronDown, ChevronRight, Refresh, Phone, MailIcon, Download } from '../icons';
 import { distributor as api } from '../api';
 import { useLoad, SectionLabel, Loading, ErrorBox, SignOutButton } from './kit';
-import { InvestorDetail, Fees, Statement, Invoice, Decks, Indicators, Ticket, Policies, BackRow, openPdf, warmPartnerData } from './partner';
+import { InvestorDetail, Fees, Statement, Invoice, Decks, Indicators, Ticket, Policies, ChangePassword, BackRow, openPdf, warmPartnerData } from './partner';
 import { DateField } from './sip';
 
 // ── Vocabulary: port of myQode/lib/distributorVocabulary.ts ──────────────────
@@ -100,6 +101,7 @@ export const IconShare = ({ c, s }) => <Lucide c={c} s={s}><Circle cx={18} cy={5
 export const IconFile = ({ c, s }) => <Lucide c={c} s={s}><Path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><Path d="M14 2v4a2 2 0 0 0 2 2h4M10 9H8M16 13H8M16 17H8" /></Lucide>;
 export const IconShield = ({ c, s }) => <Lucide c={c} s={s}><Path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /><Path d="m9 12 2 2 4-4" /></Lucide>;
 export const IconLifeBuoy = ({ c, s }) => <Lucide c={c} s={s}><Circle cx={12} cy={12} r={10} /><Circle cx={12} cy={12} r={4} /><Path d="m4.93 4.93 4.24 4.24M14.83 9.17l4.24-4.24M14.83 14.83l4.24 4.24M9.17 14.83l-4.24 4.24" /></Lucide>;
+export const IconLock = ({ c, s }) => <Lucide c={c} s={s}><Rect x={3} y={11} width={18} height={11} rx={2} /><Path d="M7 11V7a5 5 0 0 1 10 0v4" /></Lucide>;
 
 const TABS = [
   { key: 'overview', label: 'Overview', Icon: IconDashboard },
@@ -200,6 +202,7 @@ export function DistributorShell({ V }) {
           {tab === 'more' && sub && sub.kind === 'links' && <><BackRow label="More" onPress={() => setSub(null)} /><Links journey={journey} inner /></>}
           {tab === 'more' && sub && sub.kind === 'policies' && <Policies onBack={() => setSub(null)} />}
           {tab === 'more' && sub && sub.kind === 'ticket' && <Ticket onBack={() => setSub(null)} />}
+          {tab === 'more' && sub && sub.kind === 'password' && <ChangePassword onBack={() => setSub(null)} />}
         </View>
       </KeyboardScroll>
       <LinearGradient colors={['rgba(0,16,8,0.9)', 'rgba(0,16,8,0)']}
@@ -643,7 +646,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
   const setDates = patch => setFilter({ ...f, ...patch });
   const toIso = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
   const [menu, setMenu] = useState(null);   // 'status' | 'date' — the dropdown list that is open
-  const shortDay = iso => { const t = new Date(`${iso}T00:00:00`); return isNaN(t) ? iso : t.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }); };
+  const shortDay = iso => fmtDM(iso) || iso;
   const dateLabel = !f.basis ? 'Any date'
     : (f.basis === 'opened' ? 'Opened' : 'First funded') + (f.from || f.to ? ` · ${f.from ? shortDay(f.from) : '…'} – ${f.to ? shortDay(f.to) : '…'}` : '');
   const [soaBusy, setSoaBusy] = useState('');
@@ -831,7 +834,7 @@ function Dropdown({ label, value, active, onPress }) {
     </Pressable>
   );
 }
-const formatShort = iso => { const t = new Date(iso); return isNaN(t.getTime()) ? iso : t.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); };
+const formatShort = iso => fmtD(iso) || iso;
 
 const Row = ({ k, v }) => (
   <View style={{ flexDirection: 'row', paddingVertical: 6, gap: 10 }}>
@@ -889,12 +892,13 @@ function LinkCard({ title, sub, url }) {
   );
 }
 
-const MORE_ICON = { links: IconShare, decks: IconFile, policies: IconShield, ticket: IconLifeBuoy };
+const MORE_ICON = { links: IconShare, decks: IconFile, policies: IconShield, ticket: IconLifeBuoy, password: IconLock };
 const MORE_ITEMS = [
-  ['links', 'Onboarding link', 'Share with a prospective investor'],
+  ['links', 'Onboarding Link', 'Share with a prospective investor'],
   ['decks', 'Decks', 'Download and share with prospective investors'],
-  ['policies', 'Risk & controls', 'The policies that guide portfolio construction'],
-  ['ticket', 'Raise a ticket', 'The partnerships team replies by email'],
+  ['policies', 'Risk & Controls', 'The policies that guide portfolio construction'],
+  ['ticket', 'Raise a Ticket', 'The partnerships team replies by email'],
+  ['password', 'Change Password', 'Choose a new password for this login'],
 ];
 function More({ V, open }) {
   const u = V.user || {};

@@ -179,3 +179,26 @@ export function flowTotals(cash) {
   tx.forEach(t => { const a = Math.abs(num(t.amount) || 0); if (t.type === 'outflow') outflow += a; else inflow += a; });
   return { inflow, outflow };
 }
+
+// One date format for the whole app: DD Mon YYYY (25 Sep 2026), the app's house style. Takes a Date, an ISO string / timestamp, a plain
+// YYYY-MM-DD (read as a calendar date, no timezone shift) or a string a server route already formatted
+// ("25 Sept 2026"). Anything unreadable comes back unchanged (or '' for nothing).
+const MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MON_IDX = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11 };
+export function fmtD(v, { utc = false } = {}) {
+  if (v == null || v === '') return '';
+  if (typeof v === 'string') {
+    const t = v.trim();
+    const m = t.match(/^(\d{1,2})[ -]([A-Za-z]+)[ -](\d{4})$/);
+    if (m && MON_IDX[m[2].toLowerCase()] != null) return `${m[1].padStart(2, '0')} ${MON3[MON_IDX[m[2].toLowerCase()]]} ${m[3]}`;
+    const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.0+)?)?$/);
+    if (iso) return `${iso[3]} ${MON3[+iso[2] - 1]} ${iso[1]}`;
+    if (!/^\d{4}-\d{2}-\d{2}/.test(t)) return v;   // not a date ("FY 2027", a period label…): leave it alone
+  }
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(d.getTime())) return typeof v === 'string' ? v : '';
+  const D = utc ? d.getUTCDate() : d.getDate(), M = utc ? d.getUTCMonth() : d.getMonth(), Y = utc ? d.getUTCFullYear() : d.getFullYear();
+  return `${String(D).padStart(2, '0')} ${MON3[M]} ${Y}`;
+}
+// DD Mon, for tight spots (a date range chip)
+export const fmtDM = v => { const s = fmtD(v); return /^\d{2} [A-Z][a-z]{2} \d{4}$/.test(s) ? s.slice(0, 6) : s; };

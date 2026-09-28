@@ -5,7 +5,7 @@
 // (S3, 5-minute signed links).
 import React, { useState } from 'react';
 import { View, Pressable } from 'react-native';
-import { C, Tx, Card, Fade } from '../ui';
+import { C, Tx, Card, Fade, CTA } from '../ui';
 import { DocIcon, ChevronRight } from '../icons';
 import { documents } from '../api';
 import { useLoad, openUrl, ErrorBox, Empty, SectionLabel, AccountChips } from './kit';
@@ -20,7 +20,7 @@ const SECTIONS = [
   { id: 'cml', title: 'CML', description: 'Client Master List (CML): your demat account record from the depository participant.' },
 ];
 
-function Section({ sec, accountId, count, reloadKey }) {
+function Section({ sec, accountId, count, reloadKey, onRequest }) {
   const [open, setOpen] = useState(false);   // the client opens the section they want; nothing loads until then
   const files = useLoad(() => (open ? documents.files(sec.id, accountId) : Promise.resolve(null)), [open, sec.id, accountId, reloadKey]);
   const list = (files.data && files.data.files) || [];
@@ -47,7 +47,12 @@ function Section({ sec, accountId, count, reloadKey }) {
               <Tx w={700} s={12} c={C.green} style={{ marginTop: 6 }}>Retry</Tx>
             </Pressable>
           )}
-          {files.data && list.length === 0 && <Tx s={12} c={C.muted} style={{ padding: 16 }}>No files found in this section.</Tx>}
+          {files.data && list.length === 0 && (
+            <View style={{ padding: 16 }}>
+              <Tx s={12} c={C.muted} lh={1.5}>No files in this section yet.</Tx>
+              <CTA label="REQUEST THIS DOCUMENT" outline onPress={() => onRequest(sec.id)} style={{ marginTop: 12, paddingVertical: 10 }} />
+            </View>
+          )}
           {list.map((f, i) => (
             <View key={f.key} style={{
               flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 16, minHeight: 48,
@@ -84,7 +89,16 @@ export function DocsCream({ V }) {
       {!accountId && <Empty>No active account found.</Empty>}
       {!!cats.err && <ErrorBox msg={cats.err} onRetry={cats.reload} />}
       {/* Sections are drawn straight away; the "n files" badges appear once the listing arrives. */}
-      {!!accountId && SECTIONS.map(sec => <Section key={sec.id + accountId} sec={sec} accountId={accountId} count={counts[sec.id] || 0} reloadKey={V.rk} />)}
+      {!!accountId && SECTIONS.map(sec => <Section key={sec.id + accountId} sec={sec} accountId={accountId} count={counts[sec.id] || 0} reloadKey={V.rk}
+        onRequest={category => V.openReq('r-document', { accountId, category })} />)}
+      {/* Nothing in any section: one clear way to ask for what is missing */}
+      {!!accountId && !!cats.data && SECTIONS.every(sec => !(counts[sec.id] > 0)) && (
+        <Card style={{ padding: 18, marginTop: 4 }}>
+          <Tx w={700} s={13}>No documents yet</Tx>
+          <Tx s={12} c={C.muted} lh={1.5} style={{ marginTop: 4 }}>Nothing has been added for {accountId} so far. Ask Investor Relations and they will share what you need.</Tx>
+          <CTA label="REQUEST A DOCUMENT" onPress={() => V.openReq('r-document', { accountId })} style={{ marginTop: 14 }} />
+        </Card>
+      )}
     </Fade>
   );
 }

@@ -16,6 +16,7 @@ import { useLoad, openUrl, fmtSize } from '../screens/kit';
 import { REFERRAL_FORM } from '../screens/pages';
 import { irLinks } from '../screens/contact';
 import { ContactCard } from './contact';
+import { NotificationSettings } from '../screens/notifications';
 import {
   WEB, MANAGERS, CADENCE, STRATS, STRAT_GLOSSARY, WEALTHSPECTRUM, PASSWORD_PDF, ACCESS, REPORT_GROUPS, norm,
   BOOKING, LEVELS, LineIcon,
@@ -695,6 +696,7 @@ function Risk() {
 
 const L = content.LEGAL;
 export const DESKTOP_PAGES = {
+  notifications: { title: 'Notifications', body: () => <NotificationSettings /> },
   family: { title: 'Account Mapping', body: () => <Family /> },
   nuvama: { title: 'Your Details on Nuvama', body: V => <NuvamaDetails V={V} /> },
   insights: { title: 'Insights & Events', body: () => <Insights /> },

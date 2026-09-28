@@ -46,6 +46,12 @@ export function MoreCream({ V }) {
           <Tx w={700} s={13} style={{ flex: 1 }}>Display and accessibility</Tx>
           <ChevronRight />
         </Pressable>
+        {!V.viewing && (
+          <Pressable accessibilityRole="button" onPress={() => V.openPage('notifications')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, minHeight: 46, borderTopWidth: 1, borderColor: C.hairline }}>
+            <Tx w={700} s={13} style={{ flex: 1 }}>Notifications</Tx>
+            <ChevronRight />
+          </Pressable>
+        )}
       </Card>
       {!!V.bio && (
         <Card style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 }}>

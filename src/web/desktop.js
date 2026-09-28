@@ -426,11 +426,28 @@ function DataState({ V, children }) {
 }
 
 /* ── sections ───────────────────────────────────────────────────────────────────────────────────────────── */
+// Data source for an account with Orbis history (as on the phone): Nuvama · Orbis (Legacy) · Orbis + Nuvama. It
+// switches every figure built from the history (returns, NAV, drawdown, P&L, cash flows); holdings stay Nuvama's.
+function DataSource({ V }) {
+  if (!V.hasViews) return null;
+  const on = V.viewChips.find(c => c.active) || V.viewChips[0];
+  return (
+    <View style={{ gap: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <Tx w={600} s={13} c={C.ink2}>Data source</Tx>
+        <Chips value={on.label} options={V.viewChips.map(c => [c.label, c.label])} onChange={l => { const c = V.viewChips.find(x => x.label === l); if (c) c.pick(); }} />
+      </View>
+      {V.orbisNote && <Tx s={12.5} c={C.ink3} lh={1.5}>Orbis data: figures run to the last day before Nuvama took over. Money in and out comes from the capital recorded by Orbis; returns are measured from the Orbis starting NAV of 100.</Tx>}
+    </View>
+  );
+}
+
 function Overview({ V }) {
   return (
     <DataState V={V}>
       <View style={{ gap: 20 }}>
         {!V.viewing && <UccNotice visible={V.showUcc} onClose={V.dismissUcc} />}
+        <DataSource V={V} />
         <Summary V={V} />
         <NavPanel V={V} height={300} />
         <DrawdownPanel V={V} height={180} />
@@ -450,6 +467,7 @@ function Performance({ V }) {
   return (
     <DataState V={V}>
       <View style={{ gap: 20 }}>
+        <DataSource V={V} />
         <Row>
           {V.perfHead.map(([k, v, col]) => <Stat key={k} label={sentence(k).replace('(SI)', 'since inception').replace('DD', 'drawdown')} value={v} color={col} style={{ flex: 1 }} />)}
           {!!maxDd && <Stat label="Max drawdown" value={maxDd.v} color={maxDd.vc} note={maxDd.note} style={{ flex: 1 }} />}

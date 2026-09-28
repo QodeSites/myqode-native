@@ -10,7 +10,7 @@ set -euo pipefail
 TEAM_ID="${1:-U3H68NKMV6}"   # Qode's team (from myqode-mobile eas.json)
 cd "$(dirname "$0")/.."
 
-ASC_KEY_PATH="${ASC_KEY_PATH:-$(ls ~/.appstore/AuthKey_*.p8 2>/dev/null | head -1)}"
+ASC_KEY_PATH="${ASC_KEY_PATH:-$(ls ~/.appstore/AuthKey_*.p8 2>/dev/null | head -1 || true)}"   # no key: fall through to Xcode's Apple ID (pipefail must not end the script here)
 ASC_ISSUER_ID="${ASC_ISSUER_ID:-5c73af08-bbd7-4821-a387-1660a391a74c}"   # Qode's issuer (myqode-mobile eas.json)
 AUTH=()
 if [ -n "$ASC_KEY_PATH" ]; then

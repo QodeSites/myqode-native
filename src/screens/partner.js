@@ -16,10 +16,13 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 import { C, Tx, Amt, Card, CTA, Fade, Field } from '../ui';
+import { fmtD } from '../adapt';
+import { Check } from '../icons';
 import { ChevronDown, ChevronLeft, ChevronRight, DocIcon, MailIcon, Phone, Download } from '../icons';
-import { distributor as api, BASE_URL } from '../api';
+import { distributor as api, auth, BASE_URL } from '../api';
 import { useLoad, openUrl, SectionLabel, Loading, ErrorBox } from './kit';
 import { DateField } from './sip';
+import { ClientReportsSheet } from './clientReports';
 import { storeGet, storeSet, storeDel } from '../api/session';
 import * as content from '../content';
 import { computeTax, GST_STATE_CODES, validateGstin, validatePan, amountInWords, QODE_ENTITY, qodeAddressLines, isQodeEntityComplete } from '../partnerTax';
@@ -89,6 +92,7 @@ export const ACCOUNT_JOURNEY = [
 
 export function InvestorDetail({ c, status, onBack, onboardingSequence, view }) {
   const [busy, setBusy] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);   // "Download reports" sheet (src/screens/clientReports.js)
   const [msg, setMsg] = useState('');
   const delta = c.currentValue != null && c.investedAmount != null ? c.currentValue - c.investedAmount : null;
   const deltaPct = delta != null && c.investedAmount ? (delta / c.investedAmount) * 100 : null;
@@ -120,6 +124,10 @@ export function InvestorDetail({ c, status, onBack, onboardingSequence, view }) 
           {!!c.email && <CTA label={busy ? 'WORKING…' : 'DOWNLOAD SOA'} outline onPress={soa} style={{ flex: 1, paddingVertical: 12 }} />}
         </View>
       )}
+      {!!c.clientCode && (<>
+        <CTA label="DOWNLOAD REPORTS" outline onPress={() => setReportsOpen(true)} style={{ marginTop: 8, paddingVertical: 12 }} />
+        <ClientReportsSheet c={c} visible={reportsOpen} onClose={() => setReportsOpen(false)} />
+      </>)}
 
       <Card style={{ padding: 18, marginTop: 14 }}>
         <Tx w={700} s={10.5} ls={0.12} c={C.muted}>CURRENT VALUE</Tx>
@@ -367,7 +375,7 @@ export function Fees({ onStatement, onInvoice }) {
       </Modal>
 
       {rows.loading && <View style={{ marginTop: 14 }}><Loading rows={3} h={68} /></View>}
-      {!rows.loading && !!rows.err && <View style={{ marginTop: 14 }}><Msg tone="red" text={`We couldn’t load your fees. ${rows.err}. Please refresh, or contact investor.relations@qodeinvest.com.`} /></View>}
+      {!rows.loading && !!rows.err && <View style={{ marginTop: 14 }}><Msg tone="red" text={`We couldn’t load your fees. ${rows.err}. Please refresh, or contact partnerships@qodeinvest.com.`} /></View>}
       {!rows.loading && !rows.err && list.length === 0 && period && (
         <Card style={{ padding: 18, marginTop: 14 }}>
           <Tx w={700} s={13}>No fees in this period</Tx>
@@ -429,7 +437,7 @@ export function Fees({ onStatement, onInvoice }) {
 
         {t.unmappedCount > 0 && (
           <View style={{ marginTop: 14 }}>
-            <Msg text={`${t.unmappedCount} ${t.unmappedCount === 1 ? 'client has' : 'clients have'} no fee rate configured. Their share shows as ₹0 because no rate has been set, not because none is due. Contact investor.relations@qodeinvest.com to have these confirmed.`} />
+            <Msg text={`${t.unmappedCount} ${t.unmappedCount === 1 ? 'client has' : 'clients have'} no fee rate configured. Their share shows as ₹0 because no rate has been set, not because none is due. Contact partnerships@qodeinvest.com to have these confirmed.`} />
           </View>
         )}
 
@@ -755,7 +763,7 @@ export function statementDoc(period, distributorName, rows) {
   </style></head><body>
     <table><tr>
       <td style="vertical-align:top"><div class="serif" style="font-size:18px">Qode Advisors LLP</div>
-        <div class="muted" style="font-size:9.5px;margin-top:4px;line-height:1.65">SEBI Registered Portfolio Manager · INP000008914<br>Mumbai, India<br>investor.relations@qodeinvest.com</div></td>
+        <div class="muted" style="font-size:9.5px;margin-top:4px;line-height:1.65">SEBI Registered Portfolio Manager · INP000008914<br>Mumbai, India<br>partnerships@qodeinvest.com</div></td>
       <td style="vertical-align:top;text-align:right"><div class="lbl">Distributor Fee Statement</div>
         <div class="muted" style="font-size:9.5px;margin-top:6px;line-height:1.6">Ref ${esc(ref)}<br>Issued ${esc(issued)}</div></td>
     </tr></table>
@@ -781,12 +789,12 @@ export function statementDoc(period, distributorName, rows) {
         </tbody>
       </table>
     </div>
-    ${t.unmapped ? '<div class="box" style="margin-top:18px;font-size:10px"><b>Some clients are not included.</b> <span class="muted">One or more clients have no fee share configured, so no amount is shown against them. Contact investor.relations@qodeinvest.com before invoicing.</span></div>' : ''}
+    ${t.unmapped ? '<div class="box" style="margin-top:18px;font-size:10px"><b>Some clients are not included.</b> <span class="muted">One or more clients have no fee share configured, so no amount is shown against them. Contact partnerships@qodeinvest.com before invoicing.</span></div>' : ''}
     ${t.isLegacyRate ? '<div class="box" style="margin-top:10px;font-size:10px"><b>Provisional rate.</b> <span class="muted">This statement uses a share rate held in our portal records rather than a confirmed CRM rate. Please confirm before invoicing.</span></div>' : ''}
     <div class="rule" style="margin-top:36px;padding-top:18px">
     <p class="note"><b>This is not a tax invoice.</b> It is a statement of fees earned, issued for your records. Please raise your own invoice on Qode Advisors LLP for the total shown above.</p>
     <p class="note"><b>The total payable to you is inclusive of GST at 18%.</b> Your revenue share of ${esc(t.ratePct)} is calculated on the fees billed to your clients, and GST at 18% is added to your share. Do not add GST on top of the total: the amount payable to you is ₹ ${inr(t.share)} in full. On your invoice this is ₹ ${inr(t.shareNet)} plus GST of ₹ ${inr(t.shareGst)}. Client fee amounts in the table are shown before GST, with GST in its own column.</p>
-    <p class="note">Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact investor.relations@qodeinvest.com before invoicing.</p>
+    <p class="note">Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact partnerships@qodeinvest.com before invoicing.</p>
     </div></body></html>`;
   return { clients, t, ref, issued, disc, calc, money2, html };
 }
@@ -801,7 +809,7 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
     <Fade>
       <BackRow label="Back to fees" onPress={onBack} />
       {loading && <Tx s={12} c={C.muted}>Preparing your statement…</Tx>}
-      {!!err && <ErrorBox msg={`We couldn’t prepare the statement. ${err}. Please go back and try again, or contact investor.relations@qodeinvest.com.`} onRetry={reload} />}
+      {!!err && <ErrorBox msg={`We couldn’t prepare the statement. ${err}. Please go back and try again, or contact partnerships@qodeinvest.com.`} onRetry={reload} />}
       {!loading && !err && (<>
         <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginBottom: 10 }}>Save it as a PDF for your records. This statement is not a tax invoice. Use <Tx w={700} s={11.5} c={C.ink}>Raise invoice</Tx> to generate one.</Tx>
         <Card style={{ padding: 0, overflow: 'hidden' }}>
@@ -813,7 +821,7 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
           <View style={{ padding: 18 }}>
           <View style={{ paddingBottom: 12, borderBottomWidth: 1, borderColor: C.hairline }}>
             <Tx f="play" w={600} s={16}>Qode Advisors LLP</Tx>
-            <Tx s={11} c={C.muted} lh={1.5} style={{ marginTop: 2 }}>SEBI Registered Portfolio Manager · INP000008914{'\n'}Mumbai, India{'\n'}investor.relations@qodeinvest.com</Tx>
+            <Tx s={11} c={C.muted} lh={1.5} style={{ marginTop: 2 }}>SEBI Registered Portfolio Manager · INP000008914{'\n'}Mumbai, India{'\n'}partnerships@qodeinvest.com</Tx>
           </View>
           <Tx w={700} s={10.5} ls={0.12} c={C.muted} style={{ marginTop: 12 }}>DISTRIBUTOR FEE STATEMENT</Tx>
           <Tx s={11} c={C.gray} style={{ marginTop: 2 }}>Ref {ref} · Issued {issued}</Tx>
@@ -903,7 +911,7 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
             ))}
           </View>
         </Card>
-        {t.unmapped && <View style={{ marginTop: 12 }}><Msg text="Some clients are not included. One or more clients have no fee share configured, so no amount is shown against them. Contact investor.relations@qodeinvest.com before invoicing." /></View>}
+        {t.unmapped && <View style={{ marginTop: 12 }}><Msg text="Some clients are not included. One or more clients have no fee share configured, so no amount is shown against them. Contact partnerships@qodeinvest.com before invoicing." /></View>}
         {t.isLegacyRate && <View style={{ marginTop: 12 }}><Msg text="Provisional rate. This statement uses a share rate held in our portal records rather than a confirmed CRM rate. Please confirm before invoicing." /></View>}
 
 
@@ -911,7 +919,7 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
         <Card style={{ padding: 16, marginTop: 14 }}>
           <Tx s={11.5} c={C.muted} lh={1.6}><Tx w={700} s={11.5} c={C.ink}>This is not a tax invoice.</Tx> It is a statement of fees earned, issued for your records. Please raise your own invoice on Qode Advisors LLP for the total shown above.</Tx>
           <Tx s={11.5} c={C.muted} lh={1.6} style={{ marginTop: 10 }}><Tx w={700} s={11.5} c={C.ink}>The total payable to you is inclusive of GST at 18%.</Tx> Your revenue share of {t.ratePct} is calculated on the fees billed to your clients, and GST at 18% is added to your share. Do not add GST on top of the total: the amount payable to you is ₹ {inr(t.share)} in full. On your invoice this is ₹ {inr(t.shareNet)} plus GST of ₹ {inr(t.shareGst)}. Client fee amounts in the table are shown before GST, with GST in its own column.</Tx>
-          <Tx s={11.5} c={C.muted} lh={1.6} style={{ marginTop: 10 }}>Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact investor.relations@qodeinvest.com before invoicing.</Tx>
+          <Tx s={11.5} c={C.muted} lh={1.6} style={{ marginTop: 10 }}>Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact partnerships@qodeinvest.com before invoicing.</Tx>
         </Card>
       </>)}
     </Fade>
@@ -1022,7 +1030,7 @@ export function Invoice({ period, distributorName, onBack }) {
   return (
     <Fade>
       <BackRow label="Back to fees" onPress={onBack} />
-      {!qodeOk && <Msg tone="red" text="Invoicing isn't available yet. Qode's GST details haven't been configured in the portal, and an invoice without them wouldn't be valid. Please contact investor.relations@qodeinvest.com." />}
+      {!qodeOk && <Msg tone="red" text="Invoicing isn't available yet. Qode's GST details haven't been configured in the portal, and an invoice without them wouldn't be valid. Please contact partnerships@qodeinvest.com." />}
       <SectionLabel>YOUR INVOICE DETAILS</SectionLabel>
       <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: -4, marginLeft: 2 }}>These appear on the invoice as the party raising it. We save them, so you only need to enter them once. The amounts come from your fees for the period and can't be edited.</Tx>
       <Card style={{ padding: 16, marginTop: 10 }}>
@@ -1398,7 +1406,7 @@ export function Ticket({ onBack }) {
     <Fade>
       <BackRow label="More" onPress={onBack} />
       <Card style={{ padding: 20, alignItems: 'center' }}>
-        <Tx f="play" w={600} s={20}>Ticket raised</Tx>
+        <Tx f="play" w={600} s={20}>Ticket Raised</Tx>
         <Tx s={12.5} c={C.muted} lh={1.6} center style={{ marginTop: 8 }}>The partnerships team has it and will reply to you by email. You do not need to send it again.</Tx>
         <CTA label="RAISE ANOTHER" onPress={() => { setTopic(''); setAbout(''); setMessage(''); setSt({ busy: false, err: '', done: false }); }} style={{ marginTop: 18, alignSelf: 'stretch' }} />
         <CTA label="BACK" outline onPress={onBack} style={{ marginTop: 10, alignSelf: 'stretch' }} />
@@ -1450,6 +1458,59 @@ export function Policies({ onBack }) {
           {!!p.pdf && <CTA label="VIEW POLICY (PDF)" outline onPress={() => openUrl(p.pdf)} style={{ marginTop: 12, paddingVertical: 11 }} />}
         </Card>
       ))}
+    </Fade>
+  );
+}
+
+// ── Change password (partner More) ───────────────────────────────────────────────────────────────────────────
+// The same rules as the web's reset page, plus no spaces. The server checks the current password.
+const noSpaces = t => String(t || '').replace(/\s+/g, '');
+function passwordProblem(a, b) {
+  if (!a) return 'Enter a new password.';
+  if (a.length < 8) return 'Use at least 8 characters.';
+  if (!/[a-z]/.test(a) || !/[A-Z]/.test(a) || !/[0-9]/.test(a) || !/[^A-Za-z0-9]/.test(a)) return 'Include upper and lower case letters, a number and a symbol.';
+  if (a === 'Qode@123') return 'Please choose a different password.';
+  if (a !== b) return 'The two passwords don’t match.';
+  return '';
+}
+export function ChangePassword({ onBack }) {
+  const [cur, setCur] = useState('');
+  const [np, setNp] = useState('');
+  const [np2, setNp2] = useState('');
+  const [st, setSt] = useState({ busy: false, err: '', done: false });
+  const submit = async () => {
+    if (st.busy) return;
+    const e = passwordProblem(np, np2);
+    if (e) return setSt({ busy: false, err: e, done: false });
+    setSt({ busy: true, err: '', done: false });
+    try { await auth.changePassword(cur, np); setSt({ busy: false, err: '', done: true }); }
+    catch (x) { setSt({ busy: false, err: x.message || 'Could not change the password. Please try again.', done: false }); }
+  };
+  if (st.done) {
+    return (
+      <Fade>
+        <BackRow label="More" onPress={onBack} />
+        <Card style={{ padding: 22, alignItems: 'center' }}>
+          <View style={{ width: 52, height: 52, borderRadius: 26, borderWidth: 1.5, borderColor: C.green, alignItems: 'center', justifyContent: 'center' }}><Check s={22} w={2.4} /></View>
+          <Tx w={700} s={15} style={{ marginTop: 14 }}>Password changed</Tx>
+          <Tx s={12.5} c={C.muted} lh={1.6} center style={{ marginTop: 8 }}>Use the new password the next time you sign in. We’ve emailed you a confirmation.</Tx>
+          <CTA label="DONE" onPress={onBack} style={{ marginTop: 18, alignSelf: 'stretch' }} />
+        </Card>
+      </Fade>
+    );
+  }
+  return (
+    <Fade>
+      <BackRow label="More" onPress={onBack} />
+      <Tx s={12.5} c={C.muted} lh={1.5}>Choose a new password for this partner login.</Tx>
+      <Card style={{ padding: 16, marginTop: 14 }}>
+        <Field label="CURRENT PASSWORD" value={cur} onChangeText={t => { setCur(noSpaces(t)); setSt(s => ({ ...s, err: '' })); }} placeholder="••••••••" secure />
+        <Field label="NEW PASSWORD" value={np} onChangeText={t => { setNp(noSpaces(t)); setSt(s => ({ ...s, err: '' })); }} placeholder="••••••••" secure style={{ marginTop: 16 }} />
+        <Field label="CONFIRM NEW PASSWORD" value={np2} onChangeText={t => { setNp2(noSpaces(t)); setSt(s => ({ ...s, err: '' })); }} placeholder="••••••••" secure style={{ marginTop: 16 }} />
+        <Tx s={11} c={C.gray} lh={1.5} style={{ marginTop: 12 }}>At least 8 characters, with upper and lower case letters, a number and a symbol. No spaces.</Tx>
+        {!!st.err && <Tx s={12} c={C.red} lh={1.45} style={{ marginTop: 12 }}>{st.err}</Tx>}
+        <CTA label={st.busy ? 'PLEASE WAIT…' : 'CHANGE PASSWORD'} onPress={submit} style={{ marginTop: 20, opacity: st.busy ? 0.6 : 1 }} />
+      </Card>
     </Fade>
   );
 }
