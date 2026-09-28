@@ -226,7 +226,7 @@ function Detail({ it, onClose }) {
       <Tx s={12.5} c={C.ink3} style={{ marginTop: 14 }}>{sip ? 'Set up ' : 'Placed '}{when(it.createdAt)}{it.paymentTime ? ' · paid ' + when(it.paymentTime) : ''}</Tx>
       {__DEV__ && sip && <Tx s={11.5} c={C.ink3} style={{ marginTop: 2 }}>Ref {it.orderId}</Tx>}
       {charges.length > 0 && (
-        <View style={{ marginTop: 18, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: C.line }}>
+        <View style={{ marginTop: 18, borderRadius: 10, overflow: 'clip', borderWidth: 1, borderColor: C.line }}>
           <Table dense rows={charges} cols={[
             { key: 'n', label: 'Instalment', flex: 0.8, render: ch => <Tx s={13}>{ch.installmentNumber ? '#' + ch.installmentNumber : '–'}</Tx> },
             { key: 'd', label: 'Date', flex: 1.4, render: ch => <Tx s={13} c={C.ink2}>{when(ch.paidAt || ch.chargeDate)}</Tx> },

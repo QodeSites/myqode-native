@@ -105,7 +105,7 @@ export function ClientReportsDialog({ c, visible, onClose }) {
           </Field>
           <Field label="Account">
             {options.length ? (
-              <View style={{ borderWidth: 1, borderColor: C.line, borderRadius: 8, overflow: 'hidden' }}>
+              <View style={{ borderWidth: 1, borderColor: C.line, borderRadius: 8, overflow: 'clip' }}>
                 {options.map((o, i) => {
                   const on = account === o.id;
                   return (

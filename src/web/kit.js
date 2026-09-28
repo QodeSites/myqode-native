@@ -4,7 +4,7 @@
 // data tables, segmented controls, and the brand green / gold used as accents rather than as surfaces.
 // Every screen in src/web/ builds from these pieces. `C` here is the web palette: it keeps the app's key names so
 // shared code keeps working, with web values.
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { View, Pressable, TextInput, ActivityIndicator, Modal, ScrollView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { C as APP, Tx as AppTx, Amt, useUI } from '../ui';
@@ -62,9 +62,21 @@ export function FitAmt({ children, s = 22, min = 12, style, ...rest }) {
   let size = s;
   // Text width ≈ size × z × units + letterSpacing × characters; solve for the size that fits the box.
   if (box > 0 && units > 0) size = Math.max(min, Math.min(s, Math.floor(((box - 4 - ls * text.length) / (units * z)) * 10) / 10));
+  // The estimate can run short (fonts, zoom), and a figure must never end in "…": on the web the real text is measured
+  // and shrunk further until it fits; below a readable floor it wraps instead.
+  const [k, setK] = useState(1);
+  const ref = useRef(null);
+  const floor = Math.min(min, 10);
+  const wrap = size * k <= floor;
+  useLayoutEffect(() => { setK(1); }, [text, box, size, z]);
+  useLayoutEffect(() => {
+    const t = ref.current && ref.current.firstChild;
+    if (!web || !t || wrap || !box) return;
+    if (t.scrollWidth > t.clientWidth + 1) setK(x => Math.max(floor / size, x * 0.92));
+  });
   return (
-    <View onLayout={e => setBox(e.nativeEvent.layout.width)} style={{ alignSelf: 'stretch', minWidth: 0 }}>
-      <Amt s={size} numberOfLines={1} style={style} {...rest}>{text}</Amt>
+    <View ref={ref} onLayout={e => setBox(e.nativeEvent.layout.width)} style={{ alignSelf: 'stretch', minWidth: 0 }}>
+      <Amt s={Math.round(size * k * 10) / 10} numberOfLines={wrap ? undefined : 1} style={style} {...rest}>{text}</Amt>
     </View>
   );
 }
@@ -80,6 +92,10 @@ export function sentence(t) {
     return i === 0 ? lw.charAt(0).toUpperCase() + lw.slice(1) : lw;
   }).join(' ');
 }
+
+const web = Platform.OS === 'web';
+// Clips like overflow hidden, but is not a scroll container, so a sticky table header inside still pins to the page.
+export const CLIP = web ? 'clip' : 'hidden';
 
 /** Surface: white, hairline border, 12 px corners. */
 export function Card({ style, children }) {
@@ -116,7 +132,7 @@ export const Label = ({ children, style, c = C.ink3 }) => <Tx w={600} s={12} c={
 /** Card with a header (title, optional subtitle and actions). pad=0 for edge-to-edge tables. */
 export function Panel({ title, sub, right, children, style, pad = 20, footer }) {
   return (
-    <Card style={[{ overflow: 'hidden' }, style]}>
+    <Card style={[{ overflow: CLIP }, style]}>
       {(!!title || !!right) && (
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 16, paddingBottom: pad === 0 ? 14 : 0 }}>
           <View style={{ flexShrink: 1 }}>
@@ -327,27 +343,56 @@ export function DateField({ label, value, onChangeText, min, max, error, hint, p
   );
 }
 
-/** Data table. cols: [{ key, label, flex?, min?, w?, right?, render?(row) }]; rows: array; onRowPress?(row); selected?(row); sticky? pins the header. */
-export function Table({ cols, rows, onRowPress, empty = 'Nothing to show yet.', dense, selected, sticky }) {
+/** Data table. cols: [{ key, label, flex?, w?, right?, render?(row) }]; rows: array; onRowPress?(row); selected?(row).
+ *  Right-aligned (figure) columns are as wide as their widest value, header included, and never shrink, so an amount
+ *  or a date is never cut to "…" however narrow the window or large the zoom. Left-aligned columns share what is left
+ *  (by `flex`) and keep their text inside the cell: one-line text ends in "…", other text wraps. `w` fixes a width.
+ *  The header sticks to the top of the page while the rows scroll; sticky={false} turns that off. */
+export function Table({ cols, rows, onRowPress, empty = 'Nothing to show yet.', dense, selected, sticky = true }) {
   const cell = { paddingVertical: dense ? 9 : 12, paddingHorizontal: 16 };
-  // A column is fixed (`w`) or flexible (`flex`, floored by `min` so its content never spills into a neighbour).
-  const size = c => (c.w ? { width: c.w, flexGrow: 0, flexShrink: 0 } : { flex: c.flex || 1, minWidth: c.min || 0 });
-  // `sticky` pins the header to the nearest scrolling ancestor, so nothing between it and the page may clip overflow.
-  const head = [{ flexDirection: 'row', backgroundColor: C.green }, sticky && { position: 'sticky', top: 0, zIndex: 2 }];
+  const root = useRef(null);
+  const [fit, setFit] = useState({});   // measured content width of each right-aligned column, by key
+  const measure = useCallback(() => {
+    const el = root.current;
+    if (!web || !el || !el.querySelectorAll) return;
+    const next = {};
+    el.querySelectorAll('[data-fit]').forEach(n => { const k = n.getAttribute('data-fit'); next[k] = Math.max(next[k] || 0, Math.ceil(n.getBoundingClientRect().width)); });
+    setFit(prev => (Object.keys(next).length === Object.keys(prev).length && Object.keys(next).every(k => prev[k] === next[k]) ? prev : next));
+  }, []);
+  useLayoutEffect(measure);
+  useEffect(() => {
+    if (!web) return undefined;
+    window.addEventListener('resize', measure);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [measure]);
+
+  const size = c => (c.w ? { width: c.w, flexGrow: 0, flexShrink: 0 }
+    : c.right && fit[c.key] ? { width: fit[c.key] + cell.paddingHorizontal * 2, flexGrow: 0, flexShrink: 0 }
+    : { flexGrow: c.flex || 1, flexShrink: 1, flexBasis: 0, minWidth: 0 });
+  // A figure column's content is laid out at its natural width (max-content) and measured; the column then takes it.
+  const fitBox = (c, child) => (c.right && !c.w && web
+    ? <View dataSet={{ fit: c.key }} style={{ width: 'max-content', alignItems: 'flex-end' }}>{child}</View>
+    : child);
+  const head = [{ flexDirection: 'row', backgroundColor: C.green }, sticky && web && { position: 'sticky', top: 0, zIndex: 2 }];
   return (
-    <View>
+    <View ref={root}>
       <View style={head}>
-        {cols.map(c => <Tx key={c.key} w={600} s={11.5} c={C.cream} numberOfLines={1} style={[cell, size(c), { paddingVertical: 9, textAlign: c.right ? 'right' : 'left' }]}>{sentence(c.label)}</Tx>)}
+        {cols.map(c => (
+          <View key={c.key} style={[cell, size(c), { paddingVertical: 9, overflow: CLIP, alignItems: c.right ? 'flex-end' : 'stretch', justifyContent: 'center' }]}>
+            {fitBox(c, <Tx w={600} s={11.5} c={C.cream} numberOfLines={c.right ? undefined : 1} style={{ textAlign: c.right ? 'right' : 'left' }}>{sentence(c.label)}</Tx>)}
+          </View>
+        ))}
       </View>
       {rows.length === 0 && <Tx s={13} c={C.ink3} style={{ padding: 20 }}>{empty}</Tx>}
       {rows.map((r, i) => {
         const inner = cols.map(c => (
-          <View key={c.key} style={[cell, size(c), { alignItems: c.right ? 'flex-end' : 'flex-start', justifyContent: 'center' }]}>
-            {c.render ? c.render(r) : <Tx s={13.5} numberOfLines={2}>{r[c.key] == null ? '' : String(r[c.key])}</Tx>}
+          <View key={c.key} style={[cell, size(c), { overflow: CLIP, alignItems: c.right ? 'flex-end' : 'stretch', justifyContent: 'center' }]}>
+            {fitBox(c, c.render ? c.render(r) : <Tx s={13.5} numberOfLines={c.right ? undefined : 2}>{r[c.key] == null ? '' : String(r[c.key])}</Tx>)}
           </View>
         ));
         const sel = selected && selected(r);
-        const base = { flexDirection: 'row', alignItems: 'center', borderBottomWidth: i === rows.length - 1 ? 0 : 1, borderColor: C.line };
+        const base = { flexDirection: 'row', alignItems: 'stretch', borderBottomWidth: i === rows.length - 1 ? 0 : 1, borderColor: C.line };
         return onRowPress
           ? <Pressable key={r.id || i} accessibilityRole="button" onPress={() => onRowPress(r)} style={({ hovered }) => [base, { backgroundColor: sel ? C.greenTint : hovered ? C.hover : 'transparent' }]}>{inner}</Pressable>
           : <View key={r.id || i} style={base}>{inner}</View>;

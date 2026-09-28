@@ -323,8 +323,7 @@ export default function DesktopDistributor({ V }) {
       <View style={{ flex: 1, minWidth: 0 }}>
         <TopBar V={V} title={section === 'investors' && sub ? (sub.c.name || 'Investor') : TITLES[section]} asOf={valuedOn ? fmtDate(valuedOn) : ''}
           busy={journey.loading || split.loading} onRefresh={() => setTick(t => t + 1)} />
-        {/* overflowX auto: a table wider than the window scrolls sideways here rather than being cut off (RNW hides it by default) */}
-        <ScrollView ref={scrollRef} style={{ flex: 1, overflowX: 'auto' }} contentContainerStyle={{ padding: 28, paddingBottom: 48 }}>
+        <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 28, paddingBottom: 48 }}>
           <View style={{ maxWidth: 1680, width: '100%' }}>{body}</View>
         </ScrollView>
       </View>
@@ -565,7 +564,8 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
   useEffect(() => { if (f.status) setStatus(f.status); }, [f.status]);
   const [soaBusy, setSoaBusy] = useState('');
   const [soaMsg, setSoaMsg] = useState(null);   // { email, text }: shown under that investor's SOA button, where it was pressed
-  const [reportsFor, setReportsFor] = useState(null);   // investor whose "Download reports" dialog is open
+  const [reportsFor, setReportsFor] = useState(null);
+  const [narrow, setNarrow] = useState(false);   // too narrow for filters beside the table: they go above it   // investor whose "Download reports" dialog is open
   const d = journey.data;
   const clients = (d && d.journey && d.journey.clients) || [];
   const counts = useMemo(() => { const m = new Map(); for (const c of clients) { const k = statusFor(c.stage, c.onboardingStage).key; m.set(k, (m.get(k) || 0) + 1); } return m; }, [clients]);
@@ -589,18 +589,18 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
 
   const cols = [
     { key: 'n', label: '#', w: 44, render: r => <Tx s={12} c={C.ink3}>{r.i + 1}</Tx> },
-    { key: 'name', label: 'Investor', flex: 2, min: 180, render: ({ c }) => (
+    { key: 'name', label: 'Investor', flex: 2, render: ({ c }) => (
       <View style={{ minWidth: 0, alignSelf: 'stretch' }}>
         <Tx w={600} s={13.5} numberOfLines={1}>{c.name || '–'}</Tx>
         <Tx s={11.5} c={C.ink3} numberOfLines={1}>{[c.city, c.email].filter(Boolean).join(' · ') || 'No details recorded yet'}</Tx>
       </View>) },
-    { key: 'status', label: 'Status', flex: 1.6, min: 180, render: ({ c, s }) => <StatusTag s={s} sub={s.key === 'onboarding' && c.onboardingStage ? sc(c.onboardingStage) : null} /> },
-    { key: 'strat', label: 'Strategies', flex: 1.3, min: 130, render: ({ c }) => (
+    { key: 'status', label: 'Status', flex: 1.6, render: ({ c, s }) => <StatusTag s={s} sub={s.key === 'onboarding' && c.onboardingStage ? sc(c.onboardingStage) : null} /> },
+    { key: 'strat', label: 'Strategies', flex: 1.3, render: ({ c }) => (
       (c.strategies || []).length ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {c.strategies.map(n => <View key={n} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Dot sq s={7} color={STRATEGY_COLOR[n] || C.ink3} /><Tx s={12.5}>{shortStrategy(n)}</Tx></View>)}
         </View>) : <Tx s={12.5} c={C.ink3}>–</Tx>) },
-    { key: 'value', label: 'Current value', right: true, flex: 1.1, min: 120, render: ({ c }) => {
+    { key: 'value', label: 'Current value', right: true, render: ({ c }) => {
       const delta = c.currentValue != null && c.investedAmount != null ? c.currentValue - c.investedAmount : null;
       return (
         <View style={{ alignItems: 'flex-end' }}>
@@ -608,8 +608,8 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
           {delta != null ? <Amt s={11.5} c={delta >= 0 ? C.pos : C.red}>{delta >= 0 ? '+' : '−'}{money(Math.abs(delta))}</Amt> : <Tx s={11.5} c={C.ink3}>No holdings yet</Tx>}
         </View>);
     } },
-    { key: 'date', label: f.basis === 'opened' ? 'Account opened' : 'First funded', right: true, flex: 0.95, min: 125, render: ({ c }) => <Tx s={12.5} c={C.ink2} numberOfLines={1}>{fmtDate(f.basis === 'opened' ? c.accountLiveDate : fundedDate(c) || c.accountLiveDate)}</Tx> },
-    { key: 'act', label: 'Actions', right: true, w: 336, render: ({ c }) => (
+    { key: 'date', label: f.basis === 'opened' ? 'Account opened' : 'First funded', right: true, render: ({ c }) => <Tx s={12.5} c={C.ink2}>{fmtDate(f.basis === 'opened' ? c.accountLiveDate : fundedDate(c) || c.accountLiveDate)}</Tx> },
+    { key: 'act', label: 'Actions', right: true, render: ({ c }) => (
       <View style={{ alignItems: 'flex-end' }}>
         <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
           {c.clientCode
@@ -618,19 +618,17 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
           {!!c.clientCode && <Btn small kind="outline" label="Reports" icon={<Download s={13} c={C.ink2} />} onPress={() => setReportsFor(c)} />}
           {!!c.email && <Btn small kind="outline" label={soaBusy === c.email ? 'Fetching…' : 'SOA'} icon={<Download s={13} c={C.ink2} />} onPress={() => soa(c)} disabled={!!soaBusy && soaBusy !== c.email} />}
         </View>
-        {!!soaMsg && soaMsg.email === c.email && <Tx w={600} s={11.5} c={C.ink2} lh={1.4} style={{ marginTop: 6, textAlign: 'right' }}>{soaMsg.text}</Tx>}
+        {!!soaMsg && soaMsg.email === c.email && <Tx w={600} s={11.5} c={C.ink2} lh={1.4} style={{ marginTop: 6, textAlign: 'right', alignSelf: 'stretch', width: 0, minWidth: '100%' }}>{soaMsg.text}</Tx>}
       </View>) },
   ];
-  // Fixed and floor widths add up to the narrowest table that still lines up; below that the page scrolls sideways.
-  const tableMin = cols.reduce((n, c) => n + (c.w || c.min || 0), 2);
 
   return (
-    <View style={{ gap: 20 }}>
+    <View style={{ gap: 20 }} onLayout={e => setNarrow(e.nativeEvent.layout.width < 1300)}>
       <CrmNotice d={d} />
-      <Row top>
+      <View style={{ flexDirection: narrow ? 'column' : 'row', alignItems: narrow ? 'stretch' : 'flex-start', gap: 20 }}>
         {/* Filters */}
-        <View style={{ width: 280, gap: 16 }}>
-          <Panel title="Status" sub="Show investors at one stage">
+        <View style={narrow ? { flexDirection: 'row', alignItems: 'flex-start', gap: 16 } : { width: 280, gap: 16 }}>
+          <Panel title="Status" sub="Show investors at one stage" style={narrow ? { flex: 1 } : null}>
             <View style={{ gap: 2 }}>
               {[{ key: 'all', label: 'All investors', n: clients.length }, ...present.map(s => ({ key: s.key, label: sc(s.label), n: counts.get(s.key), dot: STATUS_COLOR[s.key] }))].map(o => {
                 const on = status === o.key;
@@ -645,7 +643,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
               })}
             </View>
           </Panel>
-          <Panel title="Date" sub="Filter by when an account opened or was first funded">
+          <Panel title="Date" sub="Filter by when an account opened or was first funded" style={narrow ? { flex: 1 } : null}>
             <Chips value={f.basis || ''} options={DATE_BASES.map(([k]) => [k, k === '' ? 'Any' : k === 'opened' ? 'Opened' : 'First funded'])}
               onChange={k => setFilter(k ? { ...f, basis: k } : { ...f, basis: undefined, from: undefined, to: undefined })} />
             {!!f.basis && (
@@ -659,10 +657,9 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
         </View>
 
         {/* Table */}
-        <View style={{ flex: 1, minWidth: tableMin, gap: 12 }}>
+        <View style={{ flex: narrow ? undefined : 1, minWidth: 0, gap: 12 }}>
           {!!view.err && <Notice tone="bad">{view.err.text}</Notice>}
-          {/* overflow visible: a clipping card would become the sticky header's scroll container and it would never stick */}
-          <Panel pad={0} style={{ overflow: 'visible' }} title={rows.length === clients.length ? plural(clients.length, 'investor', 'investors') : `Showing ${rows.length} of ${clients.length}`}
+          <Panel pad={0} title={rows.length === clients.length ? plural(clients.length, 'investor', 'investors') : `Showing ${rows.length} of ${clients.length}`}
             sub={'Largest holdings first' + (dupes ? `. Includes ${plural(dupes, 'duplicate record', 'duplicate records')} from the CRM` : '')}
             right={<Input value={q} onChangeText={setQ} placeholder="Search by name, email or strategy" style={{ width: 300 }} />}>
             {chips.length > 0 && (
@@ -675,7 +672,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
                 ))}
               </View>
             )}
-            <Table sticky rows={rows.slice(0, shown).map((x, i) => ({ ...x, i, id: (x.c.email || 'row') + '-' + i }))} cols={cols} onRowPress={r => onDetail(r.c, r.s)}
+            <Table rows={rows.slice(0, shown).map((x, i) => ({ ...x, i, id: (x.c.email || 'row') + '-' + i }))} cols={cols} onRowPress={r => onDetail(r.c, r.s)}
               empty={clients.length ? 'No investors match this view. Try a different search, or choose All investors.' : 'No investors have joined through your links yet. Share an onboarding link to get started.'} />
             {rows.length > shown && (
               <View style={{ padding: 14, borderTopWidth: 1, borderColor: C.line, alignItems: 'center' }}>
@@ -685,7 +682,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
             {!clients.length && <View style={{ paddingHorizontal: 20, paddingBottom: 16 }}><TextLink label="Onboarding links" onPress={onLinks} /></View>}
           </Panel>
         </View>
-      </Row>
+      </View>
       <ClientReportsDialog c={reportsFor} visible={!!reportsFor} onClose={() => setReportsFor(null)} />
     </View>
   );

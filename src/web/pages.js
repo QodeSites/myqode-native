@@ -218,7 +218,7 @@ function Insights() {
         {!!list.err && <ErrorBlock msg={list.err} onRetry={list.reload} />}
         {!list.loading && !list.err && !items.length && <Empty>Nothing published here yet.</Empty>}
         {!list.loading && !list.err && items.length > 0 && (
-          <Card style={{ overflow: 'hidden' }}>
+          <Card style={{ overflow: 'clip' }}>
             <Table cols={cols} rows={items.map(it => ({ ...it, id: it.key }))} onRowPress={it => openUrl(it.url)} />
           </Card>
         )}
@@ -310,7 +310,7 @@ function PortalGuide() {
         Reports available
       </SectionTitle>
       <Chips value={grp} options={[['all', 'All reports'], ...REPORT_GROUPS.map(([t]) => [t, t])]} onChange={setGrp} style={{ marginBottom: 14 }} />
-      <Card style={{ overflow: 'hidden' }}>
+      <Card style={{ overflow: 'clip' }}>
         <Table dense cols={cols} rows={rows} />
       </Card>
       {!!viewer && <SnapshotDialog report={viewer.report} images={viewer.images} onClose={() => setViewer(null)} />}
@@ -475,7 +475,7 @@ function Strategies() {
       <Lead style={{ marginBottom: 20 }}>Discover Qode's investment strategies and their core pillars designed for different risk profiles and investment horizons.</Lead>
       <Row gap={16}>
         {STRATS.map(s => (
-          <Card key={s.code} style={{ flex: 1, overflow: 'hidden' }}>
+          <Card key={s.code} style={{ flex: 1, overflow: 'clip' }}>
             <View style={{ height: 4, backgroundColor: s.color }} />
             <View style={{ padding: 22, flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -592,7 +592,7 @@ function Faq() {
       <View style={{ flex: 1, minWidth: 0, maxWidth: 860 }}>
         <Tx w={600} s={18} role="heading" aria-level={2} style={{ marginBottom: 14 }}>{topic}</Tx>
         {g ? (
-          <Card style={{ overflow: 'hidden' }}>
+          <Card style={{ overflow: 'clip' }}>
             {g.items.map((it, i) => {
               const on = open === i;
               return (
@@ -609,7 +609,7 @@ function Faq() {
             })}
           </Card>
         ) : (
-          <Card style={{ overflow: 'hidden' }}>
+          <Card style={{ overflow: 'clip' }}>
             <Table cols={[
               { key: 'term', label: 'Term', flex: 1, render: r => <Tx w={600} s={13.5}>{r.term}</Tx> },
               { key: 'def', label: 'Meaning', flex: 2.6, render: r => <Tx s={13} c={C.ink2} lh={1.5}>{r.def}</Tx> },

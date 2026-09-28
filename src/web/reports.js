@@ -160,7 +160,7 @@ function SummaryStrip({ items, style }) {
   const list = (items || []).filter(Boolean);
   if (!list.length) return null;
   return (
-    <Card style={[{ flexDirection: 'row', overflow: 'hidden' }, style]}>
+    <Card style={[{ flexDirection: 'row', overflow: 'clip' }, style]}>
       {list.map((it, i) => (
         <View key={it.label} style={{ flex: 1, minWidth: 0, paddingVertical: 12, paddingHorizontal: 16, borderLeftWidth: i ? 1 : 0, borderColor: C.line }}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
@@ -914,7 +914,7 @@ const reconRows = d => {
 function Collapsible({ title, sub, children }) {
   const [open, setOpen] = useState(false);
   return (
-    <Card style={{ overflow: 'hidden' }}>
+    <Card style={{ overflow: 'clip' }}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen(o => !o)}
         style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 14, backgroundColor: hovered ? C.hover : 'transparent', outlineStyle: 'none' })}>
         <View style={{ flex: 1, minWidth: 0 }}>
