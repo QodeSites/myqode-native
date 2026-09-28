@@ -1,8 +1,9 @@
 // Every /api/mobile/* endpoint of the myQode server (myQode/app/api/mobile/**).
 // Demo mode answers from src/api/demo.js; TEST_MODE blocks anything that could reach a real client.
 import { Platform } from 'react-native';
-import { api, ApiError } from './client';
+import { api, adminApi, ApiError } from './client';
 import { demo } from './demo';
+import { demoReports } from './demoReports';
 import { TEST_MODE } from './config';
 
 export { ApiError, BASE_URL, onUnauthorized } from './client';
@@ -24,7 +25,7 @@ export class BlockedError extends ApiError {
   }
 }
 // In demo mode these never touch the network (there is no real session): they just report success.
-const guarded = (what, fn) => (...a) => (demoOn ? mock(() => ({ success: true, message: 'Done (demo — nothing was changed).' }))
+const guarded = (what, fn) => (...a) => (demoOn ? mock(() => ({ success: true, message: 'Done (demo: nothing was changed).' }))
   : TEST_MODE ? Promise.reject(new BlockedError(what)) : fn(...a));
 
 const platform = Platform.OS === 'web' ? undefined : Platform.OS;
@@ -47,13 +48,24 @@ export const auth = {
   completeOtpSetup: (email, otp, newPassword, confirmPassword) => (demoOn ? mock(() => ({ success: true }))
     : api('/auth/complete-otp-setup', { method: 'POST', auth: false, body: { email, otp, newPassword, confirmPassword } })),
   forgot: email => (demoOn ? mock(() => ({ success: true })) : api('/auth/forgot', { method: 'POST', auth: false, body: { email, ...(TEST_MODE ? { testRedirect: true } : {}) } })),
-  me: () => api('/auth/me'),
+  me: (opts = {}) => api('/auth/me', opts),
 };
 
 export const meta = {
   appVersion: () => call('/app-version', { auth: false }, () => demo.appVersion()),
   // Nuvama primary-UCC notice (same data as the web's /api/primary-ucc)
   primaryUcc: () => call('/primary-ucc', {}, () => ({ success: true, dataAsOf: '2026-07-14', primaries: [{ uccCode: 'QAW0412', strategy: 'QODE ADVISORS LLP - QODE ALL WEATHER', groupName: 'MEHTA FAMILY' }] })),
+  // What Nuvama holds for the investor: primary UCC, accounts, registered contact and bank (masked).
+  nuvamaDetails: () => call('/nuvama-details', {}, () => ({
+    success: true, portalUrl: 'https://eclientreporting.nuvamaassetservices.com/wealthspectrum/app/', dataAsOf: '2026-07-14',
+    primary: { uccCode: 'QAW0412', strategy: 'QODE ADVISORS LLP - QODE ALL WEATHER', groupName: 'MEHTA FAMILY' },
+    accounts: [
+      { code: 'QAW0412', holder: 'Mr Rohan Mehta', scheme: 'QODE ADVISORS LLP - QODE ALL WEATHER', accountType: 'Individual', openedOn: '2023-07-01', inceptionDate: '2023-07-01', maturityDate: null, active: true, rm: 'Qode Investor Relations', distributor: 'QODE ADVISORS LLP INT', family: 'MEHTA FAMILY' },
+      { code: 'QGF0412', holder: 'Mr Rohan Mehta', scheme: 'QODE ADVISORS LLP - QODE GROWTH FUND', accountType: 'Individual', openedOn: '2024-01-27', inceptionDate: '2024-01-27', maturityDate: null, active: true, rm: 'Qode Investor Relations', distributor: 'QODE ADVISORS LLP INT', family: 'MEHTA FAMILY' },
+    ],
+    holders: [{ name: 'Mr Rohan Mehta', pan: '••••••382F', email: 'rohan.mehta@example.com', mobile: '••••••8801', city: 'Mumbai', state: 'Maharashtra', pincode: '400013', accounts: ['QAW0412', 'QGF0412'] }],
+    banks: [{ code: 'QAW0412', account: '••••••4321', ifsc: 'HDFC0000060', status: 'verified', updatedAt: '2026-06-02' }],
+  })),
 };
 
 // kind: 'account' → per-strategy routes; 'owner' | 'family' → pre-aggregated combined-* routes.
@@ -105,9 +117,10 @@ export const experience = {
 
 let bankCache = null;
 let switchCache = null, switchPending = null;   // { data, at } — per signed-in client, see clearUserCaches()
+let switchGen = 0;   // bumped by clearUserCaches(): replies from an earlier session are dropped
 const SWITCH_FRESH_MS = 60 * 1000;
 // Drop everything cached for the current client. Call on sign-out and when impersonating someone else.
-export const clearUserCaches = () => { switchCache = null; switchPending = null; documents.forget(); partnerMemo.clear(); };
+export const clearUserCaches = () => { switchGen++; switchCache = null; switchPending = null; documents.forget(); partnerMemo.clear(); };
 export const services = {
   // Qode's own bank account: static on the server. Cached after the first fetch so the Add Funds sheet is instant.
   bankDetails: () => {
@@ -125,7 +138,8 @@ export const services = {
   // a background refresh calls `onFresh(data)` so the form can update in place. Cleared on sign-out and after a submit.
   switchRequestInfo: onFresh => {
     if (demoOn) return mock(() => demo.switchInfo());
-    const fetchIt = () => api('/services/switch-request').then(d => { switchCache = { data: d, at: Date.now() }; return d; });
+    const gen = switchGen;
+    const fetchIt = () => api('/services/switch-request').then(d => { if (gen === switchGen) switchCache = { data: d, at: Date.now() }; return d; });
     if (switchCache) {
       if (Date.now() - switchCache.at > SWITCH_FRESH_MS && !switchPending) {
         switchPending = fetchIt().then(d => { switchPending = null; onFresh && onFresh(d); }, () => { switchPending = null; });
@@ -137,7 +151,7 @@ export const services = {
   },
   warmSwitchInfo: () => { if (!demoOn && !switchCache) services.switchRequestInfo().catch(() => {}); },
   submitSwitchRequest: body => call('/services/switch-request', { method: 'POST', body }, () => ({ success: true, dryRun: false, requestId: 'DEMO-' + Date.now().toString().slice(-6) }))
-    .then(r => { switchCache = null; return r; }),
+    .then(r => { switchCache = null; return r; }, e => { switchCache = null; throw e; }),
   strategyInquiry: body => post('/services/strategy-inquiry', body),
   discussion: body => post('/services/discussion', body),
   accountRequest: body => post('/services/account-request', body),
@@ -209,9 +223,43 @@ export const distributor = {
   viewAccount: clientCode => api('/distributor/view-account', { method: 'POST', body: { clientCode } }),
 };
 
+// Reports page (app/api/mobile/reports/*): one strategy account at a time. Transactions are synced daily; capital
+// gains, expenses and the fact sheet come from Nuvama's report exports (their asOf is the export date).
+// opts: transactions { group, from, to, limit, offset, export }, capitalGains { fy, term, limit, offset, export },
+// expenses { type, limit, offset, export }. export: 1 returns up to 5000 rows (for the PDF).
+export const reports = {
+  transactions: (accountId, opts = {}) => call('/reports/transactions', { query: { accountId, ...opts } }, () => demoReports.transactions(accountId, opts)),
+  capitalGains: (accountId, opts = {}) => call('/reports/capital-gains', { query: { accountId, ...opts } }, () => demoReports.capitalGains(accountId, opts)),
+  expenses: (accountId, opts = {}) => call('/reports/expenses', { query: { accountId, ...opts } }, () => demoReports.expenses(accountId, opts)),
+  factsheet: (accountId, opts = {}) => call('/reports/factsheet', { query: { accountId, ...opts } }, () => demoReports.factsheet(accountId, opts)),
+};
+
 // Super-admin only (token must carry isSuperAdmin and not be an impersonation token).
 export const admin = {
   clients: (search = '', page = 1, limit = 200) => api('/admin/clients', { query: { search, page, limit } }),
   impersonate: clientCode => api('/admin/impersonate', { method: 'POST', body: { clientCode } }),
   analytics: (days = 30) => api('/admin/analytics', { query: { days } }),
+};
+
+// Backoffice (app admin mode). The admin token is a normal mobile JWT with isAdmin; these routes live under
+// /api/admin/bo, not /api/mobile. A 401 / 403 means the admin session is gone or never had access: the handler set
+// with onAdminDenied (the root component) returns to the sign-in screen.
+let adminDenied = null;
+export const onAdminDenied = fn => { adminDenied = fn; };
+const bo = (path, opts) => adminApi(path, opts).catch(e => {
+  if ((e.status === 401 || e.status === 403) && adminDenied) adminDenied(e);
+  throw e;
+});
+export const backoffice = {
+  overview: () => bo('/overview', { timeout: 40000 }),
+  users: ({ q = '', type = 'all', status = 'all', page = 1, limit = 50 } = {}) => bo('/users', { query: { q, type, status, page, limit } }),
+  userDetail: email => bo('/users/detail', { query: { email } }),
+  setPassword: (email, password) => bo('/users/password', { method: 'POST', body: { email, password } }),
+  // Emails the client: blocked in test mode like every other client-facing email.
+  resetLink: email => (TEST_MODE ? Promise.reject(new BlockedError('emailing a password reset link')) : bo('/users/reset-link', { method: 'POST', body: { email } })),
+  unlock: email => bo('/users/unlock', { method: 'POST', body: { email } }),
+  impersonate: ({ email, target = 'app' }) => bo('/impersonate', { method: 'POST', body: { email, target } }),
+  createDistributor: body => bo('/distributors', { method: 'POST', body }),
+  deleteDistributor: email => bo('/distributors', { method: 'DELETE', query: { email } }),
+  audit: (opts = {}) => bo('/audit', { query: { limit: 100, ...opts } }),
 };

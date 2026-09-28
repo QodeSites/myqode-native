@@ -5,6 +5,7 @@ import { View, Pressable, ScrollView, Linking, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, Tx, Amt, Card, CTA, Fade, KeyboardScroll } from '../ui';
+import { inr } from '../adapt';
 import { ChevronLeft, ChevronRight, Phone, MailIcon } from '../icons';
 import { experience, engagement, admin } from '../api';
 import * as content from '../content';
@@ -12,6 +13,8 @@ import { FormBody } from './services';
 import { check, LIMITS } from '../validate';
 import { Foundation, ReportsReviews, StrategySnapshot, PortalGuide, Team as TeamPage, Escalation } from './about';
 import { useLoad, openUrl, fmtSize, Loading, ErrorBox, Empty, SectionLabel, LinkRow } from './kit';
+import { ReportsPage } from './reports';
+import { NuvamaPage } from './nuvama';
 
 const P = ({ children, style }) => <Tx s={13} lh={1.6} c={C.ink} style={[{ marginTop: 10 }, style]}>{children}</Tx>;
 
@@ -62,7 +65,7 @@ function Family() {
                   </View>
                 </View>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 8 }}>
-                  {a.portfolioValue > 0 && <Amt s={12} c={C.muted}>₹{Math.round(a.portfolioValue).toLocaleString('en-IN')}</Amt>}
+                  {a.portfolioValue > 0 && <Amt s={12} c={C.muted}>{inr(a.portfolioValue)}</Amt>}
                   {!!a.pannumber && <Tx s={11} c={C.muted}>PAN {a.pannumber}</Tx>}
                   {!!a.mobile && <Tx s={11} c={C.muted}>{a.mobile}</Tx>}
                   {!!a.city && <Tx s={11} c={C.muted}>{a.city}</Tx>}
@@ -228,16 +231,16 @@ function Contact() {
 const REQS = [
   { s: 'Home, Portfolio, Holdings', ok: true, has: 'portfolio/snapshot, performance, nav, drawdown, monthly-pl, quarterly-pl, cashflow (+ combined-* for owner/family).', gap: 'XIRR, TWRR, Sharpe/Sortino/beta and “today’s change” are not computed by the API. To show them: add them to /portfolio/performance from pms_master_sheet cash flows and daily NAV (server-side), or accept they stay off the app.' },
   { s: 'Holdings · stock-level detail', ok: false, has: 'Only strategy accounts with their value/return (from performance per account code).', gap: 'Security-level holdings live with the custodian (Nuvama WealthSpectrum), not in pms_master_sheet. Needs a nightly import into a new holdings table + GET /api/mobile/portfolio/holdings?accountId.' },
-  { s: 'Documents', ok: true, has: 'documents/list + documents/files/{category} — the web’s Account Documents page, section for section (PMS Agreement, Account Opening Documents, CML) from S3 docs/client-documents/{clientid}/, 5-minute signed links.', gap: 'Statements, factsheets, capital-gains and fee invoices are not stored anywhere yet: add S3 folders under docs/client-documents/{clientid}/ plus category ids in documents/list. S3 listing needs valid AWS keys on the server (the dev server currently answers InvalidAccessKeyId). Owner/family ids return 404, so the app asks per account code.' },
+  { s: 'Documents', ok: true, has: 'documents/list + documents/files/{category}: the web’s Account Documents page, section for section (PMS Agreement, Account Opening Documents, CML) from S3 docs/client-documents/{clientid}/, 5-minute signed links.', gap: 'Statements, factsheets, capital-gains and fee invoices are not stored anywhere yet: add S3 folders under docs/client-documents/{clientid}/ plus category ids in documents/list. S3 listing needs valid AWS keys on the server (the dev server currently answers InvalidAccessKeyId). Owner/family ids return 404, so the app asks per account code.' },
   { s: 'Services · requests', ok: true, has: 'services/withdrawal, switch, strategy-inquiry, discussion, account-request, engagement/referral, services/bank-details.', gap: 'No history: every request only returns an inquiry_id. To show past requests add GET /api/mobile/services/inquiries reading pms_clients_tracker.qode_microsite_inquiries by user_email.' },
-  { s: 'Services · pay online / SIP', ok: true, has: 'One-time top-ups through Razorpay: payments/razorpay/create-order → hosted Checkout in a WebView → payments/razorpay/verify (signature + gateway check) → payments/investment-status; a signed webhook (payments/razorpay/webhook) keeps the status current. Existing SIPs: verify-sip, pause-resume-sip, cancel-sip.', gap: 'New SIP mandates (UPI Autopay / eMandate) need Razorpay Subscriptions — not built. The Cashfree routes remain for the web. Client notifications for Razorpay payments are off unless RAZORPAY_NOTIFY_CLIENT=true on the server. Production needs live Razorpay keys, the webhook registered on the live URL, and a store build if you later switch to the native Razorpay SDK.' },
+  { s: 'Services · pay online / SIP', ok: true, has: 'One-time top-ups through Razorpay: payments/razorpay/create-order → hosted Checkout in a WebView → payments/razorpay/verify (signature + gateway check) → payments/investment-status; a signed webhook (payments/razorpay/webhook) keeps the status current. Existing SIPs: verify-sip, pause-resume-sip, cancel-sip.', gap: 'New SIP mandates (UPI Autopay / eMandate) need Razorpay Subscriptions (not built). The Cashfree routes remain for the web. Client notifications for Razorpay payments are off unless RAZORPAY_NOTIFY_CLIENT=true on the server. Production needs live Razorpay keys, the webhook registered on the live URL, and a store build if you later switch to the native Razorpay SDK.' },
   { s: 'Notifications (bell)', ok: false, has: 'services/register-push-token (POST/DELETE). Push is sent by the Cashfree webhook via lib/notifications.ts.', gap: 'No inbox endpoint. Needs a notifications table written wherever notifyClientById is called + GET /api/mobile/notifications. Push itself needs expo-notifications, an EAS project id, and Firebase (FCM) credentials for Android. Registration is blocked in test mode so the client is never pushed.' },
   { s: 'Family accounts', ok: true, has: 'experience/family (group → owner → accounts with masked PAN, mobile, city, status).', gap: 'Family-mapping changes go through services/account-request (email to IR); there is no self-service edit.' },
   { s: 'Insights & events, Portal guide', ok: true, has: 'engagement/newsletters, perspectives, events (S3 docs/newsletters, docs/prespectives, docs/events), engagement/portal-guide (S3 videos/reports-tutorial, images/reports-snapshot).', gap: 'Lists are empty until files exist in those S3 prefixes. Report descriptions are static text from the web page.' },
   { s: 'Profile, KYC, bank & nominee', ok: false, has: 'auth/me (name, email, client code, account codes only).', gap: 'Needs GET /api/mobile/profile from pms_clients_master (PAN masked, address, mobile, bank, nominee, KYC status). Edits should stay request-based (services/account-request).' },
   { s: 'Nuvama primary UCC banner', ok: false, has: 'Web only: /api/primary-ucc (cookie session).', gap: 'Add GET /api/mobile/primary-ucc using lib/primaryUcc.ts with the mobile JWT.' },
   { s: 'Login · first-time password, forgot', ok: true, has: 'check-identifier, login, send-setup-otp, verify-setup-otp, complete-otp-setup, forgot (emails a web reset link).', gap: 'No in-app reset for an existing password: add POST /api/mobile/auth/reset {token,newPassword} or deep-link myqode.qodeinvest.com/reset-password into the app. Emails and password changes are blocked in test mode.' },
-  { s: 'New-investor onboarding', ok: false, has: 'Nothing — the 8-step flow in the app is a static design demo.', gap: 'Needs a full onboarding backend (application record, OTP, document upload to S3, risk profile, nominees, e-sign/KYC). Keep disabled until then.' },
+  { s: 'New-investor onboarding', ok: false, has: 'Nothing: the 8-step flow in the app is a static design demo.', gap: 'Needs a full onboarding backend (application record, OTP, document upload to S3, risk profile, nominees, e-sign/KYC). Keep disabled until then.' },
   { s: 'App version, analytics, admin', ok: true, has: 'app-version (checked on launch), engagement/analytics (screen events batched every 20s), admin/clients, admin/impersonate, admin/analytics (super-admin only).', gap: 'app-version is driven by APP_MIN_VERSION / APP_LATEST_VERSION env vars on the server; the app version is APP_VERSION in src/api/config.js.' },
 ];
 
@@ -302,20 +305,22 @@ function AdminPage({ V }) {
   );
 }
 
-const PAGES = {
+export const PAGES = {
+  reports: { title: 'Reports', body: V => <ReportsPage V={V} /> },
   requirements: { title: 'Data requirements & API coverage', body: () => <Requirements /> },
   admin: { title: 'Admin', body: V => <AdminPage V={V} /> },
   family: { title: 'Family accounts', body: () => <Family /> },
+  nuvama: { title: 'Your details on Nuvama', body: () => <NuvamaPage /> },
   insights: { title: 'Insights', body: () => <Insights /> },
   guide: { title: 'Investor portal guide', body: () => <PortalGuide /> },
   referral: { title: 'Referral programme', body: V => <Referral V={V} /> },
-  cadence: { title: 'Reports & Reviews', body: () => <ReportsReviews /> },
+  cadence: { title: 'Service cadence', body: () => <ReportsReviews /> },
   philosophy: { title: 'Qode philosophy', body: () => <Article data={content.PHILOSOPHY} /> },
-  foundation: { title: 'Note from Fund Managers', body: () => <Foundation /> },
-  strategies: { title: 'Strategy Snapshot', body: () => <StrategySnapshot /> },
-  team: { title: 'Your Team at Qode', body: V => <TeamPage V={V} /> },
+  foundation: { title: 'Note from our fund managers', body: () => <Foundation /> },
+  strategies: { title: 'Strategy snapshot', body: () => <StrategySnapshot /> },
+  team: { title: 'Your team at Qode', body: V => <TeamPage V={V} /> },
   faq: { title: 'FAQ & glossary', body: () => <Faq /> },
-  grievance: { title: 'Escalation Framework', body: () => <Escalation /> },
+  grievance: { title: 'Grievance redressal', body: () => <Escalation /> },
   risk: { title: 'Risk management', body: () => <Risk /> },
   contact: { title: 'Contact us', body: () => <Contact /> },
   privacy: { title: content.LEGAL.privacy.title || 'Privacy policy', body: () => <Article data={content.LEGAL.privacy} /> },
@@ -346,3 +351,6 @@ export function PageHost({ V }) {
     </View>
   );
 }
+
+// Shared with the desktop web pages (src/web/pages.js).
+export { REFERRAL_FORM };

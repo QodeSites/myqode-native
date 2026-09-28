@@ -67,7 +67,7 @@ const MANAGERS = [
     letter: [
       'Investing, to me, has always been about process. Markets are unpredictable in the short run, but data, when studied carefully, reveals patterns that can guide us with discipline.',
       'At Qode, our approach is rooted in systematic models that help us identify opportunities objectively, free from bias or noise.',
-      'But models alone are not enough — they must be applied with judgment, constant review, and a deep respect for risk. That\'s why we combine quantitative insights with robust portfolio construction, always seeking to maximize outcomes while protecting against drawdowns.',
+      'But models alone are not enough. They must be applied with judgment, constant review, and a deep respect for risk. That\'s why we combine quantitative insights with robust portfolio construction, always seeking to maximize outcomes while protecting against drawdowns.',
       'My goal is simple: to give investors confidence that every decision we take is grounded in evidence, tested rigorously, and aligned with the long-term compounding of their wealth.',
     ],
   },
@@ -75,9 +75,9 @@ const MANAGERS = [
     name: 'Gaurav Didwania', role: 'Fund Manager', photo: WEB + '/fund-manager/Gaurav.jpg',
     letter: [
       'Over the last 15+ years in Indian markets, I\'ve seen cycles of euphoria and panic, trends that come and go, and businesses that either endure or fade.',
-      'What I\'ve learned is that wealth creation doesn\'t come from chasing momentum alone — it comes from conviction in the right businesses and the patience to stay invested through volatility.',
+      'What I\'ve learned is that wealth creation doesn\'t come from chasing momentum alone. It comes from conviction in the right businesses and the patience to stay invested through volatility.',
       'At Qode, I focus on marrying deep fundamental research with a long-term mindset. We look beyond stock prices to understand management quality, competitive advantage, financial strength, and industry dynamics.',
-      'For me, Qode is about trust and transparency — ensuring our investors not only achieve returns, but also understand the rationale behind every decision. That understanding builds confidence, and confidence is what allows compounding to work its magic.',
+      'For me, Qode is about trust and transparency, ensuring our investors not only achieve returns, but also understand the rationale behind every decision. That understanding builds confidence, and confidence is what allows compounding to work its magic.',
     ],
   },
 ];
@@ -418,7 +418,7 @@ export function Team({ V }) {
 
 // ── Escalation Framework ──────────────────────────────────────────────────────
 const LEVELS = [
-  { n: 1, t: 'Investor Relations (IR)', lines: [['Role', 'Your first point of contact for all queries — from portfolio updates to operational requests.'], ['Response SLA', 'Within 1 business day.']],
+  { n: 1, t: 'Investor Relations (IR)', lines: [['Role', 'Your first point of contact for all queries, from portfolio updates to operational requests.'], ['Response SLA', 'Within 1 business day.']],
     contacts: [['investor.relations@qodeinvest.com', 'mailto:investor.relations@qodeinvest.com'], ['WhatsApp IR Desk', 'https://wa.me/919820300028']] },
   { n: 2, t: 'Compliance Officer', lines: [['Role', "If an issue isn't resolved by IR, it's escalated to the Compliance Officer for review and redressal."], ['Scope', 'Regulatory matters, delayed responses, or unresolved service issues.'], ['Escalation Timeline', 'Within 24 hours of non‑resolution at Level 1.']],
     contacts: [['compliance@qodeinvest.com', 'mailto:compliance@qodeinvest.com']] },
@@ -464,3 +464,6 @@ export function Escalation() {
     </>
   );
 }
+
+// Shared with the desktop web pages (src/web/pages.js), which lay the same content out for wide screens.
+export { WEB, MANAGERS, CADENCE, STRATS, GLOSSARY as STRAT_GLOSSARY, WEALTHSPECTRUM, PASSWORD_PDF, ACCESS, REPORT_GROUPS, norm, BOOKING, IR, LEVELS, LineIcon };

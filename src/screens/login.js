@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
-import { C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise, KeyboardScroll } from '../ui';
+import { C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise, KeyboardScroll, Wordmark } from '../ui';
 
 function DarkHead({ children, pct = 0.42 }) {
   return (
@@ -30,7 +30,7 @@ export function Login({ V }) {
   return (
     <View style={{ flex: 1, backgroundColor: C.cream }}>
       <DarkHead>
-        <Tx f="play" w={600} s={32} c={C.cream}>myQode</Tx>
+        <Wordmark s={32} />
         <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: 12, marginBottom: 10 }} />
       </DarkHead>
       <KeyboardScroll style={{ flex: 1, marginTop: -46 }} contentContainerStyle={{ flexGrow: 1 }} >
@@ -47,7 +47,7 @@ export function Login({ V }) {
                   </Pressable>
                 ))}
               </View>
-              <Field label={V.loginAs === 'distributor' ? 'PARTNER EMAIL' : 'EMAIL OR CLIENT CODE'} value={V.email} onChangeText={V.onEmail} placeholder={V.loginAs === 'distributor' ? 'partner@firm.com' : 'you@example.com'} autoCapitalize="none" style={{ marginTop: 18 }} />
+              <Field label={V.loginAs === 'distributor' ? 'DISTRIBUTOR EMAIL' : 'EMAIL OR CLIENT CODE'} value={V.email} onChangeText={V.onEmail} placeholder={V.loginAs === 'distributor' ? 'name@firm.com' : 'you@example.com'} autoCapitalize="none" style={{ marginTop: 18 }} />
               <Field label="PASSWORD" value={V.pw} onChangeText={V.onPw} placeholder="••••••••" secure style={{ marginTop: 16 }} />
               <Msg V={V} />
               <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'SIGN IN SECURELY'} onPress={V.doLogin} style={{ marginTop: 22, opacity: V.authBusy ? 0.6 : 1 }} />
@@ -69,7 +69,7 @@ export function Login({ V }) {
                 <View style={{ marginTop: 12 }}>
                   <Tx s={11} c={C.muted} lh={1.5}>Uses the email or client code typed above. The myQode server must be running in development (NODE_ENV=development).</Tx>
                   <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'SIGN IN AS THIS USER (NO PASSWORD)'} onPress={() => V.bypassLogin()} outline style={{ marginTop: 12, opacity: V.authBusy ? 0.6 : 1 }} />
-                  <Field label={V.loginAs === 'distributor' ? 'FIND A PARTNER' : 'FIND A CLIENT'} value={V.devQ} onChangeText={V.onDevQ} placeholder="name, email or code" autoCapitalize="none" style={{ marginTop: 14 }} />
+                  <Field label={V.loginAs === 'distributor' ? 'FIND A DISTRIBUTOR' : 'FIND A CLIENT'} value={V.devQ} onChangeText={V.onDevQ} placeholder="name, email or code" autoCapitalize="none" style={{ marginTop: 14 }} />
                   <Tx s={10} c={C.gray} style={{ marginTop: 6 }}>Server: {V.apiBase}</Tx>
                   {!V.devLoaded && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>Loading clients…</Tx>}
                   {!!V.devErr && (
@@ -78,7 +78,7 @@ export function Login({ V }) {
                       <Tx w={700} s={11} c={C.green} style={{ marginTop: 4 }}>Tap to retry</Tx>
                     </Pressable>
                   )}
-                  {V.devLoaded && !V.devErr && V.devClients.length === 0 && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>{V.loginAs === 'distributor' ? 'No partner login matches that search.' : 'No Discretionary client matches that search. Non-Discretionary accounts aren’t listed — type the code above and use the button instead.'}</Tx>}
+                  {V.devLoaded && !V.devErr && V.devClients.length === 0 && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>{V.loginAs === 'distributor' ? 'No distributor login matches that search.' : 'No Discretionary client matches that search. Non-Discretionary accounts aren’t listed. Type the code above and use the button instead.'}</Tx>}
                   {V.devClients.map((c, i) => (
                     <Pressable key={c.clientCode || 'p:' + i + ':' + c.email} onPress={() => V.bypassLogin(c.email || c.clientCode)} style={{ paddingVertical: 10, borderBottomWidth: 1, borderColor: C.hairline }}>
                       <Tx w={700} s={12}>{c.name || c.clientCode}</Tx>

@@ -220,3 +220,10 @@ export const CarSliders = ({ s = 30 }) => (
     <Circle cx={10} cy={21} r={2.4} fill={C.ink} stroke={C.gold} strokeWidth={1.5} />
   </Svg>
 );
+
+export const Camera = ({ s = 14, c = C.green }) => (
+  <Svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M4 8h3l1.5-2.5h7L17 8h3a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z" />
+    <Circle cx={12} cy={13} r={3.5} />
+  </Svg>
+);

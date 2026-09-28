@@ -8,7 +8,7 @@ import { SignOutButton } from './kit';
 import { SectionLabel } from './kit';
 
 const GROUPS = [
-  { title: 'EXPERIENCE', items: [['Family accounts', 'family'], ['Investor portal guide', 'guide'], ['Service cadence', 'cadence']] },
+  { title: 'EXPERIENCE', items: [['Reports', 'reports'], ['Family accounts', 'family'], ['Your details on Nuvama', 'nuvama'], ['Investor portal guide', 'guide'], ['Service cadence', 'cadence']] },
   { title: 'ENGAGEMENT', items: [['Insights', 'insights'], ['Referral programme', 'referral']] },
   { title: 'ABOUT QODE', items: [['Qode philosophy', 'philosophy'], ['Strategy snapshot', 'strategies'], ['Note from our fund managers', 'foundation'], ['Your team at Qode', 'team']] },
   { title: 'TRUST', items: [['FAQ & glossary', 'faq'], ['Risk management', 'risk'], ['Grievance redressal', 'grievance']] },
@@ -57,7 +57,7 @@ export function MoreCream({ V }) {
             <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(2,66,43,0.1)', alignItems: 'center', justifyContent: 'center' }}><FaceID s={20} /></View>
             <View style={{ flex: 1 }}>
               <Tx w={700} s={13}>Unlock with {V.bio.label}</Tx>
-              <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>{V.bioOn ? 'On — asked each time the app opens' : 'Off — tap to turn on'}</Tx>
+              <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>{V.bioOn ? 'On: asked each time the app opens' : 'Off: tap to turn on'}</Tx>
               {!!V.bioNote && <Tx s={10.5} c={C.gray} lh={1.4} style={{ marginTop: 4 }}>{V.bioNote}</Tx>}
             </View>
             <Toggle on={V.bioOn} onPress={V.bioToggle} />
@@ -100,7 +100,7 @@ export function MoreCream({ V }) {
       </Card>
       {V.viewing ? (
         <Pressable onPress={V.exitView} style={{ padding: 12, marginTop: 18 }}>
-          <Tx w={700} s={13} c={C.green} center>Back to partner panel</Tx>
+          <Tx w={700} s={13} c={C.green} center>Back to distributor panel</Tx>
         </Pressable>
       ) : (
         <SignOutButton onPress={V.doLogout} />

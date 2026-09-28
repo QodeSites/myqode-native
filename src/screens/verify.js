@@ -113,7 +113,7 @@ export default function VerifySheet({ open, check, title, subtitle, onClose, onM
       <Panel
         icon={<ActivityIndicator color={C.green} />}
         title={check.purpose === 'bank' ? 'Confirming your bank account' : 'Confirming with DigiLocker'}
-        body="Digio has finished. We're fetching your verified details now — this usually takes a few seconds."
+        body="Digio has finished. We're fetching your verified details now. This usually takes a few seconds."
       >
         <Pressable onPress={onManual} style={{ paddingVertical: 10, alignItems: 'center' }}>
           <Tx w={700} s={11.5} c={C.green}>Taking too long? Upload documents instead →</Tx>
@@ -217,7 +217,7 @@ export default function VerifySheet({ open, check, title, subtitle, onClose, onM
           {body}
           {active && !check.done && (
             <Tx s={10.5} c={C.gray} center style={{ paddingHorizontal: 22, paddingTop: 4 }}>
-              Closing this window won’t cancel anything — we keep checking in the background.
+              Closing this window won’t cancel anything. We keep checking in the background.
             </Tx>
           )}
         </View>

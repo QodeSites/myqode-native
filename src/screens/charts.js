@@ -4,8 +4,7 @@ import { View } from 'react-native';
 import Svg, { Path, Line, Circle, Defs, LinearGradient as SvgGrad, Stop, Text as SvgText } from 'react-native-svg';
 import { C, Tx } from '../ui';
 
-const fmtDate = d => { const t = new Date(d); return isNaN(t) ? String(d) : t.getDate() + '/' + (t.getMonth() + 1) + '/' + t.getFullYear(); };
-const signed = (v, dp = 2) => (v < 0 ? '−' : '+') + Math.abs(v).toFixed(dp) + '%';
+import { fmtDate, pct, ddPct } from '../adapt';
 
 // Touch / hover tooltip over a chart, like the web's: date, portfolio and benchmark at that point,
 // plus the raw NAV / index level when the API sends them.
@@ -59,9 +58,9 @@ function ChartTip({ tip, vw, vh, height, lineColor, children }) {
           backgroundColor: '#FFFFFF', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(55,88,79,0.25)', paddingVertical: 7, paddingHorizontal: 10,
         }}>
           <Tx w={700} s={11} c={C.ink}>{fmtDate(tip.dates[idx])}</Tx>
-          <Tx w={700} s={11} c={growth ? C.green : C.red} style={{ marginTop: 3 }}>{growth ? 'Portfolio Growth' : 'Drawdown'}: {signed(v)}</Tx>
+          <Tx w={700} s={11} c={growth ? C.green : C.red} style={{ marginTop: 3 }}>{growth ? 'Portfolio Growth' : 'Drawdown'}: {growth ? pct(v) : ddPct(v)}</Tx>
           {nav != null && <Tx s={10.5} c={C.muted}>NAV: {Number(nav).toFixed(2)}</Tx>}
-          {bv != null && <Tx w={700} s={11} c={C.muted} style={{ marginTop: 3 }} numberOfLines={1}>{tip.benchName}{growth ? '' : ' DD'}: {signed(bv)}</Tx>}
+          {bv != null && <Tx w={700} s={11} c={C.muted} style={{ marginTop: 3 }} numberOfLines={1}>{tip.benchName}{growth ? '' : ' DD'}: {growth ? pct(bv) : ddPct(bv)}</Tx>}
           {bv != null && bval != null && <Tx s={10.5} c={C.muted}>Value: {Number(bval).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Tx>}
         </View>
       </View>
@@ -121,23 +120,23 @@ function Axes({ yTicks, xDates, height, color, children }) {
 }
 
 // Home NAV chart: grid lines at the axis ticks, area fill, benchmark, main line. Same series and scale as the web chart.
-export function NavChart({ line, area, bench, tip, yTicks, xDates, height = 120 }) {
+export function NavChart({ line, area, bench, tip, yTicks, xDates, height = 120, color = C.green }) {
   return (
     <Axes yTicks={yTicks} xDates={xDates} height={height} color={C.gray}>
-    <ChartTip tip={tip} vw={330} vh={120} height={height} lineColor={C.green}>
+    <ChartTip tip={tip} vw={330} vh={120} height={height} lineColor={color}>
     <Svg width="100%" height={height} viewBox="0 0 330 120" preserveAspectRatio="none">
       <Defs>
         <SvgGrad id="cfill" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={C.green} stopOpacity={0.15} />
-          <Stop offset="1" stopColor={C.green} stopOpacity={0} />
+          <Stop offset="0" stopColor={color} stopOpacity={0.15} />
+          <Stop offset="1" stopColor={color} stopOpacity={0} />
         </SvgGrad>
       </Defs>
       <Line x1={0} y1={8} x2={330} y2={8} stroke={C.gray} strokeOpacity={0.3} strokeDasharray="3 3" />
       <Line x1={0} y1={60} x2={330} y2={60} stroke={C.gray} strokeOpacity={0.3} strokeDasharray="3 3" />
       <Line x1={0} y1={112} x2={330} y2={112} stroke={C.gray} strokeOpacity={0.3} strokeDasharray="3 3" />
       <Path d={area} fill="url(#cfill)" />
-      <Path d={bench} fill="none" stroke={C.gray} strokeWidth={1.3} />
-      <Path d={line} fill="none" stroke={C.green} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <Path d={bench} fill="none" vectorEffect="non-scaling-stroke" stroke={C.gray} strokeWidth={1.3} />
+      <Path d={line} fill="none" vectorEffect="non-scaling-stroke" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
     </Svg>
     </ChartTip>
     </Axes>
@@ -157,8 +156,8 @@ export function DrawdownChart({ line, area, bench, tip, height = 100 }) {
       </Defs>
       <Line x1={0} y1={8} x2={330} y2={8} stroke={C.gray} strokeOpacity={0.5} />
       <Path d={area} fill="url(#ddfill)" />
-      <Path d={bench} fill="none" stroke={C.gray} strokeWidth={1.2} strokeDasharray="4 4" />
-      <Path d={line} fill="none" stroke={C.red} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />
+      <Path d={bench} fill="none" vectorEffect="non-scaling-stroke" stroke={C.gray} strokeWidth={1.2} strokeDasharray="4 4" />
+      <Path d={line} fill="none" vectorEffect="non-scaling-stroke" stroke={C.red} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />
     </Svg>
     </ChartTip>
   );
@@ -173,9 +172,9 @@ export function PerfChart({ line, bench, tip, yTicks, xDates, height = 110 }) {
       <Line x1={0} y1={8} x2={358} y2={8} stroke={C.gray} strokeOpacity={0.25} strokeDasharray="3 3" />
       <Line x1={0} y1={55} x2={358} y2={55} stroke={C.gray} strokeOpacity={0.25} strokeDasharray="3 3" />
       <Line x1={0} y1={102} x2={358} y2={102} stroke={C.gray} strokeOpacity={0.25} strokeDasharray="3 3" />
-      <Path d={bench} fill="none" stroke={C.gray} strokeWidth={1.2} opacity={0.7} />
-      <Path d={line} fill="none" stroke={C.gold} strokeWidth={6} strokeLinecap="round" opacity={0.14} />
-      <Path d={line} fill="none" stroke={C.gold} strokeWidth={2} strokeLinecap="round" />
+      <Path d={bench} fill="none" vectorEffect="non-scaling-stroke" stroke={C.gray} strokeWidth={1.2} opacity={0.7} />
+      <Path d={line} fill="none" vectorEffect="non-scaling-stroke" stroke={C.gold} strokeWidth={6} strokeLinecap="round" opacity={0.14} />
+      <Path d={line} fill="none" vectorEffect="non-scaling-stroke" stroke={C.gold} strokeWidth={2} strokeLinecap="round" />
     </Svg>
     </ChartTip>
     </Axes>
@@ -183,7 +182,7 @@ export function PerfChart({ line, bench, tip, yTicks, xDates, height = 110 }) {
 }
 
 // Holdings allocation donut. Slices as [{pct, color}]; drawn from 12 o'clock.
-export function Donut({ slices, count = slices.length, size = 108 }) {
+export function Donut({ slices, count = slices.length, size = 108, label = 'ALLOC' }) {
   const CIRC = 2 * Math.PI * 50;
   let offset = 0;
   return (
@@ -200,7 +199,7 @@ export function Donut({ slices, count = slices.length, size = 108 }) {
           offset += s.pct;
           return el;
         })}
-        <SvgText x={60} y={57} textAnchor="middle" fill={C.muted} fontSize={10} fontWeight="700" letterSpacing={0.8}>ALLOC</SvgText>
+        <SvgText x={60} y={57} textAnchor="middle" fill={C.muted} fontSize={10} fontWeight="700" letterSpacing={0.8}>{label}</SvgText>
         <SvgText x={60} y={73} textAnchor="middle" fill={C.ink} fontSize={15} fontWeight="600">{count}</SvgText>
       </Svg>
     </View>

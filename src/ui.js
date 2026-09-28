@@ -65,6 +65,15 @@ export function Tx({ f = 'lato', w = 400, s = 13, c = C.ink, ls = 0, lh, center,
 }
 
 // Tabular-numeral amount.
+// The myQode wordmark: a small "my" on the same baseline as a full-size "Qode" (nested Text shares the baseline).
+export function Wordmark({ s = 32, c = C.cream, style }) {
+  return (
+    <Tx f="play" w={600} s={s} c={c} style={style}>
+      <Tx f="play" w={600} s={Math.round(s * 0.55)} c={c}>my</Tx>Qode
+    </Tx>
+  );
+}
+
 export function Amt({ w = 600, s = 13, c = C.ink, center, style, children, ...rest }) {
   const { z } = useUI();
   return (
@@ -314,6 +323,7 @@ export function Hairline({ style }) {
 }
 
 // ── Bottom sheet (native Modal) ──────────────────────────────────────────
+const wideWeb = () => Platform.OS === 'web' && Dimensions.get('window').width >= 1024;
 export function Sheet({ visible, onClose, children, maxH = 0.86 }) {
   const { rm } = useUI();
   const H = Dimensions.get('window').height;
@@ -345,12 +355,16 @@ export function Sheet({ visible, onClose, children, maxH = 0.86 }) {
         <Animated.View style={[{ flex: 1, backgroundColor: 'rgba(0,32,23,0.55)', opacity: fade }]}>
           <Pressable style={{ flex: 1 }} onPress={() => { Keyboard.dismiss(); onClose(); }} />
         </Animated.View>
-        <Animated.View style={{
+        <Animated.View style={[{
           position: 'absolute', left: 0, right: 0, bottom: kb,
           backgroundColor: C.card, borderTopLeftRadius: 16, borderTopRightRadius: 16,
           maxHeight: Math.max(220, H * maxH - kb), transform: [{ translateY: y }],
           shadowColor: C.ink, shadowOpacity: 0.3, shadowRadius: 16, shadowOffset: { width: 0, height: -8 }, elevation: 16,
-        }}>
+        }, wideWeb() && {
+          // Desktop web: a centred dialog instead of a bottom sheet.
+          left: '50%', right: undefined, bottom: undefined, top: '7%', width: 560, marginLeft: -280,
+          borderRadius: 14, maxHeight: H * 0.86, transform: [{ translateY: Animated.multiply(y, 0.15) }],
+        }]}>
           <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 2 }}>
             <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: C.mutedBorder }} />
           </View>

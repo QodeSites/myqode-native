@@ -2,6 +2,7 @@
 import React from 'react';
 import { View, Pressable, ScrollView, TextInput } from 'react-native';
 import { C, Tx, Amt, Card, Chip, ChipRow, Fade, Skel, useUI } from '../ui';
+import { ddPct } from '../adapt';
 import { Plus, ArrowDown, Swap, DocIcon, Bars, Download, ChevronRight, Phone, MailIcon, Search, InfoCircle, GoldDocIcon } from '../icons';
 import { NavChart, DrawdownChart, Donut } from './charts';
 import { UccNotice } from './ucc';
@@ -20,7 +21,7 @@ export function Grid2({ children, style }) {
   );
 }
 
-function RangeRow({ ranges, style }) {
+export function RangeRow({ ranges, style }) {
   // A range whose data is still on its way pulses; the charts keep showing the previous range meanwhile.
   return (
     <View style={[{ flexDirection: 'row', gap: 8 }, style]}>
@@ -29,7 +30,7 @@ function RangeRow({ ranges, style }) {
   );
 }
 
-function Tile({ t }) {
+export function Tile({ t }) {
   return (
     <Card style={{ width: '48%', paddingVertical: 13, paddingHorizontal: 14 }}>
       <Tx w={700} s={10.5} ls={0.12} c={C.muted}>{t.label}</Tx>
@@ -38,7 +39,7 @@ function Tile({ t }) {
   );
 }
 
-function TxRow({ t, last, status }) {
+export function TxRow({ t, last, status }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 16, borderBottomWidth: last ? 0 : 1, borderColor: C.hairline }}>
       <View style={{ flex: 1, minWidth: 0 }}>
@@ -100,12 +101,12 @@ export function HomeCream({ V }) {
           <Amt s={14}>{V.navNow}</Amt>
         </View>
         <View style={{ marginTop: 10 }}>
-          <NavChart line={V.linePath} area={V.areaPath} bench={V.benchPath} tip={V.navTip} yTicks={V.yTicks} xDates={V.xDates} />
+          <NavChart line={V.linePath} area={V.areaPath} bench={V.benchPath} tip={V.navTip} yTicks={V.yTicks} xDates={V.xDates} color={V.chartColor} />
         </View>
         {/* Legend: which line is which (same colours as the chart) */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <View style={{ width: 14, height: 2.5, borderRadius: 2, backgroundColor: C.green }} />
+            <View style={{ width: 14, height: 2.5, borderRadius: 2, backgroundColor: V.chartColor || C.green }} />
             <Tx s={10.5} c={C.muted}>Your portfolio</Tx>
           </View>
           {V.hasBench && (
@@ -119,10 +120,10 @@ export function HomeCream({ V }) {
       </Card>
       <UccNotice visible={V.showUcc} onClose={V.dismissUcc} />
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
-        <Action icon={<Plus />} label="Add Funds" onPress={V.openAdd} primary />
-        <Action icon={<Swap />} label="Switch" onPress={V.openSwitchStrategy} />
-        <Action icon={<DocIcon />} label="Statement" onPress={V.goDocs} />
-        <Action icon={<Bars />} label="Reports" onPress={V.goPortfolio} />
+        {!V.viewing && <Action icon={<Plus />} label="Add funds" onPress={V.openAdd} primary />}
+        {!V.viewing && <Action icon={<Swap />} label="Switch" onPress={V.openSwitchStrategy} />}
+        <Action icon={<DocIcon />} label="Documents" onPress={V.goDocs} />
+        <Action icon={<Bars />} label="Reports" onPress={() => V.openPage('reports')} />
       </View>
       <Grid2 style={{ marginTop: 22 }}>
         {V.tiles.map(t => <Tile key={t.label} t={t} />)}
@@ -130,7 +131,7 @@ export function HomeCream({ V }) {
       <Tx s={11} c={C.gray} style={{ marginTop: 10, marginLeft: 2 }}>As of {V.asOf}</Tx>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 24, marginBottom: 10, marginHorizontal: 2 }}>
         <Tx w={700} s={11} ls={0.12} c={C.muted}>TRANSACTIONS</Tx>
-        <Pressable onPress={V.goServices}><Tx w={700} s={12} c={C.green}>View all</Tx></Pressable>
+        {!V.viewing && <Pressable onPress={V.goServicesTx}><Tx w={700} s={12} c={C.green}>View all</Tx></Pressable>}
       </View>
       <Card style={{ overflow: 'hidden' }}>
         {V.hasTx
@@ -143,7 +144,7 @@ export function HomeCream({ V }) {
 
 // Collapsible "Detailed metrics" card: trailing returns, risk & return detail,
 // capital flows, tap-to-explain credibility metrics.
-function DetailedMetrics({ V }) {
+export function DetailedMetrics({ V }) {
   return (
     <Card style={{ overflow: 'hidden', marginTop: 22 }}>
       <Pressable onPress={V.toggleDet} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 15, paddingHorizontal: 16, minHeight: 44 }}>
@@ -218,7 +219,7 @@ function DetailedMetrics({ V }) {
 }
 
 // Profit & Loss: FY pills, monthly/quarterly toggle, All-Years accordion.
-function ProfitLoss({ V }) {
+export function ProfitLoss({ V }) {
   return (
     <>
       {V.hasPnl && <Tx w={700} s={11} ls={0.12} c={C.muted} style={{ marginTop: 24, marginLeft: 2 }}>PROFIT & LOSS</Tx>}
@@ -302,7 +303,7 @@ export function PortfolioCream({ V }) {
         <Card style={{ marginTop: 16, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 14 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <Tx w={700} s={11} ls={0.12} c={C.muted}>DRAWDOWN</Tx>
-            <Amt s={14} c={C.red}>{V.ddNow.toFixed(2)}%</Amt>
+            <Amt s={14} c={Math.abs(V.ddNow) >= 0.005 ? C.red : C.muted}>{ddPct(V.ddNow)}</Amt>
           </View>
           <View style={{ marginTop: 10 }}>
             <DrawdownChart line={V.ddLine} area={V.ddArea} bench={V.ddBench} tip={V.ddTip} />

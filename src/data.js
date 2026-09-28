@@ -67,19 +67,19 @@ export const CRED_ITEMS = [
 
 // Documents tab (v2)
 export const DOCS = [
-  { name: 'Monthly Statement — June 2026', cat: 'Statements', meta: 'PDF · 1.2 MB · 05 Jul 2026' },
-  { name: 'Monthly Statement — May 2026', cat: 'Statements', meta: 'PDF · 1.1 MB · 05 Jun 2026' },
-  { name: 'Monthly Statement — April 2026', cat: 'Statements', meta: 'PDF · 1.1 MB · 06 May 2026' },
-  { name: 'Annual Portfolio Report — FY26', cat: 'Statements', meta: 'PDF · 5.1 MB · 21 Apr 2026' },
-  { name: 'Capital Gains Statement — FY26', cat: 'Tax', meta: 'PDF · 840 KB · 12 Apr 2026' },
-  { name: 'TDS Certificate — FY26', cat: 'Tax', meta: 'PDF · 310 KB · 30 Apr 2026' },
-  { name: 'Capital Gains Statement — FY25', cat: 'Tax', meta: 'PDF · 780 KB · 14 Apr 2025' },
+  { name: 'Monthly Statement: June 2026', cat: 'Statements', meta: 'PDF · 1.2 MB · 05 Jul 2026' },
+  { name: 'Monthly Statement: May 2026', cat: 'Statements', meta: 'PDF · 1.1 MB · 05 Jun 2026' },
+  { name: 'Monthly Statement: April 2026', cat: 'Statements', meta: 'PDF · 1.1 MB · 06 May 2026' },
+  { name: 'Annual Portfolio Report: FY26', cat: 'Statements', meta: 'PDF · 5.1 MB · 21 Apr 2026' },
+  { name: 'Capital Gains Statement: FY26', cat: 'Tax', meta: 'PDF · 840 KB · 12 Apr 2026' },
+  { name: 'TDS Certificate: FY26', cat: 'Tax', meta: 'PDF · 310 KB · 30 Apr 2026' },
+  { name: 'Capital Gains Statement: FY25', cat: 'Tax', meta: 'PDF · 780 KB · 14 Apr 2025' },
   { name: 'PMS Agreement', cat: 'Agreements', meta: 'PDF · 2.8 MB · 14 Mar 2021' },
-  { name: 'Fee Schedule — Annexure B', cat: 'Agreements', meta: 'PDF · 420 KB · 14 Mar 2021' },
-  { name: 'Quarterly Factsheet — Q1 FY27', cat: 'Factsheets', meta: 'PDF · 3.4 MB · 08 Jul 2026' },
-  { name: 'Quarterly Factsheet — Q4 FY26', cat: 'Factsheets', meta: 'PDF · 3.2 MB · 08 Apr 2026' },
-  { name: 'Fee Invoice — Q1 FY27', cat: 'Invoices', meta: 'PDF · 180 KB · 02 Jul 2026' },
-  { name: 'Fee Invoice — Q4 FY26', cat: 'Invoices', meta: 'PDF · 175 KB · 02 Apr 2026' },
+  { name: 'Fee Schedule: Annexure B', cat: 'Agreements', meta: 'PDF · 420 KB · 14 Mar 2021' },
+  { name: 'Quarterly Factsheet: Q1 FY27', cat: 'Factsheets', meta: 'PDF · 3.4 MB · 08 Jul 2026' },
+  { name: 'Quarterly Factsheet: Q4 FY26', cat: 'Factsheets', meta: 'PDF · 3.2 MB · 08 Apr 2026' },
+  { name: 'Fee Invoice: Q1 FY27', cat: 'Invoices', meta: 'PDF · 180 KB · 02 Jul 2026' },
+  { name: 'Fee Invoice: Q4 FY26', cat: 'Invoices', meta: 'PDF · 175 KB · 02 Apr 2026' },
 ];
 
 export const DOC_CATS = ['All', 'Statements', 'Tax', 'Agreements', 'Factsheets', 'Invoices'];
@@ -113,7 +113,7 @@ export const FEES = [
 
 export const RES = ['Resident', 'NRI', 'OCI', 'PIO'];
 
-export const DOC_META = { pan: 'PAN card', af: 'Aadhaar — front', ab: 'Aadhaar — back', cheque: 'Cancelled cheque' };
+export const DOC_META = { pan: 'PAN card', af: 'Aadhaar (front)', ab: 'Aadhaar (back)', cheque: 'Cancelled cheque' };
 export const DOC_FILE = { pan: 'pan_rohan.pdf', af: 'aadhaar_front.jpg', ab: 'aadhaar_back.jpg', cheque: 'cheque_hdfc.jpg' };
 
 export const TRACK = [
@@ -125,7 +125,7 @@ export const TRACK = [
 ];
 
 export const ARTICLES = [
-  { read: '3 MIN READ', title: "What a PMS is — and isn't", sub: 'Securities held in your own name, managed under a mandate.' },
+  { read: '3 MIN READ', title: "What a PMS is, and isn't", sub: 'Securities held in your own name, managed under a mandate.' },
   { read: '4 MIN READ', title: 'How custody protects you', sub: 'Your assets sit with a SEBI-registered custodian, not with Qode.' },
   { read: '5 MIN READ', title: 'Understanding drawdowns', sub: 'Why temporary declines are part of long-term investing.' },
 ];

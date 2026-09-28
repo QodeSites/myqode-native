@@ -340,7 +340,7 @@ export default class OnboardingStore {
       let msg = e.message;
       if (e.code === 'unavailable') {
         this.set({ digio: 'disabled', digioMessage: e.message });
-        msg = 'Online verification isn’t available right now. You can upload your documents instead — nothing else changes.';
+        msg = 'Online verification isn’t available right now. You can upload your documents instead. Nothing else changes.';
       } else if (e.code === 'locked') { this.markLocked(); }
       else if (isOffline(e)) { this.set({ offline: true }); msg = 'You appear to be offline. Reconnect to verify online, or upload your documents instead.'; }
       this.setCheck(key, { starting: false, error: msg, errorCode: e.code });
@@ -520,7 +520,7 @@ export default class OnboardingStore {
     this.set({ submitting: true, submitError: null });
     await this.flush();
     if (!this.s.id) {
-      this.set({ submitting: false, submitError: this.s.offline ? 'You appear to be offline. Reconnect and tap Submit again — everything you entered is kept.' : 'We couldn’t reach our server. Please try again in a moment.' });
+      this.set({ submitting: false, submitError: this.s.offline ? 'You appear to be offline. Reconnect and tap Submit again. Everything you entered is kept.' : 'We couldn’t reach our server. Please try again in a moment.' });
       return false;
     }
     if (Object.keys(this.pending).length) {

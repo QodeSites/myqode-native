@@ -17,7 +17,7 @@ import { useLoad, openUrl, ErrorBox, Empty, SectionLabel, AccountChips } from '.
 const SECTIONS = [
   { id: 'pms-agreement', title: 'PMS Agreement', description: 'Your official agreement with Qode, executed at onboarding.' },
   { id: 'account-opening', title: 'Account Opening Documents', description: 'Verification of linked bank and demat accounts.' },
-  { id: 'cml', title: 'CML', description: 'Capital Market License and regulatory documents.' },
+  { id: 'cml', title: 'CML', description: 'Client Master List (CML): your demat account record from the depository participant.' },
 ];
 
 function Section({ sec, accountId, count, reloadKey }) {
@@ -76,7 +76,7 @@ export function DocsCream({ V }) {
   return (
     <Fade>
       <Card big style={{ marginTop: -34, padding: 16 }}>
-        <Tx f="play" w={600} s={20}>Account Documents</Tx>
+        <Tx f="play" w={600} s={20}>Account documents</Tx>
         <Tx s={12} c={C.muted} lh={1.5} style={{ marginTop: 4 }}>Access important documents related to your Qode PMS account.</Tx>
         <AccountChips options={opts} value={accountId} onPick={setSel} />
       </Card>
