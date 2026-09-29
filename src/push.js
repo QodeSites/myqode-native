@@ -13,7 +13,10 @@ import * as Notifications from 'expo-notifications';
 import { services } from './api';
 import { storeGet, storeSet, storeDel } from './api/session';
 
-const native = Platform.OS === 'ios' || Platform.OS === 'android';
+// Expo Go has no remote push since SDK 53 (on Android its push calls throw on start): everything here is off
+// there, as on the web. Development builds, TestFlight and store builds are unaffected.
+const expoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
+const native = (Platform.OS === 'ios' || Platform.OS === 'android') && !expoGo;
 const TOKEN_KEY = 'myqode.pushToken';
 const ASKED_KEY = 'myqode.pushAskedAt';
 const projectId = () => (Constants.expoConfig && Constants.expoConfig.extra && Constants.expoConfig.extra.eas && Constants.expoConfig.extra.eas.projectId)
