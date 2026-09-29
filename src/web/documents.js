@@ -11,6 +11,7 @@ import { documents, isDemo } from '../api';
 import { useLoad, openUrl, fmtSize } from '../screens/kit';
 import { fmtDate } from '../adapt';
 import { RISK } from '../content';
+import { track } from '../api/track';
 
 // Same three sections, titles and descriptions as the web page (the API's 4th folder, disclosures, is not shown there).
 const SECTIONS = [
@@ -69,7 +70,7 @@ function FilesPanel({ sec, accountId, reloadKey, onOpen }) {
     ) },
     { key: 'size', label: 'Size', flex: 0.8, render: f => <Tx s={12.5} c={C.ink2}>{fmtSize(f.size) || '–'}</Tx> },
     { key: 'lastModified', label: 'Updated', flex: 1, render: f => <Tx s={12.5} c={C.ink2}>{f.lastModified ? fmtDate(f.lastModified) : '–'}</Tx> },
-    { key: 'open', label: '', flex: 0.7, right: true, render: f => <TextLink label="Open" onPress={() => onOpen(f.url)} /> },
+    { key: 'open', label: '', flex: 0.7, right: true, render: f => <TextLink label="Open" onPress={() => { track('event', 'document_open', { category: sec.id, source: 'documents' }); onOpen(f.url); }} /> },
   ];
   return (
     <Panel title={sec.title} sub={files.data ? `${list.length} ${list.length === 1 ? 'file' : 'files'}` : sec.description} pad={0}>
@@ -89,7 +90,7 @@ function Policies({ onOpen }) {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <DocIcon s={15} c={C.ink3} />
             <Tx w={600} s={13} numberOfLines={1} style={{ flex: 1 }}>{p.title}</Tx>
-            <TextLink label="Open" onPress={() => onOpen(p.pdf)} />
+            <TextLink label="Open" onPress={() => { track('event', 'document_open', { category: 'policy', source: 'documents' }); onOpen(p.pdf); }} />
           </View>
           <Tx s={12} c={C.ink2} lh={1.45} numberOfLines={2} style={{ marginTop: 4, marginLeft: 25 }}>{p.body[0]}</Tx>
         </View>

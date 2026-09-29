@@ -6,6 +6,7 @@ import { View, Pressable } from 'react-native';
 import { C, Tx, Card, CTA, Field } from '../ui';
 import { Check } from '../icons';
 import { engagement } from '../api';
+import { track } from '../api/track';
 
 export const VOICE_QUESTIONS = [
   { k: 'recommend', q: 'How likely are you to recommend Qode?' },
@@ -35,6 +36,7 @@ export function useVoiceForm(V) {
     setSt({ busy: true, err: '', done: false });
     try {
       await engagement.feedback({ ...r, comment: comment.trim() });
+      track('event', 'feedback_submitted', { recommend: r && r.recommend });
       setSt({ busy: false, err: '', done: true });
     } catch (e) {
       setSt({ busy: false, err: (e && e.message) || 'Could not send your feedback. Please try again.', done: false });

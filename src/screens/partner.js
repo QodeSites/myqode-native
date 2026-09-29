@@ -27,6 +27,7 @@ import { storeGet, storeSet, storeDel } from '../api/session';
 import * as content from '../content';
 import { computeTax, GST_STATE_CODES, validateGstin, validatePan, amountInWords, QODE_ENTITY, qodeAddressLines, isQodeEntityComplete } from '../partnerTax';
 import { withPdfFonts } from '../pdfFonts';
+import { track } from '../api/track';
 
 // ── shared ───────────────────────────────────────────────────────────────────
 export const STRATEGY_COLOR = { 'Qode All Weather': '#008455', 'Qode Growth Fund': '#0A3452', 'Qode Tactical Fund': '#550E0E' };
@@ -652,8 +653,11 @@ function printHtmlWeb(html, title) {
   });
 }
 
-export async function savePdf(html, fileName, { share = false, landscape = false } = {}) {
+export async function savePdf(html, fileName, { share = false, landscape = false, source } = {}) {
   if (pdfJob) return pdfJob;
+  // Analytics: which document (the file name without its account code, dates or numbers) and from where.
+  const kind = String(fileName || '').split(/\s+(?=Q[A-Z]{2}\d|All accounts|\d|FY\b)/)[0].trim() || 'document';
+  track('event', 'pdf_download', { kind, source: source || (/^(Fee statement|Invoice)/.test(kind) ? 'distributor' : 'reports') });
   html = withPdfFonts(html);   // Playfair travels inside the HTML: the print engine can't see the app's fonts
   if (Platform.OS === 'web') {
     const safe = String(fileName || 'document').replace(/[^\w .()-]/g, '-').replace(/\s+/g, ' ').trim() || 'document';

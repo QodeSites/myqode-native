@@ -118,6 +118,7 @@ function Insights() {
 }
 
 const REFERRAL_FORM = {
+  event: 'referral_submitted',   // analytics name (FormBody)
   cta: 'SUBMIT REFERRAL', account: true,
   fields: [
     { k: 'name', label: 'REFERRED PERSON’S NAME', kind: 'name', placeholder: 'Full name', validate: x => check.name(x, 'their name') },

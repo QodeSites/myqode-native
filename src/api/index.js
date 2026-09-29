@@ -53,6 +53,8 @@ export const auth = {
     : api('/auth/complete-otp-setup', { method: 'POST', auth: false, body: { email, otp, newPassword, confirmPassword } })),
   forgot: email => (demoOn ? mock(() => ({ success: true })) : api('/auth/forgot', { method: 'POST', auth: false, body: { email, ...(TEST_MODE ? { testRedirect: true } : {}) } })),
   me: (opts = {}) => api('/auth/me', opts),
+  // Sign-out, for the server's sign-in log. Never throws: signing out must work offline too.
+  logout: () => (demoOn ? Promise.resolve() : api('/auth/logout', { method: 'POST', body: { os: Platform.OS }, timeout: 5000 }).catch(() => {})),
 };
 
 export const meta = {

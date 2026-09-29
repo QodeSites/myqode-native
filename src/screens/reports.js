@@ -18,6 +18,7 @@ import { Download, ChevronDown, Check } from '../icons';
 import { savePdf } from './partner';
 import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactionsAllPdf, capitalGainsAllPdf, expensesAllPdf, factsheetAllPdf, plbsPdf } from './reportPdf';
 import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE } from '../combine';
+import { track } from '../api/track';
 
 // ── formatting ────────────────────────────────────────────────────────────────────────────────────────────
 // Money, percentages and dates use the app-wide formatters (src/adapt.js) so Reports matches every other screen.
@@ -902,7 +903,7 @@ export function ReportsPage({ V }) {
         {KINDS.map(([k, l]) => {
           const on = kind === k;
           return (
-            <Pressable key={k} onPress={() => setKind(k)} accessibilityRole="tab" accessibilityState={{ selected: on }} hitSlop={6} style={{ paddingVertical: 8 }}>
+            <Pressable key={k} onPress={() => { setKind(k); track('event', 'report_view', { tab: k }); }} accessibilityRole="tab" accessibilityState={{ selected: on }} hitSlop={6} style={{ paddingVertical: 8 }}>
               <Tx w={700} s={13} c={on ? C.green : C.gray}>{l}</Tx>
               <View style={{ height: 2, borderRadius: 1, marginTop: 6, backgroundColor: on ? C.gold : 'transparent' }} />
             </Pressable>

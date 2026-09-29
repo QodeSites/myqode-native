@@ -76,7 +76,7 @@ export function ClientReportsSheet({ c, visible, onClose }) {
     setBusy(true); setMsg({ tone: '', text: 'Preparing the PDF…' });
     try {
       const doc = await buildReport(acc.rep, { kind, account, ids, period, custom, asOf, date });
-      const r = await savePdf(doc.html, fileName(name, kind, doc.periodText, account === ALL_ID ? 'All accounts' : account), { landscape: doc.landscape });
+      const r = await savePdf(doc.html, fileName(name, kind, doc.periodText, account === ALL_ID ? 'All accounts' : account), { source: 'distributor', landscape: doc.landscape });
       const saved = r && r.savedTo ? ` Saved to ${r.savedTo}.` : '';
       setMsg({ tone: doc.note ? 'bad' : 'good', text: `PDF ready.${saved}${doc.note ? ' ' + doc.note : ''}` });
     } catch (e) { setMsg({ tone: 'bad', text: errText(e) }); }

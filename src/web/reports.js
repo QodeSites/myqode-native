@@ -17,6 +17,7 @@ import { savePdf } from '../screens/partner';
 import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactionsAllPdf, capitalGainsAllPdf, expensesAllPdf, factsheetAllPdf, plbsPdf } from '../screens/reportPdf';
 import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE } from '../combine';
 import { transactionsSummary, capitalGainsSummary, expensesSummary, factsheetSummary, pnlSummary } from '../reportSummary';
+import { track } from '../api/track';
 
 // ── formatting (the app-wide formatters; only quantity and period headers are local, as on the phone) ────────
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1036,7 +1037,7 @@ export default function DesktopReports({ V }) {
   return (
     <View>
       <PageIntro sub="Custodian statements from Nuvama, each available as a PDF." />
-      <Tabs value={kind} options={KINDS} onChange={setKind} style={{ marginBottom: 16 }} />
+      <Tabs value={kind} options={KINDS} onChange={k => { setKind(k); track('event', 'report_view', { tab: k }); }} style={{ marginBottom: 16 }} />
       {/* keyed so filters and paging reset when the account or report changes */}
       {accountId ? <Body key={kind + accountId + (accountId === ALL_ID ? ids.join(',') : '')} accountId={accountId} ids={ids} names={names} rk={V.rk} account={account} /> : <Empty>No active account found.</Empty>}
     </View>

@@ -1,4 +1,6 @@
 import { getToken, hasViewToken } from './session';
+import { APP_VERSION } from './config';
+import { deviceString } from './device';
 
 // Point at a local myQode dev server (e.g. http://192.168.x.x:2069) with EXPO_PUBLIC_API_BASE_URL.
 // The web build (served at /app by the myQode server itself) uses "/": same origin, so requests are relative.
@@ -26,7 +28,8 @@ export async function api(path, { method = 'GET', query, body, auth = true, time
       .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
     if (qs) url += '?' + qs;
   }
-  const headers = { Accept: 'application/json', 'X-Client-Type': 'mobile' };
+  // x-app-version / x-device: which app build and device each request comes from (sign-in log, analytics).
+  const headers = { Accept: 'application/json', 'X-Client-Type': 'mobile', 'x-app-version': APP_VERSION, 'x-device': deviceString };
   // Dev tunnels can answer with an anti-phishing HTML page instead of the API response.
   if (BASE_URL.includes('.devtunnels.ms')) headers['X-Tunnel-Skip-AntiPhishing-Page'] = 'true';
   if (body) headers['Content-Type'] = 'application/json';

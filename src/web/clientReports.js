@@ -64,7 +64,7 @@ export function ClientReportsDialog({ c, visible, onClose }) {
     try {
       const doc = await buildReport(acc.rep, { kind, account, ids, period, custom, asOf, date });
       const acctText = account === ALL_ID ? 'All accounts' : account;
-      await savePdf(doc.html, fileName(name, kind, doc.periodText, acctText), { landscape: doc.landscape });
+      await savePdf(doc.html, fileName(name, kind, doc.periodText, acctText), { source: 'distributor', landscape: doc.landscape });
       setMsg({ tone: doc.note ? 'bad' : 'good', text: doc.note ? `PDF ready. ${doc.note}` : 'PDF ready. Choose “Save as PDF” in the print dialog if it did not save.' });
     } catch (e) { setMsg({ tone: 'bad', text: errText(e) }); }
     setBusy(false);

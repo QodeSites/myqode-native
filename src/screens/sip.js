@@ -16,6 +16,7 @@ import { Check } from '../icons';
 import { services, BASE_URL, isDemo } from '../api';
 import { AccountChips, useLoad } from './kit';
 import { savePendingPayment, clearPendingPayment, hintFromReturnUrl, autoReturn } from './pay';
+import { track } from '../api/track';
 
 const CHIPS = [5000, 10000, 25000, 50000];
 const MIN = 100, MAX = 500000;
@@ -126,6 +127,7 @@ export function SetupSip({ V, onDone, recover }) {
 
   const finish = (kind, result, detail = '') => {
     set({ step: 'done', kind, result, detail, busy: false });
+    track('event', kind === 'success' ? 'payment_completed' : kind === 'failed' || kind === 'expired' ? 'payment_failed' : 'payment_' + kind, { kind: 'sip', result: kind });
     if (kind !== 'error') clearPendingPayment();   // decided: nothing to recover later
     if (kind === 'success' && onDone) onDone(result);
   };
@@ -159,7 +161,8 @@ export function SetupSip({ V, onDone, recover }) {
     set({ busy: true, err: '' });
     let sub;
     try { sub = await services.setupSip({ accountId: acct, amount: amt, frequency: freq, startDate, endDate }); }
-    catch (e) { return set({ busy: false, err: e.message }); }
+    catch (e) { track('event', 'payment_failed', { kind: 'sip', stage: 'create', amount: amt }); return set({ busy: false, err: e.message }); }
+    track('event', 'payment_started', { kind: 'sip', amount: amt, frequency: freq });
     set({ sub });
     if (isDemo()) return finish('success', await services.verifySip(sub.subscriptionId));
 

@@ -20,6 +20,7 @@ import { inr } from '../adapt';
 import { Check, ChevronDown } from '../icons';
 import { services } from '../api';
 import { useLoad, Loading, ErrorBox } from './kit';
+import { track } from '../api/track';
 
 const STRATS = ['QAW', 'QTF', 'QGF'];
 const NAMES = { QAW: 'Qode All Weather', QTF: 'Qode Tactical Fund', QGF: 'Qode Growth Fund' };
@@ -171,6 +172,7 @@ export function SwitchForm({ onClose, preferName }) {
         ? { switchType: 'Full Switch', from: fromList, to: toList }
         : { switchType: 'Partial Switch', fromAmounts: Object.fromEntries(fromList.map(s => [s, fromAmt(s)])), toAmounts: Object.fromEntries(toList.map(s => [s, toAmt(s)])) };
       const r = await services.submitSwitchRequest({ investorId: inv.id, ...body });
+      track('event', 'switch_request_submitted', { type: body.switchType });
       setSt({ busy: false, err: '', done: r });
     } catch (x) { setSt({ busy: false, err: x.message, done: null }); }
   };

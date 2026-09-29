@@ -33,7 +33,7 @@ import {
 } from './data';
 import { irrPeriod, fmtIrr, irrLabel } from './irr';
 import { BASE_URL, auth, portfolio, meta, admin, notifications, backoffice, onAdminDenied, distributor, setViewToken, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
-import { trackStart, trackStop, screen } from './api/track';
+import { trackStart, trackStop, screen, track, flush as trackFlush } from './api/track';
 import { perfFrom, navFrom, ddFrom, cashFrom, plFrom, combineFamily } from './webcalc';
 import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, ddPct, inr, sinr, fmtDate, fmtMonth, fmtDayMon, titleCase, semverLt, fmtD, fmtDM } from './adapt';
 import Splash from './screens/splash';
@@ -300,8 +300,8 @@ export default class MyQode extends React.Component {
           if (adminToken) this.origToken = adminToken;
           this.setState({ imp: { name: me.name || me.email || 'this user', email: me.email || '', backoffice: !adminToken } });
         }
-        if (me && me.isAdmin && !me.isImpersonated) { adminOn = true; this.adminUser = me; }   // admin mode: the backoffice console
-        else if (me && me.isDistributor) partner = true;   // partner login: no investor accounts, no portfolio load
+        if (me && me.isAdmin && !me.isImpersonated) { adminOn = true; this.adminUser = me; trackStart('a:' + me.email, 'admin'); }   // admin mode: the backoffice console
+        else if (me && me.isDistributor) { partner = true; if (!me.isImpersonated) trackStart('d:' + me.email, 'distributor'); }   // partner login: no investor accounts, no portfolio load
         else {
         if (!me.isImpersonated) trackStart(me.clientCode);   // an admin viewing as the client is not the client's usage
         storeGet(UCC_SEEN_KEY).then(v => { if (v && v === String(me.clientCode)) this.setState({ uccSeen: true }); });
@@ -567,10 +567,12 @@ export default class MyQode extends React.Component {
     if (!isAdmin && user && user.isSuperAdmin) { try { const me = await auth.me(); isAdmin = !!(me && me.isAdmin); if (isAdmin) user = { ...user, ...me }; } catch {} }
     if (isAdmin) {
       this.adminUser = user;
+      trackStart('a:' + user.email, 'admin');
       this.setState({ user, busy: false, pw: '', np: '', np2: '', otp: ['', '', '', '', '', ''], authErr: '', phase: 'admin', adm: null }, () => { this.pushSync(); this.applyPendingTap(); });
       return;
     }
     if (user && user.isDistributor) {
+      trackStart('d:' + user.email, 'distributor');
       this.setState({ busy: false, pw: '', np: '', np2: '', otp: ['', '', '', '', '', ''], authErr: '', phase: 'partner' });
       return;
     }
@@ -598,6 +600,7 @@ export default class MyQode extends React.Component {
   setBiometric = async on => {
     if (on) { const r = await biometricUnlock((this.state.bio || {}).label); if (!r.ok) { if (r.message) this.toast(r.message); return; } }
     await setBiometricEnabled(on);
+    track('event', on ? 'biometric_enabled' : 'biometric_disabled', {});
     this.setState({ bioOn: on });
   };
   lockRetry = async () => {
@@ -711,6 +714,10 @@ export default class MyQode extends React.Component {
   };
 
   signOut = async (msg = '') => {
+    if (!this.origToken && !isDemo() && !(this.state.user && this.state.user.isImpersonated)) {
+      track('event', 'logout', { reason: msg ? 'expired' : 'user' }); trackFlush();
+      await auth.logout();   // the server's sign-in log (never throws)
+    }
     if (!this.origToken && !isDemo()) await push.unregister();   // before the session goes: this phone stops getting their popups
     this.origToken = null; this.adminUser = null;
     storeDel(ADMIN_KEY);
@@ -741,6 +748,7 @@ export default class MyQode extends React.Component {
   // Super admin: swap in a 4h client-scoped token; keep the admin token to come back.
   impersonate = async clientCode => {
     const r = await admin.impersonate(clientCode);
+    trackStop();   // an admin viewing a client is not the client's usage
     if (!this.origToken) this.origToken = await getToken();
     await setToken(r.token);
     clearUserCaches();
@@ -771,6 +779,7 @@ export default class MyQode extends React.Component {
     if (!email) return;
     const r = await backoffice.impersonate({ email, target: 'app' });
     if (!r || !r.token) throw new ApiError('The server did not return a session for this user.');
+    trackStop();   // an admin viewing a user is not that user's usage
     const adminToken = this.origToken || await getToken();
     this.origToken = adminToken;
     await storeSet(ADMIN_KEY, adminToken);
@@ -797,6 +806,7 @@ export default class MyQode extends React.Component {
     clearUserCaches();
     this.seq++;
     await setToken(t);
+    { const au = this.adminUser || this.state.user; if (au && au.email) trackStart('a:' + au.email, 'admin'); }   // tracking resumes as the admin
     this.setState({ phase: 'admin', user: this.adminUser || this.state.user, imp: null, viewing: null, page: null, sheet: null, tab: 'home',
       acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '', lifting: false },
       () => this.pushSync());   // once the admin's own session is in state: register this phone for the admin's test sends
@@ -871,7 +881,7 @@ export default class MyQode extends React.Component {
     this.pushBusy = true;
     try {
       await push.reportStart(this.state.phase + (this.ownSession() ? '' : ' (viewing)'));
-      if (await push.shouldAskNow()) { await new Promise(r => setTimeout(r, 1200)); await push.ask(); }
+      if (await push.shouldAskNow()) { await new Promise(r => setTimeout(r, 1200)); const p = await push.ask(); track('event', 'notification_permission', { result: p, via: 'prompt' }); }
       if (this.ownSession()) await push.register();
       if (this.state.phase === 'app' && !this.state.pushOffer && (await push.shouldOffer())) this.setState({ pushOffer: true });
     } finally { this.pushBusy = false; }
@@ -903,6 +913,7 @@ export default class MyQode extends React.Component {
   // screen in that client's view, read-only (their notification is not marked read). A tap that launched the app
   // waits in pendingTap until the app or the admin console is ready.
   onNoteTap = (link, id) => {
+    { const l = String(link || ''); const n = ((this.state.notes && this.state.notes.items) || []).find(x => x.id === id); track('event', 'notification_open', { category: n ? n.category : undefined, link: l.startsWith('url:') ? 'url' : l.split(':')[0] || 'home' }); }
     if (/^url:https:\/\//i.test(String(link || ''))) { if (this.ownSession() && id) this.markNotes([id]); openLink(this.vals(), link); return; }
     const { phase } = this.state;
     if (phase === 'admin') { this.setState(s => ({ sheet: null, adm: { ...(s.adm || {}), tab: 'notifications', email: null } })); return; }
@@ -1224,7 +1235,7 @@ export default class MyQode extends React.Component {
       notesMarkAll: () => this.markNotes([], true), notesCanMark: this.ownSession(),
       openNotifSettings: () => { set({ sheet: null }); screen('page:notifications'); set({ page: 'notifications' }); },
       pushOffer: !!S.pushOffer && !S.viewing,
-      pushOfferYes: async () => { set({ pushOffer: false }); const p = await push.ask(); if (p === 'granted') this.pushSync(); },
+      pushOfferYes: async () => { set({ pushOffer: false }); const p = await push.ask(); track('event', 'notification_permission', { result: p, via: 'card' }); if (p === 'granted') this.pushSync(); },
       pushOfferNo: () => { set({ pushOffer: false }); push.snooze(); },
       svcPending: false, svcNone: true, svcPendingSub: '',
       tab: S.tab, scopeKey: S.acct,

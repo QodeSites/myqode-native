@@ -20,6 +20,7 @@ import { Check } from '../icons';
 import { payments, BASE_URL, isDemo } from '../api';
 import { storeGet, storeSet, storeDel } from '../api/session';
 import { AccountChips } from './kit';
+import { track } from '../api/track';
 
 const PENDING_KEY = 'myqode.pendingPayment';
 const PENDING_MAX_AGE = 45 * 60 * 1000;   // a Razorpay order is payable for ~this long
@@ -99,6 +100,7 @@ export function PayOnline({ V, onDone, recover }) {
 
   const finish = (kind, result, detail = '') => {
     set({ step: 'done', kind, result, detail, busy: false });
+    track('event', kind === 'success' ? 'payment_completed' : kind === 'failed' || kind === 'expired' ? 'payment_failed' : 'payment_' + kind, { kind: 'one_time', result: kind });
     if (kind === 'success' || kind === 'failed' || kind === 'expired') clearPendingPayment();   // decided: nothing to recover later
     if (kind === 'success' && onDone) onDone(result);
   };
@@ -130,7 +132,8 @@ export function PayOnline({ V, onDone, recover }) {
     set({ busy: true, err: '' });
     let order;
     try { order = await payments.razorpay.createOrder({ accountId: acct, amount: amt }); }
-    catch (e) { return set({ busy: false, err: e.message }); }
+    catch (e) { track('event', 'payment_failed', { kind: 'one_time', stage: 'create', amount: amt }); return set({ busy: false, err: e.message }); }
+    track('event', 'payment_started', { kind: 'one_time', amount: amt });
     set({ order });
     if (isDemo()) return finish('success', await payments.razorpay.verify({ razorpay_order_id: order.orderId }));
 

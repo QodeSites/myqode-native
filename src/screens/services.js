@@ -13,6 +13,7 @@ import { clean, check, LIMITS } from '../validate';
 import { SetupSip } from './sip';
 import { SwitchForm } from './switch';
 import { ContactIRLink } from './contact';
+import { track } from '../api/track';
 
 const STRATS = [['QAW', 'Qode All Weather'], ['QTF', 'Qode Tactical Fund'], ['QGF', 'Qode Growth Fund']];
 
@@ -382,6 +383,7 @@ export function FormBody({ cfg, opts, onDone, doneLabel = 'DONE' }) {
     setSt({ busy: true, err: '', ref: null });
     try {
       const r = await cfg.submit(acct, v);
+      track('event', cfg.event || 'request_submitted', { kind: cfg.title || 'request' });
       setSt({ busy: false, err: '', ref: String((r && r.inquiry_id) || '') });
     } catch (e) { setSt({ busy: false, err: e.message, ref: null }); }
   };

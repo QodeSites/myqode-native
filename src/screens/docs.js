@@ -9,6 +9,7 @@ import { C, Tx, Card, Fade, CTA } from '../ui';
 import { DocIcon, ChevronRight } from '../icons';
 import { documents } from '../api';
 import { useLoad, openUrl, ErrorBox, Empty, SectionLabel, AccountChips } from './kit';
+import { track } from '../api/track';
 
 // Policies are not listed here: they live on More → Risk management (with the Referral Policy), as on the web.
 
@@ -60,7 +61,7 @@ function Section({ sec, accountId, count, reloadKey, onRequest }) {
             }}>
               <DocIcon s={16} c={C.muted} />
               <Tx w={700} s={12.5} numberOfLines={1} style={{ flex: 1, minWidth: 0 }}>{f.filename}</Tx>
-              <Pressable onPress={() => openUrl(f.url)} hitSlop={8}>
+              <Pressable onPress={() => { track('event', 'document_open', { category: sec.id, source: 'documents' }); openUrl(f.url); }} hitSlop={8}>
                 <Tx w={700} s={12.5} c={C.green} style={{ textDecorationLine: 'underline' }}>Open</Tx>
               </Pressable>
             </View>
