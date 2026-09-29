@@ -26,10 +26,12 @@ export const deviceInfo = (() => {
   }
 })();
 
-// 'iPhone 15 Pro · iOS 18.2', 'Pixel 8 · Android 15', 'Web · Chrome'
+// 'iPhone 15 Pro - iOS 18.2', 'Pixel 8 - Android 15', 'Web - Chrome'. ASCII only: it travels as an HTTP header, and the
+// dev tunnel rejects any request whose header has a non-ASCII character (e.g. '·'), which broke every API call.
+const ascii = t => String(t).replace(/[^\x20-\x7E]/g, '').replace(/\s+/g, ' ').trim();
 export const deviceString = (() => {
   const d = deviceInfo;
-  if (d.os === 'web') return 'Web · ' + (d.browser || 'Browser');
+  if (d.os === 'web') return ascii('Web - ' + (d.browser || 'Browser'));
   const os = d.os === 'ios' ? 'iOS' : d.os === 'android' ? 'Android' : d.os;
-  return [d.deviceModel || (d.os === 'ios' ? 'iPhone' : 'Android device'), [os, d.osVersion].filter(Boolean).join(' ')].join(' · ').slice(0, 80);
+  return ascii([d.deviceModel || (d.os === 'ios' ? 'iPhone' : 'Android device'), [os, d.osVersion].filter(Boolean).join(' ')].join(' - ')).slice(0, 80);
 })();
