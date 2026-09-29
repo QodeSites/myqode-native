@@ -32,7 +32,7 @@ import {
   QS, TYPES, FEES, RES,
 } from './data';
 import { irrPeriod, fmtIrr, irrLabel } from './irr';
-import { BASE_URL, auth, portfolio, meta, admin, notifications, backoffice, onAdminDenied, distributor, setViewToken, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
+import { BASE_URL, auth, portfolio, meta, admin, notifications, payments, backoffice, onAdminDenied, distributor, setViewToken, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
 import { trackStart, trackStop, screen, track, flush as trackFlush } from './api/track';
 import { perfFrom, navFrom, ddFrom, cashFrom, plFrom, combineFamily } from './webcalc';
 import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, ddPct, inr, sinr, fmtDate, fmtMonth, fmtDayMon, titleCase, semverLt, fmtD, fmtDM } from './adapt';
@@ -521,6 +521,7 @@ export default class MyQode extends React.Component {
   // Refresh button / return-to-foreground: refetch everything on screen.
   refresh = async () => {
     if (this.state.refreshing || this.state.phase !== 'app') return;
+    this.loadInFlight();
     const seq = this.seq;   // signOut bumps seq: a reply that lands after it must not write the old user's data back
     this.setState(s => ({ refreshing: true, rk: s.rk + 1 }));
     try {
@@ -886,6 +887,11 @@ export default class MyQode extends React.Component {
       if (this.state.phase === 'app' && !this.state.pushOffer && (await push.shouldOffer())) this.setState({ pushOffer: true });
     } finally { this.pushBusy = false; }
   };
+  // Payments received but not in the portfolio yet (Home's "On its way" card).
+  loadInFlight = async () => {
+    if (this.state.viewing || this.state.phase === 'admin' || this.state.phase === 'partner') return;   // called as the app opens, before phase flips to 'app'
+    try { const r = await payments.inFlight(); this.setState({ inFlight: (r && r.items) || [] }); } catch {}
+  };
   loadNotifs = async () => {
     if (this.state.phase !== 'app' || this.notesBusy) return;
     this.notesBusy = true;
@@ -933,7 +939,7 @@ export default class MyQode extends React.Component {
     services.bankDetails().catch(() => {});
     services.warmSwitchInfo();
     const sc = this.curScope(); if (sc && sc.accounts[0]) documents.warm(sc.accounts[0].id);   // Documents tab: category counts
-    this.loadNotifs(); this.pushSync();
+    this.loadNotifs(); this.pushSync(); this.loadInFlight();
     this.applyPendingTap();
     if (!first || this.state.viewing) return;
     this.resumePayment();
@@ -1234,6 +1240,7 @@ export default class MyQode extends React.Component {
       noteOpen: nt => this.onNoteTap(nt.link, nt.id),
       notesMarkAll: () => this.markNotes([], true), notesCanMark: this.ownSession(),
       openNotifSettings: () => { set({ sheet: null }); screen('page:notifications'); set({ page: 'notifications' }); },
+      inFlight: S.viewing ? [] : (S.inFlight || []), reloadInFlight: () => this.loadInFlight(),
       pushOffer: !!S.pushOffer && !S.viewing,
       pushOfferYes: async () => { set({ pushOffer: false }); const p = await push.ask(); track('event', 'notification_permission', { result: p, via: 'card' }); if (p === 'granted') this.pushSync(); },
       pushOfferNo: () => { set({ pushOffer: false }); push.snooze(); },

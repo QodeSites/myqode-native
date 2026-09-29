@@ -245,6 +245,11 @@ export const payments = {
   createOrder: guarded('creating a Cashfree payment order', body => api('/payments/create-order', { method: 'POST', body })),
   verify: orderId => call('/payments/verify', { query: { orderId } }, () => demo.verifyOrder(orderId)),
   investmentStatus: accountId => call('/payments/investment-status', { query: { accountId } }, () => demo.investmentStatus()),
+  // Received but not in the portfolio yet, with the dates it will be invested and become visible.
+  inFlight: () => call('/payments/in-flight', {}, () => {   // demo: one payment on its way (tomorrow invested, the day after visible)
+    const d = k => new Date(Date.now() + 330 * 60000 + k * 86400000).toISOString().slice(0, 10);
+    return { items: [{ orderId: 'order_demo_2001', accountId: 'QAW0412', strategy: 'Qode All Weather', amount: 500000, paidAt: new Date().toISOString(), deployOn: d(1), visibleOn: d(2), late: false }] };
+  }),
 };
 
 // Partner app: the fee periods, a period's fee rows and the market indicator are slow to build on the server

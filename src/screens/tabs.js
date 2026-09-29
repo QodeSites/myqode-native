@@ -8,6 +8,8 @@ import { NavChart, DrawdownChart, Donut } from './charts';
 import { UccNotice } from './ucc';
 import HoldingsList from './holdingsList';
 import { PushOfferCard } from './notifications';
+import { dayLabel } from './pay';
+import { inr } from '../adapt';
 
 const Label = ({ children, style }) => (
   <Tx w={700} s={11} ls={0.12} c={C.muted} style={[{ marginTop: 22, marginBottom: 10, marginLeft: 2 }, style]}>{children}</Tx>
@@ -95,6 +97,43 @@ export function OtherSkeleton() {
   );
 }
 
+// "On its way": money received but not in the portfolio yet (PMS data arrives a day after the markets, from Nuvama).
+export function InFlightCard({ V }) {
+  const list = V.inFlight || [];
+  if (!list.length) return null;
+  const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+  return (
+    <Card style={{ padding: 16, marginTop: 16, borderLeftWidth: 3, borderLeftColor: C.gold }}>
+      <Tx w={700} s={10.5} ls={0.12} c={C.muted}>ON ITS WAY</Tx>
+      {list.map((it, i) => {
+        const steps = [['Received', true, ''], ['Invested', today >= it.deployOn, dayLabel(it.deployOn)], ['In your portfolio', false, dayLabel(it.visibleOn)]];
+        return (
+          <View key={it.orderId} style={{ marginTop: 10, paddingTop: i ? 12 : 0, borderTopWidth: i ? 1 : 0, borderColor: C.hairline }}>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <Amt w={700} s={16}>{inr(it.amount, 0)}</Amt>
+              <Tx s={11.5} c={C.muted} numberOfLines={1} style={{ flexShrink: 1 }}>{it.strategy}</Tx>
+            </View>
+            <View style={{ flexDirection: 'row', marginTop: 10 }}>
+              {steps.map(([label, done, date], k) => (
+                <View key={label} style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: done ? C.green : 'transparent', borderWidth: 1.5, borderColor: done ? C.green : C.gold }} />
+                    {k < 2 && <View style={{ flex: 1, height: 1.5, backgroundColor: done ? C.green : C.hairline, marginHorizontal: 4 }} />}
+                  </View>
+                  <Tx w={700} s={11} style={{ marginTop: 6 }}>{label}</Tx>
+                  {!!date && <Tx s={10.5} c={C.muted}>{date}</Tx>}
+                </View>
+              ))}
+            </View>
+            {it.late && <Tx s={11} c={C.muted} lh={1.5} style={{ marginTop: 8 }}>This is taking longer than usual. It will appear once our custodian's data includes it; Investor Relations can help if you have questions.</Tx>}
+          </View>
+        );
+      })}
+      <Tx s={10.5} c={C.gray} lh={1.5} style={{ marginTop: 10 }}>Payments received before 4 pm on a working day are invested the next working day. Your portfolio shows them the working day after that.</Tx>
+    </Card>
+  );
+}
+
 export function HomeCream({ V }) {
   return (
     <Fade>
@@ -126,6 +165,7 @@ export function HomeCream({ V }) {
       </Card>
       <UccNotice visible={V.showUcc} onClose={V.dismissUcc} />
       <PushOfferCard V={V} />
+      <InFlightCard V={V} />
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
         {!V.viewing && <Action icon={<Plus />} label="Add funds" onPress={V.openAdd} primary />}
         {!V.viewing && <Action icon={<Swap />} label="Switch" onPress={V.openSwitchStrategy} />}

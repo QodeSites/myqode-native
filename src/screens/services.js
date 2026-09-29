@@ -474,7 +474,7 @@ function AddFunds({ V }) {
           </Pressable>
         ))}
       </View>
-      {mode === 'online' && <PayOnline V={V} recover={rec && rec.kind !== 'sip' ? rec : null} onDone={() => V.bumpRefresh && V.bumpRefresh()} />}
+      {mode === 'online' && <PayOnline V={V} recover={rec && rec.kind !== 'sip' ? rec : null} onDone={() => { if (V.bumpRefresh) V.bumpRefresh(); if (V.reloadInFlight) V.reloadInFlight(); }} />}
       {mode === 'sip' && <SetupSip V={V} recover={rec && rec.kind === 'sip' ? rec : null} onDone={() => V.bumpRefresh && V.bumpRefresh()} />}
       {mode === 'bank' && <>
       {bank.loading && !b && <View style={{ marginTop: 16 }}><Loading rows={2} h={56} /></View>}

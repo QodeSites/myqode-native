@@ -68,8 +68,11 @@ const MIN = 100, MAX = 500000;
 const fmt = v => inr(Number(v || 0));
 const Lbl = ({ children, style }) => <Tx w={700} s={10} ls={0.12} c={C.gray} style={[{ marginTop: 18 }, style]}>{children}</Tx>;
 
+// "Tue 30 Sep" from 'yyyy-mm-dd'
+const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const dayLabel = d => { const x = new Date(String(d).slice(0, 10) + 'T00:00:00Z'); return isNaN(x) ? '' : `${WD[x.getUTCDay()]} ${x.getUTCDate()} ${MO[x.getUTCMonth()]}`; };
 const RESULT = {
-  success: { title: 'Payment successful', text: 'Funds received. Units are allotted at the next applicable NAV, and the status appears under Online investments.' },
+  success: { title: 'Payment successful', text: 'Payment received. It is invested on the next working day and shows in your portfolio the working day after that.' },
   failed:  { title: 'Payment failed', text: 'The payment did not go through and nothing was charged. You can try again or use a bank transfer.' },
   pending: { title: 'Payment pending', text: 'We have not received a confirmation yet. If money was debited it will show under Online investments once the bank confirms, usually within a few minutes.' },
   cancelled: { title: 'Payment not completed', text: 'The payment window was closed before a payment was recorded. If you did pay, tap Check status. Nothing is charged twice.' },
@@ -187,7 +190,9 @@ export function PayOnline({ V, onDone, recover }) {
         </View>
         <Tx w={700} s={15} style={{ marginTop: 14 }}>{r.title}</Tx>
         {!!(v && v.amount) && <Amt s={20} style={{ marginTop: 6 }}>{fmt(v.amount)}</Amt>}
-        <Tx s={12.5} c={C.muted} lh={1.6} center style={{ marginTop: 8 }}>{r.text}</Tx>
+        <Tx s={12.5} c={C.muted} lh={1.6} center style={{ marginTop: 8 }}>{ok && v && v.timeline
+          ? `It will be invested on ${dayLabel(v.timeline.deployOn)} and show in your portfolio on ${dayLabel(v.timeline.visibleOn)}. PMS portfolios update a day after the markets, from our custodian's data.`
+          : r.text}</Tx>
         {!!st.detail && <Tx s={11.5} c={bad ? C.red : C.muted} lh={1.5} center style={{ marginTop: 8 }}>{st.detail}</Tx>}
         {v && v.payment && <Tx s={11} c={C.gray} center style={{ marginTop: 10 }}>{[v.payment.method && v.payment.method.toUpperCase(), v.payment.vpa || v.payment.bank, v.payment.reference && 'Ref ' + v.payment.reference].filter(Boolean).join(' · ')}</Tx>}
         {!!(st.order && st.order.orderId) && <Tx s={11} c={C.gray} style={{ marginTop: 4 }}>Order {st.order.orderId}</Tx>}
