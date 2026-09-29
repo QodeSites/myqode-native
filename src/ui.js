@@ -7,6 +7,7 @@ import {
   ScrollView, Dimensions, Keyboard, Platform, StyleSheet,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export const C = {
   ink: '#002017',
@@ -324,7 +325,7 @@ export function Hairline({ style }) {
 
 // ── Bottom sheet (native Modal) ──────────────────────────────────────────
 const wideWeb = () => Platform.OS === 'web' && Dimensions.get('window').width >= 1024;
-export function Sheet({ visible, onClose, children, maxH = 0.86 }) {
+export function Sheet({ visible, onClose, children, maxH = 0.86, dark = false }) {   // dark: the brand's green gradient (the bell)
   const { rm } = useUI();
   const H = Dimensions.get('window').height;
   const y = useRef(new Animated.Value(H)).current;
@@ -357,7 +358,7 @@ export function Sheet({ visible, onClose, children, maxH = 0.86 }) {
         </Animated.View>
         <Animated.View style={[{
           position: 'absolute', left: 0, right: 0, bottom: kb,
-          backgroundColor: C.card, borderTopLeftRadius: 16, borderTopRightRadius: 16,
+          backgroundColor: dark ? C.ink : C.card, borderTopLeftRadius: 16, borderTopRightRadius: 16, overflow: 'hidden',
           maxHeight: Math.max(220, H * maxH - kb), transform: [{ translateY: y }],
           shadowColor: C.ink, shadowOpacity: 0.3, shadowRadius: 16, shadowOffset: { width: 0, height: -8 }, elevation: 16,
         }, wideWeb() && {
@@ -365,8 +366,9 @@ export function Sheet({ visible, onClose, children, maxH = 0.86 }) {
           left: '50%', right: undefined, bottom: undefined, top: '7%', width: 560, marginLeft: -280,
           borderRadius: 14, maxHeight: H * 0.86, transform: [{ translateY: Animated.multiply(y, 0.15) }],
         }]}>
+          {dark && <LinearGradient colors={C.darkGrad} locations={[0, 0.62, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.35, y: 1 }} style={StyleSheet.absoluteFill} />}
           <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 2 }}>
-            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: C.mutedBorder }} />
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: dark ? C.cream40 : C.mutedBorder }} />
           </View>
           <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ paddingBottom: 24 }}>
             {children}
