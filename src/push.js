@@ -9,14 +9,17 @@
 //  - a tap that launched the app is read once the app is ready (getLastNotificationResponse), never lost.
 import { Platform, Linking } from 'react-native';
 import Constants from 'expo-constants';
-import * as Notifications from 'expo-notifications';
 import { services } from './api';
 import { storeGet, storeSet, storeDel } from './api/session';
 
 // Expo Go has no remote push since SDK 53 (on Android its push calls throw on start): everything here is off
 // there, as on the web. Development builds, TestFlight and store builds are unaffected.
+// Expo Go on Android crashes while merely LOADING expo-notifications (its module sets up a push-token listener as it
+// loads), so the library is required only outside Expo Go and never imported at the top of the file. Metro runs a
+// module's code on its first require(), so in Expo Go the library's code never runs at all.
 const expoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
 const native = (Platform.OS === 'ios' || Platform.OS === 'android') && !expoGo;
+const Notifications = native ? require('expo-notifications') : null;
 const TOKEN_KEY = 'myqode.pushToken';
 const ASKED_KEY = 'myqode.pushAskedAt';
 const projectId = () => (Constants.expoConfig && Constants.expoConfig.extra && Constants.expoConfig.extra.eas && Constants.expoConfig.extra.eas.projectId)
@@ -30,7 +33,7 @@ if (native) {
 }
 
 async function channel() {
-  if (Platform.OS !== 'android') return;
+  if (!Notifications || Platform.OS !== 'android') return;
   await Notifications.setNotificationChannelAsync('default', {
     name: 'Updates from Qode', importance: Notifications.AndroidImportance.HIGH, vibrationPattern: [0, 200, 120, 200], lightColor: '#DABD38',
   });
