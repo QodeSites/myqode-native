@@ -123,26 +123,54 @@ export async function buildReport(rep, sel) {
   const p = resolvePeriod(sel.period, sel.custom);
   const range = { from: p.from || undefined, to: p.to || undefined };
 
+  // A period with nothing in it gets a message, as P&L does, never an empty or zero PDF. When the period ends before the
+  // account's first transaction on record, the message says when the account started.
+  const startOf = async () => {
+    const first = await Promise.all(codes.map(id => rep.transactions(id, { group: 'all', limit: 1 }).then(d => d && d.coverage && d.coverage.from, () => null)));
+    return first.filter(Boolean).sort()[0] || null;
+  };
+  const nothing = async (what, start) => {
+    const s = start === undefined ? await startOf() : start;
+    const when = p.fy && (sel.period || '').match(/^(fy:|thisFy$|lastFy$)/) ? `FY ${p.fy}` : 'this period';
+    const began = s && p.to && p.to < s ? `${all ? 'These accounts' : 'This account'} started on ${niceIso(s)}. ` : '';
+    return new Error(`${began}No ${what} for ${when}.`);
+  };
+  const empty = d => !d || !(d.items || []).length;
+
   if (kind === 'transactions') {
     const q = { group: 'all', ...range };
-    if (all) { const r = await loadTransactionsAll(codes, id => rep.transactions(id, { ...q, ...X }), q); return { ...transactionsAllPdf(withRange(r, range), 'All'), periodText: p.label, note: failedNote(r) }; }
+    if (all) {
+      const r = await loadTransactionsAll(codes, id => rep.transactions(id, { ...q, ...X }), q);
+      if (empty(r) && !(r.failed || []).length) throw await nothing('transactions', r.coverage && r.coverage.from);
+      return { ...transactionsAllPdf(withRange(r, range), 'All'), periodText: p.label, note: failedNote(r) };
+    }
     const d = await rep.transactions(account, { ...q, ...X });
+    if (empty(d)) throw await nothing('transactions', d && d.coverage && d.coverage.from);
     return { ...transactionsPdf(withRange(d, range), account, 'All'), periodText: p.label, note: '' };
   }
   if (kind === 'expenses') {
-    if (all) { const r = await loadExpensesAll(codes, id => rep.expenses(id, { ...range, ...X }), range); return { ...expensesAllPdf(withRange(r, range)), periodText: p.label, note: failedNote(r) }; }
+    if (all) {
+      const r = await loadExpensesAll(codes, id => rep.expenses(id, { ...range, ...X }), range);
+      if (empty(r) && !(r.failed || []).length) throw await nothing('expenses');
+      return { ...expensesAllPdf(withRange(r, range)), periodText: p.label, note: failedNote(r) };
+    }
     const d = await rep.expenses(account, { ...range, ...X });
+    if (empty(d)) throw await nothing('expenses');
     return { ...expensesPdf(withRange(d, range), account), periodText: p.label, note: '' };
   }
   if (kind === 'capitalGains') {
     // By financial year (Nuvama's statement), or by sale date for a range. "All time": every sale on record.
     const byFy = !!p.fy && (sel.period || '').startsWith('fy:');
     const q = byFy ? { fy: p.fy } : { from: p.from || '2000-01-01', to: p.to || undefined };
+    // Asked for a year with no sales, the server answers with the latest year that has some; that is not this year.
+    const onlyFy = d => (byFy && d && d.fy !== p.fy ? { ...d, fy: p.fy, summary: null, items: [] } : d);
     if (all) {
-      const r = await loadCapitalGainsAll(codes, (id, o) => rep.capitalGains(id, { ...(byFy ? o : q), ...X }), q);
+      const r = await loadCapitalGainsAll(codes, (id, o) => rep.capitalGains(id, { ...(byFy ? o : q), ...X }).then(onlyFy), q);
+      if (empty(r) && !(r.failed || []).length) throw await nothing('capital gains');
       return { ...capitalGainsAllPdf(byFy ? r : withRange(r, q)), periodText: p.label, note: failedNote(r) };
     }
-    const d = await rep.capitalGains(account, { ...q, ...X });
+    const d = onlyFy(await rep.capitalGains(account, { ...q, ...X }));
+    if (empty(d)) throw await nothing('capital gains');
     return { ...capitalGainsPdf(byFy ? d : withRange(d, q), account), periodText: p.label, note: '' };
   }
   if (kind === 'pnl') {

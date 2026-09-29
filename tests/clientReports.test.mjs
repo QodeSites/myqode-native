@@ -34,7 +34,7 @@ const txn = id => ({ accountId: id, asOf: TODAY, holder: { name: 'X' }, items: [
 const rep = {
   transactions: async (id, q) => { calls.push(['transactions', id, q]); return txn(id); },
   expenses: async (id, q) => { calls.push(['expenses', id, q]); return { accountId: id, asOf: TODAY, paid: 1, payable: 0, byType: [{ type: 'Fee', amount: 1, count: 1 }], items: [{ date: '2026-09-01', type: 'Fee', amount: 1, status: 'paid' }], period: { from: '2026-04-01', to: TODAY } }; },
-  capitalGains: async (id, q) => { calls.push(['capitalGains', id, q]); return { accountId: id, asOf: TODAY, fy: q.fy || null, years: [{ fy: '2026-27', st: 1, lt: 0, total: 1, lots: 1 }], summary: { st: 1, lt: 0, ltTaxable: 0, total: 1, byCategory: [] }, items: [] }; },
+  capitalGains: async (id, q) => { calls.push(['capitalGains', id, q]); return { accountId: id, asOf: TODAY, fy: q.fy || null, years: [{ fy: '2026-27', st: 1, lt: 0, total: 1, lots: 1 }], summary: { st: 1, lt: 0, ltTaxable: 0, total: 1, byCategory: [] }, items: [{ saleDate: '2025-06-01', security: 'A', category: 'Equity', qty: 1, saleAmount: 2, cost: 1, gain: 1, term: 'ST' }] }; },
   factsheet: async (id, q) => { calls.push(['factsheet', id, q]); return { accountId: id, asOf: TODAY, dates: [TODAY], contribution: 1, withdrawal: 0, profitLoss: 1, portfolioValue: 2, returns: { periods: [], portfolio: [], benchmark: { name: 'B', values: [] } }, sectors: [], holdings: [] }; },
   pnl: async (ids, q) => { calls.push(['pnl', ids, q]); return null; },
 };
@@ -52,4 +52,24 @@ test('buildReport asks with export=1 and builds single and combined PDFs', async
   assert.match(fs.html, /Fact Sheet/);
   assert.deepEqual(calls.at(-1)[2], { date: '2026-06-30', export: 1 });
   await assert.rejects(buildReport(rep, { kind: 'pnl', account: 'QAW1', ids: ['QAW1'], period: 'thisFy' }), /No profit and loss/);
+});
+
+// An account that started on 16 Jul 2026 with sales only in FY 2026-27. Like the server, capital gains answers a year
+// with no sales with the latest year that has some, and transactions / expenses answer an empty period with no items.
+const START = '2026-07-16';
+const late = {
+  transactions: async (id, q) => ({ accountId: id, asOf: TODAY, coverage: { from: START, to: TODAY }, items: q.to && q.to < START ? [] : [{ id: 1, date: '2026-08-01', type: 'Buy', security: 'A', amount: 10, direction: 'out' }], summary: [], moneyIn: 0, moneyOut: 0 }),
+  expenses: async (id, q) => ({ accountId: id, asOf: TODAY, paid: 0, payable: 0, byType: [], items: q.to && q.to < START ? [] : [{ date: '2026-08-01', type: 'Fee', amount: 1, status: 'paid' }], period: { from: START, to: TODAY } }),
+  capitalGains: async (id, q) => ({ accountId: id, asOf: TODAY, fy: '2026-27', years: [{ fy: '2026-27', st: 1, lt: 0, total: 1, lots: 1 }], summary: { st: 1, lt: 0, ltTaxable: 0, total: 1, byCategory: [] }, items: [{ saleDate: '2026-08-10', security: 'A', category: 'Equity', qty: 1, saleAmount: 2, cost: 1, gain: 1, term: 'ST' }] }),
+};
+
+test('a period before the account started, or with nothing in it, is refused with a message', async () => {
+  const sel = { account: 'QAW1', ids: ['QAW1'] };
+  await assert.rejects(buildReport(late, { ...sel, kind: 'capitalGains', period: 'fy:2024-25' }), { message: 'This account started on 16 Jul 2026. No capital gains for FY 2024-25.' });
+  await assert.rejects(buildReport(late, { ...sel, kind: 'capitalGains', account: ALL_ID, ids: ['QAW1', 'QGF1'], period: 'fy:2024-25' }), { message: 'These accounts started on 16 Jul 2026. No capital gains for FY 2024-25.' });
+  await assert.rejects(buildReport(late, { ...sel, kind: 'transactions', period: 'custom', custom: { from: '2025-01-01', to: '2025-03-31' } }), { message: 'This account started on 16 Jul 2026. No transactions for this period.' });
+  await assert.rejects(buildReport(late, { ...sel, kind: 'expenses', period: 'custom', custom: { from: '2025-01-01', to: '2025-03-31' } }), { message: 'This account started on 16 Jul 2026. No expenses for this period.' });
+  const ok = await buildReport(late, { ...sel, kind: 'capitalGains', period: 'fy:2026-27' });
+  assert.match(ok.html, /2026-27/);
+  assert.match((await buildReport(late, { ...sel, kind: 'transactions', period: 'thisFy' })).html, /Transaction Statement/);
 });
