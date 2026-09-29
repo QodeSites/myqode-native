@@ -319,7 +319,7 @@ export default class MyQode extends React.Component {
     await minSplash;
     if (this.unmounted || this.state.phase !== 'splash') return;
     if (offline) { this.setState({ phase: 'lock', lockOffline: true, lockErr: '', lockGone: false, lockBusy: false }); return; }
-    if (ok && adminOn) this.setState({ phase: 'admin' }, () => this.pushSync());
+    if (ok && adminOn) this.setState({ phase: 'admin' }, () => { this.pushSync(); this.applyPendingTap(); });
     else if (ok && partner) this.setState({ phase: 'partner' });
     // Desktop web: the brand panel next to the form already introduces the app, so sign-in comes first.
     else if (ok) this.startApp(); else this.setState({ phase: this.props.desktop ? 'login' : 'carousel' });
@@ -567,7 +567,7 @@ export default class MyQode extends React.Component {
     if (!isAdmin && user && user.isSuperAdmin) { try { const me = await auth.me(); isAdmin = !!(me && me.isAdmin); if (isAdmin) user = { ...user, ...me }; } catch {} }
     if (isAdmin) {
       this.adminUser = user;
-      this.setState({ user, busy: false, pw: '', np: '', np2: '', otp: ['', '', '', '', '', ''], authErr: '', phase: 'admin', adm: null }, () => this.pushSync());
+      this.setState({ user, busy: false, pw: '', np: '', np2: '', otp: ['', '', '', '', '', ''], authErr: '', phase: 'admin', adm: null }, () => { this.pushSync(); this.applyPendingTap(); });
       return;
     }
     if (user && user.isDistributor) {
@@ -898,14 +898,21 @@ export default class MyQode extends React.Component {
     push.setBadge(unread);
     notifications.read(all ? { all: true } : { ids }).then(r => { if (r && typeof r.unread === 'number') push.setBadge(r.unread); }).catch(() => {});
   };
+  // A tap on a notification (popup or inbox). A web link opens straight away in any mode. In admin mode it opens
+  // the admin Notifications tab (there is no investor screen to go to); while admin views a client it goes to the
+  // screen in that client's view, read-only (their notification is not marked read). A tap that launched the app
+  // waits in pendingTap until the app or the admin console is ready.
   onNoteTap = (link, id) => {
-    if (this.state.phase !== 'app') { this.pendingTap = { link, id }; return; }   // opened from a popup before sign-in finished
-    if (this.state.viewing || (this.state.user && this.state.user.isImpersonated)) return;
-    if (id) this.markNotes([id]);
+    if (/^url:https:\/\//i.test(String(link || ''))) { if (this.ownSession() && id) this.markNotes([id]); openLink(this.vals(), link); return; }
+    const { phase } = this.state;
+    if (phase === 'admin') { this.setState(s => ({ sheet: null, adm: { ...(s.adm || {}), tab: 'notifications', email: null } })); return; }
+    if (phase !== 'app') { this.pendingTap = { link, id }; return; }   // before sign-in finished
+    if (id && this.ownSession()) this.markNotes([id]);
     this.setState({ sheet: null });
     openLink(this.vals(), link);
     this.loadNotifs();
   };
+  applyPendingTap = () => { if (this.pendingTap) { const t = this.pendingTap; this.pendingTap = null; setTimeout(() => this.onNoteTap(t.link, t.id), 600); } };
 
   startApp = () => {
     const first = !this.counted; this.counted = true;
@@ -916,7 +923,7 @@ export default class MyQode extends React.Component {
     services.warmSwitchInfo();
     const sc = this.curScope(); if (sc && sc.accounts[0]) documents.warm(sc.accounts[0].id);   // Documents tab: category counts
     this.loadNotifs(); this.pushSync();
-    if (this.pendingTap) { const t = this.pendingTap; this.pendingTap = null; setTimeout(() => this.onNoteTap(t.link, t.id), 600); }
+    this.applyPendingTap();
     if (!first || this.state.viewing) return;
     this.resumePayment();
     const t0 = Date.now(), D = 400;
