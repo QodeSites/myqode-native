@@ -15,7 +15,9 @@ let unauthorizedHandler = null;
 export const onUnauthorized = fn => { unauthorizedHandler = fn; };
 
 // base: the route prefix — '/api/mobile' for the app's own API, '/api/admin/bo' for the backoffice (adminApi).
-export async function api(path, { method = 'GET', query, body, auth = true, timeout = 25000, base = '/api/mobile' } = {}) {
+// token: send this Bearer token for this one call instead of the session's (e.g. a distributor's short-lived read-only
+// view token for one investor, see clientReports in ./index.js). A 401 on it never signs the session out.
+export async function api(path, { method = 'GET', query, body, auth = true, timeout = 25000, base = '/api/mobile', token: tokenOverride } = {}) {
   // Viewing an investor's account as their partner is read-only (the server refuses it too).
   if (auth && method !== 'GET' && hasViewToken()) throw new ApiError('You are viewing this account. Changes are not available.', { status: 403, code: 'VIEW_ONLY' });
   let url = BASE_URL + base + path;
@@ -30,7 +32,7 @@ export async function api(path, { method = 'GET', query, body, auth = true, time
   if (body) headers['Content-Type'] = 'application/json';
   let token = null;
   if (auth) {
-    token = await getToken();
+    token = tokenOverride || await getToken();
     if (token) headers.Authorization = 'Bearer ' + token;
   }
   const ctl = new AbortController();
@@ -48,7 +50,7 @@ export async function api(path, { method = 'GET', query, body, auth = true, time
   if (!res.ok) {
     // Only a 401 for the token still in use counts: a late reply for an expired view/impersonation token must not
     // sign out the session that replaced it.
-    if (res.status === 401 && auth && token && unauthorizedHandler && token === await getToken()) unauthorizedHandler();
+    if (res.status === 401 && auth && token && !tokenOverride && unauthorizedHandler && token === await getToken()) unauthorizedHandler();
     throw new ApiError((data && data.error) || `Something went wrong (${res.status}).`, { status: res.status, code: data && data.code, data });
   }
   return data;

@@ -1,42 +1,35 @@
-// Desktop Account section: the phone's More tab (src/screens/more.js) as a settings page. Left column: profile,
-// security and display preferences, admin tools and the session. Right column: Investor Relations contact and the
-// menu groups as compact link lists. Same V and the same handlers as the phone.
+// Desktop "Profile and settings" (the sidebar's user card; address /app/account): the phone's profile and settings
+// from src/screens/more.js as a page. Left column: profile, security and display preferences, admin tools and the
+// session. Right column: help (a link to Investor Relations on Your Team at Qode) and the legal pages. The investor
+// menu itself is in the sidebar (NAV_GROUPS, src/nav.js). Same V and the same handlers as the phone.
 import React from 'react';
-import { View, Pressable, Linking } from 'react-native';
-import { C, Tx, Card, Grid, Row, PageIntro, Panel, Btn, Chips, Pill } from './kit';
-import { ChevronRight, Phone, MailIcon } from '../icons';
-import { CONTACT } from '../content';
+import { View, Pressable } from 'react-native';
+import { C, Tx, Card, Row, PageIntro, Panel, Btn, Chips, Pill } from './kit';
+import { ChevronRight } from '../icons';
 import { initials } from '../adapt';
-
-// Same groups and page keys as GROUPS in src/screens/more.js (keys resolve in PAGES, src/screens/pages.js). Order
-// here is for the two-column layout: each pair of lists sits side by side.
-const GROUPS = [
-  { title: 'Experience', items: [['Reports', 'reports', 'Statements, capital gains and fact sheets'], ['Family accounts', 'family', 'Accounts in your family group'], ['Your details on Nuvama', 'nuvama', 'UCC, registered contact and bank'], ['Investor portal guide', 'guide', 'Videos and walkthroughs'], ['Service cadence', 'cadence', 'Reports and reviews you can expect']] },
-  { title: 'About Qode', items: [['Qode philosophy', 'philosophy'], ['Strategy snapshot', 'strategies'], ['Note from our fund managers', 'foundation'], ['Your team at Qode', 'team']] },
-  { title: 'Trust', items: [['FAQ and glossary', 'faq'], ['Risk management', 'risk'], ['Grievance redressal', 'grievance']] },
-  { title: 'Support and legal', items: [['Contact us', 'contact'], ['Privacy policy', 'privacy'], ['Terms and conditions', 'terms']] },
-];
-const ENGAGEMENT = { title: 'Engagement', items: [['Insights', 'insights', 'Newsletters, perspectives and events'], ['Referral programme', 'referral', 'Introduce someone to Qode']] };
-
-const go = url => Linking.openURL(url).catch(() => {});
+import { LEGAL_LINKS } from '../nav';
+import { ContactIRLink } from './contact';
 
 export default function DesktopAccount({ V }) {
   return (
     <View style={{ gap: 20 }}>
-      <PageIntro sub="Your profile, security and display preferences, and everything about investing with Qode." />
+      <PageIntro sub="Your profile, security and display preferences." />
       <Row top>
-        <View style={{ flex: 1, minWidth: 0, gap: 20 }}>
+        <View style={{ flex: 1.35, minWidth: 0, gap: 20 }}>
           <Profile V={V} />
           <Preferences V={V} />
           {(V.isSuperAdmin || V.impersonated) && <Admin V={V} />}
           <Session V={V} />
         </View>
-        <View style={{ flex: 1.35, minWidth: 0 }}>
-          <Grid min={280} gap={20}>
-            <Contact />
-            <LinkList g={ENGAGEMENT} V={V} />
-            {GROUPS.map(g => <LinkList key={g.title} g={g} V={V} />)}
-          </Grid>
+        <View style={{ flex: 1, minWidth: 0, gap: 20 }}>
+          <Panel title="Need help?" sub="Questions about your account, reports or a request">
+            <ContactIRLink V={V} />
+          </Panel>
+          <Panel title="Legal" pad={0}>
+            <View style={{ borderTopWidth: 1, borderColor: C.line }}>
+              {LEGAL_LINKS.map(([key, label], i) => <ListRow key={key} first={i === 0} label={label} onPress={() => V.openPage(key)} />)}
+            </View>
+          </Panel>
         </View>
       </Row>
     </View>
@@ -171,30 +164,5 @@ function ListRow({ icon, label, sub, value, onPress, first }) {
         </>
       )}
     </Pressable>
-  );
-}
-
-function LinkList({ g, V }) {
-  return (
-    <Panel title={g.title} pad={0} style={{ flex: 1 }}>
-      <View style={{ borderTopWidth: 1, borderColor: C.line }}>
-        {g.items.map(([label, key, sub], i) => <ListRow key={key} first={i === 0} label={label} sub={sub} onPress={() => V.openPage(key)} />)}
-      </View>
-    </Panel>
-  );
-}
-
-function Contact() {
-  const phone = CONTACT.phones[0], mail = CONTACT.emails[0];
-  const ico = Icon => (
-    <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: C.greenTint, alignItems: 'center', justifyContent: 'center' }}><Icon s={15} c={C.green} /></View>
-  );
-  return (
-    <Panel title={mail ? mail.label : 'Investor Relations'} sub={CONTACT.hours[0] || 'We are here to help'} pad={0} style={{ flex: 1 }}>
-      <View style={{ borderTopWidth: 1, borderColor: C.line }}>
-        {!!phone && <ListRow first icon={ico(Phone)} label={phone.number} sub="Call" onPress={() => go('tel:' + String(phone.number).replace(/[^\d+]/g, ''))} />}
-        {!!mail && <ListRow first={!phone} icon={ico(MailIcon)} label={mail.address} sub="Email" onPress={() => go('mailto:' + mail.address)} />}
-      </View>
-    </Panel>
   );
 }

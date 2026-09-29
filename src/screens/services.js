@@ -6,14 +6,15 @@ import * as Clipboard from 'expo-clipboard';
 import { C, Tx, Amt, Card, Sheet, Field, CTA, Fade } from '../ui';
 import { Plus, ChevronRight, ChevronDown, Copy, Check } from '../icons';
 import { services, payments, documents, isDemo } from '../api';
-import { titleCase, inr, fmtD } from '../adapt';
+import { titleCase, inr, fmtDate, fmtD } from '../adapt';
 import { useLoad, SectionLabel, AccountChips, Loading, ErrorBox } from './kit';
 import { PayOnline } from './pay';
 import { clean, check, LIMITS } from '../validate';
 import { SetupSip } from './sip';
 import { SwitchForm } from './switch';
+import { ContactIRLink } from './contact';
 
-const STRATS = [['QAW', 'All Weather'], ['QTF', 'Tactical'], ['QGF', 'Growth']];
+const STRATS = [['QAW', 'Qode All Weather'], ['QTF', 'Qode Tactical Fund'], ['QGF', 'Qode Growth Fund']];
 
 // Withdrawals are deliberately not offered in the app (Investor Relations handles them); the API route stays.
 // Add funds is the big card above this list, so it is not repeated here.
@@ -38,8 +39,6 @@ export function accountRequest(user) {
 export function ServicesCream({ V }) {
   // Activity lives in one place with a switch, instead of three sections stacked under each other:
   // ONLINE & SIPs (Razorpay orders + SIP mandates, per account) | TRANSACTIONS (every cash movement).
-  const [view, setView] = useState(V.svcJump && Date.now() - V.svcJump < 2000 ? 'cash' : 'online');
-  useEffect(() => { if (V.svcJump && Date.now() - V.svcJump < 2000) setView('cash'); }, [V.svcJump]);   // Home → Transactions → View all
   const opts = V.acctOptions;
   const [sel, setSel] = useState(null);
   const accountId = sel && opts.some(o => o.id === sel) ? sel : opts[0] && opts[0].id;
@@ -74,12 +73,13 @@ export function ServicesCream({ V }) {
           </Pressable>
         ))}
       </Card>
+      <ContactIRLink V={V} style={{ marginTop: 8, marginLeft: 2 }} />
 
-      <SectionLabel>ACTIVITY</SectionLabel>
-      <Segment value={view} onPick={setView} options={[['online', 'ONLINE & SIPs · ' + n(all.length)], ['cash', 'TRANSACTIONS · ' + V.txAll.length]]} />
-      {view === 'online'
-        ? <Investments V={V} opts={opts} accountId={accountId} onPickAccount={setSel} inv={inv} all={all} />
-        : <CashList V={V} />}
+      <SectionLabel>ONLINE PAYMENTS AND SIPs</SectionLabel>
+      <Investments V={V} opts={opts} accountId={accountId} onPickAccount={setSel} inv={inv} all={all} />
+      <Pressable onPress={V.goServicesTx} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, marginLeft: 2 }}>
+        <Tx w={700} s={11.5} c={C.green}>Bank transfers and redemptions are under Transactions</Tx><ChevronRight />
+      </Pressable>
       <Tx s={11} c={C.gray} style={{ marginTop: 14, marginLeft: 2 }}>As of {V.asOf}</Tx>
     </Fade>
   );
@@ -99,8 +99,8 @@ function Segment({ value, onPick, options }) {
 }
 
 // Transactions — contributions & withdrawals (bank transfers, redemptions): first few rows, then "show all".
-function CashList({ V }) {
-  const [showAll, setShowAll] = useState(false);
+export function CashList({ V, full }) {
+  const [showAll, setShowAll] = useState(!!full);
   const rows = showAll ? V.txAll : V.txAll.slice(0, 5);
   const foldable = V.txAll.length > 5;
   if (!V.hasTx) {
@@ -139,7 +139,7 @@ function Investments({ V, opts, accountId, onPickAccount, inv, all }) {
   const items = all
     .filter(it => kind === 'all' || (kind === 'sip') === (it.paymentType === 'SIP'))
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-  const when = iso => { const d = new Date(iso); return isNaN(d) ? '' : fmtD(d) + ', ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }); };
+  const when = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\bSept\b/, 'Sep'); };
   const counts = { all: all.length, 'one-time': all.filter(i => i.paymentType !== 'SIP').length, sip: all.filter(i => i.paymentType === 'SIP').length };
   const isOpen = it => (it.orderId in open ? open[it.orderId] : !it.isTerminal);
 

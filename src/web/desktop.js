@@ -6,44 +6,42 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, ScrollView, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Wordmark } from '../ui';
-import { Refresh, Bell, ChevronDown, ChevronLeft, FamilyIcon, TabHome, TabPortfolio, TabDocs, TabServices, TabMore, Bars, Plus, Swap } from '../icons';
-import { NavChart, DrawdownChart, Donut } from '../screens/charts';
+import { Refresh, Bell, ChevronDown, ChevronLeft, ChevronRight, FamilyIcon, GroupIcon, Bars, Plus, Swap } from '../icons';
+import { NavChart, DrawdownChart, Donut, GUTTER } from '../screens/charts';
 import { RequestSheets } from '../screens/services';
 import { PAGES } from '../screens/pages';
 import { DESKTOP_PAGES } from './pages';
 import { SwitchSheet, SettingsSheet, NotifsSheet } from '../screens/sheets';
 import { UccNotice } from '../screens/ucc';
 import { ddPct, pct, inr } from '../adapt';
-import { C, Tx, Amt, Card, Row, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, Btn, PageIntro, Chips, Tabs, Delta, BarList, KeyVals, sentence } from './kit';
+import { C, Tx, Amt, Card, Row, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, Btn, PageIntro, Chips, Tabs, Delta, BarList, KeyVals, sentence, FitAmt } from './kit';
 import { NuvamaDetails } from './nuvama';
+import DesktopHoldings from './holdings';
 import DesktopReports from './reports';
 import DesktopDocuments from './documents';
 import DesktopServices from './services';
 import DesktopAccount from './account';
+import { NAV_GROUPS, PAGE_ALIASES, groupOf, navItem, openItem, visibleItems } from '../nav';
 
-const NAV = [
-  { key: 'home', label: 'Overview', Icon: TabHome, go: V => V.goHome() },
-  { key: 'portfolio', label: 'Performance', Icon: TabPortfolio, go: V => V.goPortfolio() },
-  { key: 'holdings', label: 'Holdings', Icon: TabPortfolio, go: V => V.segHold() },
-  { key: 'reports', label: 'Reports', Icon: ({ c }) => <Bars s={20} c={c} />, go: V => V.openPage('reports') },
-  { key: 'docs', label: 'Documents', Icon: TabDocs, go: V => V.goDocs() },
-  { key: 'services', label: 'Services', Icon: TabServices, go: V => V.goServices() },
-  { key: 'more', label: 'Account', Icon: TabMore, go: V => V.goMore() },
-];
-const TITLES = { home: 'Overview', portfolio: 'Performance', holdings: 'Holdings', reports: 'Reports', docs: 'Documents', services: 'Services', more: 'Account' };
+// Tabs of state.tab and their web titles and addresses. Pages (PAGES / DESKTOP_PAGES keys) use their own key as the
+// address. The sidebar menu itself is NAV_GROUPS in src/nav.js, shared with the phone's More tab.
+const TITLES = { home: 'Overview', portfolio: 'Performance', holdings: 'Holdings', reports: 'Reports', docs: 'Client Document Vault', services: 'Account Services', more: 'Profile and Settings' };
 
 // Clean URLs for the web: /app/overview, /app/performance, /app/family … Each section and page has its own address,
 // so a link, a refresh or the browser's Back button lands where the client expects.
-const SLUGS = { home: 'overview', portfolio: 'performance', holdings: 'holdings', docs: 'documents', services: 'services', more: 'account' };
+const SLUGS = { home: 'overview', portfolio: 'performance', holdings: 'holdings', reports: 'reports', docs: 'documents', services: 'services', more: 'account' };
+const TAB_GO = { home: V => V.goHome(), portfolio: V => V.goPortfolio(), holdings: V => V.segHold(), docs: V => V.goDocs(), services: V => V.goServices(), more: V => V.goMore() };
 const BASE = '/app';
 const pathFor = (tab, page) => BASE + '/' + (page || SLUGS[tab] || 'overview');
 const slugOf = () => (typeof location === 'undefined' ? '' : location.pathname.replace(/^\/app\/?/, '').replace(/\/+$/, ''));
-// Point the app at a slug. Returns false when the slug is unknown (404).
+// Point the app at a slug. Returns the canonical slug it opened (an old alias such as "contact" opens "team"), or
+// false when the slug is unknown (404).
 function openSlug(V, slug) {
-  if (!slug) { V.goHome(); return true; }
-  const n = NAV.find(x => SLUGS[x.key] === slug);
-  if (n) { if (V.page) V.closePage(); n.go(V); return true; }
-  if (DESKTOP_PAGES[slug] || PAGES[slug]) { V.openPage(slug); return true; }
+  if (!slug) { V.goHome(); return 'overview'; }
+  slug = PAGE_ALIASES[slug] || slug;
+  const tab = Object.keys(SLUGS).find(k => SLUGS[k] === slug && TAB_GO[k]);
+  if (tab) { if (V.page) V.closePage(); TAB_GO[tab](V); return slug; }
+  if (DESKTOP_PAGES[slug] || PAGES[slug]) { V.openPage(slug); return slug; }
   return false;
 }
 
@@ -52,17 +50,20 @@ function useUrlSync(V, active, page, title, setMissing) {
   const web = typeof window !== 'undefined' && typeof history !== 'undefined';
   useEffect(() => {
     if (!web) return undefined;
+    // An alias keeps working but the address bar shows the page's own address, without a history entry.
+    const land = slug => { const canon = openSlug(V, slug); if (canon && slug && canon !== slug) history.replaceState(null, '', BASE + '/' + canon); return canon; };
     const slug = slugOf();
-    if (slug && !openSlug(V, slug)) { miss.current = true; setMissing(slug); }
-    else if (slug) pending.current = BASE + '/' + slug;
-    const onPop = () => { setMissing(null); if (!openSlug(V, slugOf())) setMissing(slugOf()); };
+    const canon = slug ? land(slug) : null;
+    if (slug && !canon) { miss.current = true; setMissing(slug); }
+    else if (slug) pending.current = BASE + '/' + canon;
+    const onPop = () => { setMissing(null); if (!land(slugOf())) setMissing(slugOf()); };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
   useEffect(() => {
     if (!web) return;
     if (miss.current) { miss.current = false; return; }   // keep the unknown address in the bar on a 404
-    const want = pathFor(active === 'reports' ? null : V.tab, page);
+    const want = pathFor(active === 'reports' ? 'reports' : V.tab, page);
     if (pending.current) { if (want !== pending.current) return; pending.current = null; }
     if (location.pathname !== want && !/^\/app\/?$/.test(location.pathname)) history.pushState(null, '', want);
     else if (location.pathname !== want) history.replaceState(null, '', want);
@@ -71,55 +72,79 @@ function useUrlSync(V, active, page, title, setMissing) {
 }
 
 /* ── frame ──────────────────────────────────────────────────────────────────────────────────────────────── */
-const GROUPS = [['Portfolio', ['home', 'portfolio', 'holdings']], ['Statements', ['reports', 'docs']], ['Manage', ['services', 'more']]];
 const initials = n => String(n || '').replace(/^(mr|mrs|ms|dr)\.?\s+/i, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+const CREAM = a => 'rgba(239,236,211,' + a + ')';
 
-function Sidebar({ V, active, onNav }) {
+// The old myQode portal's menu: five groups with serif headings, opened one at a time (an accordion). The group
+// holding the current page opens by itself. Profile and settings sit behind the user card at the bottom.
+function Sidebar({ V, activeId, onNav }) {
   const name = (V.user && V.user.name) || '';
-  const go = n => { onNav(); if (V.page && n.key !== 'reports') V.closePage(); n.go(V); };
+  const cur = groupOf(activeId);
+  const [openKey, setOpenKey] = useState(cur ? cur.key : NAV_GROUPS[0].key);
+  useEffect(() => { if (cur) setOpenKey(cur.key); }, [cur && cur.key]);
+  const pick = it => { onNav(); openItem(V, it); };
+  const acctOn = activeId === 'account';
   return (
-    <LinearGradient colors={['#02422B', '#002017', '#000000']} locations={[0, 0.6, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.4, y: 1 }} style={{ width: 248, paddingTop: 22, paddingBottom: 16 }}>
+    <LinearGradient colors={['#02422B', '#002017', '#000000']} locations={[0, 0.6, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.4, y: 1 }} style={{ width: 264, paddingTop: 22, paddingBottom: 16 }}>
       <View style={{ paddingHorizontal: 22, flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
         <Wordmark s={28} c={C.cream} />
       </View>
-      <Tx s={11.5} c="rgba(239,236,211,0.55)" style={{ paddingHorizontal: 22, marginTop: 2 }}>Qode Advisors LLP · PMS</Tx>
+      <Tx s={11.5} c={CREAM(0.55)} style={{ paddingHorizontal: 22, marginTop: 2 }}>Qode Advisors LLP · PMS</Tx>
       <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 12, marginLeft: 22 }} />
-      <View style={{ marginTop: 18, paddingHorizontal: 12, gap: 14 }}>
-        {GROUPS.map(([g, keys]) => (
-          <View key={g}>
-            <Tx w={600} s={11.5} c="rgba(239,236,211,0.45)" style={{ paddingHorizontal: 10, marginBottom: 4 }}>{g}</Tx>
-            {keys.filter(k => !(V.viewing && k === 'services')).map(k => NAV.find(n => n.key === k)).map(n => {
-              const on = active === n.key;
-              return (
-                <Pressable key={n.key} accessibilityRole="link" accessibilityState={{ selected: on }} onPress={() => go(n)} style={({ hovered }) => ({
-                  flexDirection: 'row', alignItems: 'center', gap: 11, height: 38, paddingHorizontal: 10, borderRadius: 8,
-                  backgroundColor: on ? 'rgba(218,189,56,0.14)' : hovered ? 'rgba(239,236,211,0.06)' : 'transparent',
-                })}>
-                  <n.Icon c={on ? C.gold : 'rgba(239,236,211,0.65)'} s={18} />
-                  <Tx w={on ? 600 : 400} s={14} c={on ? C.gold : 'rgba(239,236,211,0.82)'}>{n.label}</Tx>
-                  {on && <View style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: 3, backgroundColor: C.gold }} />}
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
-      </View>
-      <View style={{ flex: 1 }} />
+      <ScrollView style={{ flex: 1, marginTop: 14 }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 12, gap: 4 }}>
+        {NAV_GROUPS.map(g => {
+          const open = openKey === g.key, has = !!cur && cur.key === g.key;
+          const items = visibleItems(g, V);
+          return (
+            <View key={g.key} accessibilityRole="navigation" aria-label={g.title}>
+              <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpenKey(open ? null : g.key)} style={({ hovered }) => ({
+                flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 42, paddingHorizontal: 10, borderRadius: 8,
+                backgroundColor: hovered ? CREAM(0.06) : 'transparent',
+              })}>
+                <GroupIcon name={g.icon} s={18} c={has ? C.gold : CREAM(0.7)} />
+                <Tx f="play" w={600} s={15.5} c={has ? C.gold : C.cream} style={{ flex: 1 }} numberOfLines={1}>{g.title}</Tx>
+                <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}><ChevronDown s={10} c={CREAM(0.55)} /></View>
+              </Pressable>
+              {open && (
+                <View style={{ marginLeft: 19, paddingLeft: 10, borderLeftWidth: 1, borderColor: CREAM(0.14), marginBottom: 6 }}>
+                  {items.map(it => {
+                    const on = activeId === it.id;
+                    return (
+                      <Pressable key={it.id} accessibilityRole="link" accessibilityState={{ selected: on }} onPress={() => pick(it)} style={({ hovered }) => ({
+                        flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 34, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8,
+                        backgroundColor: on ? 'rgba(218,189,56,0.14)' : hovered ? CREAM(0.06) : 'transparent',
+                      })}>
+                        <Tx w={on ? 600 : 400} s={13.5} c={on ? C.gold : CREAM(0.82)} style={{ flex: 1 }}>{it.label}</Tx>
+                        {on && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.gold }} />}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </ScrollView>
       {V.testMode && (
         <View style={{ marginHorizontal: 22, marginBottom: 12, backgroundColor: C.redTint, borderRadius: 6, paddingVertical: 5, alignItems: 'center' }}>
           <Tx w={600} s={11.5} c={C.red}>Test mode</Tx>
         </View>
       )}
-      <View style={{ marginHorizontal: 12, borderTopWidth: 1, borderColor: 'rgba(239,236,211,0.12)', paddingTop: 14, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(218,189,56,0.16)', alignItems: 'center', justifyContent: 'center' }}>
-          <Tx w={600} s={12} c={C.gold}>{initials(name) || 'Q'}</Tx>
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          {!!name && <Tx w={600} s={13} c={C.cream} numberOfLines={1}>{name}</Tx>}
-          <Pressable accessibilityRole="button" onPress={V.doLogout} style={({ hovered }) => ({ alignSelf: 'flex-start', opacity: hovered ? 0.7 : 1 })}>
-            <Tx w={600} s={12} c={C.gold}>Sign out</Tx>
-          </Pressable>
-        </View>
+      <View style={{ marginHorizontal: 12, borderTopWidth: 1, borderColor: CREAM(0.12), paddingTop: 10 }}>
+        <Pressable accessibilityRole="link" accessibilityLabel="Profile and settings" accessibilityState={{ selected: acctOn }}
+          onPress={() => { onNav(); if (V.page) V.closePage(); V.goMore(); }} style={({ hovered }) => ({
+            flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8,
+            backgroundColor: acctOn ? 'rgba(218,189,56,0.14)' : hovered ? CREAM(0.06) : 'transparent',
+          })}>
+          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(218,189,56,0.16)', alignItems: 'center', justifyContent: 'center' }}>
+            <Tx w={600} s={12} c={C.gold}>{initials(name) || 'Q'}</Tx>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            {!!name && <Tx w={600} s={13} c={acctOn ? C.gold : C.cream} numberOfLines={1}>{name}</Tx>}
+            <Tx s={12} c={acctOn ? C.gold : CREAM(0.6)}>Profile and settings</Tx>
+          </View>
+          <ChevronRight s={11} c={acctOn ? C.gold : CREAM(0.5)} />
+        </Pressable>
       </View>
     </LinearGradient>
   );
@@ -131,7 +156,7 @@ function TopBar({ V, title }) {
     <View style={{ height: 64, paddingHorizontal: 28, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderColor: C.line, backgroundColor: C.card }}>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Tx w={600} s={19} role="heading" aria-level={1} numberOfLines={1}>{title}</Tx>
-        {!!V.asOf && <Tx s={12} c={C.ink3}>Data as of {V.asOf}</Tx>}
+        {!!V.asOf && (!V.page || ['reports', 'transactions'].includes(V.page)) && <Tx s={12} c={C.ink3}>Data as of {V.asOf}</Tx>}
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel="Change account" onPress={V.openSwitch} style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, height: 36, borderWidth: 1, borderColor: C.line2, backgroundColor: hovered ? C.hover : C.card, borderRadius: 8, paddingLeft: 5, paddingRight: 10 })}>
         <View style={{ width: 26, height: 26, borderRadius: 6, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' }}>
@@ -186,16 +211,16 @@ function Summary({ V }) {
   const Div = () => <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(239,236,211,0.14)' }} />;
   const cell = (label, value, color) => (
     <View style={{ flex: 1, paddingHorizontal: 20, justifyContent: 'center' }}>
-      <Label c="rgba(239,236,211,0.6)">{label}</Label>
-      <Amt w={600} s={19} c={onDark(color)} numberOfLines={1} style={{ marginTop: 6 }}>{value}</Amt>
+      <Label c="rgba(239,236,211,0.75)">{label}</Label>
+      <FitAmt w={700} s={25} min={15} c={onDark(color)} style={{ marginTop: 8, letterSpacing: -0.4 }}>{value}</FitAmt>
     </View>
   );
   const ret = V.tiles[0] || {}, si = V.tiles[1] || {}, y1 = V.tiles[2] || {};
   return (
     <DarkCard style={{ flexDirection: 'row', paddingVertical: 22, paddingHorizontal: 0 }}>
       <View style={{ flex: 1.5, paddingHorizontal: 24, justifyContent: 'center' }}>
-        <Label c="rgba(239,236,211,0.6)">Current value</Label>
-        <Amt w={600} s={30} c={C.cream} numberOfLines={1} style={{ marginTop: 6, letterSpacing: -0.6 }}>{V.heroValue}</Amt>
+        <Label c={C.gold}>Current value</Label>
+        <FitAmt w={700} s={36} min={20} c={C.cream} style={{ marginTop: 6, letterSpacing: -0.8 }}>{V.heroValue}</FitAmt>
         <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 10 }} />
         <Tx s={12} c="rgba(239,236,211,0.6)" style={{ marginTop: 8 }}>{[V.acctName, V.sinceLbl].filter(Boolean).join('  ·  ')}</Tx>
       </View>
@@ -204,24 +229,21 @@ function Summary({ V }) {
       <Div />
       {cell('Total returns', ret.value, ret.color)}
       <Div />
-      {cell('Return since inception', si.value, si.color)}
+      {cell('TWRR since inception', si.value, si.color)}
+      {(V.irrRows || []).some(r => r.period === 'SI') && <Div />}
+      {(V.irrRows || []).filter(r => r.period === 'SI').map(r => <React.Fragment key="irr">{cell('IRR since inception', r.value, r.color)}</React.Fragment>)}
       <Div />
       {cell('1 year return', y1.value, y1.color)}
-      <Div />
-      <View style={{ paddingHorizontal: 20, justifyContent: 'center', gap: 8 }}>
-        {!V.viewing && <DarkBtn gold label="Switch strategy" icon={<Swap s={14} c={C.ink} />} onPress={V.openSwitchStrategy} />}
-        <DarkBtn label="Statements" icon={<Bars s={14} c={C.gold} />} onPress={() => V.openPage('reports')} />
-      </View>
     </DarkCard>
   );
 }
 
 function NavPanel({ V, height = 250, style }) {
   return (
-    <Panel title="NAV performance" sub={'Growth of your portfolio' + (V.hasBench ? ' against ' + V.benchName : '') + ', rebased to 100'} style={[{ flex: 2 }, style]}
+    <Panel title="NAV performance" sub={'Growth of your portfolio' + (V.hasBench ? ' against ' + V.benchName : '') + ', rebased to 100'} style={style}
       right={<Chips value={(V.ranges.find(r => r.active) || {}).label} options={V.ranges.map(r => [r.label, r.label])} onChange={l => { const r = V.ranges.find(x => x.label === l); if (r) r.pick(); }} />}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18, marginBottom: 10 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}><Amt w={600} s={20}>{V.navNow}</Amt><Tx s={12} c={C.ink3}>NAV</Tx></View>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 18, marginBottom: 10 }}>
+        <View><Tx s={11.5} w={600} c={C.ink3}>Current NAV</Tx><Amt w={600} s={20}>{V.navNow}</Amt></View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><View style={{ width: 14, height: 2.5, borderRadius: 1, backgroundColor: V.chartColor || C.green }} /><Tx s={12} c={C.ink2}>Your portfolio</Tx></View>
         {V.hasBench && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><View style={{ width: 14, height: 1.5, backgroundColor: C.ink3 }} /><Tx s={12} c={C.ink2}>{V.benchName}</Tx></View>}
       </View>
@@ -271,7 +293,7 @@ const HoldingsTable = ({ V, title = 'Holdings', sub, style, right, onRowPress, s
 function RecentTx({ V, n = 9, style }) {
   const list = V.txAll.slice(0, n);
   return (
-    <Panel title="Recent activity" right={V.viewing ? null : <TextLink label="View all" onPress={V.goServicesTx} />} pad={0} style={[{ flex: 1 }, style]}>
+    <Panel title="Recent activity" right={<TextLink label="View all" onPress={V.goServicesTx} />} pad={0} style={[{ flex: 1 }, style]}>
       {list.length ? list.map((t, i) => (
         <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 20, borderTopWidth: 1, borderColor: C.line }}>
           <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: numOf(t.amt) < 0 ? C.redTint : C.posTint, alignItems: 'center', justifyContent: 'center' }}>
@@ -288,12 +310,23 @@ function RecentTx({ V, n = 9, style }) {
   );
 }
 
+// Sits full width directly under the NAV chart, over the same range: the plot is indented by the NAV chart's
+// y-label column (GUTTER) so both start at the same left edge, and it repeats the NAV chart's dates.
 function DrawdownPanel({ V, height = 170, style }) {
   if (!V.hasDd) return null;
+  const g = V.yTicks && V.yTicks.length ? GUTTER : 0;
   return (
-    <Panel title="Drawdown" sub={'Fall from the previous peak, ' + V.rangeLabel + (V.hasBench ? '. Dashed: ' + V.benchName : '')} style={[{ flex: 1 }, style]}
+    <Panel title="Drawdown" sub={'Fall from the previous peak, ' + V.rangePhrase + (V.hasBench ? '. Dashed: ' + V.benchName : '')} style={style}
       right={<View style={{ alignItems: 'flex-end' }}><Amt w={600} s={18} c={Math.abs(V.ddNow) >= 0.005 ? C.red : C.ink2}>{ddPct(V.ddNow)}</Amt><Tx s={11.5} c={C.ink3}>current</Tx></View>}>
-      <DrawdownChart line={V.ddLine} area={V.ddArea} bench={V.ddBench} tip={V.ddTip} height={height} />
+      <View style={{ paddingLeft: g }}>
+        <DrawdownChart line={V.ddLine} area={V.ddArea} bench={V.ddBench} tip={V.ddTip} height={height} />
+        {!!g && <Tx s={9} c={C.gray} style={{ position: 'absolute', left: 0, width: g - 3, top: Math.max(0, (8 / 100) * height - 6), pointerEvents: 'none' }}>0%</Tx>}
+      </View>
+      {!!(V.xDates && V.xDates.length) && (
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, paddingLeft: g }}>
+          {V.xDates.map((d, i) => <Tx key={i} s={9} c={C.gray}>{d}</Tx>)}
+        </View>
+      )}
     </Panel>
   );
 }
@@ -393,16 +426,35 @@ function DataState({ V, children }) {
 }
 
 /* ── sections ───────────────────────────────────────────────────────────────────────────────────────────── */
+// Data source for an account with Orbis history (as on the phone): Nuvama · Orbis (Legacy) · Orbis + Nuvama. It
+// switches every figure built from the history (returns, NAV, drawdown, P&L, cash flows); holdings stay Nuvama's.
+function DataSource({ V }) {
+  if (!V.hasViews) return null;
+  const on = V.viewChips.find(c => c.active) || V.viewChips[0];
+  return (
+    <View style={{ gap: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <Tx w={600} s={13} c={C.ink2}>Data source</Tx>
+        <Chips value={on.label} options={V.viewChips.map(c => [c.label, c.label])} onChange={l => { const c = V.viewChips.find(x => x.label === l); if (c) c.pick(); }} />
+      </View>
+      {V.orbisNote && <Tx s={12.5} c={C.ink3} lh={1.5}>Orbis data: figures run to the last day before Nuvama took over. Money in and out comes from the capital recorded by Orbis; returns are measured from the Orbis starting NAV of 100.</Tx>}
+    </View>
+  );
+}
+
 function Overview({ V }) {
   return (
     <DataState V={V}>
       <View style={{ gap: 20 }}>
         {!V.viewing && <UccNotice visible={V.showUcc} onClose={V.dismissUcc} />}
+        <DataSource V={V} />
         <Summary V={V} />
-        <Row><NavPanel V={V} height={300} /><Allocation V={V} /></Row>
-        <Row><HoldingsTable V={V} right={<TextLink label="All holdings" onPress={V.segHold} />} /><RecentTx V={V} /></Row>
-        <Row><DrawdownPanel V={V} height={250} /><PnlPanel V={V} style={{ flex: 1.3 }} /></Row>
-        {!V.viewing && <NuvamaDetails compact />}
+        <NavPanel V={V} height={300} />
+        <DrawdownPanel V={V} height={180} />
+        <PnlPanel V={V} wide />
+        <Row><Allocation V={V} /><RecentTx V={V} /></Row>
+        <HoldingsTable V={V} right={<TextLink label="All holdings" onPress={V.segHold} />} />
+        {!V.viewing && <NuvamaDetails compact V={V} />}
       </View>
     </DataState>
   );
@@ -415,13 +467,21 @@ function Performance({ V }) {
   return (
     <DataState V={V}>
       <View style={{ gap: 20 }}>
+        <DataSource V={V} />
         <Row>
           {V.perfHead.map(([k, v, col]) => <Stat key={k} label={sentence(k).replace('(SI)', 'since inception').replace('DD', 'drawdown')} value={v} color={col} style={{ flex: 1 }} />)}
           {!!maxDd && <Stat label="Max drawdown" value={maxDd.v} color={maxDd.vc} note={maxDd.note} style={{ flex: 1 }} />}
         </Row>
-        <Row><NavPanel V={V} height={300} /><TrailingPanel V={V} /></Row>
+        <NavPanel V={V} height={300} />
+        <DrawdownPanel V={V} height={180} />
         <Row>
-          <DrawdownPanel V={V} height={200} style={{ flex: 1.4 }} />
+          <TrailingPanel V={V} style={{ flex: 1.4 }} />
+          {!!(V.irrRows && V.irrRows.length) && (
+            <Panel title="TWRR and IRR" sub="Two ways to measure the same portfolio" style={{ flex: 1 }}>
+              <KeyVals items={V.irrRows.map(r => [r.period === 'SI' ? 'IRR since inception' : r.period + ' ' + r.label, r.value, r.color])} />
+              <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 12 }}>TWRR (the returns shown elsewhere) measures the strategy and ignores when money was added or withdrawn. IRR is money-weighted: it reflects the timing of your own top-ups and withdrawals, so it shows what your money actually earned.</Tx>
+            </Panel>
+          )}
           <Panel title="Capital and risk" style={{ flex: 1 }}>
             <KeyVals items={[
               ...f.map(x => [String(x.label).charAt(0) + String(x.label).slice(1).toLowerCase(), x.value, x.color === C.ink ? undefined : x.color]),
@@ -470,22 +530,25 @@ function Holdings({ V }) {
   );
 }
 
-// Content pages opened from Account (family, insights, referral, legal…): the page body in the content area,
-// with a way back — instead of the phone's full-screen overlay.
+// Content pages opened from the sidebar (family, insights, referral, legal…): the page body in the content area,
+// under a breadcrumb naming its menu group (pages outside the groups lead back to Profile and settings).
 function ContentPage({ V }) {
   const wide = DESKTOP_PAGES[V.page];
   const pg = wide || PAGES[V.page];
   if (!pg) return null;
+  const g = groupOf(V.page), it = navItem(V.page);
   return (
     <View style={wide ? null : { maxWidth: 920 }}>
       <View accessibilityRole="navigation" aria-label="Breadcrumb" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-        <Pressable accessibilityRole="link" onPress={() => { V.closePage(); V.goMore(); }} style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 4, opacity: hovered ? 0.75 : 1 })}>
-          <ChevronLeft s={14} c={C.ink2} /><Tx w={600} s={13} c={C.ink2}>Account</Tx>
-        </Pressable>
+        {g ? <Tx w={600} s={13} c={C.ink2}>{g.title}</Tx> : (
+          <Pressable accessibilityRole="link" onPress={() => { V.closePage(); V.goMore(); }} style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 4, opacity: hovered ? 0.75 : 1 })}>
+            <ChevronLeft s={14} c={C.ink2} /><Tx w={600} s={13} c={C.ink2}>Profile and settings</Tx>
+          </Pressable>
+        )}
         <Tx s={13} c={C.ink3}>/</Tx>
-        <Tx s={13} c={C.ink} aria-current="page">{pg.title}</Tx>
+        <Tx s={13} c={C.ink} aria-current="page">{it ? it.label : pg.title}</Tx>
       </View>
-      <PageIntro title={pg.title} />
+      {!wide && <PageIntro title={pg.title} />}
       <View>{pg.body(V)}</View>
     </View>
   );
@@ -499,14 +562,14 @@ function NotFound({ V, slug, onHome }) {
       <Tx s={14} c={C.ink2} lh={1.55} style={{ marginTop: 12 }}>There is no page at /app/{slug}. The link may be old or mistyped. Your portfolio is still where you left it.</Tx>
       <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
         <Btn label="Go to Overview" onPress={onHome} />
-        <Btn label="Contact Investor Relations" kind="outline" onPress={() => V.openPage('contact')} />
+        <Btn label="Contact Investor Relations" kind="outline" onPress={() => V.openPage('team')} />
       </View>
     </Card>
   );
 }
 
 export default function DesktopShell({ V }) {
-  const page = V.page, reports = page === 'reports';
+  const page = V.page, reports = page === 'reports' || (!page && V.tab === 'reports');
   const active = reports ? 'reports' : V.tab;
   const [missing, setMissing] = useState(null);
   const title = missing ? 'Page not found' : page && !reports ? ((DESKTOP_PAGES[page] || PAGES[page]) || {}).title || 'myQode' : TITLES[active] || 'myQode';
@@ -519,13 +582,13 @@ export default function DesktopShell({ V }) {
   else if (page) body = <ContentPage V={V} />;
   else if (V.tab === 'home') body = <Overview V={V} />;
   else if (V.tab === 'portfolio') body = <Performance V={V} />;
-  else if (V.tab === 'holdings') body = <Holdings V={V} />;
+  else if (V.tab === 'holdings') body = <DataState V={V}><DesktopHoldings V={V} /></DataState>;   // securities; strategy accounts are a section inside
   else if (V.tab === 'docs') body = <DesktopDocuments V={V} />;
   else if (V.tab === 'services') body = V.viewing ? <Overview V={V} /> : <DesktopServices V={V} />;
   else body = <DesktopAccount V={V} />;
   return (
     <View style={{ flex: 1, flexDirection: 'row', backgroundColor: C.cream }}>
-      <Sidebar V={V} active={missing ? null : page && !reports ? 'more' : active} onNav={() => setMissing(null)} />
+      <Sidebar V={V} activeId={missing ? null : page || (active === 'more' ? 'account' : active)} onNav={() => setMissing(null)} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <TopBar V={V} title={title} />
         {!!V.viewing && (

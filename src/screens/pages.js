@@ -1,12 +1,12 @@
 // Full-screen pages opened from the More tab: family, insights, guide, referral,
-// about / trust copy, contact and legal. Copy lives in src/content.js.
+// about / trust copy and legal (the old Contact page is part of Your Team at Qode). Copy lives in src/content.js.
 import React, { useState } from 'react';
-import { View, Pressable, ScrollView, Linking, TextInput } from 'react-native';
+import { View, Pressable, ScrollView, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, Tx, Amt, Card, CTA, Fade, KeyboardScroll } from '../ui';
-import { fmtD, inr } from '../adapt';
-import { ChevronLeft, ChevronRight, Phone, MailIcon } from '../icons';
+import { inr, fmtD } from '../adapt';
+import { ChevronLeft, ChevronRight } from '../icons';
 import { experience, engagement, admin } from '../api';
 import * as content from '../content';
 import { FormBody } from './services';
@@ -15,6 +15,12 @@ import { Foundation, ReportsReviews, StrategySnapshot, PortalGuide, Team as Team
 import { useLoad, openUrl, fmtSize, Loading, ErrorBox, Empty, SectionLabel, LinkRow } from './kit';
 import { ReportsPage } from './reports';
 import { NuvamaPage } from './nuvama';
+import { NotificationSettings } from './notifications';
+import { VoicePage } from './voice';
+import { CashList } from './services';
+
+// Placeholder for pages still being built.
+const ComingSoon = () => <Card style={{ padding: 20 }}><Tx s={13} c={C.muted}>Coming soon</Tx></Card>;
 
 const P = ({ children, style }) => <Tx s={13} lh={1.6} c={C.ink} style={[{ marginTop: 10 }, style]}>{children}</Tx>;
 
@@ -226,37 +232,6 @@ function Risk() {
   );
 }
 
-function Contact() {
-  const K = content.CONTACT;
-  const go = url => Linking.openURL(url).catch(() => {});
-  return (
-    <>
-      {K.phones.length > 0 && <SectionLabel style={{ marginTop: 0 }}>CALL</SectionLabel>}
-      {K.phones.length > 0 && (
-        <Card style={{ overflow: 'hidden' }}>
-          {K.phones.map((p, i) => (
-            <LinkRow key={p.number} title={p.label} sub={p.number} icon={<Phone />} right={null}
-              onPress={() => go('tel:' + String(p.number).replace(/[^\d+]/g, ''))} last={i === K.phones.length - 1} />
-          ))}
-        </Card>
-      )}
-      {K.emails.length > 0 && <SectionLabel>EMAIL</SectionLabel>}
-      {K.emails.length > 0 && (
-        <Card style={{ overflow: 'hidden' }}>
-          {K.emails.map((e, i) => <LinkRow key={e.address} title={e.label} sub={e.address} icon={<MailIcon />} right={null} onPress={() => go('mailto:' + e.address)} last={i === K.emails.length - 1} />)}
-        </Card>
-      )}
-      {(K.address.length > 0 || K.hours.length > 0) && <SectionLabel>OFFICE</SectionLabel>}
-      {(K.address.length > 0 || K.hours.length > 0) && (
-        <Card style={{ padding: 16 }}>
-          {K.address.map((t, i) => <Tx key={i} s={13} lh={1.55}>{t}</Tx>)}
-          {K.hours.map((t, i) => <Tx key={'h' + i} s={12} c={C.muted} style={{ marginTop: 8 }}>{t}</Tx>)}
-        </Card>
-      )}
-    </>
-  );
-}
-
 // ── Developer: what each screen needs, what the backend has, and how to close the gaps ──
 const REQS = [
   { s: 'Home, Portfolio, Holdings', ok: true, has: 'portfolio/snapshot, performance, nav, drawdown, monthly-pl, quarterly-pl, cashflow (+ combined-* for owner/family).', gap: 'XIRR, TWRR, Sharpe/Sortino/beta and “today’s change” are not computed by the API. To show them: add them to /portfolio/performance from pms_master_sheet cash flows and daily NAV (server-side), or accept they stay off the app.' },
@@ -264,7 +239,7 @@ const REQS = [
   { s: 'Documents', ok: true, has: 'documents/list + documents/files/{category}: the web’s Account Documents page, section for section (PMS Agreement, Account Opening Documents, CML) from S3 docs/client-documents/{clientid}/, 5-minute signed links.', gap: 'Statements, factsheets, capital-gains and fee invoices are not stored anywhere yet: add S3 folders under docs/client-documents/{clientid}/ plus category ids in documents/list. S3 listing needs valid AWS keys on the server (the dev server currently answers InvalidAccessKeyId). Owner/family ids return 404, so the app asks per account code.' },
   { s: 'Services · requests', ok: true, has: 'services/withdrawal, switch, strategy-inquiry, discussion, account-request, engagement/referral, services/bank-details.', gap: 'No history: every request only returns an inquiry_id. To show past requests add GET /api/mobile/services/inquiries reading pms_clients_tracker.qode_microsite_inquiries by user_email.' },
   { s: 'Services · pay online / SIP', ok: true, has: 'One-time top-ups through Razorpay: payments/razorpay/create-order → hosted Checkout in a WebView → payments/razorpay/verify (signature + gateway check) → payments/investment-status; a signed webhook (payments/razorpay/webhook) keeps the status current. Existing SIPs: verify-sip, pause-resume-sip, cancel-sip.', gap: 'New SIP mandates (UPI Autopay / eMandate) need Razorpay Subscriptions (not built). The Cashfree routes remain for the web. Client notifications for Razorpay payments are off unless RAZORPAY_NOTIFY_CLIENT=true on the server. Production needs live Razorpay keys, the webhook registered on the live URL, and a store build if you later switch to the native Razorpay SDK.' },
-  { s: 'Notifications (bell)', ok: false, has: 'services/register-push-token (POST/DELETE). Push is sent by the Cashfree webhook via lib/notifications.ts.', gap: 'No inbox endpoint. Needs a notifications table written wherever notifyClientById is called + GET /api/mobile/notifications. Push itself needs expo-notifications, an EAS project id, and Firebase (FCM) credentials for Android. Registration is blocked in test mode so the client is never pushed.' },
+  { s: 'Notifications (bell + popups)', ok: true, has: 'GET notifications, POST notifications/read, GET/PUT notifications/prefs; services/register-push-token with app: myqode (app_push_devices). Server: lib/appNotify.ts (inbox-first outbox, Expo push with retries and receipts), lib/appNotifyTriggers.ts (money, portfolio, reading), admin campaigns at /api/admin/bo/notifications.', gap: 'Android popups need Firebase (FCM) credentials in EAS. Sends to clients start only with PUSH_LIVE=1 on the server; registration is blocked in test mode.' },
   { s: 'Family accounts', ok: true, has: 'experience/family (group → owner → accounts with masked PAN, mobile, city, status).', gap: 'Family-mapping changes go through services/account-request (email to IR); there is no self-service edit.' },
   { s: 'Insights & events, Portal guide', ok: true, has: 'engagement/newsletters, perspectives, events (S3 docs/newsletters, docs/prespectives, docs/events), engagement/portal-guide (S3 videos/reports-tutorial, images/reports-snapshot).', gap: 'Lists are empty until files exist in those S3 prefixes. Report descriptions are static text from the web page.' },
   { s: 'Profile, KYC, bank & nominee', ok: false, has: 'auth/me (name, email, client code, account codes only).', gap: 'Needs GET /api/mobile/profile from pms_clients_master (PAN masked, address, mobile, bank, nominee, KYC status). Edits should stay request-based (services/account-request).' },
@@ -337,22 +312,24 @@ function AdminPage({ V }) {
 
 export const PAGES = {
   reports: { title: 'Reports', body: V => <ReportsPage V={V} /> },
-  requirements: { title: 'Data Requirements & API Coverage', body: () => <Requirements /> },
+  requirements: { title: 'Data requirements & API coverage', body: () => <Requirements /> },
   admin: { title: 'Admin', body: V => <AdminPage V={V} /> },
-  family: { title: 'Family Accounts', body: () => <Family /> },
-  nuvama: { title: 'Your Details on Nuvama', body: () => <NuvamaPage /> },
-  insights: { title: 'Insights', body: () => <Insights /> },
+  family: { title: 'Account Mapping', body: () => <Family /> },
+  nuvama: { title: 'Your Details on Nuvama', body: V => <NuvamaPage V={V} /> },
+  insights: { title: 'Insights & Events', body: () => <Insights /> },
   guide: { title: 'Investor Portal Guide', body: () => <PortalGuide /> },
-  referral: { title: 'Referral Programme', body: V => <Referral V={V} /> },
-  cadence: { title: 'Reports & Reviews', body: () => <ReportsReviews /> },
+  referral: { title: 'Referral Program', body: V => <Referral V={V} /> },
+  cadence: { title: 'Service Cadence', body: () => <ReportsReviews /> },
   philosophy: { title: 'Qode Philosophy', body: () => <Article data={content.PHILOSOPHY} /> },
-  foundation: { title: 'Note from Fund Managers', body: () => <Foundation /> },
+  foundation: { title: 'Foundation', body: () => <Foundation /> },
   strategies: { title: 'Strategy Snapshot', body: () => <StrategySnapshot /> },
   team: { title: 'Your Team at Qode', body: V => <TeamPage V={V} /> },
-  faq: { title: 'FAQ & Glossary', body: () => <Faq /> },
-  grievance: { title: 'Escalation Framework', body: () => <Escalation /> },
-  risk: { title: 'Risk Management', body: () => <Risk /> },
-  contact: { title: 'Contact Us', body: () => <Contact /> },
+  faq: { title: 'FAQs & Glossary', body: () => <Faq /> },
+  grievance: { title: 'Escalation and Grievance Redressal', body: () => <Escalation /> },
+  risk: { title: 'Risk Management & Controls', body: () => <Risk /> },
+  voice: { title: 'Your Voice Matters', body: V => <VoicePage V={V} /> },
+  notifications: { title: 'Notifications', body: () => <NotificationSettings /> },
+  transactions: { title: 'Transactions', body: V => <CashList V={V} full /> },
   privacy: { title: content.LEGAL.privacy.title || 'Privacy policy', body: () => <Article data={content.LEGAL.privacy} /> },
   terms: { title: content.LEGAL.terms.title || 'Terms & conditions', body: () => <Article data={content.LEGAL.terms} /> },
   cancellation: { title: content.LEGAL.cancellation.title || 'Cancellation & refund', body: () => <Article data={content.LEGAL.cancellation} /> },

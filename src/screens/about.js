@@ -11,9 +11,11 @@ import { View, Pressable, Image, Linking, ScrollView, Modal, Dimensions } from '
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { C, Tx, Card, CTA } from '../ui';
-import { MailIcon, Phone, ChevronRight } from '../icons';
+import { MailIcon, Phone } from '../icons';
 import { engagement } from '../api';
 import { useLoad, openUrl, Loading } from './kit';
+import { ContactCard, irLinks } from './contact';
+import { CONTACT } from '../content';
 
 const WEB = 'https://myqode.qodeinvest.com';
 const go = url => Linking.openURL(url).catch(() => {});
@@ -347,7 +349,7 @@ export function PortalGuide() {
 
 // ── Your Team at Qode ─────────────────────────────────────────────────────────
 const BOOKING = 'https://crm.zoho.in/bookings/30minutesmeeting?rid=5ec313c47c4d600297f76c4db5ed16b9ec7023047ad9adae51cf7233a95aed39b78a114a405bd5ecb516bbd5c82eb973gid34d89af86b644a5bbc06e671dae756f5663840a52f688352fdf9715c33a97bcd';
-const IR = 'investor.relations@qodeinvest.com';
+const IR = (CONTACT.emails[0] || {}).address || '';
 
 function ChannelCard({ icon, title, children }) {
   return (
@@ -377,7 +379,7 @@ export function Team({ V }) {
         <Labelled label="Role" style={{ marginTop: 10 }}>Your regular point of contact. Shares monthly updates, schedules review calls, and addresses queries. Also helps with operations: onboarding, top‑ups, withdrawals, portal access.</Labelled>
         <Labelled label="When to Contact" style={{ marginTop: 6 }}>For reports, account queries, operational clarifications, and all quarterly/annual reviews.</Labelled>
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
-          <CTA label="CONTACT IR TEAM" onPress={() => go(`mailto:${IR}?subject=${encodeURIComponent('IR Support Request - ' + (code || 'Account'))}`)} style={{ flex: 1, paddingVertical: 12 }} />
+          <CTA label="CONTACT IR TEAM" onPress={() => go(irLinks(code || 'Account').email('IR Support Request'))} style={{ flex: 1, paddingVertical: 12 }} />
           {/* web: "Raise Any Query" opens the discussion-topic form (inquiry_type 'discussion') */}
           <CTA label="RAISE ANY QUERY" outline onPress={() => V && V.openReq('r-discussion')} style={{ flex: 1, paddingVertical: 12 }} />
         </View>
@@ -389,29 +391,7 @@ export function Team({ V }) {
         <CTA label="BOOK A CALL" onPress={() => go(BOOKING)} style={{ marginTop: 14, paddingVertical: 12 }} />
       </ChannelCard>
 
-      <ChannelCard icon="message" title="WhatsApp / Email">
-        <Pressable onPress={() => go(`https://wa.me/919820300028?text=${encodeURIComponent('Hi! I am ' + (code || 'a client') + ' and would like to discuss my account')}`)} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 }}>
-          <Phone />
-          <View style={{ flex: 1 }}>
-            <Tx w={700} s={12.5}>WhatsApp (IR Desk)</Tx>
-            <Tx s={12} c={C.green}>+91 98203 00028 · 9 AM – 5 PM</Tx>
-          </View>
-          <ChevronRight />
-        </Pressable>
-        <Pressable onPress={() => go(`mailto:${IR}?subject=${encodeURIComponent('Account Query - ' + (code || 'Client'))}`)} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 }}>
-          <MailIcon />
-          <View style={{ flex: 1 }}>
-            <Tx w={700} s={12.5}>Email</Tx>
-            <Tx s={12} c={C.green}>{IR}</Tx>
-          </View>
-          <ChevronRight />
-        </Pressable>
-        <Labelled label="Purpose" style={{ marginTop: 12 }}>Instant, informal, and quick communication.</Labelled>
-        <Pressable onPress={() => go('https://chat.whatsapp.com/IW7eHWZjWAq54MyKvZtQdC')} style={{ marginTop: 14, backgroundColor: C.gold, borderRadius: 8, paddingVertical: 13, alignItems: 'center' }}>
-          <Tx w={700} s={12.5} ls={0.06} c={C.ink}>JOIN QODE INVESTOR CIRCLE</Tx>
-        </Pressable>
-        <Tx s={11} c={C.gray} center style={{ marginTop: 6 }}>WhatsApp community for Qode investors</Tx>
-      </ChannelCard>
+      <ContactCard code={code} style={{ marginTop: 14 }} />
     </>
   );
 }
@@ -419,7 +399,7 @@ export function Team({ V }) {
 // ── Escalation Framework ──────────────────────────────────────────────────────
 const LEVELS = [
   { n: 1, t: 'Investor Relations (IR)', lines: [['Role', 'Your first point of contact for all queries, from portfolio updates to operational requests.'], ['Response SLA', 'Within 1 business day.']],
-    contacts: [['investor.relations@qodeinvest.com', 'mailto:investor.relations@qodeinvest.com'], ['WhatsApp IR Desk', 'https://wa.me/919820300028']] },
+    contacts: [[IR, irLinks().email()], [CONTACT.whatsapp.label, irLinks().whatsapp]] },
   { n: 2, t: 'Compliance Officer', lines: [['Role', "If an issue isn't resolved by IR, it's escalated to the Compliance Officer for review and redressal."], ['Scope', 'Regulatory matters, delayed responses, or unresolved service issues.'], ['Escalation Timeline', 'Within 24 hours of non‑resolution at Level 1.']],
     contacts: [['compliance@qodeinvest.com', 'mailto:compliance@qodeinvest.com']] },
   { n: 3, t: 'Principal Officer', lines: [['Role', 'Final level of escalation, handled directly by the Principal Officer.'], ['Scope', 'Persistent grievances or concerns requiring senior oversight.'], ['Escalation Timeline', 'If unresolved at Compliance level within prescribed timeframes.']],

@@ -28,7 +28,8 @@ import {
   STRATEGY_COLOR, shortStrategy, ACCOUNT_JOURNEY, num, inrCompact, displayDate, SCHEME, SCHEME_COLOR, code3, parseBillgroup,
   EMPTY_PROFILE, todayIst, validateProfile, DECKS, SEGMENTS, toSeries, VsiChart, RISK_OFF, RISK_ON, VSI, ddmmyyyy, TOPICS,
 } from '../screens/partner';
-import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, ErrorBlock, Empty, Btn, PageIntro, Chips, Input, KeyVals, Pill, Dialog } from './kit';
+import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, ErrorBlock, Empty, Btn, PageIntro, Chips, Input, KeyVals, Pill, Dialog, FitAmt, Dropdown } from './kit';
+import { ClientReportsDialog } from './clientReports';
 
 /* ── sections, addresses ────────────────────────────────────────────────────────────────────────────────── */
 const DocSmall = ({ c, s }) => <DocIcon s={s || 18} c={c} w={1.6} />;
@@ -66,7 +67,13 @@ const UserGlyph = ({ c, s = 18 }) => (
 /* ── helpers ────────────────────────────────────────────────────────────────────────────────────────────── */
 // Sentence case for CRM values ("First Fund Initiated" → "First fund initiated"), keeping acronyms (CML).
 const noSept = t => String(t || '').replace(/\bSept\b/g, 'Sep');
-const dday = x => noSept(displayDate(x));
+// Fee periods come from the calculator as "1-Apr-26"; everything else is ISO.
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const dday = x => {
+  const m = /^(\d{1,2})-([A-Za-z]{3})-(\d{2}|\d{4})$/.exec(String(x || '').trim());
+  if (m && MON.includes(m[2])) return `${m[1].padStart(2, '0')} ${m[2]} ${m[3].length === 2 ? '20' + m[3] : m[3]}`;
+  return noSept(displayDate(x));
+};
 const sc = t => String(t || '').split(' ').map((w, i) => (i === 0 || /^[A-Z0-9]{2,}$/.test(w) || /^(Nuvama|Qode|Zoho)$/.test(w) ? w : w.toLowerCase())).join(' ');
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const PARTNERSHIPS = 'partnerships@qodeinvest.com';
@@ -98,26 +105,61 @@ const Notice = ({ children, tone = 'info', style }) => (
 );
 function StatusTag({ s, sub }) {
   return (
-    <View style={{ minWidth: 0 }}>
+    <View style={{ minWidth: 0, alignSelf: 'stretch' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
         <Dot color={STATUS_COLOR[s.key]} />
-        <Tx w={600} s={12.5} c={STATUS_TEXT[s.key] || C.ink} numberOfLines={1}>{sc(s.label)}</Tx>
+        <Tx w={600} s={12.5} c={STATUS_TEXT[s.key] || C.ink} numberOfLines={1} style={{ flexShrink: 1, minWidth: 0 }}>{sc(s.label)}</Tx>
       </View>
       {!!sub && <Tx s={11.5} c={C.ink3} numberOfLines={1} style={{ marginTop: 2, marginLeft: 15 }}>{sub}</Tx>}
     </View>
   );
 }
 const iconBtn = ({ hovered }) => ({ width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: C.line2, backgroundColor: hovered ? C.hover : C.card, alignItems: 'center', justifyContent: 'center' });
-// A date field: the browser's own date picker.
+// A dd/mm/yyyy date field. The browser's own date input always shows the browser's locale order (mm/dd/yyyy on
+// en-US), so the text is typed here and the native picker is kept only behind the calendar button.
+const isoToDmy = iso => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '');
+function dmyToIso(t) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(t);
+  if (!m) return null;
+  const iso = `${m[3]}-${m[2]}-${m[1]}`;
+  const d = new Date(iso + 'T00:00:00');
+  return !Number.isNaN(d.getTime()) && d.getDate() === +m[1] && d.getMonth() + 1 === +m[2] ? iso : null;
+}
 function DateInput({ label, value, onChange, min, max }) {
+  const [text, setText] = useState(isoToDmy(value));
+  const picker = useRef(null);
+  useEffect(() => { setText(isoToDmy(value)); }, [value]);
+  const type = raw => {
+    const dg = raw.replace(/\D/g, '').slice(0, 8);
+    const t = dg.length > 4 ? `${dg.slice(0, 2)}/${dg.slice(2, 4)}/${dg.slice(4)}` : dg.length > 2 ? `${dg.slice(0, 2)}/${dg.slice(2)}` : dg;
+    setText(t);
+    if (!t) onChange('');
+    else { const iso = dmyToIso(t); if (iso) onChange(iso); }
+  };
+  const bad = text.length === 10 && !dmyToIso(text);
   return (
     <View style={{ flex: 1, minWidth: 0 }}>
       {!!label && <Tx w={600} s={12.5} c={C.ink2} style={{ marginBottom: 6 }}>{label}</Tx>}
-      {React.createElement('input', {
-        type: 'date', value: value || '', min: min || undefined, max: max || undefined, 'aria-label': label,
-        onChange: e => onChange(e.target.value || ''),
-        style: { height: 42, border: '1px solid ' + C.line2, borderRadius: 8, padding: '0 10px', fontFamily: 'Inter_400Regular', fontSize: 14, color: C.ink, background: C.card, width: '100%', boxSizing: 'border-box' },
-      })}
+      {React.createElement('div', { style: { position: 'relative' } },
+        React.createElement('input', {
+          type: 'text', inputMode: 'numeric', placeholder: 'dd/mm/yyyy', value: text, 'aria-label': label ? label + ' (dd/mm/yyyy)' : 'Date (dd/mm/yyyy)',
+          onChange: e => type(e.target.value),
+          style: { height: 42, border: '1px solid ' + (bad ? C.red : C.line2), borderRadius: 8, padding: '0 40px 0 10px', fontFamily: 'Inter_400Regular', fontSize: 14, color: C.ink, background: C.card, width: '100%', boxSizing: 'border-box', outline: 'none' },
+        }),
+        React.createElement('input', {
+          ref: picker, type: 'date', tabIndex: -1, 'aria-hidden': true, value: value || '', min: min || undefined, max: max || undefined,
+          onChange: e => onChange(e.target.value || ''),
+          style: { position: 'absolute', right: 0, bottom: 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none', border: 0, padding: 0 },
+        }),
+        React.createElement('button', {
+          type: 'button', 'aria-label': 'Open calendar',
+          onClick: () => { const el = picker.current; if (!el) return; try { el.showPicker(); } catch { el.focus(); el.click(); } },
+          style: { position: 'absolute', right: 4, top: 4, width: 34, height: 34, border: 0, borderRadius: 6, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.ink2 },
+        }, React.createElement('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+          React.createElement('rect', { x: 3, y: 4, width: 18, height: 18, rx: 2 }),
+          React.createElement('path', { d: 'M16 2v4M8 2v4M3 10h18' }))),
+      )}
+      {bad && <Tx s={11.5} c={C.red} style={{ marginTop: 4 }}>Not a real date</Tx>}
     </View>
   );
 }
@@ -325,7 +367,7 @@ function Overview({ journey, split, periods, onOpen, onDetail, go }) {
   const cell = (label, value, note, color, onPress) => (
     <Pressable disabled={!onPress} onPress={onPress} style={({ hovered }) => ({ flex: 1, paddingHorizontal: 20, justifyContent: 'center', opacity: hovered && onPress ? 0.8 : 1 })}>
       <Label c="rgba(239,236,211,0.6)">{label}</Label>
-      <Amt w={600} s={20} c={onDark(color)} numberOfLines={1} style={{ marginTop: 6 }}>{value}</Amt>
+      <FitAmt w={600} s={20} c={onDark(color)} style={{ marginTop: 6 }}>{value}</FitAmt>
       {!!note && <Tx s={11.5} c="rgba(239,236,211,0.55)" numberOfLines={1} style={{ marginTop: 3 }}>{note}</Tx>}
     </Pressable>
   );
@@ -343,7 +385,7 @@ function Overview({ journey, split, periods, onOpen, onDetail, go }) {
         <DarkCard style={{ flexDirection: 'row', paddingVertical: 22, paddingHorizontal: 0 }}>
           <View style={{ flex: 1.5, paddingHorizontal: 24, justifyContent: 'center' }}>
             <Label c="rgba(239,236,211,0.6)">Total value today</Label>
-            <Amt w={600} s={30} c={C.cream} numberOfLines={1} style={{ marginTop: 6, letterSpacing: -0.6 }}>{money(t.currentValue)}</Amt>
+            <FitAmt w={600} s={30} min={18} c={C.cream} style={{ marginTop: 6, letterSpacing: -0.6 }}>{money(t.currentValue)}</FitAmt>
             <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 10 }} />
             {gain != null && gainPct != null
               ? <Tx s={12} c="rgba(239,236,211,0.7)" style={{ marginTop: 8 }}><Tx w={600} s={12} c={onDark(gain >= 0 ? C.pos : C.red)}>{gain >= 0 ? '+' : '−'}{money(Math.abs(gain))} ({gain >= 0 ? '+' : '−'}{Math.abs(gainPct).toFixed(1)}%)</Tx> against {money(t.invested)} put in</Tx>
@@ -521,7 +563,9 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
   useEffect(() => { setShown(25); }, [q, status, f.stage, f.strategy, f.basis, f.from, f.to]);
   useEffect(() => { if (f.status) setStatus(f.status); }, [f.status]);
   const [soaBusy, setSoaBusy] = useState('');
-  const [soaMsg, setSoaMsg] = useState('');
+  const [soaMsg, setSoaMsg] = useState(null);   // { email, text }: shown under that investor's SOA button, where it was pressed
+  const [reportsFor, setReportsFor] = useState(null);
+  const [narrow, setNarrow] = useState(false);   // too narrow for filters beside the table: they go above it   // investor whose "Download reports" dialog is open
   const d = journey.data;
   const clients = (d && d.journey && d.journey.clients) || [];
   const counts = useMemo(() => { const m = new Map(); for (const c of clients) { const k = statusFor(c.stage, c.onboardingStage).key; m.set(k, (m.get(k) || 0) + 1); } return m; }, [clients]);
@@ -532,9 +576,9 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
   const drop = k => setFilter({ ...f, [k]: undefined, ...(k === 'basis' ? { from: undefined, to: undefined } : null) });
   const soa = async c => {
     if (soaBusy) return;
-    setSoaBusy(c.email); setSoaMsg('');
+    setSoaBusy(c.email); setSoaMsg(null);
     try { await openFile({ kind: 'soa', email: c.email }, `No SOA has been issued for ${c.name || 'this investor'} yet.`); }
-    catch (e) { setSoaMsg(e.status === 404 ? `No SOA has been issued for ${c.name || 'this investor'} yet.` : 'We couldn’t fetch the SOA. Please try again.'); }
+    catch (e) { setSoaMsg({ email: c.email, text: e.status === 404 ? `No SOA has been issued for ${c.name || 'this investor'} yet.` : 'We couldn’t fetch the SOA. Please try again.' }); }
     setSoaBusy('');
   };
 
@@ -544,9 +588,9 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
   const chips = [f.stage && ['stage', 'Onboarding step: ' + sc(f.stage)], f.strategy && ['strategy', 'Strategy: ' + f.strategy]].filter(Boolean);
 
   const cols = [
-    { key: 'n', label: '#', flex: 0.3, render: r => <Tx s={12} c={C.ink3}>{r.i + 1}</Tx> },
+    { key: 'n', label: '#', w: 64, render: r => <Tx s={12} c={C.ink3} numberOfLines={1}>{r.i + 1}</Tx> },
     { key: 'name', label: 'Investor', flex: 2, render: ({ c }) => (
-      <View style={{ minWidth: 0 }}>
+      <View style={{ minWidth: 0, alignSelf: 'stretch' }}>
         <Tx w={600} s={13.5} numberOfLines={1}>{c.name || '–'}</Tx>
         <Tx s={11.5} c={C.ink3} numberOfLines={1}>{[c.city, c.email].filter(Boolean).join(' · ') || 'No details recorded yet'}</Tx>
       </View>) },
@@ -556,7 +600,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {c.strategies.map(n => <View key={n} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Dot sq s={7} color={STRATEGY_COLOR[n] || C.ink3} /><Tx s={12.5}>{shortStrategy(n)}</Tx></View>)}
         </View>) : <Tx s={12.5} c={C.ink3}>–</Tx>) },
-    { key: 'value', label: 'Current value', right: true, flex: 1.1, render: ({ c }) => {
+    { key: 'value', label: 'Current value', right: true, render: ({ c }) => {
       const delta = c.currentValue != null && c.investedAmount != null ? c.currentValue - c.investedAmount : null;
       return (
         <View style={{ alignItems: 'flex-end' }}>
@@ -564,21 +608,39 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
           {delta != null ? <Amt s={11.5} c={delta >= 0 ? C.pos : C.red}>{delta >= 0 ? '+' : '−'}{money(Math.abs(delta))}</Amt> : <Tx s={11.5} c={C.ink3}>No holdings yet</Tx>}
         </View>);
     } },
-    { key: 'date', label: f.basis === 'opened' ? 'Account opened' : 'First funded', right: true, flex: 0.95, render: ({ c }) => <Tx s={12.5} c={C.ink2}>{fmtDate(f.basis === 'opened' ? c.accountLiveDate : fundedDate(c) || c.accountLiveDate)}</Tx> },
-    { key: 'act', label: 'Actions', right: true, flex: 1.7, render: ({ c }) => (
-      <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
-        {c.clientCode
-          ? <Btn small label={view.opening === c.clientCode ? 'Opening…' : 'View account'} onPress={() => view.open(c)} disabled={!!view.opening && view.opening !== c.clientCode} />
-          : <View style={{ height: 34, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, justifyContent: 'center' }}><Tx s={12} c={C.ink3}>Not in portal yet</Tx></View>}
-        {!!c.email && <Btn small kind="outline" label={soaBusy === c.email ? 'Fetching…' : 'SOA'} icon={<Download s={13} c={C.ink2} />} onPress={() => soa(c)} disabled={!!soaBusy && soaBusy !== c.email} />}
+    { key: 'date', label: f.basis === 'opened' ? 'Account opened' : 'First funded', right: true, render: ({ c }) => <Tx s={12.5} c={C.ink2}>{fmtDate(f.basis === 'opened' ? c.accountLiveDate : fundedDate(c) || c.accountLiveDate)}</Tx> },
+    { key: 'act', label: 'Actions', right: true, render: ({ c }) => (
+      <View style={{ alignItems: 'flex-end' }}>
+        <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+          {c.clientCode
+            ? <Btn small label={view.opening === c.clientCode ? 'Opening…' : 'View account'} onPress={() => view.open(c)} disabled={!!view.opening && view.opening !== c.clientCode} />
+            : <View style={{ height: 34, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, justifyContent: 'center' }}><Tx s={12} c={C.ink3}>Not in portal yet</Tx></View>}
+          {!!c.clientCode && <Btn small kind="outline" label="Reports" icon={<Download s={13} c={C.ink2} />} onPress={() => setReportsFor(c)} />}
+          {!!c.email && <Btn small kind="outline" label={soaBusy === c.email ? 'Fetching…' : 'SOA'} icon={<Download s={13} c={C.ink2} />} onPress={() => soa(c)} disabled={!!soaBusy && soaBusy !== c.email} />}
+        </View>
+        {!!soaMsg && soaMsg.email === c.email && <Tx w={600} s={11.5} c={C.ink2} lh={1.4} style={{ marginTop: 6, textAlign: 'right', alignSelf: 'stretch', width: 0, minWidth: '100%' }}>{soaMsg.text}</Tx>}
       </View>) },
   ];
 
   return (
-    <View style={{ gap: 20 }}>
+    <View style={{ gap: 20 }} onLayout={e => setNarrow(e.nativeEvent.layout.width < 1300)}>
       <CrmNotice d={d} />
-      <Row top>
-        {/* Filters */}
+      <View style={{ flexDirection: narrow ? 'column' : 'row', alignItems: narrow ? 'stretch' : 'flex-start', gap: 20 }}>
+        {/* Filters: a sidebar beside the table, or one compact bar of dropdowns above it when narrow */}
+        {narrow ? (
+          <Card style={{ zIndex: 5, paddingVertical: 14, paddingHorizontal: 20 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12 }}>
+              <Dropdown label="Status" text={status === 'all' ? 'All investors' : sc((STATUS_ORDER.find(s => s.key === status) || {}).label || status)} value={status} onPick={setStatus} menuWidth={320}
+                options={[{ id: 'all', label: 'All investors', note: String(clients.length) }, ...present.map(s => ({ id: s.key, label: sc(s.label), note: String(counts.get(s.key)) }))]} />
+              <Dropdown label="Date" text={f.basis === 'opened' ? 'Account opened' : f.basis === 'invested' ? 'First funded' : 'Any'} value={f.basis || ''} menuWidth={240}
+                options={DATE_BASES.map(([k]) => ({ id: k, label: k === '' ? 'Any date' : k === 'opened' ? 'Account opened' : 'First funded' }))}
+                onPick={k => setFilter(k ? { ...f, basis: k } : { ...f, basis: undefined, from: undefined, to: undefined })} />
+              {!!f.basis && <View style={{ width: 170 }}><DateInput label="From" value={f.from} max={f.to} onChange={v => setFilter({ ...f, from: v || undefined })} /></View>}
+              {!!f.basis && <View style={{ width: 170 }}><DateInput label="To" value={f.to} min={f.from} onChange={v => setFilter({ ...f, to: v || undefined })} /></View>}
+            </View>
+            {undated > 0 && <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 10 }}>{plural(undated, 'investor has', 'investors have')} no {f.basis === 'opened' ? 'account live' : 'first fund initiated'} date on record and {undated === 1 ? 'is' : 'are'} not shown.</Tx>}
+          </Card>
+        ) : (
         <View style={{ width: 280, gap: 16 }}>
           <Panel title="Status" sub="Show investors at one stage">
             <View style={{ gap: 2 }}>
@@ -599,7 +661,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
             <Chips value={f.basis || ''} options={DATE_BASES.map(([k]) => [k, k === '' ? 'Any' : k === 'opened' ? 'Opened' : 'First funded'])}
               onChange={k => setFilter(k ? { ...f, basis: k } : { ...f, basis: undefined, from: undefined, to: undefined })} />
             {!!f.basis && (
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+              <View style={{ gap: 12, marginTop: 14 }}>
                 <DateInput label="From" value={f.from} max={f.to} onChange={v => setFilter({ ...f, from: v || undefined })} />
                 <DateInput label="To" value={f.to} min={f.from} onChange={v => setFilter({ ...f, to: v || undefined })} />
               </View>
@@ -607,11 +669,11 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
             {undated > 0 && <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 10 }}>{plural(undated, 'investor has', 'investors have')} no {f.basis === 'opened' ? 'account live' : 'first fund initiated'} date on record and {undated === 1 ? 'is' : 'are'} not shown.</Tx>}
           </Panel>
         </View>
+        )}
 
         {/* Table */}
-        <View style={{ flex: 1, minWidth: 0, gap: 12 }}>
+        <View style={{ flex: narrow ? undefined : 1, minWidth: 0, gap: 12 }}>
           {!!view.err && <Notice tone="bad">{view.err.text}</Notice>}
-          {!!soaMsg && <Notice>{soaMsg}</Notice>}
           <Panel pad={0} title={rows.length === clients.length ? plural(clients.length, 'investor', 'investors') : `Showing ${rows.length} of ${clients.length}`}
             sub={'Largest holdings first' + (dupes ? `. Includes ${plural(dupes, 'duplicate record', 'duplicate records')} from the CRM` : '')}
             right={<Input value={q} onChangeText={setQ} placeholder="Search by name, email or strategy" style={{ width: 300 }} />}>
@@ -635,7 +697,8 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
             {!clients.length && <View style={{ paddingHorizontal: 20, paddingBottom: 16 }}><TextLink label="Onboarding links" onPress={onLinks} /></View>}
           </Panel>
         </View>
-      </Row>
+      </View>
+      <ClientReportsDialog c={reportsFor} visible={!!reportsFor} onClose={() => setReportsFor(null)} />
     </View>
   );
 }
@@ -665,6 +728,7 @@ function Stepper({ items }) {   // items: [{ label, note, state: 'done' | 'here'
 
 function InvestorPage({ c, status, view, onBack }) {
   const [busy, setBusy] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);
   const [msg, setMsg] = useState('');
   const delta = c.currentValue != null && c.investedAmount != null ? c.currentValue - c.investedAmount : null;
   const deltaPct = delta != null && c.investedAmount ? (delta / c.investedAmount) * 100 : null;
@@ -698,6 +762,7 @@ function InvestorPage({ c, status, view, onBack }) {
           </View>
         </View>
         {!!c.clientCode && <Btn label={view.opening === c.clientCode ? 'Opening…' : 'View account'} onPress={() => view.open(c)} />}
+        {!!c.clientCode && <Btn kind="outline" label="Download reports" icon={<Download s={14} c={C.ink2} />} onPress={() => setReportsOpen(true)} />}
         {!!c.email && <Btn kind="outline" label={busy ? 'Fetching…' : 'Download SOA'} icon={<Download s={14} c={C.ink2} />} onPress={soa} />}
         {!!c.email && <Btn kind="outline" label="Email" icon={<MailIcon s={14} c={C.ink2} />} onPress={() => mail(c.email)} />}
         {!!c.mobile && <Btn kind="outline" label="Call" icon={<Phone s={14} c={C.ink2} />} onPress={() => Linking.openURL('tel:' + String(c.mobile).replace(/[^\d+]/g, '')).catch(() => {})} />}
@@ -754,6 +819,7 @@ function InvestorPage({ c, status, view, onBack }) {
           )}
         </Row>
       )}
+      <ClientReportsDialog c={c} visible={reportsOpen} onClose={() => setReportsOpen(false)} />
     </View>
   );
 }
@@ -832,7 +898,7 @@ function Fees({ periods, period, setPeriod, go }) {
       <View style={{ gap: 20 }}>
         <PeriodBar periods={periods} period={period} setPeriod={setPeriod} />
         {rows.loading && <Loading rows={4} />}
-        {!rows.loading && !!rows.err && <ErrorBlock msg={`We couldn’t load your fees. ${rows.err}. Please refresh, or contact investor.relations@qodeinvest.com.`} onRetry={rows.reload} />}
+        {!rows.loading && !!rows.err && <ErrorBlock msg={`We couldn’t load your fees. ${rows.err}. Please refresh, or contact partnerships@qodeinvest.com.`} onRetry={rows.reload} />}
         {!rows.loading && !rows.err && list.length === 0 && !!period && (
           <Empty title="No fees in this period">No fees were billed to your clients between {dday(period.startDate)} and {dday(period.endDate)}. Try an earlier period.</Empty>
         )}
@@ -862,7 +928,7 @@ function Fees({ periods, period, setPeriod, go }) {
               </Row>
             </View>
           </Row>
-          {t.unmappedCount > 0 && <Notice>{`${plural(t.unmappedCount, 'client has', 'clients have')} no fee rate configured. Their share shows as ₹0 because no rate has been set, not because none is due. Contact investor.relations@qodeinvest.com to have these confirmed.`}</Notice>}
+          {t.unmappedCount > 0 && <Notice>{`${plural(t.unmappedCount, 'client has', 'clients have')} no fee rate configured. Their share shows as ₹0 because no rate has been set, not because none is due. Contact partnerships@qodeinvest.com to have these confirmed.`}</Notice>}
           <Row top>
             <Panel title="By client" sub="Click a client for each account's fees" pad={0} style={{ flex: 2, minWidth: 0 }}
               right={<Input value={search} onChangeText={setSearch} placeholder="Search by client or account code" style={{ width: 280 }} />}>
@@ -897,13 +963,6 @@ function Fees({ periods, period, setPeriod, go }) {
                   ]} />
                 </Panel>
               )}
-              <Panel title="Raising an invoice">
-                <Tx s={13} c={C.ink2} lh={1.6}>Management fees are charged quarterly and performance fees annually. The commission shown is before GST: add 18% when you invoice. Every client figure is exclusive of GST, and the total to invoice is stated above.</Tx>
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
-                  <Btn small label="Raise invoice" onPress={() => go('invoice')} />
-                  <Btn small kind="outline" label="Fee statement" onPress={() => go('statement')} />
-                </View>
-              </Panel>
             </View>
           </Row>
         </>)}
@@ -973,7 +1032,7 @@ function StatementBody({ period, name, go }) {
   const [busy, setBusy] = useState(false);
   const [pdfErr, setPdfErr] = useState('');
   if (loading) return <Loading rows={4} />;
-  if (err) return <ErrorBlock msg={`We couldn’t prepare the statement. ${err}. Please try again, or contact investor.relations@qodeinvest.com.`} onRetry={reload} />;
+  if (err) return <ErrorBlock msg={`We couldn’t prepare the statement. ${err}. Please try again, or contact partnerships@qodeinvest.com.`} onRetry={reload} />;
   if (!rows.length) return <Empty title="No fees in this period">There is nothing to put on a statement for {period.label}. Try an earlier period.</Empty>;
   const pdf = async () => { if (busy) return; setBusy(true); setPdfErr(''); try { await savePdf(doc.html(), 'Fee statement ' + ref); } catch (e) { setPdfErr(e.message); } setBusy(false); };
   const cols = [
@@ -1015,12 +1074,12 @@ function StatementBody({ period, name, go }) {
       <Panel title="Breakdown by client" sub={`You receive ${t.ratePct} of the standard fee${disc ? ', less your discount' : ''}, including GST`} pad={0}>
         <Table dense rows={[...clients.map((c, i) => ({ ...c, id: c.name + i })), totalRow]} cols={cols} />
       </Panel>
-      {t.unmapped && <Notice>Some clients are not included. One or more clients have no fee share configured, so no amount is shown against them. Contact investor.relations@qodeinvest.com before invoicing.</Notice>}
+      {t.unmapped && <Notice>Some clients are not included. One or more clients have no fee share configured, so no amount is shown against them. Contact partnerships@qodeinvest.com before invoicing.</Notice>}
       {t.isLegacyRate && <Notice>Provisional rate. This statement uses a share rate held in our portal records rather than a confirmed CRM rate. Please confirm before invoicing.</Notice>}
       <Panel title="Notes">
         <Tx s={13} c={C.ink2} lh={1.6}><Tx w={600} s={13}>This is not a tax invoice.</Tx> It is a statement of fees earned, issued for your records. Please raise your own invoice on Qode Advisors LLP for the total shown above.</Tx>
         <Tx s={13} c={C.ink2} lh={1.6} style={{ marginTop: 10 }}><Tx w={600} s={13}>The total payable to you is inclusive of GST at 18%.</Tx> Your revenue share of {t.ratePct} is calculated on the fees billed to your clients, and GST at 18% is added to your share. Do not add GST on top of the total: the amount payable to you is {inr(t.share)} in full. On your invoice this is {inr(t.shareNet)} plus GST of {inr(t.shareGst)}.</Tx>
-        <Tx s={13} c={C.ink2} lh={1.6} style={{ marginTop: 10 }}>Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact investor.relations@qodeinvest.com before invoicing.</Tx>
+        <Tx s={13} c={C.ink2} lh={1.6} style={{ marginTop: 10 }}>Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact partnerships@qodeinvest.com before invoicing.</Tx>
       </Panel>
     </>
   );
@@ -1104,7 +1163,7 @@ function InvoiceBody({ period, name, onIssued }) {
   return (
     <Row top>
       <View style={{ flex: 1, gap: 20, minWidth: 0 }}>
-        {!qodeOk && <Notice tone="bad">Invoicing isn’t available yet. Qode’s GST details haven’t been configured in the portal, and an invoice without them wouldn’t be valid. Please contact investor.relations@qodeinvest.com.</Notice>}
+        {!qodeOk && <Notice tone="bad">Invoicing isn’t available yet. Qode’s GST details haven’t been configured in the portal, and an invoice without them wouldn’t be valid. Please contact partnerships@qodeinvest.com.</Notice>}
         <Panel title="Your invoice details" sub="They appear on the invoice as the party raising it. We save them, so you only enter them once.">
           <View style={{ gap: 14 }}>
             <Row gap={14}>{F('legalName', 'Registered name *', { placeholder: 'As registered, e.g. Acme Capital Services LLP' })}</Row>
@@ -1375,7 +1434,7 @@ function Support() {
             {TOPICS.map(([k, l, h]) => {
               const on = topic === k;
               return (
-                <Pressable key={k} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => { setTopic(k); setSt(s => ({ ...s, err: '' })); }}
+                <Pressable key={k} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => { if (k !== topic) setMessage(''); setTopic(k); setSt(s => ({ ...s, err: '' })); }}
                   style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 10, borderWidth: 1, borderColor: on ? C.green : C.line, backgroundColor: on ? C.greenTint : hovered ? C.hover : C.card })}>
                   <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: on ? C.green : C.line2, alignItems: 'center', justifyContent: 'center' }}>
                     {on && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.green }} />}

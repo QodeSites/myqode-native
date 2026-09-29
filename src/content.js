@@ -91,7 +91,7 @@ export const TEAM = [
   {
     name: `WhatsApp/Email`,
     role: `Instant, informal, and quick communication.`,
-    bio: `WhatsApp (IR Desk): +91 98203 00028 (9 AM – 5 PM). Email: investor.relations@qodeinvest.com. Join Qode Investor Circle: WhatsApp community for Qode investors.`,
+    bio: `Reach the IR desk on WhatsApp or email (details in CONTACT). Join Qode Investor Circle: WhatsApp community for Qode investors.`,
   },
 ];
 
@@ -291,6 +291,8 @@ export const VOICE = {
   ],
 };
 
+// Investor Relations: the only place these details live. Shown by ContactCard (src/screens/contact.js on the
+// phone, src/web/contact.js on the web) on "Your Team at Qode"; everywhere else links there.
 export const CONTACT = {
   phones: [
     { label: `Investor Relations`, number: `+91 98203 00028` },
@@ -298,11 +300,13 @@ export const CONTACT = {
   emails: [
     { label: `Investor Relations`, address: `investor.relations@qodeinvest.com` },
   ],
+  whatsapp: { label: `WhatsApp (IR desk)`, number: `+91 98203 00028`, hours: `9 AM to 5 PM` },
+  community: { label: `Qode Investor Circle`, sub: `WhatsApp community for Qode investors`, url: `https://chat.whatsapp.com/IW7eHWZjWAq54MyKvZtQdC` },
   address: [
     `2nd Floor, Tree Building, Raghuvanshi Mills Compound, Gandhi Nagar, Upper Worli, Lower Parel, Mumbai, Maharashtra 400013`,
     `India`,
   ],
-  hours: [`WhatsApp (IR Desk): 9 AM – 5 PM`],
+  hours: [`WhatsApp (IR desk): 9 AM to 5 PM`],
 };
 
 export const LEGAL = {

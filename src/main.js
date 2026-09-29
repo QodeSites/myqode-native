@@ -31,10 +31,11 @@ import {
   QUARTER_LABELS,
   QS, TYPES, FEES, RES,
 } from './data';
-import { BASE_URL, auth, portfolio, meta, admin, backoffice, onAdminDenied, distributor, setViewToken, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
+import { irrPeriod, fmtIrr, irrLabel } from './irr';
+import { BASE_URL, auth, portfolio, meta, admin, notifications, backoffice, onAdminDenied, distributor, setViewToken, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
 import { trackStart, trackStop, screen } from './api/track';
 import { perfFrom, navFrom, ddFrom, cashFrom, plFrom, combineFamily } from './webcalc';
-import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, ddPct, inr, sinr, titleCase, semverLt, fmtD, fmtDM } from './adapt';
+import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, ddPct, inr, sinr, fmtDate, fmtMonth, fmtDayMon, titleCase, semverLt, fmtD, fmtDM } from './adapt';
 import Splash from './screens/splash';
 import Carousel from './screens/carousel';
 import { Login, OtpScreen, SetPassword } from './screens/login';
@@ -57,18 +58,50 @@ import {
   cleanName, validateAmount, ENTITY_LABELS,
 } from './onboarding/mapping';
 import { API_BASE, RESUME_HOSTS, UPLOAD } from './onboarding/config';
+import { PAGE_ALIASES, openLink } from './nav';
+import * as push from './push';
+import { setPdfSummaries } from './screens/reportPdf';
+// Report summaries are a web feature; the phone app shows the figures and tables only.
+setPdfSummaries(Platform.OS === 'web');
 
 const MIME_BY_EXT = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 const guessMime = name => MIME_BY_EXT[(String(name || '').split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
 
-const PERIOD = { '1M': '1M', '6M': '6M', '1Y': '1Y', '3Y': '3Y', All: 'ALL' };
+const PERIOD = { '1W': '1W', '10D': '10D', '1M': '1M', '6M': '6M', '1Y': '1Y', '3Y': '3Y', SI: 'ALL' };
+const RANGE_IDS = ['1W', '10D', '1M', '6M', '1Y', '3Y', 'SI'];
+const RANGE_LABEL = { '1W': 'the last week', '10D': 'the last 10 days', '1M': 'the last month', '6M': 'the last 6 months', '1Y': 'the last year', '3Y': 'the last 3 years', SI: 'since inception' };
+const normRange = r => (r === 'All' || r === 'ALL' || !PERIOD[r] ? 'SI' : r);   // 'All' was the old name of SI
+// The API windows (nav / drawdown ?period=) are 1W, 1M, 3M, 6M, 1Y, 3Y, ALL. 10D isn't one of them: it is
+// fetched as 1M and cut to the last 10 calendar days here.
+const apiPeriod = p => (p === '10D' ? '1M' : p);
+const CLIENT_DAYS = { '10D': 10 };
+function cutRange(nav, dd, period) {
+  const days = CLIENT_DAYS[period];
+  if (!days) return { nav, dd };
+  // Counted back from the latest date on record (as webcalc's windows are), so a lagging or demo series still fills.
+  const all = (nav && nav.series) || [];
+  const last = all.length ? new Date(String(all[all.length - 1].date).slice(0, 10) + 'T00:00:00Z') : null;
+  if (last) last.setUTCDate(last.getUTCDate() - days);
+  const cut = last ? last.toISOString().slice(0, 10) : '';
+  const rows = all.filter(r => String(r.date).slice(0, 10) >= cut);
+  if (!rows.length) return { nav: nav ? { ...nav, series: [] } : nav, dd: dd ? { ...dd, series: [] } : dd };
+  // Re-anchor at the window start, the way the API anchors every window: growth rebased to 100, drawdown peak reset.
+  const p0 = rows[0].portfolio, b0 = (rows.find(r => r.benchmark != null) || {}).benchmark;
+  const series = rows.map(r => ({ ...r, portfolio: +((r.portfolio / p0) * 100).toFixed(4), benchmark: r.benchmark != null && b0 ? +((r.benchmark / b0) * 100).toFixed(4) : null }));
+  let pk = -Infinity, bpk = -Infinity;
+  const ddSeries = series.map(r => {
+    pk = Math.max(pk, r.portfolio); if (r.benchmark != null) bpk = Math.max(bpk, r.benchmark);
+    return { date: r.date, portfolio: +(((r.portfolio - pk) / pk) * 100).toFixed(4), benchmark: r.benchmark == null ? null : +(((r.benchmark - bpk) / bpk) * 100).toFixed(4) };
+  });
+  return { nav: { ...nav, period, series }, dd: { ...(dd || {}), period, series: ddSeries } };
+}
 
 // Sign-in fields never take spaces (typed or pasted): an email, a client code and a password contain none.
 const noSpace = t => String(t || '').replace(/\s+/g, '');
 
 export default class MyQode extends React.Component {
   state = {
-    phase: 'splash', tab: 'home', sheet: null, acct: 0, range: 'All',
+    phase: 'splash', tab: 'home', sheet: null, acct: 0, range: 'SI',
     amt: 500000, method: 0, success: null, otp: ['', '', '', '', '', ''],
     email: '', pw: '', loading: false, lifting: false, cu: 1, ob: null, car: 0,
     ts: 1, hc: false, rm: false,
@@ -144,13 +177,22 @@ export default class MyQode extends React.Component {
     this.appSub = AppState.addEventListener('change', st => {
       // Not while a full-screen page is open (e.g. Reports): coming back from the share sheet must not reset its lists.
       if (st === 'active' && this.state.phase === 'app' && !this.state.page && Date.now() - (this.lastLoad || 0) > 60000) this.refresh();
+      if (st === 'active' && this.state.phase === 'app') { this.loadNotifs(); this.pushSync(); }
       // A release can land while the app sits in the background: look again when it comes back, at most every 30 min.
       if (st === 'active' && Date.now() - (this.lastVersionCheck || 0) > 30 * 60 * 1000) this.checkVersion();
       if (this.store) { if (st === 'active') this.store.onForeground(); else if (st === 'background') this.store.onBackground(); }
     });
+    // Notifications: popups arriving while the app is open refresh the bell; a tap opens its destination (a tap that
+    // launched the app waits in pendingTap until the app is ready).
+    this.pushOff = push.listen({
+      onReceive: () => this.loadNotifs(),
+      onTap: (link, id) => this.onNoteTap(link, id),
+      onToken: () => this.pushSync(),
+    });
     this.boot();
   }
   componentWillUnmount() {
+    if (this.pushOff) this.pushOff();
     this.unmounted = true;
     if (this.backSub) this.backSub.remove();
     if (this.linkSub) this.linkSub.remove();
@@ -277,7 +319,7 @@ export default class MyQode extends React.Component {
     await minSplash;
     if (this.unmounted || this.state.phase !== 'splash') return;
     if (offline) { this.setState({ phase: 'lock', lockOffline: true, lockErr: '', lockGone: false, lockBusy: false }); return; }
-    if (ok && adminOn) this.setState({ phase: 'admin' });
+    if (ok && adminOn) this.setState({ phase: 'admin' }, () => { this.pushSync(); this.applyPendingTap(); });
     else if (ok && partner) this.setState({ phase: 'partner' });
     // Desktop web: the brand panel next to the form already introduces the app, so sign-in comes first.
     else if (ok) this.startApp(); else this.setState({ phase: this.props.desktop ? 'login' : 'carousel' });
@@ -350,7 +392,7 @@ export default class MyQode extends React.Component {
       this.setState({ dl: false, d: null, dErr: 'There is no active portfolio on this login yet. If you have just invested, it appears once your account is funded. For anything else, please contact Investor Relations.' });
       return;
     }
-    const seq = ++this.seq, period = PERIOD[this.state.range];
+    const seq = ++this.seq, period = PERIOD[normRange(this.state.range)];
     this.setState({ dl: true, dErr: '' });
     try {
       const k = scope.kind;
@@ -367,12 +409,12 @@ export default class MyQode extends React.Component {
         }
         this.setState({ hist: fam, dv: 'nuvama' }, () => this.applyView('nuvama'));
         this.lastLoad = Date.now();
-        this.loadHoldings(scope, seq);
+        this.loadHoldings(scope, seq); this.loadIrr(scope, seq);
         return;
       }
       // Performance is required; every other part is optional so one failing endpoint can't blank the portfolio.
       const parts = await Promise.allSettled([
-        portfolio.performance(scope.id, k), portfolio.nav(scope.id, period, k), portfolio.drawdown(scope.id, period, k),
+        portfolio.performance(scope.id, k), portfolio.nav(scope.id, apiPeriod(period), k), portfolio.drawdown(scope.id, apiPeriod(period), k),
         portfolio.cashflow(scope.id, k), portfolio.monthlyPl(scope.id, k), portfolio.quarterlyPl(scope.id, k),
       ]);
       if (seq !== this.seq) return;
@@ -383,7 +425,8 @@ export default class MyQode extends React.Component {
         if ((e.status === 403 || e.status === 404) && this.stepDown(scope)) return;
         throw e;
       }
-      const [perf, nav, dd, cash, monthly, quarterly] = parts.map(x => (x.status === 'fulfilled' ? x.value : null));
+      const [perf, nav0, dd0, cash, monthly, quarterly] = parts.map(x => (x.status === 'fulfilled' ? x.value : null));
+      const { nav, dd } = cutRange(nav0, dd0, period);
       // Accounts with legacy Orbis rows: the web computes everything in the browser from raw rows, with three
       // views. Do the same (src/webcalc.js) so every figure matches whichever view is picked.
       let hist = null;
@@ -394,11 +437,10 @@ export default class MyQode extends React.Component {
         try { const h = await portfolio.history(legacyId); if (h && h.orbis && h.orbis.length) hist = h; } catch {}
         if (seq !== this.seq) return;
       }
-      // Web default (performance page): Orbis + Nuvama (Combined) whenever the account has Orbis rows.
-      if (hist) { this.setState({ hist }, () => this.applyView('consolidated')); this.lastLoad = Date.now(); this.loadHoldings(scope, seq); return; }
+      if (hist) { this.setState({ hist }, () => this.applyView(this.state.dv)); this.lastLoad = Date.now(); this.loadHoldings(scope, seq); this.loadIrr(scope, seq); return; }
       this.setState({ hist: null, d: { id: scope.id, kind: k, perf, cash, fys: buildFys(monthly), fysQ: buildFysQ(quarterly) }, navs: { [period]: { nav, dd } }, dl: false, pnlFy: 0, pnlOpen: null });
       this.lastLoad = Date.now();
-      this.loadHoldings(scope, seq);
+      this.loadHoldings(scope, seq); this.loadIrr(scope, seq);
     } catch (e) {
       if (seq !== this.seq) return;
       // Transient failure: keep the skeleton and try again (twice) before showing an error — a tunnel or
@@ -426,6 +468,13 @@ export default class MyQode extends React.Component {
     return true;
   }
 
+  // Money-weighted return (IRR) for the scope, next to the NAV-based TWRR. Optional: failures leave it blank.
+  async loadIrr(scope, seq) {
+    const codes = scope.kind === 'local-family' ? scope.members : [scope.id];
+    this.setState({ irr: null });
+    try { const r = await portfolio.irr(codes.map(String)); if (seq === this.seq) this.setState({ irr: r }); } catch {}
+  }
+
   async loadHoldings(scope, seq) {
     const res = await Promise.allSettled(scope.accounts.map(a => portfolio.performance(a.id)));
     if (seq !== this.seq) return;
@@ -438,7 +487,7 @@ export default class MyQode extends React.Component {
   applyView(dv) {
     const h = this.state.hist;
     if (!h) return;
-    const period = PERIOD[this.state.range], pl = plFrom(h, dv);
+    const period = PERIOD[normRange(this.state.range)], pl = plFrom(h, dv);
     this.setState({
       dv, dl: false, pnlFy: 0, pnlOpen: null,
       d: { id: h.accountId, kind: 'account', local: true, perf: perfFrom(h, dv), cash: cashFrom(h, dv), fys: buildFys(pl.monthly), fysQ: buildFysQ(pl.quarterly) },
@@ -448,6 +497,7 @@ export default class MyQode extends React.Component {
 
   // `shownRange` = the last range whose data is on screen; vals() keeps drawing it until the new one has loaded.
   async pickRange(id) {
+    id = normRange(id);
     const period = PERIOD[id], d = this.state.d;
     const shownRange = this.state.navs[period] ? id : (this.state.shownRange || this.state.range);
     this.setState({ range: id, shownRange });
@@ -458,7 +508,8 @@ export default class MyQode extends React.Component {
     }
     if (!d || this.state.navs[period]) return;
     try {
-      const [nav, dd] = await Promise.all([portfolio.nav(d.id, period, d.kind), portfolio.drawdown(d.id, period, d.kind)]);
+      const [nav0, dd0] = await Promise.all([portfolio.nav(d.id, apiPeriod(period), d.kind), portfolio.drawdown(d.id, apiPeriod(period), d.kind)]);
+      const { nav, dd } = cutRange(nav0, dd0, period);
       if (this.state.d && this.state.d.id === d.id) this.setState(s => ({ navs: { ...s.navs, [period]: { nav, dd } }, shownRange: s.range === id ? id : s.shownRange }));
     } catch {}
   }
@@ -516,7 +567,7 @@ export default class MyQode extends React.Component {
     if (!isAdmin && user && user.isSuperAdmin) { try { const me = await auth.me(); isAdmin = !!(me && me.isAdmin); if (isAdmin) user = { ...user, ...me }; } catch {} }
     if (isAdmin) {
       this.adminUser = user;
-      this.setState({ user, busy: false, pw: '', np: '', np2: '', otp: ['', '', '', '', '', ''], authErr: '', phase: 'admin', adm: null });
+      this.setState({ user, busy: false, pw: '', np: '', np2: '', otp: ['', '', '', '', '', ''], authErr: '', phase: 'admin', adm: null }, () => { this.pushSync(); this.applyPendingTap(); });
       return;
     }
     if (user && user.isDistributor) {
@@ -660,6 +711,7 @@ export default class MyQode extends React.Component {
   };
 
   signOut = async (msg = '') => {
+    if (!this.origToken && !isDemo()) await push.unregister();   // before the session goes: this phone stops getting their popups
     this.origToken = null; this.adminUser = null;
     storeDel(ADMIN_KEY);
     setViewToken(null); this.partnerUser = null; this.partnerNav = null;
@@ -674,7 +726,7 @@ export default class MyQode extends React.Component {
     this.setState({
       phase: 'login', tab: 'home', sheet: null, page: null, user: null, acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {},
       dErr: '', dl: false, pw: '', busy: false, otp: ['', '', '', '', '', ''], authErr: msg, authInfo: '', uccSeen: false, payRecover: null, viewing: null,
-      imp: null, adm: null,
+      imp: null, adm: null, notes: null, pushOffer: false,
     });
   };
   expire() {
@@ -746,7 +798,8 @@ export default class MyQode extends React.Component {
     this.seq++;
     await setToken(t);
     this.setState({ phase: 'admin', user: this.adminUser || this.state.user, imp: null, viewing: null, page: null, sheet: null, tab: 'home',
-      acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '', lifting: false });
+      acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '', lifting: false },
+      () => this.pushSync());   // once the admin's own session is in state: register this phone for the admin's test sends
     if (msg) this.toast(msg);
     try {
       const me = await auth.me();
@@ -808,6 +861,59 @@ export default class MyQode extends React.Component {
   fmt0(v) { return inr(v, 0); }
   sfmt(v) { return sinr(v); }
 
+  // ── Notifications (server: myQode lib/appNotify.ts; device: src/push.js) ─────────────────────────────────────
+  // The login's own session only: never while admin views a client, a distributor views an investor, or in demo.
+  ownSession() { return !isDemo() && !this.origToken && !this.state.viewing && !(this.state.user && this.state.user.isImpersonated); }
+  // The iPhone's own permission prompt appears by itself the first time the app is in use (any mode: permission
+  // belongs to the phone, not to a login). The phone is registered for popups only in the login's own session.
+  pushSync = async () => {
+    if (Platform.OS === 'web' || isDemo() || this.pushBusy) return;
+    this.pushBusy = true;
+    try {
+      await push.reportStart(this.state.phase + (this.ownSession() ? '' : ' (viewing)'));
+      if (await push.shouldAskNow()) { await new Promise(r => setTimeout(r, 1200)); await push.ask(); }
+      if (this.ownSession()) await push.register();
+      if (this.state.phase === 'app' && !this.state.pushOffer && (await push.shouldOffer())) this.setState({ pushOffer: true });
+    } finally { this.pushBusy = false; }
+  };
+  loadNotifs = async () => {
+    if (this.state.phase !== 'app' || this.notesBusy) return;
+    this.notesBusy = true;
+    const cur = this.state.notes;
+    this.setState({ notes: { ...(cur || { items: [], unread: 0 }), loading: true, err: '' } });
+    try {
+      const r = await notifications.list();
+      this.setState({ notes: { items: r.items || [], unread: r.unread || 0, hasMore: !!r.hasMore, loading: false, err: '' } });
+      if (this.ownSession()) push.setBadge(r.unread || 0);
+    } catch (e) {
+      this.setState({ notes: { ...(cur || { items: [], unread: 0 }), loading: false, err: e.message || 'We couldn’t load your notifications.' } });
+    } finally { this.notesBusy = false; }
+  };
+  markNotes = (ids, all) => {
+    const n = this.state.notes;
+    if (!n || !this.ownSession()) return;
+    const items = n.items.map(x => (all || ids.includes(x.id) ? { ...x, read: true } : x));
+    const unread = items.filter(x => !x.read).length;
+    this.setState({ notes: { ...n, items, unread } });
+    push.setBadge(unread);
+    notifications.read(all ? { all: true } : { ids }).then(r => { if (r && typeof r.unread === 'number') push.setBadge(r.unread); }).catch(() => {});
+  };
+  // A tap on a notification (popup or inbox). A web link opens straight away in any mode. In admin mode it opens
+  // the admin Notifications tab (there is no investor screen to go to); while admin views a client it goes to the
+  // screen in that client's view, read-only (their notification is not marked read). A tap that launched the app
+  // waits in pendingTap until the app or the admin console is ready.
+  onNoteTap = (link, id) => {
+    if (/^url:https:\/\//i.test(String(link || ''))) { if (this.ownSession() && id) this.markNotes([id]); openLink(this.vals(), link); return; }
+    const { phase } = this.state;
+    if (phase === 'admin') { this.setState(s => ({ sheet: null, adm: { ...(s.adm || {}), tab: 'notifications', email: null } })); return; }
+    if (phase !== 'app') { this.pendingTap = { link, id }; return; }   // before sign-in finished
+    if (id && this.ownSession()) this.markNotes([id]);
+    this.setState({ sheet: null });
+    openLink(this.vals(), link);
+    this.loadNotifs();
+  };
+  applyPendingTap = () => { if (this.pendingTap) { const t = this.pendingTap; this.pendingTap = null; setTimeout(() => this.onNoteTap(t.link, t.id), 600); } };
+
   startApp = () => {
     const first = !this.counted; this.counted = true;
     const ready = !!this.state.d;
@@ -816,6 +922,8 @@ export default class MyQode extends React.Component {
     services.bankDetails().catch(() => {});
     services.warmSwitchInfo();
     const sc = this.curScope(); if (sc && sc.accounts[0]) documents.warm(sc.accounts[0].id);   // Documents tab: category counts
+    this.loadNotifs(); this.pushSync();
+    this.applyPendingTap();
     if (!first || this.state.viewing) return;
     this.resumePayment();
     const t0 = Date.now(), D = 400;
@@ -941,7 +1049,7 @@ export default class MyQode extends React.Component {
     const green = C.pos, red = C.red;
     const c = v => (v < 0 ? red : v > 0 ? green : C.muted);   // same rule as the web table: green / red / neutral
     const ddColor = v => (v != null && Math.abs(v) >= 0.005 ? red : C.muted);   // drawdown: red below the peak, neutral at a new high
-    const asOf = perf && perf.dataAsOf ? fmtD(perf.dataAsOf) : '';
+    const asOf = perf && perf.dataAsOf ? fmtDate(perf.dataAsOf) : '';
     const benchName = titleCase(perf && perf.strategy && perf.strategy.benchmark) || 'Nifty 50';
     const value = perf ? perf.currentValue : scope ? scope.value : 0;
     const totalReturns = perf ? perf.totalReturns : 0;
@@ -988,20 +1096,19 @@ export default class MyQode extends React.Component {
     const p1 = buildPaths(cPts, cBench, 330, 120, null, [axis.lo, axis.hi]);
     const p2 = buildPaths(cPts, cBench, 358, 110, null, [axis.lo, axis.hi]);
     const navNow = rawLine.length ? rawLine[rawLine.length - 1] : 0;   // the real NAV, not the rebased line
-    const dmy = d => fmtD(d);
-    const xDates = dates.length > 1 ? [dates[0], dates[Math.floor((dates.length - 1) / 2)], dates[dates.length - 1]].map(dmy) : [];
+    // Short windows (a few trading days, weekends skipped) label days, longer ones months.
+    const shortSpan = dates.length > 1 && new Date(dates[dates.length - 1]) - new Date(dates[0]) < 62 * 864e5;
+    const xFmt = shortSpan ? fmtDayMon : fmtMonth;
+    const xDates = dates.length > 1 ? [...new Set([dates[0], dates[Math.floor((dates.length - 1) / 2)], dates[dates.length - 1]].map(xFmt))] : [];
     // Growth anchor for the full-history chart = the web's: NAV 10 (the PMS starting point) when the first
     // NAV isn't exactly 10, else the first NAV. Shorter ranges are anchored at the window start.
-    const isAll = shownRange === 'All';
+    const isAll = shownRange === 'SI';
     const rawFirst = hasRaw ? navs[0] : null;
     const growthBase = isAll && rawFirst != null && rawFirst !== 10 ? 10 : null;   // null → relative to the first point
     const growthAt = i => (growthBase != null ? (navs[i] / growthBase - 1) * 100 : (pts[i] / pts[0] - 1) * 100);
 
     // Recent activity from cashflow
-    const dateFmt = d => {
-      const t = new Date(d);
-      return isNaN(t) ? String(d) : fmtD(t);
-    };
+    const dateFmt = fmtDate;
     const cashTx = ((S.d && S.d.cash && S.d.cash.transactions) || []).slice()
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     const tx = t => {
@@ -1106,27 +1213,35 @@ export default class MyQode extends React.Component {
       acctName: scope ? scope.name : '', acctInitials: scope ? scope.initials : '', acctTag: (scope && scope.tag) || '', acctCode: scope ? scope.code : '',
       isFamily: S.acct === -1 && !!family,
       multiAcct: owners.length > 0,   // owner aggregate vs its strategy accounts are different views, so the switcher always applies
-      // notifications (no inbox API yet)
+      // notifications: the bell's inbox and the "turn on notifications" card
       needsYou: false, needsYouMsg: '',
-      hasNotif: false, openNotifs: () => set({ sheet: 'notifs' }),
-      sheetNotifs: S.sheet === 'notifs', notifEmpty: true, notifHas: false,
-      notifList: [],
+      hasNotif: !!(S.notes && S.notes.unread), notifUnread: (S.notes && S.notes.unread) || 0,
+      openNotifs: () => { set({ sheet: 'notifs' }); this.loadNotifs(); },
+      sheetNotifs: S.sheet === 'notifs',
+      notes: (S.notes && S.notes.items) || [], notesLoading: !!(S.notes && S.notes.loading) && !(S.notes.items || []).length,
+      notesErr: (S.notes && S.notes.err) || '', notesRetry: () => this.loadNotifs(),
+      noteOpen: nt => this.onNoteTap(nt.link, nt.id),
+      notesMarkAll: () => this.markNotes([], true), notesCanMark: this.ownSession(),
+      openNotifSettings: () => { set({ sheet: null }); screen('page:notifications'); set({ page: 'notifications' }); },
+      pushOffer: !!S.pushOffer && !S.viewing,
+      pushOfferYes: async () => { set({ pushOffer: false }); const p = await push.ask(); if (p === 'granted') this.pushSync(); },
+      pushOfferNo: () => { set({ pushOffer: false }); push.snooze(); },
       svcPending: false, svcNone: true, svcPendingSub: '',
       tab: S.tab, scopeKey: S.acct,
       isHome: S.tab === 'home', isPortfolio: S.tab === 'portfolio', isHoldings: S.tab === 'holdings',
-      isDocs: S.tab === 'docs', isServices: S.tab === 'services', isMore: S.tab === 'more',
+      isDocs: S.tab === 'docs', isServices: S.tab === 'services', isMore: S.tab === 'more', isReports: S.tab === 'reports',
       goHome: () => this.go('home'), goPortfolio: () => this.go('portfolio'),
       isPfGroup: S.tab === 'portfolio' || S.tab === 'holdings',
       segPerf: () => this.go('portfolio'), segHold: () => this.go('holdings'),
       goDocs: () => this.go('docs'), goServices: () => this.go('services'), svcJump: S.svcJump || 0,
-      goServicesTx: () => { set({ svcJump: Date.now() }); this.go('services'); },   // Home → Transactions → View all
-      goMore: () => this.go('more'),
+      goServicesTx: () => { screen('page:transactions'); set({ page: 'transactions' }); },   // "View all" transactions: their own page
+      goMore: () => this.go('more'), goReports: () => this.go('reports'),
       vPortfolio: S.tab === 'portfolio' && !busy && hasData, vHoldings: S.tab === 'holdings' && !busy && hasData,
-      vDocs: S.tab === 'docs' && !S.loading, vServices: S.tab === 'services' && !S.loading, vMore: S.tab === 'more' && !S.loading,
+      vDocs: S.tab === 'docs' && !S.loading, vServices: S.tab === 'services' && !S.loading, vMore: S.tab === 'more' && !S.loading, vReports: S.tab === 'reports' && !S.loading,
       skelOther: S.tab !== 'home' && (['portfolio', 'holdings'].includes(S.tab) ? busy : S.loading),
-      navIdx: { home: 0, portfolio: 1, holdings: 1, docs: 2, services: 3, more: 4 }[S.tab],
+      navIdx: { home: 0, portfolio: 1, holdings: 1, reports: 2, services: 3, more: 4, docs: 4 }[S.tab],   // Documents opens from More
       heroValue: this.fmt(value * (0.35 + 0.65 * S.cu)),
-      rangeLabel: shownRange === 'All' ? 'all time' : shownRange, rangeLoading, asOf, benchName, sinceLbl: perf && perf.inceptionDate ? 'Since ' + fmtD(perf.inceptionDate) : '',
+      rangeLabel: RANGE_LABEL[shownRange] || shownRange, rangePhrase: shownRange === 'SI' ? 'since inception' : 'over ' + (RANGE_LABEL[shownRange] || shownRange), rangeLoading, asOf, benchName, sinceLbl: perf && perf.inceptionDate ? 'Since ' + fmtDate(perf.inceptionDate) : '',
       growthNow: navNow.toFixed(2), navNow: navNow.toFixed(2),
       yTicks: axis.ticks, xDates,
       hasViews: !!S.hist && !S.hist.family,
@@ -1152,9 +1267,11 @@ export default class MyQode extends React.Component {
       ddTip: { kind: 'dd', dates: ddDates, pts: ddPts, bench: ddBench, navs: ddDates.map(d => (rawByDate[d] || [])[0]), bvals: ddDates.map(d => (rawByDate[d] || [])[1]), xy: p3.xy, bxy: p3.bxy, benchName },
       ddLine: p3.line, ddArea: p3.area, ddBench: p3.bench, hasDd: ddPts.length > 1, ddNow: ddPts.length ? ddPts[ddPts.length - 1] : 0,
       perfLine: p2.line, perfBench: p2.bench, hasBench: !!bench,
-      ranges: ['1M', '6M', '1Y', '3Y', 'All'].map(id => ({ label: id, pick: () => this.pickRange(id), active: S.range === id, loading: rangeLoading && S.range === id })),
+      ranges: RANGE_IDS.map(id => ({ label: id, pick: () => this.pickRange(id), active: S.range === id, loading: rangeLoading && S.range === id })),
       tx3: cashTx.slice(0, 3).map(tx), txAll: cashTx.map(tx), hasTx: cashTx.length > 0,
       holdings: holdRows, chartColor,
+      // IRR (money-weighted) beside TWRR: [{ period, label, value, color }] for SI / 1Y / 3Y when available.
+      irrRows: ['SI', '1Y', '3Y'].map(p => { const x = irrPeriod(S.irr, p); return x && x.irr != null ? { period: p, label: irrLabel(x), value: fmtIrr(x), color: c(x.irr) } : null; }).filter(Boolean),
       holdSlices: holdRows.map(h => ({ id: h.id, pct: h.alloc, color: h.color, name: h.name })),
       holdCount: holdRows.length,
       flows: [
@@ -1194,10 +1311,9 @@ export default class MyQode extends React.Component {
       toast: m => this.toast(m),
       viewing: S.viewing, viewInvestor: this.viewInvestor, exitView: () => this.exitView(), partnerNav: this.partnerNav || null,
       user: S.user, isSuperAdmin: !!(S.user && S.user.isSuperAdmin), impersonated: !!(S.user && S.user.isImpersonated),
-      page: S.page, openPage: k => { screen('page:' + k); set({ page: k }); }, closePage: () => set({ page: null }),
+      page: S.page, openPage: k => { k = PAGE_ALIASES[k] || k; screen('page:' + k); set({ page: k }); }, closePage: () => set({ page: null }),
       acctOptions: (scope ? scope.accounts : []).map(a => ({ id: a.id, label: a.strategyPrefix ? a.strategyPrefix + ' · ' + a.id : a.id })),
-      // no requests in a client's name while a distributor views the account
-      openReq: (k, preset) => { if (!S.viewing) set({ sheet: k, sheetPreset: preset || null }); }, sheetPreset: S.sheetPreset || null,
+      openReq: (k, preset) => { if (!S.viewing) set({ sheet: k, sheetPreset: preset || null }); }, sheetPreset: S.sheetPreset || null,   // no requests in a client's name while a distributor views the account
       bumpRefresh: () => set(s => ({ rk: s.rk + 1 })),
       openAdd: () => { if (!S.viewing) set({ sheet: 'r-add' }); },
       openSwitchStrategy: () => { if (!S.viewing) set({ sheet: 'r-switch' }); },
@@ -1330,7 +1446,7 @@ export default class MyQode extends React.Component {
     const tracker = (() => {
       if (!SS) return [];
       const sub = SS.submittedAt ? new Date(SS.submittedAt) : null;
-      const when = sub ? fmtDM(sub) + ', ' + sub.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : 'Just now';
+      const when = sub ? sub.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).replace(/\bSept\b/, 'Sep') : 'Just now';
       const idV = verP && verP.verified;
       const bankV = !!(verP && verP.bank);
       const esign = checkOf('primary', 'esign');

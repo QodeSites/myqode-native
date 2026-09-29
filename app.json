@@ -53,7 +53,8 @@
           ]
         }
       ],
-      "package": "com.qodeinvest.myqode"
+      "package": "com.qodeinvest.myqode",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -83,7 +84,15 @@
         }
       ],
       "expo-sharing",
-      "./plugins/withSceneLifecycle"
+      "./plugins/withSceneLifecycle",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#02422B",
+          "defaultChannel": "default"
+        }
+      ]
     ],
     "scheme": "myqode",
     "owner": "qodetech",

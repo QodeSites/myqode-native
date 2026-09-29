@@ -17,7 +17,7 @@ const GROUP = 'GRP1001';
 const DAY = 86400000;
 const START = Date.UTC(2023, 6, 1), END = Date.UTC(2026, 6, 14);
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const fmtDate = t => { const d = new Date(t); return String(d.getUTCDate()).padStart(2, '0') + '-' + MON[d.getUTCMonth()] + '-' + d.getUTCFullYear(); };
+const fmtDate = t => { const d = new Date(t); return String(d.getUTCDate()).padStart(2, '0') + ' ' + MON[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); };
 const isoDate = t => new Date(t).toISOString().slice(0, 10);
 
 function rng(seed) {

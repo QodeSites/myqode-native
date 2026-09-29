@@ -6,6 +6,7 @@ import * as Clipboard from 'expo-clipboard';
 import { C, Tx, Card, CTA } from '../ui';
 import { meta } from '../api';
 import { useLoad, Loading, ErrorBox, SectionLabel } from './kit';
+import { ContactIRLink } from './contact';
 import { fmtDate } from '../adapt';
 
 const d = v => (v ? fmtDate(v) : '–');
@@ -20,7 +21,7 @@ function Line({ k, v, last }) {
   );
 }
 
-export function NuvamaPage() {
+export function NuvamaPage({ V }) {
   const q = useLoad(() => meta.nuvamaDetails(), []);
   const [copied, setCopied] = useState(false);
   if (q.loading && !q.data) return <Loading />;
@@ -87,7 +88,8 @@ export function NuvamaPage() {
           <Line k="Status" v={a.active ? 'Active' : 'Closed'} last />
         </Card>
       ))}
-      <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 6 }}>To change any of these details, write to Investor Relations from Services.</Tx>
+      <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 6 }}>To change any of these details, write to Investor Relations.</Tx>
+      <ContactIRLink V={V} />
     </>
   );
 }

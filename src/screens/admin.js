@@ -3,13 +3,14 @@
 // component's `adm` state so "Back to admin" returns to where the admin left off. The desktop web console
 // (src/web/admin.js) reuses the helpers exported here.
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Pressable, TextInput, RefreshControl } from 'react-native';
+import { View, Pressable, TextInput, RefreshControl, Platform, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets, SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { C, Tx, Amt, Card, CTA, Chip, Field, Sheet, GoldThreads, CurveCap, KeyboardScroll, useBackHandler } from '../ui';
 import { Refresh, Search } from '../icons';
 import { backoffice } from '../api';
 import { useLoad, SectionLabel, Loading, ErrorBox, Empty, SignOutButton } from './kit';
+import { DeviceCard } from './notifications';
 
 // ── Shared helpers (also used by src/web/admin.js) ───────────────────────────────────────────────────────────
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -47,7 +48,53 @@ export function pwProblem(a, b) {
 export const isEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || '').trim());
 export const TYPE_OPTS = [['all', 'All'], ['investor', 'Investors'], ['distributor', 'Distributors']];
 export const STATUS_OPTS = [['all', 'Any status'], ['needs-setup', 'Needs setup'], ['locked', 'Locked'], ['never', 'Never signed in']];
-export const ADMIN_TABS = [['overview', 'Overview'], ['users', 'Users'], ['distributors', 'Distributors'], ['audit', 'Audit log']];
+export const ADMIN_TABS = [['overview', 'Overview'], ['users', 'Users'], ['distributors', 'Distributors'], ['notifications', 'Notifications'], ['audit', 'Audit log']];
+
+// Notifications composer (phone and desktop). Samples fill the form with one of each automated kind, to try them
+// on your own phone before PUSH_LIVE=1.
+export const NOTE_SAMPLES = [
+  { key: 'money', label: 'Money', category: 'money', link: 'page:transactions', title: 'Investment recorded', body: '₹5 L was added to your Qode All Weather account on 25 Sep.' },
+  { key: 'portfolio', label: 'Portfolio', category: 'portfolio', link: 'tab:portfolio', title: 'Your September update', body: 'Your portfolio returned +2.1% in September and was worth ₹48.2 L at month end.' },
+  { key: 'reading', label: 'Reading', category: 'reading', link: 'page:newsletters', title: 'New newsletter', body: 'Our latest newsletter is ready to read in the app.' },
+];
+export const NOTE_LINKS = [['', 'Home'], ['tab:portfolio', 'Performance'], ['page:transactions', 'Transactions'], ['tab:reports', 'Reports'], ['page:newsletters', 'Newsletters'], ['tab:docs', 'Documents'], ['tab:services', 'Account services'], ['sheet:add', 'Add funds']];
+export const AUDIENCES = [['test', 'Only me (test)'], ['all', 'Everyone on the app'], ['strategy', 'One strategy'], ['emails', 'Chosen clients']];
+
+export function useNotifAdmin(tick) {
+  const q = useLoad(() => backoffice.notifications(), [tick]);
+  const [f, setF] = useState({ title: '', body: '', link: 'tab:portfolio', category: 'updates', type: 'test', value: '' });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);   // { ok, text }
+  const set = patch => { setF(x => ({ ...x, ...patch })); setMsg(null); };
+  const sample = s => set({ title: s.title, body: s.body, link: s.link, category: s.category, type: 'test' });
+  const problem = !f.title.trim() ? 'Add a title' : f.title.length > 90 ? 'Title is too long (90 characters)' : !f.body.trim() ? 'Write the message'
+    : f.body.length > 300 ? 'Message is too long (300 characters)' : f.type === 'strategy' && !f.value ? 'Choose a strategy'
+      : f.type === 'emails' && !f.value.trim() ? 'Add at least one email' : '';
+  const send = async () => {
+    if (problem || busy) return;
+    setBusy(true); setMsg(null);
+    const body = { title: f.title.trim(), body: f.body.trim(), link: f.link || null, category: f.category,
+      audience: { type: f.type, value: f.type === 'strategy' || f.type === 'emails' ? f.value : undefined } };
+    try {
+      if (f.type !== 'test') {
+        // Publishing to clients: show the exact recipient count and ask before anything is sent.
+        const { recipients } = await backoffice.sendNotification({ ...body, dryRun: true });
+        const q = `Send "${body.title}" to ${recipients} ${recipients === 1 ? 'person' : 'people'}? This can't be undone.`;
+        const ok = Platform.OS === 'web' ? window.confirm(q)
+          : await new Promise(res => Alert.alert('Publish notification', q, [{ text: 'Cancel', style: 'cancel', onPress: () => res(false) }, { text: 'Publish', onPress: () => res(true) }]));
+        if (!ok) { setBusy(false); return; }
+      }
+      const r = await backoffice.sendNotification(body);
+      setMsg({ ok: true, text: f.type === 'test' ? 'Sent to you. It should pop up on your phone within a few seconds.' : `Sent to ${r.recipients} ${r.recipients === 1 ? 'person' : 'people'}.` });
+      if (f.type !== 'test') setF(x => ({ ...x, title: '', body: '' }));
+      q.reload();
+    } catch (e) { setMsg({ ok: false, text: e.message || 'Could not send.' }); }
+    finally { setBusy(false); }
+  };
+  return { q, f, set, sample, problem, send, busy, msg };
+}
+export const campaignStats = st => st ? `${fmtN(st.delivered)} delivered · ${fmtN(st.read)} read${st.inFlight ? ` · ${fmtN(st.inFlight)} sending` : ''}${st.noDevice ? ` · ${fmtN(st.noDevice)} inbox only` : ''}${st.failed ? ` · ${fmtN(st.failed)} failed` : ''}` : '';
+export const audienceText = a => !a ? '' : a.type === 'test' ? 'Test' : a.type === 'all' ? 'Everyone' : a.type === 'strategy' ? String(a.value || '').replace(/^QODE ADVISORS LLP\s*-\s*/i, '') : `${(a.value || []).length} clients`;
 
 // Status badges for a user: [label, tone] with tone ok | warn | bad | neutral.
 export function userBadges(u) {
@@ -579,6 +626,48 @@ function AuditList({ V, tick }) {
   );
 }
 
+// Notifications (phone): the same composer as the desktop console, compact.
+function NotifList({ tick }) {
+  const { q, f, set, sample, problem, send, busy, msg } = useNotifAdmin(tick);
+  const d = q.data;
+  if (q.loading && !d) return <Loading rows={4} />;
+  if (q.err && !d) return <ErrorBox msg={q.err} onRetry={q.reload} />;
+  if (d && d.ready === false) return <Empty>The notification tables aren’t created on the server yet.</Empty>;
+  const pill = (k, l, on, onPress) => <Chip key={k} label={l} active={on} onPress={onPress} />;
+  return (
+    <>
+      {/* this phone's own permission: admin mode has no Home card or More → Notifications, so it is asked here */}
+      <DeviceCard />
+      <View style={{ height: 12 }} />
+      <Card style={{ padding: 16 }}>
+        <Tx w={700} s={13}>{d.live ? 'Automatic notifications are on' : 'Automatic notifications are off (PUSH_LIVE)'}. Your own notifications can be published any time.</Tx>
+        <Tx s={11.5} c={C.muted} style={{ marginTop: 4 }}>{fmtN(d.devices && d.devices.active)} phones · {fmtN(d.outbox && d.outbox.created24h)} sent in 24 h · {fmtN(d.outbox && d.outbox.failed24h)} failed</Tx>
+      </Card>
+      <SectionLabel>NEW NOTIFICATION</SectionLabel>
+      <Card style={{ padding: 16, gap: 12 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{NOTE_SAMPLES.map(x => pill(x.key, 'Sample: ' + x.label, false, () => sample(x)))}</View>
+        <Field label={`TITLE (${f.title.length}/90)`} value={f.title} onChangeText={t => set({ title: t })} s={14} />
+        <Field label={`MESSAGE (${f.body.length}/300)`} value={f.body} onChangeText={t => set({ body: t })} multiline s={14} />
+        <Tx w={700} s={10.5} ls={0.12} c={C.muted}>OPENS</Tx>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{NOTE_LINKS.map(([k, l]) => pill(k || 'home', l, f.link === k, () => set({ link: k })))}</View>
+        <Tx w={700} s={10.5} ls={0.12} c={C.muted}>SEND TO</Tx>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{AUDIENCES.map(([k, l]) => pill(k, l, f.type === k, () => set({ type: k, value: '' })))}</View>
+        {f.type === 'strategy' && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{(d.strategies || []).map(x => pill(x, x.replace(/^QODE ADVISORS LLP\s*-\s*/i, ''), f.value === x, () => set({ value: x })))}</View>}
+        {f.type === 'emails' && <Field label="CLIENT EMAILS" value={f.value} onChangeText={t => set({ value: t })} multiline s={14} autoCapitalize="none" />}
+        {!!msg && <Tx s={12.5} c={msg.ok ? C.pos : C.red}>{msg.text}</Tx>}
+        <CTA label={busy ? 'SENDING…' : f.type === 'test' ? 'SEND TO MY PHONE' : 'SEND'} onPress={send} style={{ opacity: problem || busy ? 0.5 : 1 }} />
+        {!!problem && <Tx s={11.5} c={C.muted} center>{problem}</Tx>}
+      </Card>
+      <SectionLabel>SENT</SectionLabel>
+      {(d.campaigns || []).length ? (
+        <Card style={{ overflow: 'hidden' }}>
+          {d.campaigns.map((c, i) => <Row key={c.id} last={i === d.campaigns.length - 1} title={c.title} sub={[fmtWhen(c.createdAt), audienceText(c.audience), campaignStats(c.stats)].filter(Boolean).join(' · ')} />)}
+        </Card>
+      ) : <Empty>Nothing sent yet.</Empty>}
+    </>
+  );
+}
+
 // ── The console ──────────────────────────────────────────────────────────────────────────────────────────────
 export function AdminConsole({ V }) {
   const insets = useSafeAreaInsets();
@@ -638,6 +727,7 @@ export function AdminConsole({ V }) {
             : tab === 'users' ? <UserList key="users" V={V} endRef={endRef} tick={tick} />
             : tab === 'distributors' ? <UserList key="dist" V={V} fixedType="distributor" endRef={endRef} tick={tick} />
             : tab === 'audit' ? <AuditList V={V} tick={tick} />
+            : tab === 'notifications' ? <NotifList tick={tick} />
             : <Overview tick={tick} />}
           <SignOutButton onPress={V.doLogout} style={{ marginTop: 30 }} />
         </View>

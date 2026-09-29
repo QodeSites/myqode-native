@@ -89,7 +89,7 @@ export function Login({ V }) {
                       <Tx w={700} s={11} c={C.green} style={{ marginTop: 4 }}>Tap to retry</Tx>
                     </Pressable>
                   )}
-                  {V.devLoaded && !V.devErr && V.devClients.length === 0 && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>{V.loginAs === 'distributor' ? 'No partner login matches that search.' : 'No Discretionary client matches that search. Non-Discretionary accounts aren’t listed — type the code above and use the button instead.'}</Tx>}
+                  {V.devLoaded && !V.devErr && V.devClients.length === 0 && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>{V.loginAs === 'distributor' ? 'No distributor login matches that search.' : 'No Discretionary client matches that search. Non-Discretionary accounts aren’t listed — type the code above and use the button instead.'}</Tx>}
                   {V.devClients.length > 0 && (
                     <View style={{ marginTop: 8, maxHeight: 260, borderWidth: 1, borderColor: C.hairline, borderRadius: 8 }}>
                       <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 10 }}>

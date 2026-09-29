@@ -39,6 +39,7 @@ export const fmtDate = d => {
 };
 // Chart axis ticks: "Sep 2026".
 export const fmtMonth = d => { const t = new Date(d); return isNaN(t) ? '' : `${MON_SHORT[t.getMonth()]} ${t.getFullYear()}`; };
+export const fmtDayMon = d => { const t = new Date(d); return isNaN(t) ? '' : `${t.getDate()} ${MON_SHORT[t.getMonth()]}`; };
 
 export const titleCase = s => String(s || '').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
@@ -179,7 +180,7 @@ export function flowTotals(cash) {
   return { inflow, outflow };
 }
 
-// One date format for the whole app: DD-Mon-YYYY (25-Sep-2026). Takes a Date, an ISO string / timestamp, a plain
+// One date format for the whole app: DD Mon YYYY (25 Sep 2026), the app's house style. Takes a Date, an ISO string / timestamp, a plain
 // YYYY-MM-DD (read as a calendar date, no timezone shift) or a string a server route already formatted
 // ("25 Sept 2026"). Anything unreadable comes back unchanged (or '' for nothing).
 const MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -189,15 +190,15 @@ export function fmtD(v, { utc = false } = {}) {
   if (typeof v === 'string') {
     const t = v.trim();
     const m = t.match(/^(\d{1,2})[ -]([A-Za-z]+)[ -](\d{4})$/);
-    if (m && MON_IDX[m[2].toLowerCase()] != null) return `${m[1].padStart(2, '0')}-${MON3[MON_IDX[m[2].toLowerCase()]]}-${m[3]}`;
+    if (m && MON_IDX[m[2].toLowerCase()] != null) return `${m[1].padStart(2, '0')} ${MON3[MON_IDX[m[2].toLowerCase()]]} ${m[3]}`;
     const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.0+)?)?$/);
-    if (iso) return `${iso[3]}-${MON3[+iso[2] - 1]}-${iso[1]}`;
+    if (iso) return `${iso[3]} ${MON3[+iso[2] - 1]} ${iso[1]}`;
     if (!/^\d{4}-\d{2}-\d{2}/.test(t)) return v;   // not a date ("FY 2027", a period label…): leave it alone
   }
   const d = v instanceof Date ? v : new Date(v);
   if (isNaN(d.getTime())) return typeof v === 'string' ? v : '';
   const D = utc ? d.getUTCDate() : d.getDate(), M = utc ? d.getUTCMonth() : d.getMonth(), Y = utc ? d.getUTCFullYear() : d.getFullYear();
-  return `${String(D).padStart(2, '0')}-${MON3[M]}-${Y}`;
+  return `${String(D).padStart(2, '0')} ${MON3[M]} ${Y}`;
 }
-// DD-Mon, for tight spots (a date range chip)
-export const fmtDM = v => { const s = fmtD(v); return /^\d{2}-[A-Z][a-z]{2}-\d{4}$/.test(s) ? s.slice(0, 6) : s; };
+// DD Mon, for tight spots (a date range chip)
+export const fmtDM = v => { const s = fmtD(v); return /^\d{2} [A-Z][a-z]{2} \d{4}$/.test(s) ? s.slice(0, 6) : s; };

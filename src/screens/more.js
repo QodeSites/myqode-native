@@ -1,102 +1,94 @@
-// More tab: profile, Investor Relations contact and the web app's menu groups.
+// More tab: profile and settings at the top, then the investor menu's five groups (NAV_GROUPS in src/nav.js, shared
+// with the desktop sidebar), admin, legal and the session. Investor Relations' contact lives on Your Team at Qode.
 import React from 'react';
-import { View, Pressable, Linking } from 'react-native';
+import { View, Pressable } from 'react-native';
 import { C, Tx, Card, Fade, Toggle } from '../ui';
-import { ChevronRight, Phone, MailIcon, FaceID } from '../icons';
-import { CONTACT } from '../content';
-import { SignOutButton } from './kit';
-import { SectionLabel } from './kit';
+import { ChevronRight, FaceID, GroupIcon } from '../icons';
+import { NAV_GROUPS, LEGAL_LINKS, openItem, visibleItems } from '../nav';
+import { SignOutButton, SectionLabel } from './kit';
+import { ContactIRLink } from './contact';
 
-const GROUPS = [
-  { title: 'EXPERIENCE', items: [['Reports', 'reports'], ['Family Accounts', 'family'], ['Your Details on Nuvama', 'nuvama'], ['Investor Portal Guide', 'guide'], ['Service Cadence', 'cadence']] },
-  { title: 'ENGAGEMENT', items: [['Insights', 'insights'], ['Referral Programme', 'referral']] },
-  { title: 'ABOUT QODE', items: [['Qode Philosophy', 'philosophy'], ['Strategy Snapshot', 'strategies'], ['Note from Our Fund Managers', 'foundation'], ['Your Team at Qode', 'team']] },
-  { title: 'TRUST', items: [['FAQ & Glossary', 'faq'], ['Risk Management', 'risk'], ['Grievance Redressal', 'grievance']] },
-  { title: 'SUPPORT & LEGAL', items: [['Contact Us', 'contact'], ['Privacy Policy', 'privacy'], ['Terms & Conditions', 'terms']] },
-];
+function MenuRow({ label, onPress, last }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={{
+      flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, minHeight: 46,
+      borderBottomWidth: last ? 0 : 1, borderColor: C.hairline,
+    }}>
+      <Tx w={700} s={13} style={{ flex: 1 }}>{label}</Tx>
+      <ChevronRight />
+    </Pressable>
+  );
+}
 
-const go = url => Linking.openURL(url).catch(() => {});
+function GroupTitle({ icon, children }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 24, marginBottom: 10, marginLeft: 2 }}>
+      <GroupIcon name={icon} s={16} c={C.green} />
+      <Tx f="play" w={600} s={16} role="heading">{children}</Tx>
+    </View>
+  );
+}
 
 export function MoreCream({ V }) {
-  const phone = CONTACT.phones[0], mail = CONTACT.emails[0];
+  // Reports has its own tab on the phone; the menu item goes there instead of opening the page over it.
+  const open = it => (it.id === 'reports' && V.goReports ? V.goReports() : openItem(V, it));
   return (
     <Fade>
-      <Card big style={{ marginTop: -34, paddingVertical: 16, paddingHorizontal: 18 }}>
-        <Tx w={700} s={11} ls={0.12} c={C.muted}>INVESTOR RELATIONS</Tx>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 }}>
-          <View style={{ flex: 1 }}>
-            <Tx w={700} s={13}>{mail ? mail.label : 'Investor Relations'}</Tx>
-            <Tx s={11} c={C.muted} lh={1.4} style={{ marginTop: 2 }}>{CONTACT.hours[0] || 'We’re here to help'}</Tx>
+      {/* Profile and settings */}
+      <Card big style={{ marginTop: -34, paddingVertical: 6, paddingHorizontal: 18 }}>
+        {V.user && [['Name', V.user.name], ['Email', V.user.email], ['Client code', V.user.clientCode]].filter(r => r[1]).map(([k, v]) => (
+          <View key={k} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderColor: C.hairline }}>
+            <Tx s={12} c={C.muted}>{k}</Tx>
+            <Tx w={700} s={12} numberOfLines={1} style={{ flexShrink: 1 }}>{v}</Tx>
           </View>
-          {phone && (
-            <Pressable onPress={() => go('tel:' + String(phone.number).replace(/[^\d+]/g, ''))} style={{ width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: C.greenBorder, alignItems: 'center', justifyContent: 'center' }}>
-              <Phone />
-            </Pressable>
-          )}
-          {mail && (
-            <Pressable onPress={() => go('mailto:' + mail.address)} style={{ width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: C.greenBorder, alignItems: 'center', justifyContent: 'center' }}>
-              <MailIcon />
-            </Pressable>
-          )}
-        </View>
+        ))}
+        <Pressable accessibilityRole="button" onPress={V.openSettings} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, minHeight: 46 }}>
+          <Tx w={700} s={13} style={{ flex: 1 }}>Display and accessibility</Tx>
+          <ChevronRight />
+        </Pressable>
+        {!V.viewing && (
+          <Pressable accessibilityRole="button" onPress={() => V.openPage('notifications')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, minHeight: 46, borderTopWidth: 1, borderColor: C.hairline }}>
+            <Tx w={700} s={13} style={{ flex: 1 }}>Notifications</Tx>
+            <ChevronRight />
+          </Pressable>
+        )}
       </Card>
-      {V.user && (
-        <Card style={{ paddingVertical: 6, paddingHorizontal: 18, marginTop: 14 }}>
-          {[['Name', V.user.name], ['Email', V.user.email], ['Client code', V.user.clientCode]].filter(r => r[1]).map(([k, v], i, a) => (
-            <View key={k} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 12, borderBottomWidth: i < a.length - 1 ? 1 : 0, borderColor: C.hairline }}>
-              <Tx s={12} c={C.muted}>{k}</Tx>
-              <Tx w={700} s={12} numberOfLines={1} style={{ flexShrink: 1 }}>{v}</Tx>
-            </View>
-          ))}
+      {!!V.bio && (
+        <Card style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 }}>
+          <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(2,66,43,0.1)', alignItems: 'center', justifyContent: 'center' }}><FaceID s={20} /></View>
+          <View style={{ flex: 1 }}>
+            <Tx w={700} s={13}>Unlock with {V.bio.label}</Tx>
+            <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>{V.bioOn ? 'On: asked each time the app opens' : 'Off: tap to turn on'}</Tx>
+            {!!V.bioNote && <Tx s={10.5} c={C.gray} lh={1.4} style={{ marginTop: 4 }}>{V.bioNote}</Tx>}
+          </View>
+          <Toggle on={V.bioOn} onPress={V.bioToggle} />
         </Card>
       )}
-      {!!V.bio && (
-        <>
-          <SectionLabel>SECURITY</SectionLabel>
-          <Card style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(2,66,43,0.1)', alignItems: 'center', justifyContent: 'center' }}><FaceID s={20} /></View>
-            <View style={{ flex: 1 }}>
-              <Tx w={700} s={13}>Unlock with {V.bio.label}</Tx>
-              <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>{V.bioOn ? 'On: asked each time the app opens' : 'Off: tap to turn on'}</Tx>
-              {!!V.bioNote && <Tx s={10.5} c={C.gray} lh={1.4} style={{ marginTop: 4 }}>{V.bioNote}</Tx>}
-            </View>
-            <Toggle on={V.bioOn} onPress={V.bioToggle} />
-          </Card>
-        </>
-      )}
-      {GROUPS.map(g => (
-        <View key={g.title}>
-          <SectionLabel>{g.title}</SectionLabel>
-          <Card style={{ overflow: 'hidden' }}>
-            {g.items.map(([label, key], i) => (
-              <Pressable key={key} onPress={() => V.openPage(key)} style={{
-                flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, minHeight: 46,
-                borderBottomWidth: i < g.items.length - 1 ? 1 : 0, borderColor: C.hairline,
-              }}>
-                <Tx w={700} s={13} style={{ flex: 1 }}>{label}</Tx>
-                <ChevronRight />
-              </Pressable>
-            ))}
-          </Card>
-        </View>
-      ))}
+      <ContactIRLink V={V} style={{ marginTop: 10, marginLeft: 2 }} />
+
+      {NAV_GROUPS.map(g => {
+        const items = visibleItems(g, V);
+        return (
+          <View key={g.key}>
+            <GroupTitle icon={g.icon}>{g.title}</GroupTitle>
+            <Card style={{ overflow: 'hidden' }}>
+              {items.map((it, i) => <MenuRow key={it.id} label={it.label} onPress={() => open(it)} last={i === items.length - 1} />)}
+            </Card>
+          </View>
+        );
+      })}
+
       {(V.isSuperAdmin || V.impersonated) && (
         <>
           <SectionLabel>ADMIN</SectionLabel>
           <Card style={{ overflow: 'hidden' }}>
-            <Pressable onPress={() => V.openPage('admin')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, minHeight: 46 }}>
-              <Tx w={700} s={13} style={{ flex: 1 }}>{V.impersonated ? 'Admin · exit impersonation' : 'Admin · clients & impersonation'}</Tx>
-              <ChevronRight />
-            </Pressable>
+            <MenuRow label={V.impersonated ? 'Admin · exit impersonation' : 'Admin · clients and impersonation'} onPress={() => V.openPage('admin')} last />
           </Card>
         </>
       )}
-      <SectionLabel>SETTINGS</SectionLabel>
+      <SectionLabel>LEGAL</SectionLabel>
       <Card style={{ overflow: 'hidden' }}>
-        <Pressable onPress={V.openSettings} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, minHeight: 46 }}>
-          <Tx w={700} s={13} style={{ flex: 1 }}>Display & accessibility</Tx>
-          <ChevronRight />
-        </Pressable>
+        {LEGAL_LINKS.map(([key, label], i) => <MenuRow key={key} label={label} onPress={() => V.openPage(key)} last={i === LEGAL_LINKS.length - 1} />)}
       </Card>
       {V.viewing ? (
         <Pressable onPress={V.exitView} style={{ padding: 12, marginTop: 18 }}>

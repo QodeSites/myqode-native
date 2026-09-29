@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1016517005633",
+    "project_id": "myqode-61053",
+    "storage_bucket": "myqode-61053.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1016517005633:android:884808141c4761b66611c0",
+        "android_client_info": {
+          "package_name": "com.qodeinvest.myqode"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCF-ptZemin4Uz-t35HAKBZWr_0dEoelmg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

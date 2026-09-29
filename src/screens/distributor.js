@@ -65,7 +65,7 @@ const TONE = { good: C.pos, normal: C.gold, warn: C.red };
 export const STATUS_COLOR = { invested: '#008455', regular: '#0A3452', smallfunded: '#5FB08A', opened: '#DABD38', onboarding: '#9CA3AF', inactive: '#E0A458', declined: '#EF4444', closed: '#991B1B' };
 // The same colours as text on the cream cards: the light ones (gold, grey, pale green) darkened to stay readable.
 export const STATUS_TEXT = { ...STATUS_COLOR, smallfunded: '#3F8F68', opened: '#9A6B12', onboarding: '#5B6470', inactive: '#B26B1E' };
-const shortStrategy = n => String(n || '').replace(/^Qode\s+/, '').replace(/\s+Fund$/, '');
+const shortStrategy = n => String(n || '').trim();   // strategies are always named in full ("Qode All Weather")
 
 // Number and date formats are the web's own (distributors/page.tsx money() / formatDate()), so every figure reads
 // the same on both: crores always 2 decimals, lakhs 1 decimal, below a lakh whole rupees.
@@ -85,7 +85,7 @@ export const INFLOW_RANGES = [
   { key: '3m', label: 'Last 3 months', months: 3 },
 ];
 const QAW_GREEN = '#008455';
-const day = iso => (iso ? fmtD(iso) || '—' : '—');
+const day = iso => { if (!iso) return '–'; const t = new Date(iso); return isNaN(t.getTime()) ? '–' : t.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); };
 
 // Icons from the web partner menu (components/qode-distributor-sidebar.tsx, lucide-react), drawn at the
 // same 24-unit size and stroke so the app reads like the web.
@@ -100,8 +100,8 @@ const IconMore = ({ c, s }) => <Lucide c={c} s={s}><Path d="M4 6h16M4 12h16M4 18
 export const IconShare = ({ c, s }) => <Lucide c={c} s={s}><Circle cx={18} cy={5} r={3} /><Circle cx={6} cy={12} r={3} /><Circle cx={18} cy={19} r={3} /><Path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98" /></Lucide>;
 export const IconFile = ({ c, s }) => <Lucide c={c} s={s}><Path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><Path d="M14 2v4a2 2 0 0 0 2 2h4M10 9H8M16 13H8M16 17H8" /></Lucide>;
 export const IconShield = ({ c, s }) => <Lucide c={c} s={s}><Path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /><Path d="m9 12 2 2 4-4" /></Lucide>;
-const IconLock = ({ c, s }) => <Lucide c={c} s={s}><Rect x={3} y={11} width={18} height={11} rx={2} /><Path d="M7 11V7a5 5 0 0 1 10 0v4" /></Lucide>;
 export const IconLifeBuoy = ({ c, s }) => <Lucide c={c} s={s}><Circle cx={12} cy={12} r={10} /><Circle cx={12} cy={12} r={4} /><Path d="m4.93 4.93 4.24 4.24M14.83 9.17l4.24-4.24M14.83 14.83l4.24 4.24M9.17 14.83l-4.24 4.24" /></Lucide>;
+export const IconLock = ({ c, s }) => <Lucide c={c} s={s}><Rect x={3} y={11} width={18} height={11} rx={2} /><Path d="M7 11V7a5 5 0 0 1 10 0v4" /></Lucide>;
 
 const TABS = [
   { key: 'overview', label: 'Overview', Icon: IconDashboard },
@@ -819,7 +819,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
   );
 }
 // Web's date filter choices (investors page): what the From / To range applies to.
-export const DATE_BASES = [['', 'Any date', 'Show every investor'], ['opened', 'Account Opened Between', 'By the Account Live date'], ['invested', 'First Fund Initiated Between', 'By the date the first money arrived']];
+export const DATE_BASES = [['', 'Any date', 'Show every investor'], ['opened', 'Account opened between', 'By the Account Live date'], ['invested', 'First Fund Initiated between', 'By the date the first money arrived']];
 // A compact dropdown button: small label above the current choice, chevron on the right; green when filtering.
 function Dropdown({ label, value, active, onPress }) {
   return (

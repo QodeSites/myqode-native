@@ -22,15 +22,17 @@ import { ChevronDown, ChevronLeft, ChevronRight, DocIcon, MailIcon, Phone, Downl
 import { distributor as api, auth, BASE_URL } from '../api';
 import { useLoad, openUrl, SectionLabel, Loading, ErrorBox } from './kit';
 import { DateField } from './sip';
+import { ClientReportsSheet } from './clientReports';
 import { storeGet, storeSet, storeDel } from '../api/session';
 import * as content from '../content';
 import { computeTax, GST_STATE_CODES, validateGstin, validatePan, amountInWords, QODE_ENTITY, qodeAddressLines, isQodeEntityComplete } from '../partnerTax';
+import { withPdfFonts } from '../pdfFonts';
 
 // ── shared ───────────────────────────────────────────────────────────────────
 export const STRATEGY_COLOR = { 'Qode All Weather': '#008455', 'Qode Growth Fund': '#0A3452', 'Qode Tactical Fund': '#550E0E' };
 const NEUTRAL = '#9CA3AF';
 const QAW = '#008455';
-export const shortStrategy = n => String(n || '').replace(/^Qode\s+/, '').replace(/\s+Fund$/, '');
+export const shortStrategy = n => String(n || '').trim();   // strategies are always named in full ("Qode All Weather")
 // web money() / formatDate()
 export const money = n => {
   if (n == null || isNaN(n)) return '–';
@@ -39,7 +41,7 @@ export const money = n => {
   if (abs >= 100000) return `${sign}₹${(abs / 100000).toFixed(1)} L`;
   return `${sign}₹${abs.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 };
-export const formatDate = iso => (iso ? fmtD(iso) || '—' : '—');
+export const formatDate = iso => { if (!iso) return '–'; const d = new Date(iso); return isNaN(d.getTime()) ? '–' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); };
 
 export function BackRow({ label, onPress }) {
   return (
@@ -91,6 +93,7 @@ export const ACCOUNT_JOURNEY = [
 
 export function InvestorDetail({ c, status, onBack, onboardingSequence, view }) {
   const [busy, setBusy] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);   // "Download reports" sheet (src/screens/clientReports.js)
   const [msg, setMsg] = useState('');
   const delta = c.currentValue != null && c.investedAmount != null ? c.currentValue - c.investedAmount : null;
   const deltaPct = delta != null && c.investedAmount ? (delta / c.investedAmount) * 100 : null;
@@ -122,6 +125,10 @@ export function InvestorDetail({ c, status, onBack, onboardingSequence, view }) 
           {!!c.email && <CTA label={busy ? 'WORKING…' : 'DOWNLOAD SOA'} outline onPress={soa} style={{ flex: 1, paddingVertical: 12 }} />}
         </View>
       )}
+      {!!c.clientCode && (<>
+        <CTA label="DOWNLOAD REPORTS" outline onPress={() => setReportsOpen(true)} style={{ marginTop: 8, paddingVertical: 12 }} />
+        <ClientReportsSheet c={c} visible={reportsOpen} onClose={() => setReportsOpen(false)} />
+      </>)}
 
       <Card style={{ padding: 18, marginTop: 14 }}>
         <Tx w={700} s={10.5} ls={0.12} c={C.muted}>CURRENT VALUE</Tx>
@@ -217,7 +224,7 @@ export const num = s => parseFloat(String(s ?? '').replace(/,/g, '')) || 0;
 export const commissionOf = r => (r.yourCommission != null ? num(r.yourCommission) : num(r.distributorShare));
 const inr = n => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const inrCompact = n => (Math.abs(n) >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : Math.abs(n) >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${inr(n)}`);
-export const displayDate = iso => (iso ? fmtD(String(iso).slice(0, 10)) : '');
+export const displayDate = iso => (iso ? new Date(`${String(iso).slice(0, 10)}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
 export const SCHEME = { QAW: 'Qode All Weather', QGF: 'Qode Growth Fund', QTF: 'Qode Tactical Fund', QFH: 'Qode Fund of Holdings', QLF: 'Qode Liquid Fund' };
 export const SCHEME_COLOR = { QAW: '#008455', QGF: '#0A3452', QTF: '#550E0E' };
 export const code3 = r => String(r.strategy || r.accountcode || '').slice(0, 3).toUpperCase();
@@ -369,7 +376,7 @@ export function Fees({ onStatement, onInvoice }) {
       </Modal>
 
       {rows.loading && <View style={{ marginTop: 14 }}><Loading rows={3} h={68} /></View>}
-      {!rows.loading && !!rows.err && <View style={{ marginTop: 14 }}><Msg tone="red" text={`We couldn’t load your fees. ${rows.err}. Please refresh, or contact investor.relations@qodeinvest.com.`} /></View>}
+      {!rows.loading && !!rows.err && <View style={{ marginTop: 14 }}><Msg tone="red" text={`We couldn’t load your fees. ${rows.err}. Please refresh, or contact partnerships@qodeinvest.com.`} /></View>}
       {!rows.loading && !rows.err && list.length === 0 && period && (
         <Card style={{ padding: 18, marginTop: 14 }}>
           <Tx w={700} s={13}>No fees in this period</Tx>
@@ -431,7 +438,7 @@ export function Fees({ onStatement, onInvoice }) {
 
         {t.unmappedCount > 0 && (
           <View style={{ marginTop: 14 }}>
-            <Msg text={`${t.unmappedCount} ${t.unmappedCount === 1 ? 'client has' : 'clients have'} no fee rate configured. Their share shows as ₹0 because no rate has been set, not because none is due. Contact investor.relations@qodeinvest.com to have these confirmed.`} />
+            <Msg text={`${t.unmappedCount} ${t.unmappedCount === 1 ? 'client has' : 'clients have'} no fee rate configured. Their share shows as ₹0 because no rate has been set, not because none is due. Contact partnerships@qodeinvest.com to have these confirmed.`} />
           </View>
         )}
 
@@ -647,6 +654,7 @@ function printHtmlWeb(html, title) {
 
 export async function savePdf(html, fileName, { share = false, landscape = false } = {}) {
   if (pdfJob) return pdfJob;
+  html = withPdfFonts(html);   // Playfair travels inside the HTML: the print engine can't see the app's fonts
   if (Platform.OS === 'web') {
     const safe = String(fileName || 'document').replace(/[^\w .()-]/g, '-').replace(/\s+/g, ' ').trim() || 'document';
     pdfJob = printHtmlWeb(html, safe).finally(() => { pdfJob = null; });
@@ -757,7 +765,7 @@ export function statementDoc(period, distributorName, rows) {
   </style></head><body>
     <table><tr>
       <td style="vertical-align:top"><div class="serif" style="font-size:18px">Qode Advisors LLP</div>
-        <div class="muted" style="font-size:9.5px;margin-top:4px;line-height:1.65">SEBI Registered Portfolio Manager · INP000008914<br>Mumbai, India<br>investor.relations@qodeinvest.com</div></td>
+        <div class="muted" style="font-size:9.5px;margin-top:4px;line-height:1.65">SEBI Registered Portfolio Manager · INP000008914<br>Mumbai, India<br>partnerships@qodeinvest.com</div></td>
       <td style="vertical-align:top;text-align:right"><div class="lbl">Distributor Fee Statement</div>
         <div class="muted" style="font-size:9.5px;margin-top:6px;line-height:1.6">Ref ${esc(ref)}<br>Issued ${esc(issued)}</div></td>
     </tr></table>
@@ -783,12 +791,12 @@ export function statementDoc(period, distributorName, rows) {
         </tbody>
       </table>
     </div>
-    ${t.unmapped ? '<div class="box" style="margin-top:18px;font-size:10px"><b>Some clients are not included.</b> <span class="muted">One or more clients have no fee share configured, so no amount is shown against them. Contact investor.relations@qodeinvest.com before invoicing.</span></div>' : ''}
+    ${t.unmapped ? '<div class="box" style="margin-top:18px;font-size:10px"><b>Some clients are not included.</b> <span class="muted">One or more clients have no fee share configured, so no amount is shown against them. Contact partnerships@qodeinvest.com before invoicing.</span></div>' : ''}
     ${t.isLegacyRate ? '<div class="box" style="margin-top:10px;font-size:10px"><b>Provisional rate.</b> <span class="muted">This statement uses a share rate held in our portal records rather than a confirmed CRM rate. Please confirm before invoicing.</span></div>' : ''}
     <div class="rule" style="margin-top:36px;padding-top:18px">
     <p class="note"><b>This is not a tax invoice.</b> It is a statement of fees earned, issued for your records. Please raise your own invoice on Qode Advisors LLP for the total shown above.</p>
     <p class="note"><b>The total payable to you is inclusive of GST at 18%.</b> Your revenue share of ${esc(t.ratePct)} is calculated on the fees billed to your clients, and GST at 18% is added to your share. Do not add GST on top of the total: the amount payable to you is ₹ ${inr(t.share)} in full. On your invoice this is ₹ ${inr(t.shareNet)} plus GST of ₹ ${inr(t.shareGst)}. Client fee amounts in the table are shown before GST, with GST in its own column.</p>
-    <p class="note">Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact investor.relations@qodeinvest.com before invoicing.</p>
+    <p class="note">Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact partnerships@qodeinvest.com before invoicing.</p>
     </div></body></html>`;
   return { clients, t, ref, issued, disc, calc, money2, html };
 }
@@ -803,7 +811,7 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
     <Fade>
       <BackRow label="Back to fees" onPress={onBack} />
       {loading && <Tx s={12} c={C.muted}>Preparing your statement…</Tx>}
-      {!!err && <ErrorBox msg={`We couldn’t prepare the statement. ${err}. Please go back and try again, or contact investor.relations@qodeinvest.com.`} onRetry={reload} />}
+      {!!err && <ErrorBox msg={`We couldn’t prepare the statement. ${err}. Please go back and try again, or contact partnerships@qodeinvest.com.`} onRetry={reload} />}
       {!loading && !err && (<>
         <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginBottom: 10 }}>Save it as a PDF for your records. This statement is not a tax invoice. Use <Tx w={700} s={11.5} c={C.ink}>Raise invoice</Tx> to generate one.</Tx>
         <Card style={{ padding: 0, overflow: 'hidden' }}>
@@ -815,7 +823,7 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
           <View style={{ padding: 18 }}>
           <View style={{ paddingBottom: 12, borderBottomWidth: 1, borderColor: C.hairline }}>
             <Tx f="play" w={600} s={16}>Qode Advisors LLP</Tx>
-            <Tx s={11} c={C.muted} lh={1.5} style={{ marginTop: 2 }}>SEBI Registered Portfolio Manager · INP000008914{'\n'}Mumbai, India{'\n'}investor.relations@qodeinvest.com</Tx>
+            <Tx s={11} c={C.muted} lh={1.5} style={{ marginTop: 2 }}>SEBI Registered Portfolio Manager · INP000008914{'\n'}Mumbai, India{'\n'}partnerships@qodeinvest.com</Tx>
           </View>
           <Tx w={700} s={10.5} ls={0.12} c={C.muted} style={{ marginTop: 12 }}>DISTRIBUTOR FEE STATEMENT</Tx>
           <Tx s={11} c={C.gray} style={{ marginTop: 2 }}>Ref {ref} · Issued {issued}</Tx>
@@ -905,7 +913,7 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
             ))}
           </View>
         </Card>
-        {t.unmapped && <View style={{ marginTop: 12 }}><Msg text="Some clients are not included. One or more clients have no fee share configured, so no amount is shown against them. Contact investor.relations@qodeinvest.com before invoicing." /></View>}
+        {t.unmapped && <View style={{ marginTop: 12 }}><Msg text="Some clients are not included. One or more clients have no fee share configured, so no amount is shown against them. Contact partnerships@qodeinvest.com before invoicing." /></View>}
         {t.isLegacyRate && <View style={{ marginTop: 12 }}><Msg text="Provisional rate. This statement uses a share rate held in our portal records rather than a confirmed CRM rate. Please confirm before invoicing." /></View>}
 
 
@@ -913,7 +921,7 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
         <Card style={{ padding: 16, marginTop: 14 }}>
           <Tx s={11.5} c={C.muted} lh={1.6}><Tx w={700} s={11.5} c={C.ink}>This is not a tax invoice.</Tx> It is a statement of fees earned, issued for your records. Please raise your own invoice on Qode Advisors LLP for the total shown above.</Tx>
           <Tx s={11.5} c={C.muted} lh={1.6} style={{ marginTop: 10 }}><Tx w={700} s={11.5} c={C.ink}>The total payable to you is inclusive of GST at 18%.</Tx> Your revenue share of {t.ratePct} is calculated on the fees billed to your clients, and GST at 18% is added to your share. Do not add GST on top of the total: the amount payable to you is ₹ {inr(t.share)} in full. On your invoice this is ₹ {inr(t.shareNet)} plus GST of ₹ {inr(t.shareGst)}. Client fee amounts in the table are shown before GST, with GST in its own column.</Tx>
-          <Tx s={11.5} c={C.muted} lh={1.6} style={{ marginTop: 10 }}>Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact investor.relations@qodeinvest.com before invoicing.</Tx>
+          <Tx s={11.5} c={C.muted} lh={1.6} style={{ marginTop: 10 }}>Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact partnerships@qodeinvest.com before invoicing.</Tx>
         </Card>
       </>)}
     </Fade>
@@ -1024,7 +1032,7 @@ export function Invoice({ period, distributorName, onBack }) {
   return (
     <Fade>
       <BackRow label="Back to fees" onPress={onBack} />
-      {!qodeOk && <Msg tone="red" text="Invoicing isn't available yet. Qode's GST details haven't been configured in the portal, and an invoice without them wouldn't be valid. Please contact investor.relations@qodeinvest.com." />}
+      {!qodeOk && <Msg tone="red" text="Invoicing isn't available yet. Qode's GST details haven't been configured in the portal, and an invoice without them wouldn't be valid. Please contact partnerships@qodeinvest.com." />}
       <SectionLabel>YOUR INVOICE DETAILS</SectionLabel>
       <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: -4, marginLeft: 2 }}>These appear on the invoice as the party raising it. We save them, so you only need to enter them once. The amounts come from your fees for the period and can't be edited.</Tx>
       <Card style={{ padding: 16, marginTop: 10 }}>
@@ -1148,7 +1156,7 @@ export function Invoice({ period, distributorName, onBack }) {
 
 // ── Decks (web: distributors/documents) ──────────────────────────────────────
 export const DECKS = [
-  { slug: 'corporate-overview', title: 'Corporate Overview', asOf: 'August 2026' },
+  { slug: 'corporate-overview', title: 'Corporate overview', asOf: 'August 2026' },
   { slug: 'qode-all-weather', title: 'Qode All Weather', asOf: 'August 2026', strategy: 'Qode All Weather' },
   { slug: 'qode-all-weather-factsheet', title: 'Qode All Weather Factsheet', asOf: 'August 2026', strategy: 'Qode All Weather', kind: 'factsheet' },
   { slug: 'qode-growth-fund', title: 'Qode Growth Fund', asOf: 'August 2026', strategy: 'Qode Growth Fund' },
@@ -1213,7 +1221,7 @@ const HISTORY_START = Date.UTC(2006, 0, 1);
 export const RISK_OFF = 70, RISK_ON = 30;
 export const VSI = { ink: '#37584F', line: '#02422B', redOuter: '#f5bfc9', redInner: '#fee5e9', greenInner: '#e5f3ef', greenOuter: '#bdead2', redLabel: '#c00', greenLabel: '#028a3d', gold: '#DABD38', dark: '#002017' };
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-export const ddmmyyyy = t => fmtD(t, { utc: true });
+export const ddmmyyyy = t => { const d = new Date(t); return isNaN(d) ? '' : `${String(d.getUTCDate()).padStart(2, '0')}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${d.getUTCFullYear()}`; };
 
 // web toSeries(): skip null / NaN, skip anything before 2006; keep the upstream order.
 export function toSeries(entry) {

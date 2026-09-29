@@ -5,13 +5,14 @@ import { View, Pressable, Animated, Dimensions, Easing, RefreshControl } from 'r
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, Tx, Amt, Chip, CurveCap, Fade, GoldThreads, useUI } from '../ui';
-import { Bell, Refresh, ChevronDown, FamilyIcon, ChevronRight, TabHome, TabPortfolio, TabDocs, TabServices, TabMore } from '../icons';
+import { Bell, Refresh, ChevronDown, FamilyIcon, ChevronRight, TabHome, TabPortfolio, TabServices, TabMore, Bars } from '../icons';
 import { PerfChart } from './charts';
 import { HomeCream, PortfolioCream, HoldingsCream, HomeSkeleton, OtherSkeleton } from './tabs';
 import { DocsCream } from './docs';
 import { ServicesCream, RequestSheets } from './services';
 import { MoreCream } from './more';
 import { PageHost } from './pages';
+import { ReportsPage } from './reports';
 import { SwitchSheet, SettingsSheet, NotifsSheet } from './sheets';
 
 function Header({ V, insets }) {
@@ -107,7 +108,10 @@ function DarkZone({ V }) {
           <Tx w={700} s={11} ls={0.14} c={C.gold}>PERFORMANCE</Tx>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 6 }}>
             <Tx f="play" w={600} s={24} c={C.cream}>NAV Performance</Tx>
-            <Amt s={15} c={C.gold}>{V.growthNow}</Amt>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 5 }}>
+              <Tx s={10.5} c={C.cream60}>Current NAV</Tx>
+              <Amt s={15} c={C.gold}>{V.growthNow}</Amt>
+            </View>
           </View>
           <View style={{ marginTop: 10 }}>
             <PerfChart line={V.perfLine} bench={V.perfBench} tip={V.perfTip} yTicks={V.yTicks} xDates={V.xDates} />
@@ -141,8 +145,15 @@ function DarkZone({ V }) {
       {V.isDocs && (
         <Fade style={{ paddingTop: 22, paddingHorizontal: 22 }}>
           <Tx w={700} s={11} ls={0.14} c={C.gold}>DOCUMENTS</Tx>
-          <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>Account Documents</Tx>
+          <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>Client Document Vault</Tx>
           <Tx s={12} c={C.cream60} style={{ marginTop: 6 }}>Agreement, account opening documents and CML</Tx>
+        </Fade>
+      )}
+      {V.isReports && (
+        <Fade style={{ paddingTop: 22, paddingHorizontal: 22 }}>
+          <Tx w={700} s={11} ls={0.14} c={C.gold}>REPORTS</Tx>
+          <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>Statements and Reports</Tx>
+          <Tx s={12} c={C.cream60} style={{ marginTop: 6 }}>Transactions, capital gains, expenses and fact sheets</Tx>
         </Fade>
       )}
       {V.isServices && (
@@ -176,7 +187,7 @@ function DarkZone({ V }) {
 const NAV = [
   { key: 'home', label: 'Home', Icon: TabHome, go: 'goHome' },
   { key: 'portfolio', label: 'Portfolio', Icon: TabPortfolio, go: 'goPortfolio' },
-  { key: 'docs', label: 'Documents', Icon: TabDocs, go: 'goDocs' },
+  { key: 'reports', label: 'Reports', Icon: ({ c }) => <Bars s={21} c={c} />, go: 'goReports' },
   { key: 'services', label: 'Services', Icon: TabServices, go: 'goServices' },
   { key: 'more', label: 'More', Icon: TabMore, go: 'goMore' },
 ];
@@ -269,6 +280,7 @@ export default function AppShell({ V }) {
           {V.skelOther && <OtherSkeleton />}
           {V.vPortfolio && <PortfolioCream V={V} />}
           {V.vHoldings && <HoldingsCream V={V} />}
+          {V.vReports && <View style={{ marginTop: -14 }}><ReportsPage V={V} /></View>}
           {V.vDocs && <DocsCream V={V} />}
           {V.vServices && <ServicesCream V={V} />}
           {V.vMore && <MoreCream V={V} />}

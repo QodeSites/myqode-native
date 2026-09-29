@@ -10,6 +10,7 @@ import { services, payments } from '../api';
 import { titleCase, inr, fmtDate } from '../adapt';
 import { useLoad } from '../screens/kit';
 import { accountRequest } from '../screens/services';
+import { ContactIRLink } from './contact';
 
 // Same list as the phone (ITEMS in src/screens/services.js, which is not exported): withdrawals are deliberately
 // not offered in the app, and Add funds is the call to action above the list.
@@ -37,8 +38,6 @@ const typeText = it => (it.paymentType === 'SIP' ? 'SIP · ' + titleCase((it.sip
 const nextDate = it => it.nextChargeDate || (it.sip && it.sip.nextChargeDate) || null;
 
 export default function DesktopServices({ V }) {
-  const [view, setView] = useState(recentJump(V.svcJump) ? 'cash' : 'online');
-  useEffect(() => { if (recentJump(V.svcJump)) setView('cash'); }, [V.svcJump]);
   const opts = V.acctOptions;
   const [sel, setSel] = useState(null);
   const accountId = sel && opts.some(o => o.id === sel) ? sel : opts[0] && opts[0].id;
@@ -56,24 +55,19 @@ export default function DesktopServices({ V }) {
 
   return (
     <View style={{ gap: 20 }}>
-      <PageIntro sub="Add funds, raise a request with Investor Relations, and follow your online payments, SIPs and transactions." />
+      <PageIntro sub="Add funds, set up or manage SIPs, and raise a request with Investor Relations." />
 
       <Row gap={16}>
         <Stat style={{ flex: 1 }} label="Online payments and SIPs" value={n(all.length)} note={opts.length > 1 ? acctLabel : null} />
         <Stat style={{ flex: 1 }} label="Active SIPs" value={n(sips.filter(i => i.investmentStatus === 'SIP_ACTIVE').length)} note={inv.loading ? null : sips.length + (sips.length === 1 ? ' SIP' : ' SIPs') + ' in total'} />
         <Stat style={{ flex: 1 }} label="Next SIP charge" value={inv.loading ? '…' : upcoming ? fmtDate(upcoming) : '–'} note={upcoming ? null : 'No instalment scheduled'} />
-        <Stat style={{ flex: 1 }} label="Transactions" value={String(V.txAll.length)} note={V.asOf ? 'As of ' + V.asOf : null} />
       </Row>
 
       <Row top>
-        <Panel title="Activity" pad={0} style={{ flex: 1, minWidth: 0 }}
-          sub={view === 'online' ? 'Online payments and SIP mandates for one account' : 'Bank transfers in and redemptions out'}
+        <Panel title="Online payments and SIPs" pad={0} style={{ flex: 1, minWidth: 0 }}
+          sub="Payments made here and SIP mandates, for one account. Bank transfers are under Transactions."
           right={!!V.asOf && <Tx s={12} c={C.ink3}>As of {V.asOf}</Tx>}>
-          <Tabs value={view} onChange={setView} style={{ paddingHorizontal: 20 }}
-            options={[['online', 'Online and SIPs · ' + n(all.length)], ['cash', 'Transactions · ' + V.txAll.length]]} />
-          {view === 'online'
-            ? <Investments V={V} opts={opts} accountId={accountId} onPickAccount={setSel} inv={inv} all={all} />
-            : <CashTable V={V} />}
+          <Investments V={V} opts={opts} accountId={accountId} onPickAccount={setSel} inv={inv} all={all} />
         </Panel>
 
         <View style={{ width: 340, gap: 20 }}>
@@ -86,7 +80,7 @@ export default function DesktopServices({ V }) {
             <Btn kind="gold" label="Add funds" icon={<Plus s={16} c={C.ink} />} onPress={V.openAdd} style={{ marginTop: 16, alignSelf: 'flex-start' }} />
           </DarkCard>
 
-          <Panel title="Requests and support" sub="Sent to Investor Relations" pad={0}>
+          <Panel title="Requests and support" sub="Sent to Investor Relations" pad={0} footer={<ContactIRLink V={V} />}>
             <View style={{ borderTopWidth: 1, borderColor: C.line }}>
               {items.map((it, i) => <RequestRow key={it.key} it={it} last={i === items.length - 1} onPress={() => V.openReq(it.key)} />)}
             </View>
@@ -232,7 +226,7 @@ function Detail({ it, onClose }) {
       <Tx s={12.5} c={C.ink3} style={{ marginTop: 14 }}>{sip ? 'Set up ' : 'Placed '}{when(it.createdAt)}{it.paymentTime ? ' · paid ' + when(it.paymentTime) : ''}</Tx>
       {__DEV__ && sip && <Tx s={11.5} c={C.ink3} style={{ marginTop: 2 }}>Ref {it.orderId}</Tx>}
       {charges.length > 0 && (
-        <View style={{ marginTop: 18, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: C.line }}>
+        <View style={{ marginTop: 18, borderRadius: 10, overflow: 'clip', borderWidth: 1, borderColor: C.line }}>
           <Table dense rows={charges} cols={[
             { key: 'n', label: 'Instalment', flex: 0.8, render: ch => <Tx s={13}>{ch.installmentNumber ? '#' + ch.installmentNumber : '–'}</Tx> },
             { key: 'd', label: 'Date', flex: 1.4, render: ch => <Tx s={13} c={C.ink2}>{when(ch.paidAt || ch.chargeDate)}</Tx> },

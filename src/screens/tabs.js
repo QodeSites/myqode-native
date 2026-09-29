@@ -6,6 +6,8 @@ import { ddPct } from '../adapt';
 import { Plus, ArrowDown, Swap, DocIcon, Bars, Download, ChevronRight, Phone, MailIcon, Search, InfoCircle, GoldDocIcon } from '../icons';
 import { NavChart, DrawdownChart, Donut } from './charts';
 import { UccNotice } from './ucc';
+import HoldingsList from './holdingsList';
+import { PushOfferCard } from './notifications';
 
 const Label = ({ children, style }) => (
   <Tx w={700} s={11} ls={0.12} c={C.muted} style={[{ marginTop: 22, marginBottom: 10, marginLeft: 2 }, style]}>{children}</Tx>
@@ -24,8 +26,9 @@ export function Grid2({ children, style }) {
 export function RangeRow({ ranges, style }) {
   // A range whose data is still on its way pulses; the charts keep showing the previous range meanwhile.
   return (
-    <View style={[{ flexDirection: 'row', gap: 8 }, style]}>
-      {ranges.map(r => <View key={r.label} style={{ flex: 1, opacity: r.loading ? 0.55 : 1 }}><Chip label={r.label} active={r.active} onPress={r.pick} flex py={7} /></View>)}
+    // Seven windows (1W to SI) share one row: tighter gaps and a smaller label so they fit a 320pt-wide phone.
+    <View style={[{ flexDirection: 'row', gap: 4 }, style]}>
+      {ranges.map(r => <View key={r.label} style={{ flex: 1, minWidth: 0, opacity: r.loading ? 0.55 : 1 }}><Chip label={r.label} active={r.active} onPress={r.pick} flex py={6} s={10.5} /></View>)}
     </View>
   );
 }
@@ -98,7 +101,10 @@ export function HomeCream({ V }) {
       <Card big style={{ marginTop: -34, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 14 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <Tx w={700} s={11} ls={0.12} c={C.muted}>NAV PERFORMANCE</Tx>
-          <Amt s={14}>{V.navNow}</Amt>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 5 }}>
+            <Tx s={10.5} c={C.muted}>Current NAV</Tx>
+            <Amt s={14}>{V.navNow}</Amt>
+          </View>
         </View>
         <View style={{ marginTop: 10 }}>
           <NavChart line={V.linePath} area={V.areaPath} bench={V.benchPath} tip={V.navTip} yTicks={V.yTicks} xDates={V.xDates} color={V.chartColor} />
@@ -119,6 +125,7 @@ export function HomeCream({ V }) {
         <RangeRow ranges={V.ranges} style={{ marginTop: 12 }} />
       </Card>
       <UccNotice visible={V.showUcc} onClose={V.dismissUcc} />
+      <PushOfferCard V={V} />
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
         {!V.viewing && <Action icon={<Plus />} label="Add funds" onPress={V.openAdd} primary />}
         {!V.viewing && <Action icon={<Swap />} label="Switch" onPress={V.openSwitchStrategy} />}
@@ -131,7 +138,7 @@ export function HomeCream({ V }) {
       <Tx s={11} c={C.gray} style={{ marginTop: 10, marginLeft: 2 }}>As of {V.asOf}</Tx>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 24, marginBottom: 10, marginHorizontal: 2 }}>
         <Tx w={700} s={11} ls={0.12} c={C.muted}>TRANSACTIONS</Tx>
-        {!V.viewing && <Pressable onPress={V.goServicesTx}><Tx w={700} s={12} c={C.green}>View all</Tx></Pressable>}
+        <Pressable onPress={V.goServicesTx}><Tx w={700} s={12} c={C.green}>View all</Tx></Pressable>
       </View>
       <Card style={{ overflow: 'hidden' }}>
         {V.hasTx
@@ -212,7 +219,7 @@ export function DetailedMetrics({ V }) {
             ))}
           </View>
           <Tx s={11} c={C.gray} style={{ marginTop: 12 }}>As of {V.asOf} · NAV-based, net of fees</Tx>
-          {V.orbisNote && <Tx s={11} c={C.gray} lh={1.5} style={{ marginTop: 6 }}><Tx w={700} s={11} c={C.gray}>Orbis data:</Tx> amount invested and current value are the latest non-zero capital amount and market value from Orbis records.</Tx>}
+          {V.orbisNote && <Tx s={11} c={C.gray} lh={1.5} style={{ marginTop: 6 }}><Tx w={700} s={11} c={C.gray}>Orbis data:</Tx> figures run to the last day before Nuvama took over. Money in and out comes from the capital recorded by Orbis; returns are measured from the Orbis starting NAV of 100.</Tx>}
         </Fade>
       )}
     </Card>
@@ -322,7 +329,19 @@ export function PortfolioCream({ V }) {
           <View style={{ marginTop: 10 }}>
             <DrawdownChart line={V.ddLine} area={V.ddArea} bench={V.ddBench} tip={V.ddTip} />
           </View>
-          <Tx s={11} c={C.muted} style={{ marginTop: 10 }}>Fall from the previous peak, over {V.rangeLabel}. Dashed line: {V.benchName}.</Tx>
+          <Tx s={11} c={C.muted} style={{ marginTop: 10 }}>Fall from the previous peak, {V.rangePhrase}. Dashed line: {V.benchName}.</Tx>
+        </Card>
+      )}
+      {!!(V.irrRows && V.irrRows.length) && (
+        <Card style={{ marginTop: 16, paddingTop: 14, paddingHorizontal: 16, paddingBottom: 12 }}>
+          <Tx w={700} s={11} ls={0.12} c={C.muted}>TWRR AND IRR</Tx>
+          {V.irrRows.map(r => (
+            <View key={r.period} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingVertical: 8, borderBottomWidth: 1, borderColor: C.hairline }}>
+              <Tx s={12} c={C.muted}>{r.period === 'SI' ? 'IRR since inception' : r.period + ' ' + r.label}</Tx>
+              <Amt s={13.5} c={r.color}>{r.value}</Amt>
+            </View>
+          ))}
+          <Tx s={11} c={C.muted} lh={1.5} style={{ marginTop: 8 }}>The returns above are TWRR: they measure the strategy. IRR is money-weighted and reflects when you added or withdrew money.</Tx>
         </Card>
       )}
       <DetailedMetrics V={V} />
@@ -346,7 +365,10 @@ export function HoldingsCream({ V }) {
           ))}
         </View>
       </Card>
-      <View style={{ gap: 12, marginTop: 16 }}>
+      {/* What the investor actually owns (securities), then the strategy accounts. */}
+      <View style={{ marginTop: 16 }}><HoldingsList V={V} /></View>
+      <Label>BY STRATEGY ACCOUNT</Label>
+      <View style={{ gap: 12, marginTop: 4 }}>
         {V.holdings.map(h => (
           <Card key={h.id} style={{ paddingTop: 15, paddingHorizontal: 16, paddingBottom: 13, borderLeftWidth: 3, borderLeftColor: h.color }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>

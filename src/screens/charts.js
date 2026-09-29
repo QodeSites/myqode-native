@@ -3,9 +3,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View } from 'react-native';
 import Svg, { Path, Line, Circle, Defs, LinearGradient as SvgGrad, Stop, Text as SvgText } from 'react-native-svg';
 import { C, Tx } from '../ui';
-import { fmtD, pct, ddPct } from '../adapt';
+import { fmtD } from '../adapt';
 
-const fmtDate = d => fmtD(d) || String(d);
+import { fmtDate, pct, ddPct } from '../adapt';
 
 // Touch / hover tooltip over a chart, like the web's: date, portfolio and benchmark at that point,
 // plus the raw NAV / index level when the API sends them.
@@ -94,7 +94,7 @@ function ChartTip({ tip, vw, vh, height, lineColor, children }) {
 // y-axis tick labels (top, middle, bottom) drawn over the chart, and x-axis dates under it.
 // Y labels get their own left column (GUTTER wide) and the plot starts to the right of it, so the line never
 // runs through the numbers. The x dates are indented by the same amount to stay under the plot.
-const GUTTER = 30;   // fits "10.00"–"99.99" at 9pt with a small gap before the plot ("100.00" shrinks to fit)
+export const GUTTER = 30;   // fits "10.00"–"99.99" at 9pt with a small gap before the plot ("100.00" shrinks to fit)
 function Axes({ yTicks, xDates, height, color, children }) {
   const ys = [8, height / 2, height - 8];
   const g = yTicks && yTicks.length ? GUTTER : 0;
