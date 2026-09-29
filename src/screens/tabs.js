@@ -362,7 +362,7 @@ export function HoldingsCream({ V }) {
             <View key={h.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: h.color }} />
               <Tx s={12} style={{ flex: 1 }}>{h.name.replace('Qode ', '')}</Tx>
-              <Amt s={12}>{h.pct}%</Amt>
+              <Amt s={12}>{h.alloc}%</Amt>
             </View>
           ))}
         </View>

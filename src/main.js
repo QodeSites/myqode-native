@@ -1302,7 +1302,8 @@ export default class MyQode extends React.Component {
       holdings: holdRows, chartColor,
       // IRR (money-weighted) beside TWRR: [{ period, label, value, color }] for SI / 1Y / 3Y when available.
       irrRows: ['SI', '1Y', '3Y'].map(p => { const x = irrPeriod(S.irr, p); return x && x.irr != null ? { period: p, label: irrLabel(x), value: fmtIrr(x), color: c(x.irr) } : null; }).filter(Boolean),
-      holdSlices: holdRows.map(h => ({ id: h.id, pct: h.alloc, color: h.color, name: h.name })),
+      // The ring draws exact shares (pct): rounded shares can total 99 and leave a gap. The legend shows `alloc`, rounded.
+      holdSlices: holdRows.map(h => ({ id: h.id, pct: h.w, alloc: h.alloc, color: h.color, name: h.name })),
       holdCount: holdRows.length,
       flows: [
         { label: 'TOTAL CONTRIBUTIONS', value: this.fmt(flows.inflow), color: C.ink },

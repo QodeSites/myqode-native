@@ -193,7 +193,7 @@ export function Donut({ slices, count = slices.length, size = 108, label = 'ALLO
         {slices.map((s, i) => {
           const el = (
             <Circle key={i} cx={60} cy={60} r={50} fill="none" stroke={s.color} strokeWidth={13}
-              strokeDasharray={`${(s.pct / 100) * CIRC} ${CIRC}`}
+              strokeDasharray={`${(s.pct / 100) * CIRC + (s.pct > 0 && i < slices.length - 1 ? 0.6 : 0)} ${CIRC}`}
               strokeDashoffset={-(offset / 100) * CIRC}
               transform="rotate(-90 60 60)" />
           );
