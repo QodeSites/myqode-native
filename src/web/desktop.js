@@ -22,6 +22,7 @@ import DesktopDocuments from './documents';
 import DesktopServices from './services';
 import DesktopAccount from './account';
 import { NAV_GROUPS, PAGE_ALIASES, groupOf, navItem, openItem, visibleItems } from '../nav';
+import { dayLabel } from '../screens/pay';
 
 // Tabs of state.tab and their web titles and addresses. Pages (PAGES / DESKTOP_PAGES keys) use their own key as the
 // address. The sidebar menu itself is NAV_GROUPS in src/nav.js, shared with the phone's More tab.
@@ -293,9 +294,22 @@ const HoldingsTable = ({ V, title = 'Holdings', sub, style, right, onRowPress, s
 );
 
 function RecentTx({ V, n = 9, style }) {
-  const list = V.txAll.slice(0, n);
+  const pending = V.inFlight || [];
+  const list = V.txAll.slice(0, Math.max(0, n - pending.length));
   return (
     <Panel title="Recent activity" right={<TextLink label="View all" onPress={V.goServicesTx} />} pad={0} style={[{ flex: 1 }, style]}>
+      {pending.map(it => (
+        <View key={it.orderId} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 20, borderTopWidth: 1, borderColor: C.line, backgroundColor: 'rgba(218,189,56,0.08)' }}>
+          <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: C.posTint, alignItems: 'center', justifyContent: 'center' }}>
+            <Tx w={600} s={14} c={C.pos}>↓</Tx>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Tx w={600} s={13} numberOfLines={1}>Money received · Pending</Tx>
+            <Tx s={12} c={C.ink3} numberOfLines={1}>Invested {dayLabel(it.deployOn)} · in your portfolio {dayLabel(it.visibleOn)}</Tx>
+          </View>
+          <Amt s={13.5} c={C.pos}>+{inr(it.amount, 0)}</Amt>
+        </View>
+      ))}
       {list.length ? list.map((t, i) => (
         <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 20, borderTopWidth: 1, borderColor: C.line }}>
           <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: numOf(t.amt) < 0 ? C.redTint : C.posTint, alignItems: 'center', justifyContent: 'center' }}>

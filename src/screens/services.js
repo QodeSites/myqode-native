@@ -103,7 +103,7 @@ function Segment({ value, onPick, options }) {
 // Transactions — contributions & withdrawals (bank transfers, redemptions): first few rows, then "show all".
 // Received but not in Nuvama's data yet (Razorpay, Zoho Capital Inflows, admin entries): listed above the
 // confirmed transactions until the real one appears, so a client never wonders where their money went.
-function PendingRows({ V }) {
+export function PendingRows({ V }) {
   const list = V.inFlight || [];
   if (!list.length) return null;
   return (

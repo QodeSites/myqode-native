@@ -8,6 +8,7 @@ import { NavChart, DrawdownChart, Donut } from './charts';
 import { UccNotice } from './ucc';
 import HoldingsList from './holdingsList';
 import { PushOfferCard } from './notifications';
+import { PendingRows } from './services';
 
 const Label = ({ children, style }) => (
   <Tx w={700} s={11} ls={0.12} c={C.muted} style={[{ marginTop: 22, marginBottom: 10, marginLeft: 2 }, style]}>{children}</Tx>
@@ -140,6 +141,7 @@ export function HomeCream({ V }) {
         <Tx w={700} s={11} ls={0.12} c={C.muted}>TRANSACTIONS</Tx>
         <Pressable onPress={V.goServicesTx}><Tx w={700} s={12} c={C.green}>View all</Tx></Pressable>
       </View>
+      <PendingRows V={V} />
       <Card style={{ overflow: 'hidden' }}>
         {V.hasTx
           ? V.tx3.map((t, i) => <TxRow key={i} t={t} last={i === V.tx3.length - 1} />)
