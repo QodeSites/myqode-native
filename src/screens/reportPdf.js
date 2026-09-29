@@ -48,7 +48,8 @@ const CSS = landscape => `
   .val { font-size: 8.4pt; font-weight: 600; margin-top: 2px; }
   .tiles { display: table; width: 100%; table-layout: fixed; border-spacing: 8px 0; margin: 10px -8px 2px; }
   .tile { display: table-cell; background: ${K.card}; border: 1px solid ${K.hair}; border-top: 2.5px solid ${K.gold}; border-radius: 5px; padding: 8px 10px; }
-  .tile .v { font-size: 11.5pt; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .tile .v { font-size: var(--tv, 11.5pt); font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table[style*="--n"] td.r { font-size: var(--n); }
   h3 { font-family: 'Playfair Display', Georgia, serif; font-size: 10.5pt; font-weight: 600; color: ${K.green}; margin: 14px 0 5px; }
   h3::after { content: ''; display: block; width: 26px; height: 1.6px; background: ${K.gold}; margin-top: 3px; }
   table { width: 100%; border-collapse: collapse; }
@@ -95,7 +96,121 @@ const CSS = landscape => `
 let showSummaries = true;
 export const setPdfSummaries = on => { showSummaries = !!on; };
 const summaryBlock = lines => (showSummaries && lines && lines.length ? `<div class="sum"><div class="lbl">Summary</div><p>${esc(lines.join(' '))}</p></div>` : '');
-const page = (landscape, head, body, summary) => `<!doctype html><html data-report="1"><head><meta charset="utf-8"><style>${CSS(landscape)}</style></head><body>${head}${summaryBlock(summary)}${body}
+// Figures never overflow their box: a cell keeps one line (nowrap), so a long amount (crores) would run past the
+// column and off the page. Before printing, each fixed table's figure size is lowered, when needed, until its
+// longest figure fits its column; the tile row likewise. Widths are the A4 content box in points (page margins off).
+const CONTENT_PT = { portrait: 530, landscape: 775 };
+const EM_FIG = 0.56;   // advance of a digit / sign in em (Helvetica, Roboto); commas and points are narrower
+const MIN_PT = 5.2;
+const plain = h => h.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&[a-z]+;/g, 'x').trim();
+function fitTables(html, W, base) {
+  return html.replace(/<table class="fixed([^"]*)"(?: data-frac="([\d.]+)")?>([\s\S]*?)<\/table>/g, (whole, _kind, frac, inner) => {
+    const tw = frac ? W * +frac - 13 : W;
+    const cols = [...((inner.match(/<colgroup>([\s\S]*?)<\/colgroup>/) || [])[1] || '').matchAll(/<col(?: style="width:([\d.]+)%")?>/g)].map(m => (m[1] ? +m[1] : null));
+    if (!cols.length) return whole;
+    const fixedSum = cols.reduce((s, w) => s + (w || 0), 0), autos = cols.filter(w => w == null).length;
+    const pct = cols.map(w => (w != null ? w : Math.max(0, 100 - fixedSum) / (autos || 1)));
+    let pt = base;
+    for (const row of inner.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)) {
+      let ci = 0;
+      for (const cell of row[1].matchAll(/<t([dh])([^>]*)>([\s\S]*?)<\/t\1>/g)) {
+        const span = +((cell[2].match(/colspan="(\d+)"/) || [])[1] || 1);
+        const isFig = cell[1] === 'd' && /class="[^"]*\br\b/.test(cell[2]);
+        if (isFig) {
+          const len = plain(cell[3]).length, wPt = pct.slice(ci, ci + span).reduce((s, p) => s + p, 0) / 100 * tw - 9;
+          if (len && wPt > 0) pt = Math.min(pt, wPt / (len * EM_FIG));
+        }
+        ci += span;
+      }
+    }
+    return pt >= base ? whole : whole.replace('<table ', `<table style="--n:${Math.max(MIN_PT, pt).toFixed(2)}pt" `);
+  });
+}
+function fitTiles(html, W) {
+  return html.replace(/<div class="tiles" data-fit="(\d+),(\d+)">/g, (_, n, len) => {
+    const inner = (W - 6 * (+n + 1)) / +n - 17;
+    const pt = Math.min(11.5, inner / (+len * (EM_FIG + 0.05)));
+    return `<div class="tiles" style="--tv:${Math.max(6, pt).toFixed(2)}pt">`;
+  });
+}
+// Column headers on every page. Browsers repeat a table's <thead> when it breaks across pages, but the iOS print
+// engine does not, and Android prints with scripts off, so the split is made here: a long table is cut into
+// page-sized tables, each with its own header rows, with a page break between them. Heights are estimated on the
+// high side (a page may end a little early, but a continued table never starts without its header).
+// PAGE_PT: usable A4 height in points, under both engines' content box (Chrome / Android 277 mm; iOS 778 pt).
+const PAGE_PT = { portrait: 745, landscape: 505 };
+const BLOCK_PT = { band: 90, strip: 52, tiles: 64, h3: 30, note: 15, srow: 23, sum: 64 };
+function rowHeight(row, pct, tw, fs, th) {
+  let ci = 0, lines = 1;
+  for (const cell of row.matchAll(/<t([dh])([^>]*)>([\s\S]*?)<\/t\1>/g)) {
+    const span = +((cell[2].match(/colspan="(\d+)"/) || [])[1] || 1);
+    const wPt = pct.slice(ci, ci + span).reduce((s, p) => s + p, 0) / 100 * tw - 8;
+    const figure = /class="[^"]*\br\b/.test(cell[2]) && !th;
+    const text = plain(cell[3]), f = th ? fs * 0.92 : fs;
+    let n = figure || !text ? 1 : Math.ceil(text.length * 0.52 * f / Math.max(12, wPt));
+    if (/class="note"/.test(cell[3])) n += 1 + Math.floor(plain((cell[3].match(/<div class="note"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || '').length * 0.5 * f * 0.87 / Math.max(12, wPt));
+    lines = Math.max(lines, n);
+    ci += span;
+  }
+  return lines * fs * 1.38 + (th ? 9 : 7.5);
+}
+function tableParts(inner, W) {
+  const colgroup = (inner.match(/<colgroup>[\s\S]*?<\/colgroup>/) || [''])[0];
+  const cols = [...colgroup.matchAll(/<col(?: style="width:([\d.]+)%")?>/g)].map(m => (m[1] ? +m[1] : null));
+  const fixedSum = cols.reduce((s, w) => s + (w || 0), 0), autos = cols.filter(w => w == null).length;
+  const pct = cols.map(w => (w != null ? w : Math.max(0, 100 - fixedSum) / (autos || 1)));
+  const thead = (inner.match(/<thead>[\s\S]*?<\/thead>/) || [''])[0];
+  const body = (inner.match(/<tbody>([\s\S]*)<\/tbody>/) || [, ''])[1];
+  return { colgroup, pct: pct.length ? pct : [100], thead, rows: body.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [], tw: W };
+}
+function paginate(html, W, H, fs) {
+  const re = /<div class="pb"><\/div>|<div class="band">|<div class="strip">|<div class="tiles"|<h3>|<p class="note"|<div class="srow">|<div class="sum">|<table([^>]*)>([\s\S]*?)<\/table>/g;
+  let out = '', last = 0, y = 0, h3At = -1, m;
+  while ((m = re.exec(html))) {
+    out += html.slice(last, m.index);
+    last = re.lastIndex;
+    const tok = m[0];
+    if (!tok.startsWith('<table')) {
+      if (tok.startsWith('<div class="pb"')) y = 0;
+      else y += BLOCK_PT[(tok.match(/class="(\w+)"/) || [, 'h3'])[1]] || BLOCK_PT.h3;
+      h3At = tok === '<h3>' ? out.length : -1;
+      out += tok;
+      continue;
+    }
+    const attrs = m[1], P = tableParts(m[2], W);
+    const headH = (P.thead.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || []).reduce((s, r) => s + rowHeight(r, P.pct, P.tw, fs, true), 0);
+    const hs = P.rows.map(r => rowHeight(r, P.pct, P.tw, fs, false));
+    // Side-by-side tables (data-frac) and tables without a header or rows are never split; they only move the cursor.
+    if (/data-frac/.test(attrs) || !/class="fixed/.test(attrs) || !P.thead || !P.rows.length) {
+      y += headH + hs.reduce((s, h) => s + h, 0) * (/data-frac/.test(attrs) ? 0.5 : 1);
+      out += tok; h3At = -1;
+      continue;
+    }
+    // Not even the header and a few rows fit below what is already on the page: start the table (and its heading) on a new one.
+    const lead = hs.slice(0, 3).reduce((s, h) => s + h, 0);
+    if (y > 0 && y + headH + lead > H) {
+      const brk = '<div class="pb"></div>';
+      if (h3At >= 0) { out = out.slice(0, h3At) + brk + out.slice(h3At); y = BLOCK_PT.h3; } else { out += brk; y = 0; }
+    }
+    const pieces = [[]];
+    y += headH;
+    P.rows.forEach((row, i) => {
+      const cur = pieces[pieces.length - 1];
+      if (cur.length && y + hs[i] > H) {
+        // A month / section heading row never ends a page on its own: it moves on with the rows it heads.
+        const carry = /class="sec"/.test(cur[cur.length - 1].row) && cur.length > 1 ? [cur.pop()] : [];
+        pieces.push(carry);
+        y = headH + carry.reduce((s, c) => s + c.h, 0);
+      }
+      pieces[pieces.length - 1].push({ row, h: hs[i] });
+      y += hs[i];
+    });
+    out += pieces.map(list => `<table${attrs}>${P.colgroup}${P.thead}<tbody>${list.map(c => c.row).join('')}</tbody></table>`).join('<div class="pb"></div>');
+    h3At = -1;
+  }
+  return out + html.slice(last);
+}
+const page = (landscape, head, body, summary) => `<!doctype html><html data-report="1"><head><meta charset="utf-8"><style>${CSS(landscape)}</style></head><body>${paginate(head + summaryBlock(summary) + fitTiles(fitTables(body, CONTENT_PT[landscape ? 'landscape' : 'portrait'], landscape ? 7.3 : 7.8), CONTENT_PT[landscape ? 'landscape' : 'portrait']), CONTENT_PT[landscape ? 'landscape' : 'portrait'], PAGE_PT[landscape ? 'landscape' : 'portrait'], landscape ? 7.3 : 7.8)}
 <div class="ft"><div><b style="color:${K.green}">Qode Advisors LLP</b> · SEBI Registered Portfolio Manager · Data: Nuvama WealthSpectrum (custodian)<br>This is a computer generated report and does not require a signature.</div><div class="rt">Generated ${today()}<br>from the myQode app</div></div></body></html>`;
 
 // Reporting period line under the title: both ends, one open end, or (when allowed) "All records".
@@ -105,7 +220,7 @@ const header = (title, asOf, fields, period) => `
   <div class="band"><div><div class="wm"><small>my</small>Qode</div><div class="firm">QODE ADVISORS LLP · SEBI REGISTERED PMS</div></div>
     <div class="rt"><div class="rtitle">${esc(title)}</div><div class="accent"></div>${period ? `<div class="period">${esc(period)}</div>` : ''}${asOf ? `<div class="asof">As of ${esc(dl(asOf))}</div>` : ''}</div></div>
   <div class="strip">${fields.filter(f => f && f[1]).map(([l, v]) => `<div><div class="lbl">${esc(l)}</div><div class="val">${esc(v)}</div></div>`).join('')}</div>`;
-const tiles = list => `<div class="tiles">${list.map(([l, v, c]) => `<div class="tile"><div class="lbl">${esc(l)}</div><div class="v ${c || ''}">${v}</div></div>`).join('')}</div>`;
+const tiles = list => `<div class="tiles" data-fit="${list.length},${Math.max(1, ...list.map(t => plain(String(t[1])).length))}">${list.map(([l, v, c]) => `<div class="tile"><div class="lbl">${esc(l)}</div><div class="v ${c || ''}">${v}</div></div>`).join('')}</div>`;
 const strategyName = (holder, fallback) => String((holder && holder.strategy) || fallback || '').replace(/^QODE ADVISORS LLP - /, '');
 const acctFields = (accountId, holder, fallbackStrategy) => [['Account', accountId], ['Account holder', holder && holder.name], ['Strategy', strategyName(holder, fallbackStrategy)]];
 
@@ -241,7 +356,7 @@ function factsheetParts(r, accountId) {
   const sectors = r.sectors.length ? `<h3>Sector allocation</h3>${r.sectors.slice().sort((x, y) => (y.pct || 0) - (x.pct || 0)).map(x => `<div class="srow">${esc(x.sector)}<b>${pc(x.pct)}</b>
     <div class="bar"><i style="width:${Math.max(0.5, Math.min(100, x.pct || 0))}%"></i></div></div>`).join('')}` : '';
   const perf = periods.length ? `<h3>Performance (TWRR)</h3>
-    <table class="fixed"><colgroup><col style="width:34%">${periods.map(() => '<col>').join('')}</colgroup><thead><tr><th></th>${periods.map(p => `<th class="r">${esc(p)}</th>`).join('')}</tr></thead><tbody>
+    <table class="fixed" data-frac="0.5"><colgroup><col style="width:34%">${periods.map(() => '<col>').join('')}</colgroup><thead><tr><th></th>${periods.map(p => `<th class="r">${esc(p)}</th>`).join('')}</tr></thead><tbody>
       <tr class="z"><td><span class="dot" style="background:${K.green}"></span><b>Portfolio</b></td>${(ret.portfolio || []).map(v => `<td class="r ${cls(v)}">${pc(v)}</td>`).join('')}</tr>
       ${ret.benchmark ? `<tr class="z"><td class="wrap"><span class="dot" style="background:${K.gold}"></span>${esc(ret.benchmark.name)}</td>${ret.benchmark.values.map(v => `<td class="r">${pc(v)}</td>`).join('')}</tr>` : ''}
     </tbody></table>
@@ -338,7 +453,8 @@ const stmtRow = x => x.k === 'sh'
   ? `<tr class="sh"><td colspan="3">${esc(x.label)}</td></tr>`
   : `<tr class="${x.k === 'line' ? '' : x.k}"><td class="wrap">${esc(x.label)}${x.note ? `<div class="note" style="margin-top:1px">${esc(x.note)}</div>` : ''}</td>
      <td class="r mid">${x.mid == null ? '' : nf(x.mid)}</td><td class="r ${x.k === 'gt' || x.k === 'st' ? cls(x.amt) : ''}">${x.amt == null ? '' : nf(x.amt)}</td></tr>`;
-const stmtTable = (rows, amtHead = 'Amount (₹)') => `<table class="fixed stmt"><colgroup><col><col style="width:22%"><col style="width:22%"></colgroup>
+// half: one side of the balance sheet (half the page wide), so its figure columns get more of the width.
+const stmtTable = (rows, amtHead = 'Amount (₹)', half = false) => `<table class="fixed stmt"${half ? ' data-frac="0.5"' : ''}><colgroup><col>${half ? '<col style="width:27%"><col style="width:30%">' : '<col style="width:22%"><col style="width:22%">'}</colgroup>
   <thead><tr><th></th><th class="r"></th><th class="r">${amtHead}</th></tr></thead><tbody>${rows.map(stmtRow).join('')}</tbody></table>`;
 export function plbsPdf(r, accountId) {
   const all = !accountId;
@@ -393,7 +509,7 @@ export function plbsPdf(r, accountId) {
   ];
   // Pad the shorter side so both totals sit on the same line.
   const n = Math.max(liab.length, assets.length), pad = list => list.concat(Array.from({ length: n - list.length }, () => ({ k: 'line', label: '' })));
-  const side = (title, rows, total) => `<div><h4>${title}</h4>${stmtTable([...pad(rows), { k: 'gt', label: 'Total', amt: total }])}</div>`;
+  const side = (title, rows, total) => `<div><h4>${title}</h4>${stmtTable([...pad(rows), { k: 'gt', label: 'Total', amt: total }], 'Amount (₹)', true)}</div>`;
   const bs = `<div class="bs">${side('Liabilities', liab, L.total)}${side('Assets', assets, A.total)}</div>`;
   const diff = v => (v == null ? '–' : nf(v) + (Math.abs(v) <= 1 ? ' (within ₹1)' : ''));
   const recon = (R.portfolioValue != null || R.expected != null) ? `<h3>Reconciliation</h3><table class="fixed stmt"><colgroup><col><col style="width:26%"></colgroup><tbody>

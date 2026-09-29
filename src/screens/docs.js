@@ -92,14 +92,6 @@ export function DocsCream({ V }) {
       {/* Sections are drawn straight away; the "n files" badges appear once the listing arrives. */}
       {!!accountId && SECTIONS.map(sec => <Section key={sec.id + accountId} sec={sec} accountId={accountId} count={counts[sec.id] || 0} reloadKey={V.rk}
         onRequest={category => V.openReq('r-document', { accountId, category })} />)}
-      {/* Nothing in any section: one clear way to ask for what is missing */}
-      {!!accountId && !!cats.data && SECTIONS.every(sec => !(counts[sec.id] > 0)) && (
-        <Card style={{ padding: 18, marginTop: 4 }}>
-          <Tx w={700} s={13}>No documents yet</Tx>
-          <Tx s={12} c={C.muted} lh={1.5} style={{ marginTop: 4 }}>Nothing has been added for {accountId} so far. Ask Investor Relations and they will share what you need.</Tx>
-          <CTA label="REQUEST A DOCUMENT" onPress={() => V.openReq('r-document', { accountId })} style={{ marginTop: 14 }} />
-        </Card>
-      )}
     </Fade>
   );
 }

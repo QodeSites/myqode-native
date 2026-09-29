@@ -300,7 +300,7 @@ function Strip({ items, caption, footer, style }) {
   const list = (items || []).filter(Boolean);
   return (
     <Card style={[{ marginTop: 14, overflow: 'hidden' }, style]}>
-      {!!caption && <Tx w={700} s={10} ls={0.1} c={C.muted} numberOfLines={2} style={{ paddingHorizontal: 14, paddingTop: 12 }}>{caption}</Tx>}
+      {!!caption && <Tx w={700} s={10} ls={0.1} c={C.muted} center numberOfLines={2} style={{ paddingHorizontal: 14, paddingTop: 12 }}>{caption}</Tx>}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: caption ? 2 : 0 }}>
         {list.map((it, i) => (
           <View key={it.label} style={{ width: '50%', paddingVertical: 10, paddingHorizontal: 14, borderLeftWidth: i % 2 ? 1 : 0, borderTopWidth: i >= 2 ? 1 : 0, borderColor: C.hairline }}>
@@ -637,14 +637,16 @@ function SheetSections({ d }) {
         <>
           <SectionLabel>PERFORMANCE (TWRR)</SectionLabel>
           <Card style={{ padding: 14 }}>
-            <View style={{ flexDirection: 'row' }}>
-              <View style={{ flex: 1.6 }} />
-              {periods.map(p => <Tx key={p} w={700} s={10} c={C.muted} right style={{ flex: 1 }} numberOfLines={2}>{periodLabel(p)}</Tx>)}
+            {/* Header and rows share the column widths and gap, and both are centred, so each label sits over its
+                figures; "Since <date>" always breaks after "Since" and the short labels centre against it. */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ flex: 1.3 }} />
+              {periods.map(p => <Tx key={p} w={700} s={10} c={C.muted} center lh={1.35} style={{ flex: 1 }} numberOfLines={2}>{periodLabel(p).replace(/^Since\s+/i, 'Since\n')}</Tx>)}
             </View>
             {[['Portfolio', r.portfolio], ...(r.benchmark ? [[r.benchmark.name, r.benchmark.values]] : [])].map(([name, vals], i) => (
-              <View key={name} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: C.hairline }}>
-                <Tx w={i === 0 ? 700 : 400} s={11.5} style={{ flex: 1.6 }} numberOfLines={2}>{name}</Tx>
-                {(vals || []).map((v, j) => <Amt key={j} s={11.5} c={i === 0 ? gainColor(v) : C.muted} style={{ flex: 1, textAlign: 'right' }}>{pct(v)}</Amt>)}
+              <View key={name} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: C.hairline }}>
+                <Tx w={i === 0 ? 700 : 400} s={11.5} style={{ flex: 1.3 }} numberOfLines={2}>{name}</Tx>
+                {(vals || []).map((v, j) => <Amt key={j} s={11.5} c={i === 0 ? gainColor(v) : C.muted} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ flex: 1, textAlign: 'center' }}>{pct(v)}</Amt>)}
               </View>
             ))}
             <Tx s={10} c={C.gray} lh={1.45} style={{ marginTop: 12 }}>After management fees and other expenses. Returns over 1 year are annualised.</Tx>
@@ -813,7 +815,7 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
       <Strip items={[
         { label: 'SURPLUS', value: signed(d.pnl.surplus), color: gainColor(d.pnl.surplus) },
         { label: 'UNREALISED, NET', value: signed(u.net), color: gainColor(u.net) },
-        { label: 'TOTAL INCOME', value: inr(d.pnl.incomeTotal) },
+        { label: 'TOTAL INCOME', value: signed(d.pnl.incomeTotal), color: gainColor(d.pnl.incomeTotal) },
         { label: 'TOTAL EXPENSES', value: inr(d.pnl.expenseTotal) },
       ]} />
       {!!(d.omitted && d.omitted.length) && <Tx s={11.5} c={C.red} lh={1.5} style={{ marginTop: 6, marginLeft: 2 }}>Not included (not available to this login): {d.omitted.join(', ')}.</Tx>}

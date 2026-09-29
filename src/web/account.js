@@ -133,11 +133,6 @@ function Session({ V }) {
       <View style={{ flex: 1 }}>
         <Tx w={600} s={13.5}>{V.viewing ? 'Viewing an investor account' : 'Session'}</Tx>
         <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 2 }}>myQode · Qode Advisors LLP · SEBI Registered PMS</Tx>
-        {V.testMode && (
-          <Pressable accessibilityRole="button" onPress={V.reshowUcc} style={{ alignSelf: 'flex-start', marginTop: 6 }}>
-            <Tx w={600} s={12} c={C.goldText}>Test: show the UCC pop-up again</Tx>
-          </Pressable>
-        )}
       </View>
       {/* A partner looking at an investor's account leaves the view instead of signing out (as on the phone). */}
       {V.viewing

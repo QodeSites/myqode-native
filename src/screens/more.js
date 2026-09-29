@@ -97,11 +97,6 @@ export function MoreCream({ V }) {
       ) : (
         <SignOutButton onPress={V.doLogout} />
       )}
-      {V.testMode && (
-        <Pressable onPress={V.reshowUcc} style={{ padding: 8 }}>
-          <Tx w={700} s={11} c={C.gold} center>TEST: show the UCC pop-up again</Tx>
-        </Pressable>
-      )}
       <Tx s={10.5} c={C.gray} lh={1.6} center style={{ marginTop: 4 }}>
         myQode{'\n'}Qode Advisors LLP · SEBI Registered PMS
       </Tx>

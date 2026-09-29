@@ -7,7 +7,7 @@ import { View, Pressable, ScrollView, Modal, ActivityIndicator } from 'react-nat
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, Tx, CTA } from '../ui';
 import { clientReports } from '../api';
-import { savePdf } from './partner';
+import { savePdf } from './pdfSave';
 import { DateField } from './sip';
 import {
   REPORT_KINDS, AS_OF, ALL_ID, periodChoices, defaultPeriod, resolvePeriod, periodError, accountChoices, fileName, buildReport, todayIso,
