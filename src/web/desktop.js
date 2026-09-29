@@ -22,7 +22,6 @@ import DesktopDocuments from './documents';
 import DesktopServices from './services';
 import DesktopAccount from './account';
 import { NAV_GROUPS, PAGE_ALIASES, groupOf, navItem, openItem, visibleItems } from '../nav';
-import { InFlightCard } from '../screens/tabs';
 
 // Tabs of state.tab and their web titles and addresses. Pages (PAGES / DESKTOP_PAGES keys) use their own key as the
 // address. The sidebar menu itself is NAV_GROUPS in src/nav.js, shared with the phone's More tab.
@@ -450,7 +449,6 @@ function Overview({ V }) {
     <DataState V={V}>
       <View style={{ gap: 20 }}>
         {!V.viewing && <UccNotice visible={V.showUcc} onClose={V.dismissUcc} />}
-        <InFlightCard V={V} />
         <DataSource V={V} />
         <Summary V={V} />
         <NavPanel V={V} height={300} />
