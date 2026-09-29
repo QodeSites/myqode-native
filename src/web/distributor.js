@@ -28,7 +28,7 @@ import {
   STRATEGY_COLOR, shortStrategy, ACCOUNT_JOURNEY, num, inrCompact, displayDate, SCHEME, SCHEME_COLOR, code3, parseBillgroup,
   EMPTY_PROFILE, todayIst, validateProfile, DECKS, SEGMENTS, toSeries, VsiChart, RISK_OFF, RISK_ON, VSI, ddmmyyyy, TOPICS,
 } from '../screens/partner';
-import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, ErrorBlock, Empty, Btn, PageIntro, Chips, Input, KeyVals, Pill, Dialog, FitAmt } from './kit';
+import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, ErrorBlock, Empty, Btn, PageIntro, Chips, Input, KeyVals, Pill, Dialog, FitAmt, Dropdown } from './kit';
 import { ClientReportsDialog } from './clientReports';
 
 /* ── sections, addresses ────────────────────────────────────────────────────────────────────────────────── */
@@ -588,7 +588,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
   const chips = [f.stage && ['stage', 'Onboarding step: ' + sc(f.stage)], f.strategy && ['strategy', 'Strategy: ' + f.strategy]].filter(Boolean);
 
   const cols = [
-    { key: 'n', label: '#', w: 44, render: r => <Tx s={12} c={C.ink3}>{r.i + 1}</Tx> },
+    { key: 'n', label: '#', w: 64, render: r => <Tx s={12} c={C.ink3} numberOfLines={1}>{r.i + 1}</Tx> },
     { key: 'name', label: 'Investor', flex: 2, render: ({ c }) => (
       <View style={{ minWidth: 0, alignSelf: 'stretch' }}>
         <Tx w={600} s={13.5} numberOfLines={1}>{c.name || '–'}</Tx>
@@ -626,9 +626,23 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
     <View style={{ gap: 20 }} onLayout={e => setNarrow(e.nativeEvent.layout.width < 1300)}>
       <CrmNotice d={d} />
       <View style={{ flexDirection: narrow ? 'column' : 'row', alignItems: narrow ? 'stretch' : 'flex-start', gap: 20 }}>
-        {/* Filters */}
-        <View style={narrow ? { flexDirection: 'row', alignItems: 'flex-start', gap: 16 } : { width: 280, gap: 16 }}>
-          <Panel title="Status" sub="Show investors at one stage" style={narrow ? { flex: 1 } : null}>
+        {/* Filters: a sidebar beside the table, or one compact bar of dropdowns above it when narrow */}
+        {narrow ? (
+          <Card style={{ zIndex: 5, paddingVertical: 14, paddingHorizontal: 20 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12 }}>
+              <Dropdown label="Status" text={status === 'all' ? 'All investors' : sc((STATUS_ORDER.find(s => s.key === status) || {}).label || status)} value={status} onPick={setStatus} menuWidth={320}
+                options={[{ id: 'all', label: 'All investors', note: String(clients.length) }, ...present.map(s => ({ id: s.key, label: sc(s.label), note: String(counts.get(s.key)) }))]} />
+              <Dropdown label="Date" text={f.basis === 'opened' ? 'Account opened' : f.basis === 'invested' ? 'First funded' : 'Any'} value={f.basis || ''} menuWidth={240}
+                options={DATE_BASES.map(([k]) => ({ id: k, label: k === '' ? 'Any date' : k === 'opened' ? 'Account opened' : 'First funded' }))}
+                onPick={k => setFilter(k ? { ...f, basis: k } : { ...f, basis: undefined, from: undefined, to: undefined })} />
+              {!!f.basis && <View style={{ width: 170 }}><DateInput label="From" value={f.from} max={f.to} onChange={v => setFilter({ ...f, from: v || undefined })} /></View>}
+              {!!f.basis && <View style={{ width: 170 }}><DateInput label="To" value={f.to} min={f.from} onChange={v => setFilter({ ...f, to: v || undefined })} /></View>}
+            </View>
+            {undated > 0 && <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 10 }}>{plural(undated, 'investor has', 'investors have')} no {f.basis === 'opened' ? 'account live' : 'first fund initiated'} date on record and {undated === 1 ? 'is' : 'are'} not shown.</Tx>}
+          </Card>
+        ) : (
+        <View style={{ width: 280, gap: 16 }}>
+          <Panel title="Status" sub="Show investors at one stage">
             <View style={{ gap: 2 }}>
               {[{ key: 'all', label: 'All investors', n: clients.length }, ...present.map(s => ({ key: s.key, label: sc(s.label), n: counts.get(s.key), dot: STATUS_COLOR[s.key] }))].map(o => {
                 const on = status === o.key;
@@ -643,7 +657,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
               })}
             </View>
           </Panel>
-          <Panel title="Date" sub="Filter by when an account opened or was first funded" style={narrow ? { flex: 1 } : null}>
+          <Panel title="Date" sub="Filter by when an account opened or was first funded">
             <Chips value={f.basis || ''} options={DATE_BASES.map(([k]) => [k, k === '' ? 'Any' : k === 'opened' ? 'Opened' : 'First funded'])}
               onChange={k => setFilter(k ? { ...f, basis: k } : { ...f, basis: undefined, from: undefined, to: undefined })} />
             {!!f.basis && (
@@ -655,6 +669,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
             {undated > 0 && <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 10 }}>{plural(undated, 'investor has', 'investors have')} no {f.basis === 'opened' ? 'account live' : 'first fund initiated'} date on record and {undated === 1 ? 'is' : 'are'} not shown.</Tx>}
           </Panel>
         </View>
+        )}
 
         {/* Table */}
         <View style={{ flex: narrow ? undefined : 1, minWidth: 0, gap: 12 }}>
