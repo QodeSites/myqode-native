@@ -26,12 +26,13 @@ import { ClientReportsSheet } from './clientReports';
 import { storeGet, storeSet, storeDel } from '../api/session';
 import * as content from '../content';
 import { computeTax, GST_STATE_CODES, validateGstin, validatePan, amountInWords, QODE_ENTITY, qodeAddressLines, isQodeEntityComplete } from '../partnerTax';
+import { withPdfFonts } from '../pdfFonts';
 
 // ── shared ───────────────────────────────────────────────────────────────────
 export const STRATEGY_COLOR = { 'Qode All Weather': '#008455', 'Qode Growth Fund': '#0A3452', 'Qode Tactical Fund': '#550E0E' };
 const NEUTRAL = '#9CA3AF';
 const QAW = '#008455';
-export const shortStrategy = n => String(n || '').replace(/^Qode\s+/, '').replace(/\s+Fund$/, '');
+export const shortStrategy = n => String(n || '').trim();   // strategies are always named in full ("Qode All Weather")
 // web money() / formatDate()
 export const money = n => {
   if (n == null || isNaN(n)) return '–';
@@ -653,6 +654,7 @@ function printHtmlWeb(html, title) {
 
 export async function savePdf(html, fileName, { share = false, landscape = false } = {}) {
   if (pdfJob) return pdfJob;
+  html = withPdfFonts(html);   // Playfair travels inside the HTML: the print engine can't see the app's fonts
   if (Platform.OS === 'web') {
     const safe = String(fileName || 'document').replace(/[^\w .()-]/g, '-').replace(/\s+/g, ' ').trim() || 'document';
     pdfJob = printHtmlWeb(html, safe).finally(() => { pdfJob = null; });

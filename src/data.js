@@ -18,7 +18,7 @@ export const SERIES = {
 export const RANGE_T = { '1M': [2.3, 1.1], '6M': [11.8, 6.2], '1Y': [21.4, 14.1], '3Y': [19.6, 12.8], 'All': [22.6, 14.1] };
 
 export const TX = [
-  { title: 'Contribution', sub: '12 Jul 2026 · All Weather', v: 500000, st: 'COMPLETED' },
+  { title: 'Contribution', sub: '12 Jul 2026 · Qode All Weather', v: 500000, st: 'COMPLETED' },
   { title: 'Management fee', sub: '30 Jun 2026 · Quarterly', v: -23120, st: 'COMPLETED' },
   { title: 'Dividend credit', sub: '28 Jun 2026 · Growth', v: 18240, st: 'COMPLETED' },
   { title: 'Contribution', sub: '15 Jun 2026 · Growth', v: 1000000, st: 'COMPLETED' },

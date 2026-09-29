@@ -10,6 +10,7 @@ import { C, Tx, Amt, Card, CTA, Chip, Field, Sheet, GoldThreads, CurveCap, Keybo
 import { Refresh, Search } from '../icons';
 import { backoffice } from '../api';
 import { useLoad, SectionLabel, Loading, ErrorBox, Empty, SignOutButton } from './kit';
+import { DeviceCard } from './notifications';
 
 // ── Shared helpers (also used by src/web/admin.js) ───────────────────────────────────────────────────────────
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -626,6 +627,9 @@ function NotifList({ tick }) {
   const pill = (k, l, on, onPress) => <Chip key={k} label={l} active={on} onPress={onPress} />;
   return (
     <>
+      {/* this phone's own permission: admin mode has no Home card or More → Notifications, so it is asked here */}
+      <DeviceCard />
+      <View style={{ height: 12 }} />
       <Card style={{ padding: 16 }}>
         <Tx w={700} s={13}>{d.live ? 'Live: clients receive notifications' : `Test only: ${(d.testEmails || []).join(', ')}`}</Tx>
         <Tx s={11.5} c={C.muted} style={{ marginTop: 4 }}>{fmtN(d.devices && d.devices.active)} phones · {fmtN(d.outbox && d.outbox.created24h)} sent in 24 h · {fmtN(d.outbox && d.outbox.failed24h)} failed</Tx>

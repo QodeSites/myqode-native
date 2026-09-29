@@ -18,7 +18,6 @@ import { Download, ChevronDown, Check } from '../icons';
 import { savePdf } from './partner';
 import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactionsAllPdf, capitalGainsAllPdf, expensesAllPdf, factsheetAllPdf, plbsPdf } from './reportPdf';
 import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE } from '../combine';
-import { transactionsSummary, capitalGainsSummary, expensesSummary, factsheetSummary, pnlSummary } from '../reportSummary';
 
 // ── formatting ────────────────────────────────────────────────────────────────────────────────────────────
 // Money, percentages and dates use the app-wide formatters (src/adapt.js) so Reports matches every other screen.
@@ -296,17 +295,6 @@ const FilterChips = ({ options, value, onPick }) => (
 // ── shared bits ───────────────────────────────────────────────────────────────────────────────────────────
 // One compact summary card per report: a 2-column grid split by hairlines, small muted label (optional tiny
 // suffix such as an entry count) above a 14 px figure. items: [{ label, value, color, note }].
-// The written summary above the figures (src/reportSummary.js): what the report says, before the raw data.
-function SummaryCard({ lines }) {
-  if (!lines || !lines.length) return null;
-  return (
-    <Card style={{ marginTop: 14, padding: 14, borderLeftWidth: 3, borderLeftColor: C.gold }}>
-      <Tx w={700} s={9.5} ls={0.1} c={C.muted}>SUMMARY</Tx>
-      <Tx s={13} lh={1.55} style={{ marginTop: 5 }}>{lines.join(' ')}</Tx>
-    </Card>
-  );
-}
-
 function Strip({ items, caption, footer, style }) {
   const list = (items || []).filter(Boolean);
   return (
@@ -410,7 +398,6 @@ function Transactions({ accountId, ids, rk, account }) {
       <Controls account={account} period={<PeriodChip value={period} onChange={setPeriod} sub="By date of transaction. Applies to the list and the PDF." />}
         pdf={<PdfButton make={makePdf} name={`Transactions ${all ? 'All accounts' : accountId}${rangeFile(period)}`} disabled={!L.items.length} />} />
       <StatusLine parts={[asOfPart(h && h.asOf), rangeText(period.from, period.to) || 'All time', countPart(L), recordsPart(h && h.coverage)]} />
-      <SummaryCard lines={transactionsSummary(h && { ...h, from: h.from || period.from, to: h.to || period.to }, all)} />
       {h && h.asOf && (
         <Strip items={[
           { label: 'MONEY IN', value: signed(h.moneyIn), color: gainColor(h.moneyIn) },
@@ -471,7 +458,6 @@ function CapitalGains({ accountId, ids, rk, account }) {
       <Controls account={account} period={period}
         pdf={<PdfButton make={makePdf} name={range ? `Capital gains ${all ? 'All accounts' : accountId}${rangeFile(range)}` : `Capital gains FY ${h && h.fy} ${all ? 'All accounts' : accountId}`} disabled={!(h && h.summary)} />} />
       <StatusLine parts={[asOfPart(h && h.asOf), range ? (range.key === 'all' ? 'All time' : rangeText(range.from, range.to)) : h && h.fy ? `FY ${h.fy}` : null, 'by date of sale', countPart(L), recordsPart(h && h.coverage)]} />
-      <SummaryCard lines={capitalGainsSummary(h && { ...h, fy: range ? null : h.fy, from: h.from || (range && range.from), to: h.to || (range && range.to) }, all)} />
       {s && (
         <Strip caption={range || !h.fy ? 'SELECTED PERIOD' : `FINANCIAL YEAR ${h.fy}`} items={[
           { label: 'SHORT TERM', value: signed(s.st), color: gainColor(s.st) },
@@ -554,7 +540,6 @@ function Expenses({ accountId, ids, rk, account }) {
         pdf={<PdfButton make={makePdf} name={`Expenses ${all ? 'All accounts' : accountId}${rangeFile(period)}`} disabled={!L.items.length} />} />
       <StatusLine parts={[asOfPart(h && h.asOf), rangeText(period.from, period.to) || 'All time', countPart(L),
         h && h.period && (h.period.from || h.period.to) ? `Statement covers ${rangeText(h.period.from, h.period.to)}` : null]} />
-      <SummaryCard lines={expensesSummary(h && { ...h, from: h.from || period.from, to: h.to || period.to }, all, byType)} />
       {h && h.asOf && (
         <Strip items={[
           { label: 'PAID', value: inr(h.paid) },
@@ -743,7 +728,6 @@ function Factsheet({ accountId, ids, names, rk, account }) {
         {controls}
         <StatusLine parts={[asOfPart(d.asOf), 'latest across accounts', `${ids.length} accounts`]} />
         <CombinedNote h={d} />
-        <SummaryCard lines={factsheetSummary(d, true)} />
         <Strip caption={`ALL ACCOUNTS · ${ids.length}`} items={sheetStrip(d)}
           footer={<Tx s={10.5} c={C.muted} style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderColor: C.hairline }}>{FACTSHEET_NOTE}</Tx>} />
         {sheets.map(({ accountId: id, data: x }) => (
@@ -767,7 +751,6 @@ function Factsheet({ accountId, ids, names, rk, account }) {
       {controls}
       <StatusLine parts={[asOfPart(d.asOf), d.computed ? null : 'Nuvama fact sheet', `since inception ${dt(d.inceptionDate)}`]}
         computed={!!d.computed} note={d.computed ? d.note : ''} />
-      <SummaryCard lines={factsheetSummary(d, false)} />
       <Strip caption={d.strategy ? d.strategy.replace(/^QODE ADVISORS LLP - /, '') : ''} items={sheetStrip(d)} />
       <SheetSections d={d} />
     </>
@@ -826,7 +809,6 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
       {controls}
       <StatusLine parts={[asOfPart(d.to), rangeText(d.from, d.to), recordsPart(d.coverage), all ? `${(d.accounts || ids).length} accounts summed` : null, d.computed ? null : 'Nuvama report']}
         computed={!!d.computed} note={d.computed ? d.note : ''} />
-      <SummaryCard lines={pnlSummary(d, all)} />
       <Strip items={[
         { label: 'SURPLUS', value: signed(d.pnl.surplus), color: gainColor(d.pnl.surplus) },
         { label: 'UNREALISED, NET', value: signed(u.net), color: gainColor(u.net) },

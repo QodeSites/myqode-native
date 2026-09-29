@@ -14,7 +14,7 @@ import { SetupSip } from './sip';
 import { SwitchForm } from './switch';
 import { ContactIRLink } from './contact';
 
-const STRATS = [['QAW', 'All Weather'], ['QTF', 'Tactical'], ['QGF', 'Growth']];
+const STRATS = [['QAW', 'Qode All Weather'], ['QTF', 'Qode Tactical Fund'], ['QGF', 'Qode Growth Fund']];
 
 // Withdrawals are deliberately not offered in the app (Investor Relations handles them); the API route stays.
 // Add funds is the big card above this list, so it is not repeated here.

@@ -11,7 +11,7 @@ import { inr, sinr, pct, fmtDate } from '../adapt';
 const signCol = v => (v == null || v === 0 ? C.muted : v < 0 ? C.red : C.pos);
 const BARS = ['#02422B', '#DABD38', '#2F6F5E', '#8A700C', '#5B8A7A', '#B89A2E'];
 const PAGE = 30;
-const short = name => String(name || '').replace(/^Qode /, '');
+const short = name => String(name || '');   // full strategy names ("Qode All Weather"), everywhere
 
 export function HoldingsList({ V }) {
   const accts = V.holdings || [];

@@ -91,7 +91,10 @@ const CSS = landscape => `
   .bs h4 { margin: 2px 0 4px; font-size: 8.4pt; color: ${K.green}; font-weight: 700; letter-spacing: .3px; }
 `;
 // summary: plain sentences (src/reportSummary.js) printed under the header, before any figures or tables.
-const summaryBlock = lines => (lines && lines.length ? `<div class="sum"><div class="lbl">Summary</div><p>${esc(lines.join(' '))}</p></div>` : '');
+// Off in the phone app (the Reports screen there has no summaries either); on for the web. main.js decides.
+let showSummaries = true;
+export const setPdfSummaries = on => { showSummaries = !!on; };
+const summaryBlock = lines => (showSummaries && lines && lines.length ? `<div class="sum"><div class="lbl">Summary</div><p>${esc(lines.join(' '))}</p></div>` : '');
 const page = (landscape, head, body, summary) => `<!doctype html><html data-report="1"><head><meta charset="utf-8"><style>${CSS(landscape)}</style></head><body>${head}${summaryBlock(summary)}${body}
 <div class="ft"><div><b style="color:${K.green}">Qode Advisors LLP</b> · SEBI Registered Portfolio Manager · Data: Nuvama WealthSpectrum (custodian)<br>This is a computer generated report and does not require a signature.</div><div class="rt">Generated ${today()}<br>from the myQode app</div></div></body></html>`;
 

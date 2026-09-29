@@ -214,6 +214,8 @@ export const services = {
   registerPushToken: guarded('registering a push token (enables push notifications to the client)',
     pushToken => api('/services/register-push-token', { method: 'POST', body: { pushToken, platform, app: 'myqode', appVersion: APP_VERSION } })),
   unregisterPushToken: pushToken => api('/services/register-push-token', { method: 'DELETE', body: { pushToken, app: 'myqode' } }),
+  // What happened on this phone when it tried to set up popups (server logs it as [push diag]). Never throws.
+  pushDiag: diag => api('/services/register-push-token', { method: 'POST', body: { app: 'myqode', diag: { ...diag, platform, appVersion: APP_VERSION } } }).catch(() => {}),
   // SIP (Razorpay Subscriptions, app/api/mobile/services/{setup,verify,pause-resume,cancel}-sip). Not
   // TEST_MODE-guarded — same reasoning as payments.razorpay below: test keys, no client contact, no
   // notification unless RAZORPAY_NOTIFY_CLIENT=true on the server. This lets a SIP mandate be tested

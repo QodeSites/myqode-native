@@ -45,6 +45,17 @@ xcodebuild -workspace ios/myQode.xcworkspace -scheme myQode -configuration Relea
   -allowProvisioningUpdates archive 2>&1 | grep -E "error:|\*\* ARCHIVE" || true
 test -d "$OUT/myQode.xcarchive" || { echo "archive failed"; exit 1; }
 
+# The archive is unsigned, and an unsigned app carries no entitlements: the export would then sign it WITHOUT
+# aps-environment (push) or associated-domains (universal links) — "no valid aps-environment entitlement" on the
+# phone. Sign it ad hoc with the real entitlements first; the export re-signs it for the App Store and keeps them.
+APP="$OUT/myQode.xcarchive/Products/Applications/myQode.app"
+ENT="ios/myQode/myQode.entitlements"
+test -f "$ENT" || { echo "entitlements file missing: $ENT"; exit 1; }
+find "$APP/Frameworks" -maxdepth 1 \( -name "*.framework" -o -name "*.dylib" \) -print0 2>/dev/null | xargs -0 -I{} codesign --force --sign - --timestamp=none "{}" >/dev/null 2>&1 || true
+codesign --force --sign - --timestamp=none --entitlements "$ENT" "$APP"
+codesign -d --entitlements :- "$APP" 2>/dev/null | grep -q "aps-environment" || { echo "entitlements not embedded"; exit 1; }
+echo "▸ Entitlements embedded (push, associated domains)"
+
 cat > "$OUT/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -56,6 +67,17 @@ cat > "$OUT/ExportOptions.plist" <<EOF
   <key>manageAppVersionAndBuildNumber</key><false/>
 </dict></plist>
 EOF
+
+# Export an .ipa locally first and check the App Store signature still carries push, before anything is uploaded.
+sed 's#<string>upload</string>#<string>export</string>#' "$OUT/ExportOptions.plist" > "$OUT/ExportLocal.plist"
+xcodebuild -exportArchive -archivePath "$OUT/myQode.xcarchive" -exportOptionsPlist "$OUT/ExportLocal.plist" \
+  -exportPath "$OUT/local" -allowProvisioningUpdates ${AUTH[@]+"${AUTH[@]}"} 2>&1 | grep -E "error:|\*\* EXPORT" || true
+IPA="$(ls "$OUT"/local/*.ipa 2>/dev/null | head -1)"
+test -n "$IPA" || { echo "local export failed"; exit 1; }
+rm -rf "$OUT/check" && mkdir -p "$OUT/check" && unzip -q "$IPA" -d "$OUT/check"
+ENTS="$(codesign -d --entitlements :- "$OUT"/check/Payload/*.app 2>/dev/null)"
+echo "$ENTS" | grep -A1 "aps-environment" | grep -q "production" || { echo "✗ signed app has no production aps-environment; not uploading"; echo "$ENTS"; exit 1; }
+echo "▸ Signed app has aps-environment = production"
 
 echo "▸ Uploading to App Store Connect"
 xcodebuild -exportArchive -archivePath "$OUT/myQode.xcarchive" -exportOptionsPlist "$OUT/ExportOptions.plist" \

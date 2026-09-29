@@ -65,7 +65,7 @@ const TONE = { good: C.pos, normal: C.gold, warn: C.red };
 export const STATUS_COLOR = { invested: '#008455', regular: '#0A3452', smallfunded: '#5FB08A', opened: '#DABD38', onboarding: '#9CA3AF', inactive: '#E0A458', declined: '#EF4444', closed: '#991B1B' };
 // The same colours as text on the cream cards: the light ones (gold, grey, pale green) darkened to stay readable.
 export const STATUS_TEXT = { ...STATUS_COLOR, smallfunded: '#3F8F68', opened: '#9A6B12', onboarding: '#5B6470', inactive: '#B26B1E' };
-const shortStrategy = n => String(n || '').replace(/^Qode\s+/, '').replace(/\s+Fund$/, '');
+const shortStrategy = n => String(n || '').trim();   // strategies are always named in full ("Qode All Weather")
 
 // Number and date formats are the web's own (distributors/page.tsx money() / formatDate()), so every figure reads
 // the same on both: crores always 2 decimals, lakhs 1 decimal, below a lakh whole rupees.

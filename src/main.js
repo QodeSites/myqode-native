@@ -60,6 +60,9 @@ import {
 import { API_BASE, RESUME_HOSTS, UPLOAD } from './onboarding/config';
 import { PAGE_ALIASES, openLink } from './nav';
 import * as push from './push';
+import { setPdfSummaries } from './screens/reportPdf';
+// Report summaries are a web feature; the phone app shows the figures and tables only.
+setPdfSummaries(Platform.OS === 'web');
 
 const MIME_BY_EXT = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 const guessMime = name => MIME_BY_EXT[(String(name || '').split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
@@ -316,7 +319,7 @@ export default class MyQode extends React.Component {
     await minSplash;
     if (this.unmounted || this.state.phase !== 'splash') return;
     if (offline) { this.setState({ phase: 'lock', lockOffline: true, lockErr: '', lockGone: false, lockBusy: false }); return; }
-    if (ok && adminOn) { this.setState({ phase: 'admin' }); this.pushSync(); }
+    if (ok && adminOn) this.setState({ phase: 'admin' }, () => this.pushSync());
     else if (ok && partner) this.setState({ phase: 'partner' });
     // Desktop web: the brand panel next to the form already introduces the app, so sign-in comes first.
     else if (ok) this.startApp(); else this.setState({ phase: this.props.desktop ? 'login' : 'carousel' });
@@ -564,7 +567,7 @@ export default class MyQode extends React.Component {
     if (!isAdmin && user && user.isSuperAdmin) { try { const me = await auth.me(); isAdmin = !!(me && me.isAdmin); if (isAdmin) user = { ...user, ...me }; } catch {} }
     if (isAdmin) {
       this.adminUser = user;
-      this.setState({ user, busy: false, pw: '', np: '', np2: '', otp: ['', '', '', '', '', ''], authErr: '', phase: 'admin', adm: null }); this.pushSync();
+      this.setState({ user, busy: false, pw: '', np: '', np2: '', otp: ['', '', '', '', '', ''], authErr: '', phase: 'admin', adm: null }, () => this.pushSync());
       return;
     }
     if (user && user.isDistributor) {
@@ -795,7 +798,8 @@ export default class MyQode extends React.Component {
     this.seq++;
     await setToken(t);
     this.setState({ phase: 'admin', user: this.adminUser || this.state.user, imp: null, viewing: null, page: null, sheet: null, tab: 'home',
-      acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '', lifting: false });
+      acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '', lifting: false },
+      () => this.pushSync());   // once the admin's own session is in state: register this phone for the admin's test sends
     if (msg) this.toast(msg);
     try {
       const me = await auth.me();
@@ -860,11 +864,15 @@ export default class MyQode extends React.Component {
   // ── Notifications (server: myQode lib/appNotify.ts; device: src/push.js) ─────────────────────────────────────
   // The login's own session only: never while admin views a client, a distributor views an investor, or in demo.
   ownSession() { return !isDemo() && !this.origToken && !this.state.viewing && !(this.state.user && this.state.user.isImpersonated); }
+  // The iPhone's own permission prompt appears by itself the first time the app is in use (any mode: permission
+  // belongs to the phone, not to a login). The phone is registered for popups only in the login's own session.
   pushSync = async () => {
-    if (!this.ownSession() || this.pushBusy) return;
+    if (Platform.OS === 'web' || isDemo() || this.pushBusy) return;
     this.pushBusy = true;
     try {
-      await push.register();
+      await push.reportStart(this.state.phase + (this.ownSession() ? '' : ' (viewing)'));
+      if (await push.shouldAskNow()) { await new Promise(r => setTimeout(r, 1200)); await push.ask(); }
+      if (this.ownSession()) await push.register();
       if (this.state.phase === 'app' && !this.state.pushOffer && (await push.shouldOffer())) this.setState({ pushOffer: true });
     } finally { this.pushBusy = false; }
   };

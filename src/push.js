@@ -48,9 +48,14 @@ export async function ask() {
   if (!native) return 'unsupported';
   await storeSet(ASKED_KEY, String(Date.now()));
   await channel();
-  try { await Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: true, allowSound: true } }); } catch {}
-  return permission();
+  let err = null;
+  try { await Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: true, allowSound: true } }); } catch (e) { err = String((e && e.message) || e); }
+  const p = await permission();
+  services.pushDiag({ stage: 'ask', result: p, error: err });
+  return p;
 }
+// Last outcome of register(), shown on the Notifications settings card.
+export let lastStatus = '';
 
 /** Whether to offer the in-app "turn on notifications" card: not decided yet, and not dismissed in the past 14 days. */
 export async function shouldOffer() {
@@ -60,23 +65,44 @@ export async function shouldOffer() {
 }
 export const snooze = () => storeSet(ASKED_KEY, String(Date.now()));
 
+/** Reports this phone's starting point (permission, whether we asked before) to the server log. */
+export async function reportStart(mode) {
+  if (!native) return;
+  services.pushDiag({ stage: 'start', mode, perm: await permission(), askedBefore: !!(await storeGet(ASKED_KEY)), projectId: !!projectId() });
+}
+
+/** True the first time only: permission not decided yet and the app has never shown the iPhone's prompt. */
+export async function shouldAskNow() {
+  if ((await permission()) !== 'undetermined') return false;
+  return !(await storeGet(ASKED_KEY));
+}
+
 /** Registers this device for the signed-in login when permission is granted. Safe to call any number of times. */
 export async function register() {
-  if (!native || (await permission()) !== 'granted') return null;
+  if (!native) return null;
+  const perm = await permission();
+  if (perm !== 'granted') { lastStatus = 'Permission: ' + perm; return null; }
   await channel();
   const id = projectId();
-  if (!id) return null;
+  if (!id) { lastStatus = 'No project id in this build'; services.pushDiag({ stage: 'projectId', error: 'missing' }); return null; }
+  let stage = 'token', err = '';
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
+      stage = 'token';
       const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId: id });
+      stage = 'server';
       await services.registerPushToken(token);
       await storeSet(TOKEN_KEY, token);
+      lastStatus = 'Registered';
       return token;
     } catch (e) {
-      if (e && e.code === 'TEST_MODE') return null;   // TEST_MODE builds never register (real client logins)
+      if (e && e.code === 'TEST_MODE') { lastStatus = 'Test-mode build: not registered'; return null; }
+      err = String((e && e.message) || e);
       await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
     }
   }
+  lastStatus = `Couldn't register (${stage}): ${err}`;
+  services.pushDiag({ stage, error: err.slice(0, 400) });
   return null;
 }
 

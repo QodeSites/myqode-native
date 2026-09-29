@@ -15,10 +15,12 @@ const KINDS = [
   ['updates', 'Announcements', 'Occasional news from Qode about your account and our services.'],
 ];
 
-function DeviceCard() {
+export function DeviceCard() {
   const [perm, setPerm] = useState(null);
+  const [status, setStatus] = useState(push.lastStatus);   // registration result, kept in state so the card updates
   const check = () => push.permission().then(setPerm);
-  useEffect(() => { check(); const sub = AppState.addEventListener('change', st => { if (st === 'active') check(); }); return () => sub.remove(); }, []);
+  const reg = () => push.register().then(() => { setStatus(push.lastStatus); check(); });
+  useEffect(() => { check(); reg(); const sub = AppState.addEventListener('change', st => { if (st === 'active') check(); }); return () => sub.remove(); }, []);
   if (Platform.OS === 'web' || perm === 'unsupported') {
     return <Card style={{ padding: 16 }}><Tx s={12.5} c={C.muted} lh={1.55}>Popups appear on your phone through the myQode app. Here on the web, they are under the bell at the top of the page.</Tx></Card>;
   }
@@ -32,8 +34,10 @@ function DeviceCard() {
           : perm === 'denied' ? 'Turn them on in your phone’s settings to hear about money in and out of your accounts as it happens.'
             : 'Turn them on to hear about money in and out of your accounts as it happens.'}
       </Tx>
+      {on && <Tx s={11} c={C.gray} style={{ marginTop: 6 }}>{status || 'Checking…'}</Tx>}
+      {on && !!status && status !== 'Registered' && <CTA outline label="TRY AGAIN" style={{ marginTop: 12, paddingVertical: 10 }} onPress={() => { setStatus(''); reg(); }} />}
       {!on && <CTA label={perm === 'denied' ? 'OPEN SETTINGS' : 'TURN ON NOTIFICATIONS'} style={{ marginTop: 14, paddingVertical: 12 }}
-        onPress={async () => { if (perm === 'denied') push.openSettings(); else { const p = await push.ask(); setPerm(p); if (p === 'granted') push.register(); } }} />}
+        onPress={async () => { if (perm === 'denied') push.openSettings(); else { const p = await push.ask(); setPerm(p); if (p === 'granted') reg(); } }} />}
     </Card>
   );
 }
