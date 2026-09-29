@@ -53,7 +53,9 @@ function useUrlSync(V, active, page, title, setMissing) {
     if (!web) return undefined;
     // An alias keeps working but the address bar shows the page's own address, without a history entry.
     const land = slug => { const canon = openSlug(V, slug); if (canon && slug && canon !== slug) history.replaceState(null, '', BASE + '/' + canon); return canon; };
-    const slug = slugOf();
+    let slug = slugOf();
+    // A partner-panel address (/app/d/…) is not an investor page: open the Overview rather than a 404.
+    if (slug === 'd' || slug.startsWith('d/')) { history.replaceState(null, '', BASE); slug = ''; }
     const canon = slug ? land(slug) : null;
     if (slug && !canon) { miss.current = true; setMissing(slug); }
     else if (slug) pending.current = BASE + '/' + canon;

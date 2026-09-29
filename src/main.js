@@ -99,6 +99,14 @@ function cutRange(nav, dd, period) {
 // Sign-in fields never take spaces (typed or pasted): an email, a client code and a password contain none.
 const noSpace = t => String(t || '').replace(/\s+/g, '');
 
+// Web: back to the bare /app address. Each console reads its first screen from the address (the investor dashboard from
+// /app/<page>, the partner panel from /app/d/<section>), so one session's address must not open the next session: a
+// user opened from admin mode landed on the previous user's Profile, or on a 404 for a partner address.
+function cleanAddress() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.history || !window.location) return;
+  if (window.location.pathname !== '/app') window.history.replaceState(window.history.state, '', '/app');
+}
+
 export default class MyQode extends React.Component {
   state = {
     phase: 'splash', tab: 'home', sheet: null, acct: 0, range: 'SI',
@@ -731,6 +739,7 @@ export default class MyQode extends React.Component {
     this.seq++;
     await clearToken();
     this.counted = false;
+    cleanAddress();
     this.setState({
       phase: 'login', tab: 'home', sheet: null, page: null, user: null, acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {},
       dErr: '', dl: false, pw: '', busy: false, otp: ['', '', '', '', '', ''], authErr: msg, authInfo: '', uccSeen: false, payRecover: null, viewing: null,
@@ -750,6 +759,7 @@ export default class MyQode extends React.Component {
   impersonate = async clientCode => {
     const r = await admin.impersonate(clientCode);
     trackStop();   // an admin viewing a client is not the client's usage
+    cleanAddress();
     if (!this.origToken) this.origToken = await getToken();
     await setToken(r.token);
     clearUserCaches();
@@ -790,6 +800,7 @@ export default class MyQode extends React.Component {
     this.seq++;
     const user = { ...(r.user || {}), isImpersonated: true };
     const imp = { name: user.name || name || email, email, backoffice: false };
+    cleanAddress();
     const reset = { user, imp, page: null, sheet: null, tab: 'home', acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '', viewing: null, uccSeen: true };
     if (user.isDistributor) { this.setState({ ...reset, phase: 'partner' }); return; }
     await new Promise(res => this.setState(reset, res));
@@ -808,6 +819,7 @@ export default class MyQode extends React.Component {
     this.seq++;
     await setToken(t);
     { const au = this.adminUser || this.state.user; if (au && au.email) trackStart('a:' + au.email, 'admin'); }   // tracking resumes as the admin
+    cleanAddress();
     this.setState({ phase: 'admin', user: this.adminUser || this.state.user, imp: null, viewing: null, page: null, sheet: null, tab: 'home',
       acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '', lifting: false },
       () => this.pushSync());   // once the admin's own session is in state: register this phone for the admin's test sends
