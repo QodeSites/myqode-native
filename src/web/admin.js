@@ -311,12 +311,12 @@ function Notifications({ tick }) {
   if (q.loading && !d) return <Loading rows={4} />;
   if (q.err && !d) return <ErrorBlock msg={q.err} onRetry={q.reload} />;
   if (d && d.ready === false) return <Empty title="Notification tables aren’t created yet">Run the migration on the server (node scripts/migrate-app-notifications.mjs --apply), then refresh.</Empty>;
-  const audienceOpts = AUDIENCES.filter(([k]) => k === 'test' || d.live);
+  const audienceOpts = AUDIENCES;
   return (
     <View style={{ gap: 20 }}>
       <PageIntro title="Notifications" sub="Popups on clients’ phones and the inbox under the bell. Money, portfolio and reading notifications are sent automatically." />
       <Grid>
-        <Stat label="Status" value={d.live ? 'Live' : 'Test only'} note={d.live ? 'Clients receive notifications' : `Only ${(d.testEmails || []).join(', ')} until PUSH_LIVE=1`} />
+        <Stat label="Automatic notifications" value={d.live ? 'On' : 'Off'} note={d.live ? 'Money, portfolio and reading go to clients' : 'Off until PUSH_LIVE=1. Your own notifications can be published any time.'} />
         <Stat label="Phones registered" value={fmtN(d.devices && d.devices.active)} note={`${fmtN(d.devices && d.devices.logins)} logins · ${fmtN(d.devices && d.devices.ios)} iOS · ${fmtN(d.devices && d.devices.android)} Android`} />
         <Stat label="Last 24 hours" value={fmtN(d.outbox && d.outbox.created24h)} note={`${fmtN(d.outbox && d.outbox.pending)} waiting · ${fmtN(d.outbox && d.outbox.failed24h)} failed`} />
       </Grid>
@@ -331,7 +331,7 @@ function Notifications({ tick }) {
             <Input label={`Message (${f.body.length}/300)`} value={f.body} onChangeText={t => set({ body: t })} multiline placeholder="What should the client know?" />
             <View style={{ gap: 6 }}><Tx s={12.5} w={600} c={C.ink2}>Opens</Tx><Chips small value={f.link} options={NOTE_LINKS} onChange={v => set({ link: v })} /></View>
             <View style={{ gap: 6 }}><Tx s={12.5} w={600} c={C.ink2}>Send to</Tx><Chips small value={f.type} options={audienceOpts} onChange={v => set({ type: v, value: '' })} /></View>
-            {!d.live && <Tx s={12} c={C.ink3}>Sending to clients unlocks when PUSH_LIVE=1 is set on the server.</Tx>}
+            
             {f.type === 'strategy' && <Chips small value={f.value} options={(d.strategies || []).map(x => [x, x.replace(/^QODE ADVISORS LLP\s*-\s*/i, '')])} onChange={v => set({ value: v })} />}
             {f.type === 'emails' && <Input label="Client emails" value={f.value} onChangeText={t => set({ value: t })} multiline placeholder="one@example.com, two@example.com" />}
             {!!msg && <Tx s={13} c={msg.ok ? C.pos : C.red}>{msg.text}</Tx>}

@@ -3,7 +3,7 @@
 // component's `adm` state so "Back to admin" returns to where the admin left off. The desktop web console
 // (src/web/admin.js) reuses the helpers exported here.
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Pressable, TextInput, RefreshControl } from 'react-native';
+import { View, Pressable, TextInput, RefreshControl, Platform, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets, SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { C, Tx, Amt, Card, CTA, Chip, Field, Sheet, GoldThreads, CurveCap, KeyboardScroll, useBackHandler } from '../ui';
@@ -73,9 +73,18 @@ export function useNotifAdmin(tick) {
   const send = async () => {
     if (problem || busy) return;
     setBusy(true); setMsg(null);
+    const body = { title: f.title.trim(), body: f.body.trim(), link: f.link || null, category: f.category,
+      audience: { type: f.type, value: f.type === 'strategy' || f.type === 'emails' ? f.value : undefined } };
     try {
-      const r = await backoffice.sendNotification({ title: f.title.trim(), body: f.body.trim(), link: f.link || null, category: f.category,
-        audience: { type: f.type, value: f.type === 'strategy' || f.type === 'emails' ? f.value : undefined } });
+      if (f.type !== 'test') {
+        // Publishing to clients: show the exact recipient count and ask before anything is sent.
+        const { recipients } = await backoffice.sendNotification({ ...body, dryRun: true });
+        const q = `Send "${body.title}" to ${recipients} ${recipients === 1 ? 'person' : 'people'}? This can't be undone.`;
+        const ok = Platform.OS === 'web' ? window.confirm(q)
+          : await new Promise(res => Alert.alert('Publish notification', q, [{ text: 'Cancel', style: 'cancel', onPress: () => res(false) }, { text: 'Publish', onPress: () => res(true) }]));
+        if (!ok) { setBusy(false); return; }
+      }
+      const r = await backoffice.sendNotification(body);
       setMsg({ ok: true, text: f.type === 'test' ? 'Sent to you. It should pop up on your phone within a few seconds.' : `Sent to ${r.recipients} ${r.recipients === 1 ? 'person' : 'people'}.` });
       if (f.type !== 'test') setF(x => ({ ...x, title: '', body: '' }));
       q.reload();
@@ -631,7 +640,7 @@ function NotifList({ tick }) {
       <DeviceCard />
       <View style={{ height: 12 }} />
       <Card style={{ padding: 16 }}>
-        <Tx w={700} s={13}>{d.live ? 'Live: clients receive notifications' : `Test only: ${(d.testEmails || []).join(', ')}`}</Tx>
+        <Tx w={700} s={13}>{d.live ? 'Automatic notifications are on' : 'Automatic notifications are off (PUSH_LIVE)'}. Your own notifications can be published any time.</Tx>
         <Tx s={11.5} c={C.muted} style={{ marginTop: 4 }}>{fmtN(d.devices && d.devices.active)} phones · {fmtN(d.outbox && d.outbox.created24h)} sent in 24 h · {fmtN(d.outbox && d.outbox.failed24h)} failed</Tx>
       </Card>
       <SectionLabel>NEW NOTIFICATION</SectionLabel>
@@ -642,7 +651,7 @@ function NotifList({ tick }) {
         <Tx w={700} s={10.5} ls={0.12} c={C.muted}>OPENS</Tx>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{NOTE_LINKS.map(([k, l]) => pill(k || 'home', l, f.link === k, () => set({ link: k })))}</View>
         <Tx w={700} s={10.5} ls={0.12} c={C.muted}>SEND TO</Tx>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{AUDIENCES.filter(([k]) => k === 'test' || d.live).map(([k, l]) => pill(k, l, f.type === k, () => set({ type: k, value: '' })))}</View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{AUDIENCES.map(([k, l]) => pill(k, l, f.type === k, () => set({ type: k, value: '' })))}</View>
         {f.type === 'strategy' && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{(d.strategies || []).map(x => pill(x, x.replace(/^QODE ADVISORS LLP\s*-\s*/i, ''), f.value === x, () => set({ value: x })))}</View>}
         {f.type === 'emails' && <Field label="CLIENT EMAILS" value={f.value} onChangeText={t => set({ value: t })} multiline s={14} autoCapitalize="none" />}
         {!!msg && <Tx s={12.5} c={msg.ok ? C.pos : C.red}>{msg.text}</Tx>}

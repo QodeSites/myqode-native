@@ -57,11 +57,14 @@ export function openItem(V, it) {
   ({ home: V.goHome, portfolio: V.goPortfolio, holdings: V.segHold, docs: V.goDocs, services: V.goServices, reports: V.goReports }[it.tab] || V.goHome)();
 }
 
+import { Linking } from 'react-native';
+
 /**
  * Opens a notification's destination (app_notifications.link on the server): 'tab:portfolio', 'page:transactions',
- * 'page:sip' (SIPs live under Account Services), 'sheet:add'. Anything unknown opens Home.
+ * 'page:sip' (SIPs live under Account Services), 'sheet:add', 'url:https://…' (opens the browser). Anything unknown opens Home.
  */
 export function openLink(V, link) {
+  if (/^url:https:\/\//i.test(String(link || ''))) { Linking.openURL(String(link).slice(4)).catch(() => {}); return; }   // a web page from admin
   const [kind, key] = String(link || '').split(':');
   if (kind === 'page' && key === 'sip') return openItem(V, { tab: 'services' });
   if (kind === 'page' && key) return openItem(V, { page: key });
