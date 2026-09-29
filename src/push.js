@@ -9,11 +9,18 @@
 //  - a tap that launched the app is read once the app is ready (getLastNotificationResponse), never lost.
 import { Platform, Linking } from 'react-native';
 import Constants from 'expo-constants';
-import * as Notifications from 'expo-notifications';
 import { services } from './api';
 import { storeGet, storeSet, storeDel } from './api/session';
 
-const native = Platform.OS === 'ios' || Platform.OS === 'android';
+// Expo Go dropped the push-notification native module in SDK 53, and importing expo-notifications there
+// crashes the app before it renders ("runtime not ready"). So the module is only loaded outside Expo Go;
+// in Expo Go (and on web) every function below is a no-op and permission() reports 'unsupported'.
+const inExpoGo = Constants.executionEnvironment === 'storeClient';
+let Notifications = null;
+if ((Platform.OS === 'ios' || Platform.OS === 'android') && !inExpoGo) {
+  try { Notifications = require('expo-notifications'); } catch { Notifications = null; }
+}
+const native = !!Notifications;
 const TOKEN_KEY = 'myqode.pushToken';
 const ASKED_KEY = 'myqode.pushAskedAt';
 const projectId = () => (Constants.expoConfig && Constants.expoConfig.extra && Constants.expoConfig.extra.eas && Constants.expoConfig.extra.eas.projectId)
