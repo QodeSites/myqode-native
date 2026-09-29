@@ -10,6 +10,7 @@ import HoldingsList from './holdingsList';
 import { PushOfferCard } from './notifications';
 import { dayLabel } from './pay';
 import { inr } from '../adapt';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const Label = ({ children, style }) => (
   <Tx w={700} s={11} ls={0.12} c={C.muted} style={[{ marginTop: 22, marginBottom: 10, marginLeft: 2 }, style]}>{children}</Tx>
@@ -98,39 +99,57 @@ export function OtherSkeleton() {
 }
 
 // "On its way": money received but not in the portfolio yet (PMS data arrives a day after the markets, from Nuvama).
+// The brand's dark green card, like the hero: amount, where it's going, and three evenly spaced steps with dates.
+const istDay = iso => new Date(new Date(iso).getTime() + 330 * 60000).toISOString().slice(0, 10);
+function Steps({ steps }) {
+  // steps: [[label, date, done]]; the line runs between the first and last dot centres, gold up to the last done step
+  const doneUpTo = steps.reduce((k, st, i) => (st[2] ? i : k), 0);
+  return (
+    <View style={{ marginTop: 18 }}>
+      <View style={{ position: 'absolute', top: 7, left: '16.67%', width: '33.33%', height: 2, backgroundColor: doneUpTo >= 1 ? C.gold : 'rgba(239,236,211,0.22)' }} />
+      <View style={{ position: 'absolute', top: 7, left: '50%', width: '33.33%', height: 2, backgroundColor: doneUpTo >= 2 ? C.gold : 'rgba(239,236,211,0.22)' }} />
+      <View style={{ flexDirection: 'row' }}>
+        {steps.map(([label, date, done]) => (
+          <View key={label} style={{ flex: 1, alignItems: 'center' }}>
+            <View style={{ width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+              backgroundColor: done ? C.gold : C.ink, borderWidth: done ? 0 : 1.5, borderColor: 'rgba(239,236,211,0.55)' }}>
+              {done && <Tx w={900} s={9} c={C.ink} style={{ marginTop: -1 }}>✓</Tx>}
+            </View>
+            <Tx w={700} s={11.5} c={done ? C.cream : C.cream80} center style={{ marginTop: 8 }}>{label}</Tx>
+            <Tx s={11} c={done ? C.gold : C.cream60} center style={{ marginTop: 2 }}>{date}</Tx>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export function InFlightCard({ V }) {
   const list = V.inFlight || [];
   if (!list.length) return null;
-  const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+  const today = istDay(Date.now());
   return (
-    <Card style={{ padding: 16, marginTop: 16, borderLeftWidth: 3, borderLeftColor: C.gold }}>
-      <Tx w={700} s={10.5} ls={0.12} c={C.muted}>ON ITS WAY</Tx>
-      {list.map((it, i) => {
-        const steps = [['Received', true, ''], ['Invested', today >= it.deployOn, dayLabel(it.deployOn)], ['In your portfolio', false, dayLabel(it.visibleOn)]];
-        return (
-          <View key={it.orderId} style={{ marginTop: 10, paddingTop: i ? 12 : 0, borderTopWidth: i ? 1 : 0, borderColor: C.hairline }}>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <Amt w={700} s={16}>{inr(it.amount, 0)}</Amt>
-              <Tx s={11.5} c={C.muted} numberOfLines={1} style={{ flexShrink: 1 }}>{it.strategy}</Tx>
+    <View style={{ marginTop: 16, borderRadius: 16, overflow: 'hidden' }}>
+      <LinearGradient colors={C.darkGrad} locations={[0, 0.7, 1]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 18 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Tx w={700} s={10.5} ls={0.14} c={C.gold}>ON ITS WAY</Tx>
+          {list.length > 1 && <Tx s={11} c={C.cream60}>{list.length} payments</Tx>}
+        </View>
+        {list.map((it, i) => {
+          const received = dayLabel(istDay(it.paidAt));
+          const steps = [['Received', received, true], ['Invested', dayLabel(it.deployOn), today >= it.deployOn], ['In your portfolio', dayLabel(it.visibleOn), false]];
+          return (
+            <View key={it.orderId} style={{ marginTop: i ? 18 : 10, paddingTop: i ? 16 : 0, borderTopWidth: i ? 1 : 0, borderColor: 'rgba(239,236,211,0.12)' }}>
+              <Amt w={700} s={24} c={C.cream}>{inr(it.amount, 0)}</Amt>
+              {!!it.strategy && <Tx s={12.5} c={C.cream65} numberOfLines={2} style={{ marginTop: 2 }}>into {it.strategy}</Tx>}
+              <Steps steps={steps} />
+              {it.late && <Tx s={11} c={C.cream65} lh={1.5} center style={{ marginTop: 12 }}>Taking longer than usual. It will appear once our custodian's data includes it.</Tx>}
             </View>
-            <View style={{ flexDirection: 'row', marginTop: 10 }}>
-              {steps.map(([label, done, date], k) => (
-                <View key={label} style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: done ? C.green : 'transparent', borderWidth: 1.5, borderColor: done ? C.green : C.gold }} />
-                    {k < 2 && <View style={{ flex: 1, height: 1.5, backgroundColor: done ? C.green : C.hairline, marginHorizontal: 4 }} />}
-                  </View>
-                  <Tx w={700} s={11} style={{ marginTop: 6 }}>{label}</Tx>
-                  {!!date && <Tx s={10.5} c={C.muted}>{date}</Tx>}
-                </View>
-              ))}
-            </View>
-            {it.late && <Tx s={11} c={C.muted} lh={1.5} style={{ marginTop: 8 }}>This is taking longer than usual. It will appear once our custodian's data includes it; Investor Relations can help if you have questions.</Tx>}
-          </View>
-        );
-      })}
-      <Tx s={10.5} c={C.gray} lh={1.5} style={{ marginTop: 10 }}>Payments received before 4 pm on a working day are invested the next working day. Your portfolio shows them the working day after that.</Tx>
-    </Card>
+          );
+        })}
+        <Tx s={10.5} c={C.cream55} lh={1.5} center style={{ marginTop: 16 }}>Portfolios update a working day after investment, from our custodian's data.</Tx>
+      </LinearGradient>
+    </View>
   );
 }
 

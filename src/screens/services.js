@@ -14,6 +14,7 @@ import { SetupSip } from './sip';
 import { SwitchForm } from './switch';
 import { ContactIRLink } from './contact';
 import { track } from '../api/track';
+import { dayLabel } from './pay';
 
 const STRATS = [['QAW', 'Qode All Weather'], ['QTF', 'Qode Tactical Fund'], ['QGF', 'Qode Growth Fund']];
 
@@ -100,7 +101,34 @@ function Segment({ value, onPick, options }) {
 }
 
 // Transactions — contributions & withdrawals (bank transfers, redemptions): first few rows, then "show all".
+// Received but not in Nuvama's data yet (Razorpay, Zoho Capital Inflows, admin entries): listed above the
+// confirmed transactions until the real one appears, so a client never wonders where their money went.
+function PendingRows({ V }) {
+  const list = V.inFlight || [];
+  if (!list.length) return null;
+  return (
+    <Card style={{ overflow: 'hidden', marginBottom: 12, borderLeftWidth: 3, borderLeftColor: C.gold }}>
+      {list.map((it, i) => (
+        <View key={it.orderId} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 16, borderBottomWidth: i < list.length - 1 ? 1 : 0, borderColor: C.hairline }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Tx w={700} s={13}>Money received</Tx>
+              <View style={{ backgroundColor: 'rgba(218,189,56,0.18)', borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 }}><Tx w={700} s={9.5} ls={0.06} c={C.green}>PENDING</Tx></View>
+            </View>
+            <Tx s={11} c={C.muted} style={{ marginTop: 2 }} numberOfLines={2}>Invested {dayLabel(it.deployOn)} · in your portfolio {dayLabel(it.visibleOn)}{it.strategy ? ' · ' + it.strategy : ''}</Tx>
+          </View>
+          <Amt s={13} c={C.green}>+{inr(it.amount, 0)}</Amt>
+        </View>
+      ))}
+    </Card>
+  );
+}
+
 export function CashList({ V, full }) {
+  return <><PendingRows V={V} /><CashListConfirmed V={V} full={full} /></>;
+}
+
+function CashListConfirmed({ V, full }) {
   const [showAll, setShowAll] = useState(!!full);
   const rows = showAll ? V.txAll : V.txAll.slice(0, 5);
   const foldable = V.txAll.length > 5;

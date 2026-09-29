@@ -1,7 +1,7 @@
 // Bottom sheets for the main app: add/withdraw funds, family account switch,
 // display & accessibility settings.
 import React from 'react';
-import { View, Pressable } from 'react-native';
+import { View, Pressable, Platform } from 'react-native';
 import { C, Tx, Amt, Sheet, Field, CTA, Chip, ChipRow, Toggle, Hairline } from '../ui';
 import { Crown, ChevronRight, FamilyIcon, Bell, DocIcon, Gear, GroupIcon } from '../icons';
 
@@ -25,6 +25,9 @@ function NoteIcon({ category }) {
   if (category === 'reading') return <View style={box}><DocIcon s={15} c={C.gold} /></View>;
   return <View style={box}><Bell s={15} c={C.gold} /></View>;
 }
+
+// Long words (URLs, amounts) must wrap inside the panel on the web instead of running out of it.
+const WRAP = Platform.OS === 'web' ? { wordBreak: 'break-word', overflowWrap: 'anywhere' } : {};
 
 // The bell, on the brand's dark green gradient: cream text, gold accents.
 export function NotifsSheet({ V }) {
@@ -68,10 +71,10 @@ export function NotifsSheet({ V }) {
                 <NoteIcon category={nt.category} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Tx w={700} s={13} c={C.cream} style={{ flex: 1 }} numberOfLines={2}>{nt.title}</Tx>
+                    <Tx w={700} s={13} c={C.cream} style={{ flex: 1, minWidth: 0, ...WRAP }} numberOfLines={2}>{nt.title}</Tx>
                     {!nt.read && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: C.gold }} />}
                   </View>
-                  <Tx s={12} c={C.cream80} lh={1.45} style={{ marginTop: 3 }}>{nt.body}</Tx>
+                  <Tx s={12} c={C.cream80} lh={1.45} numberOfLines={4} style={{ marginTop: 3, flexShrink: 1, ...WRAP }}>{nt.body}</Tx>
                   <Tx s={10.5} c={C.cream55} style={{ marginTop: 5 }}>{ago(nt.createdAt)}</Tx>
                 </View>
               </Pressable>

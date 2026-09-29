@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import { C, Tx, Amt, Panel, Table, Chips, FitAmt } from './kit';
+import { dayLabel } from '../screens/pay';
+import { inr } from '../adapt';
 
 const isOut = t => /[−-]/.test(String(t.amt));
 
@@ -29,6 +31,16 @@ export function DesktopTransactions({ V }) {
           {cell('Net invested', (f[2] || {}).value || '–')}
         </View>
       </Panel>
+      {!!(V.inFlight && V.inFlight.length) && (
+        <Panel title="Pending" sub="Received, not yet in your portfolio: listed here until our custodian's data shows it" pad={0}>
+          <Table rows={V.inFlight.map(it => ({ ...it, id: it.orderId }))} cols={[
+            { key: 'recv', label: 'Received', flex: 1, render: it => <Tx s={13.5} c={C.ink2}>{dayLabel(String(it.paidAt).slice(0, 10))}</Tx> },
+            { key: 'into', label: 'Into', flex: 1.6, render: it => <Tx s={13.5} numberOfLines={2}>{it.strategy || 'Your Qode portfolio'}</Tx> },
+            { key: 'when', label: 'Invested / in portfolio', flex: 1.4, render: it => <Tx s={13.5} c={C.ink2}>{dayLabel(it.deployOn)} / {dayLabel(it.visibleOn)}</Tx> },
+            { key: 'amt', label: 'Amount', flex: 1, right: true, render: it => <Amt s={13.5} c={C.pos}>+{inr(it.amount, 0)}</Amt> },
+          ]} />
+        </Panel>
+      )}
       <Panel title="All transactions" sub={'Bank transfers in and redemptions out' + (V.asOf ? ', as of ' + V.asOf : '')} pad={0}
         right={<Chips value={kind} onChange={setKind} options={[['all', 'All'], ['in', 'Money in'], ['out', 'Money out']]} />}>
         {!V.hasTx ? <Tx s={13} c={C.ink3} style={{ padding: 20 }}>No transactions recorded yet.</Tx> : (
