@@ -210,8 +210,11 @@ function paginate(html, W, H, fs) {
   }
   return out + html.slice(last);
 }
+// Footer data source: Nuvama for PMS accounts; Qode's own records for a managed account (set by the Reports page).
+let DATA_SOURCE = 'Nuvama WealthSpectrum (custodian)';
+export const setPdfManaged = on => { DATA_SOURCE = on ? 'Qode managed-account records' : 'Nuvama WealthSpectrum (custodian)'; };
 const page = (landscape, head, body, summary) => `<!doctype html><html data-report="1"><head><meta charset="utf-8"><style>${CSS(landscape)}</style></head><body>${paginate(head + summaryBlock(summary) + fitTiles(fitTables(body, CONTENT_PT[landscape ? 'landscape' : 'portrait'], landscape ? 7.3 : 7.8), CONTENT_PT[landscape ? 'landscape' : 'portrait']), CONTENT_PT[landscape ? 'landscape' : 'portrait'], PAGE_PT[landscape ? 'landscape' : 'portrait'], landscape ? 7.3 : 7.8)}
-<div class="ft"><div><b style="color:${K.green}">Qode Advisors LLP</b> · SEBI Registered Portfolio Manager · Data: Nuvama WealthSpectrum (custodian)<br>This is a computer generated report and does not require a signature.</div><div class="rt">Generated ${today()}<br>from the myQode app</div></div></body></html>`;
+<div class="ft"><div><b style="color:${K.green}">Qode Advisors LLP</b> · SEBI Registered Portfolio Manager · Data: ${DATA_SOURCE}<br>This is a computer generated report and does not require a signature.</div><div class="rt">Generated ${today()}<br>from the myQode app</div></div></body></html>`;
 
 // Reporting period line under the title: both ends, one open end, or (when allowed) "All records".
 const periodLine = (from, to, allLabel) => (from && to ? `Period: ${dl(from)} to ${dl(to)}` : from ? `From ${dl(from)}` : to ? `Up to ${dl(to)}` : allLabel || '');

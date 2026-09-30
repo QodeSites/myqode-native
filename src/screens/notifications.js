@@ -82,10 +82,13 @@ export function PushOfferCard({ V }) {
   if (!V.pushOffer) return null;
   return (
     <Card style={{ padding: 16, marginTop: 16, borderLeftWidth: 3, borderLeftColor: C.gold }}>
-      <Tx w={700} s={14}>Know the moment your money moves</Tx>
-      <Tx s={12} c={C.muted} lh={1.5} style={{ marginTop: 4 }}>Turn on notifications for payments received, investments recorded and your monthly portfolio update.</Tx>
+      <Tx w={700} s={14}>{V.pushOfferSettings ? 'Notifications are off' : 'Know the moment your money moves'}</Tx>
+      <Tx s={12} c={C.muted} lh={1.5} style={{ marginTop: 4 }}>{V.pushOfferSettings
+        ? (V.adminMode ? 'Turn them on to get an alert for every new Capital Inflow and Scheme Clarification. Tap below, then switch on Allow Notifications.'
+          : 'Turn them on for payments received, investments recorded and your monthly portfolio update. Tap below, then switch on Allow Notifications.')
+        : 'Turn on notifications for payments received, investments recorded and your monthly portfolio update.'}</Tx>
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14, alignItems: 'center' }}>
-        <CTA label="TURN ON" onPress={V.pushOfferYes} style={{ flex: 1, paddingVertical: 11 }} />
+        <CTA label={V.pushOfferSettings ? 'OPEN SETTINGS' : 'TURN ON'} onPress={V.pushOfferYes} style={{ flex: 1, paddingVertical: 11 }} />
         <Tx w={700} s={12.5} c={C.muted} onPress={V.pushOfferNo} style={{ paddingHorizontal: 14, paddingVertical: 10 }}>Not now</Tx>
       </View>
     </Card>

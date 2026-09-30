@@ -9,6 +9,7 @@ import { useLoad } from '../screens/kit';
 import {
   fmtWhen, fmtDay, fmtAgo, fmtN, pwProblem, isEmail, userBadges, detailsText, useUserList, useUserActions, DailyBars,
   TYPE_OPTS, STATUS_OPTS, ADMIN_TABS, useNotifAdmin, NOTE_SAMPLES, NOTE_LINKS, AUDIENCES, campaignStats, audienceText,
+  useManagedList, managedMoney, managedAccountLine,
 } from '../screens/admin';
 
 const Badges = ({ u }) => (
@@ -111,6 +112,38 @@ function NewDistributorDialog({ V, visible, onClose, onDone }) {
         </View>
       </View>
     </Dialog>
+  );
+}
+
+function ManagedList({ V, tick }) {
+  const [q, setQ] = useState('');
+  const [st, setSt] = useState({ busy: '', err: '' });
+  const L = useManagedList(q, tick);
+  const people = (L.data && L.data.people) || [];
+  const open = async p => {
+    if (st.busy) return;
+    setSt({ busy: p.icode, err: '' });
+    try { await V.openAsUser({ icode: p.icode, name: p.name }); setSt({ busy: '', err: '' }); } catch (e) { setSt({ busy: '', err: e.message || 'Could not open this account.' }); }
+  };
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap', marginBottom: 16 }}>
+        <Input value={q} onChangeText={setQ} placeholder="Search name, email, QUS or QAC code" style={{ width: 360 }} />
+        <Tx s={12.5} c={C.ink3} style={{ flex: 1, minWidth: 240 }}>OneView managed accounts. Open one to see that person's portfolio, read-only.</Tx>
+      </View>
+      {!!st.err && <Tx s={12.5} c={C.red} style={{ marginBottom: 10 }}>{st.err}</Tx>}
+      {!!L.err && <ErrorBlock msg={L.err} onRetry={L.reload} />}
+      {!L.err && (L.loading && !people.length ? <Loading rows={6} /> : (
+        <Panel pad={0} title={`${fmtN(people.length)} ${people.length === 1 ? 'person' : 'people'}`} style={{ opacity: L.loading ? 0.6 : 1 }}>
+          <Table rows={people} empty="No managed accounts match." onRowPress={open} cols={[
+            { key: 'name', label: 'Person', flex: 2, render: p => <View><Tx w={600} s={13.5} numberOfLines={1}>{p.name}</Tx>{small([p.icode, p.email].filter(Boolean).join(' · '), C.ink3)}</View> },
+            { key: 'accounts', label: 'Accounts', flex: 3, render: p => <View style={{ gap: 2 }}>{p.accounts.map(x => <Tx key={x.qcode} s={12.5} c={x.closed ? C.ink3 : C.ink2} numberOfLines={1}>{managedAccountLine(x)}</Tx>)}</View> },
+            { key: 'total', label: 'Total', right: true, render: p => small(managedMoney(p.total)) },
+            { key: 'open', label: '', right: true, render: p => <Btn kind="outline" label={st.busy === p.icode ? 'Opening…' : 'View'} busy={st.busy === p.icode} onPress={() => open(p)} /> },
+          ]} />
+        </Panel>
+      ))}
+    </View>
   );
 }
 
@@ -375,6 +408,7 @@ export default function DesktopAdmin({ V }) {
   if (email) body = <UserDetail key={email} V={V} email={email} onBack={() => V.setAdm({ email: null })} />;
   else if (tab === 'users') body = <UserList key="users" V={V} tick={tick} />;
   else if (tab === 'distributors') body = <UserList key="dist" V={V} fixedType="distributor" tick={tick} />;
+  else if (tab === 'managed') body = <ManagedList V={V} tick={tick} />;
   else if (tab === 'audit') body = <Audit V={V} tick={tick} />;
   else if (tab === 'notifications') body = <Notifications tick={tick} />;
   else body = <Overview tick={tick} />;

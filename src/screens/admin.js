@@ -10,7 +10,7 @@ import { C, Tx, Amt, Card, CTA, Chip, Field, Sheet, GoldThreads, CurveCap, Keybo
 import { Refresh, Search } from '../icons';
 import { backoffice } from '../api';
 import { useLoad, SectionLabel, Loading, ErrorBox, Empty, SignOutButton } from './kit';
-import { DeviceCard } from './notifications';
+import { DeviceCard, PushOfferCard } from './notifications';
 
 // ── Shared helpers (also used by src/web/admin.js) ───────────────────────────────────────────────────────────
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -48,7 +48,7 @@ export function pwProblem(a, b) {
 export const isEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || '').trim());
 export const TYPE_OPTS = [['all', 'All'], ['investor', 'Investors'], ['distributor', 'Distributors']];
 export const STATUS_OPTS = [['all', 'Any status'], ['needs-setup', 'Needs setup'], ['locked', 'Locked'], ['never', 'Never signed in']];
-export const ADMIN_TABS = [['overview', 'Overview'], ['users', 'Users'], ['distributors', 'Distributors'], ['notifications', 'Notifications'], ['audit', 'Audit log']];
+export const ADMIN_TABS = [['overview', 'Overview'], ['users', 'Users'], ['distributors', 'Distributors'], ['managed', 'Managed accounts'], ['notifications', 'Notifications'], ['audit', 'Audit log']];
 
 // Notifications composer (phone and desktop). Samples fill the form with one of each automated kind, to try them
 // on your own phone before PUSH_LIVE=1.
@@ -114,6 +114,17 @@ export const detailsText = d => {
 };
 
 // Paged user list (search, type, status). Newer queries win; loadMore appends the next page.
+// Managed accounts (OneView's book): people QUS… with their QAC accounts, searched on the server (name, email, codes).
+export function useManagedList(q, tick) {
+  const [dq, setDq] = useState(q);
+  useEffect(() => { const t = setTimeout(() => setDq(q), 250); return () => clearTimeout(t); }, [q]);
+  return useLoad(() => backoffice.managed(dq.trim()), [dq, tick]);
+}
+const crore = v => (v == null ? '–' : Math.abs(v) >= 1e7 ? '₹' + (v / 1e7).toFixed(2) + ' Cr' : Math.abs(v) >= 1e5 ? '₹' + (v / 1e5).toFixed(2) + ' L' : '₹' + Math.round(v).toLocaleString('en-IN'));
+export const managedMoney = crore;
+/** "QAC00081 · Managed · QAW++ · ₹62.08 Cr · 17 Aug 2026" lines for one person's accounts. */
+export const managedAccountLine = a => [a.qcode, a.strategy ? 'Managed · ' + a.strategy : null, a.closed ? 'Closed' : crore(a.value), a.asOf ? 'as of ' + fmtDay(a.asOf) : 'no data'].filter(Boolean).join(' · ');
+
 export function useUserList({ q = '', type = 'all', status = 'all', tick = 0 }) {
   const [st, setSt] = useState({ items: [], total: 0, page: 0, loading: true, more: false, err: '' });
   const gen = useRef(0);
@@ -319,6 +330,43 @@ function SearchBox({ value, onChange, placeholder }) {
       <TextInput value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={C.gray} autoCapitalize="none" autoCorrect={false}
         style={{ flex: 1, fontFamily: 'Lato_400Regular', fontSize: 14, color: C.ink, paddingVertical: 0 }} />
     </View>
+  );
+}
+
+function ManagedList({ V, tick }) {
+  const [q, setQ] = useState('');
+  const [st, setSt] = useState({ busy: '', err: '' });
+  const L = useManagedList(q, tick);
+  const people = (L.data && L.data.people) || [];
+  const open = async p => {
+    if (st.busy) return;
+    setSt({ busy: p.icode, err: '' });
+    try { await V.openAsUser({ icode: p.icode, name: p.name }); setSt({ busy: '', err: '' }); } catch (e) { setSt({ busy: '', err: e.message || 'Could not open this account.' }); }
+  };
+  return (
+    <>
+      <Tx s={12} c={C.muted} lh={1.5} style={{ marginBottom: 12 }}>OneView managed accounts (people QUS…, accounts QAC…). Tap a person to view their portfolio in the app, read-only.</Tx>
+      <SearchBox value={q} onChange={setQ} placeholder="Search name, email, QUS or QAC code" />
+      {!!st.err && <Tx s={12} c={C.red} style={{ marginTop: 10 }}>{st.err}</Tx>}
+      <Tx s={11} c={C.muted} style={{ marginTop: 12, marginBottom: 8, marginLeft: 2 }}>{L.loading ? 'Loading…' : `${fmtN(people.length)} ${people.length === 1 ? 'person' : 'people'}`}</Tx>
+      {L.loading && !people.length && <Loading rows={5} />}
+      {!!L.err && <ErrorBox msg={L.err} onRetry={L.reload} />}
+      {!L.loading && !L.err && !people.length && <Empty>No managed accounts match.</Empty>}
+      {people.length > 0 && (
+        <Card style={{ overflow: 'hidden', opacity: L.loading ? 0.6 : 1 }}>
+          {people.map((p, i, a) => (
+            <Pressable key={p.icode} onPress={() => open(p)} style={({ pressed }) => [{ paddingVertical: 12, paddingHorizontal: 14, borderBottomWidth: i === a.length - 1 ? 0 : 1, borderColor: C.hairline, opacity: pressed || st.busy === p.icode ? 0.6 : 1 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+                <Tx w={700} s={13.5} numberOfLines={1} style={{ flex: 1 }}>{p.name}</Tx>
+                <Tx w={700} s={11.5} c={C.green}>{st.busy === p.icode ? 'Opening…' : 'View ›'}</Tx>
+              </View>
+              <Tx s={11.5} c={C.muted} numberOfLines={1} style={{ marginTop: 2 }}>{[p.icode, p.email].filter(Boolean).join(' · ')}</Tx>
+              {p.accounts.map(x => <Tx key={x.qcode} s={11} c={x.closed ? C.gray : C.ink} numberOfLines={1} style={{ marginTop: 3 }}>{managedAccountLine(x)}</Tx>)}
+            </Pressable>
+          ))}
+        </Card>
+      )}
+    </>
   );
 }
 
@@ -726,9 +774,10 @@ export function AdminConsole({ V }) {
           {email ? <UserDetail key={email} V={V} email={email} onBack={() => V.setAdm({ email: null })} />
             : tab === 'users' ? <UserList key="users" V={V} endRef={endRef} tick={tick} />
             : tab === 'distributors' ? <UserList key="dist" V={V} fixedType="distributor" endRef={endRef} tick={tick} />
+            : tab === 'managed' ? <ManagedList V={V} tick={tick} />
             : tab === 'audit' ? <AuditList V={V} tick={tick} />
             : tab === 'notifications' ? <NotifList tick={tick} />
-            : <Overview tick={tick} />}
+            : <>{/* notifications off on this phone: one tap to Settings, so Zoho alerts reach it */}<PushOfferCard V={V} /><View style={{ height: V.pushOffer ? 12 : 0 }} /><Overview tick={tick} /></>}
           <SignOutButton onPress={V.doLogout} style={{ marginTop: 30 }} />
         </View>
       </KeyboardScroll>

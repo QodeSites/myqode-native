@@ -22,6 +22,7 @@ const native = (Platform.OS === 'ios' || Platform.OS === 'android') && !expoGo;
 const Notifications = native ? require('expo-notifications') : null;
 const TOKEN_KEY = 'myqode.pushToken';
 const ASKED_KEY = 'myqode.pushAskedAt';
+const OFFER_KEY = 'myqode.pushOfferDismissedAt';   // "Not now" on the in-app card
 const projectId = () => (Constants.expoConfig && Constants.expoConfig.extra && Constants.expoConfig.extra.eas && Constants.expoConfig.extra.eas.projectId)
   || (Constants.easConfig && Constants.easConfig.projectId);
 
@@ -63,13 +64,20 @@ export async function ask() {
 // Last outcome of register(), shown on the Notifications settings card.
 export let lastStatus = '';
 
-/** Whether to offer the in-app "turn on notifications" card: not decided yet, and not dismissed in the past 14 days. */
+/**
+ * Whether to offer the in-app "turn on notifications" card, and which kind: 'ask' (not decided yet: the system
+ * prompt) or 'settings' (turned off: iOS never shows its prompt again, even for a new build of the same app, so the
+ * card opens this app's page in Settings). False when on, or dismissed in the past 14 days.
+ */
 export async function shouldOffer() {
-  if ((await permission()) !== 'undetermined') return false;
-  const at = Number(await storeGet(ASKED_KEY)) || 0;
-  return Date.now() - at > 14 * 86400000;
+  const p = await permission();
+  if (p !== 'undetermined' && p !== 'denied') return false;
+  const at = Number(await storeGet(OFFER_KEY)) || 0;
+  if (Date.now() - at <= 14 * 86400000) return false;
+  if (p === 'undetermined' && Date.now() - (Number(await storeGet(ASKED_KEY)) || 0) <= 14 * 86400000) return false;
+  return p === 'denied' ? 'settings' : 'ask';
 }
-export const snooze = () => storeSet(ASKED_KEY, String(Date.now()));
+export const snooze = () => storeSet(OFFER_KEY, String(Date.now()));
 
 /** Reports this phone's starting point (permission, whether we asked before) to the server log. */
 export async function reportStart(mode) {

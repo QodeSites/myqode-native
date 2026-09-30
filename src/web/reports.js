@@ -14,7 +14,7 @@ import { ChevronDown, Download } from '../icons';
 import { reports } from '../api';
 import { inr, sinr, pct, fmtDate } from '../adapt';
 import { savePdf } from '../screens/partner';
-import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactionsAllPdf, capitalGainsAllPdf, expensesAllPdf, factsheetAllPdf, plbsPdf } from '../screens/reportPdf';
+import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactionsAllPdf, capitalGainsAllPdf, expensesAllPdf, factsheetAllPdf, plbsPdf, setPdfManaged } from '../screens/reportPdf';
 import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE } from '../combine';
 import { transactionsSummary, capitalGainsSummary, expensesSummary, factsheetSummary, pnlSummary } from '../reportSummary';
 import { track } from '../api/track';
@@ -351,8 +351,9 @@ function AccountDropdown({ options, value, onPick, count }) {
 
 // ── Transactions ──────────────────────────────────────────────────────────────────────────────────────────
 const TXN_GROUPS = [['all', 'All'], ['trades', 'Trades'], ['money', 'Money in/out'], ['income', 'Income'], ['charges', 'Charges'], ['other', 'Other']];
-function Transactions({ accountId, ids, rk, account }) {
-  const [group, setGroup] = useState('all');
+// fixedGroup / title: a managed account's "Cash flows" (money) and "Trades" reports reuse this screen, one group each.
+function Transactions({ accountId, ids, rk, account, fixedGroup, title = 'Transactions' }) {
+  const [group, setGroup] = useState(fixedGroup || 'all');
   const R = useRange('all');
   const { from, to } = R;
   const all = accountId === ALL_ID;
@@ -393,18 +394,17 @@ function Transactions({ accountId, ids, rk, account }) {
     <ReportLayout
       account={account}
       period={<PeriodDropdown R={R} cov={cov} note="By date of transaction. Applies to the table and the PDF." />}
-      pdf={<PdfBtn make={makePdf} name={`Transactions ${all ? 'All accounts' : accountId}${rangeSuffix(R.range)}`} disabled={!L.items.length} />}
+      pdf={<PdfBtn make={makePdf} name={`${title} ${all ? 'All accounts' : accountId}${rangeSuffix(R.range)}`} disabled={!L.items.length} />}
       status={{ parts: [asOfPart(h && h.asOf, !!h), periodText(R.range), listCount(L), recordsPart(cov)] }}
       summary={transactionsSummary(h && { ...h, from: h.from || from, to: h.to || to }, all)}
       stats={h && h.asOf ? [
         { label: 'Money in', value: sinr(h.moneyIn), color: gainColor(h.moneyIn) },
         { label: 'Money out', value: h.moneyOut ? '−' + inr(h.moneyOut) : inr(0) },
-        sumItem('trades', 'Trades'),
-        sumItem('income', 'Income'),
-        sumItem('charges', 'Charges'),
+        ...(fixedGroup ? [sumItem(fixedGroup, fixedGroup === 'money' ? 'Months with money moving' : 'Trades')] : [sumItem('trades', 'Trades'), sumItem('income', 'Income'), sumItem('charges', 'Charges')]),
       ] : null}>
       <CombinedNote h={h} />
-      <FilterRow left={<Chips small value={group} options={TXN_GROUPS} onChange={setGroup} />} />
+      {!!(h && h.note) && <Tx s={12.5} c={C.ink3} lh={1.5} style={{ marginBottom: 10 }}>{h.note}</Tx>}
+      {!fixedGroup && <FilterRow left={<Chips small value={group} options={TXN_GROUPS} onChange={setGroup} />} />}
       {Status({ L, empty }) || (
         <Panel pad={0} footer={moreFooter(L, L.items.length)}>
           <Table cols={cols} rows={rows} dense />
@@ -1031,7 +1031,12 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
 
 // ── page ──────────────────────────────────────────────────────────────────────────────────────────────────
 const KINDS = [['fs', 'Fact sheet'], ['pl', 'P&L and balance sheet'], ['cg', 'Capital gains'], ['txn', 'Transactions'], ['exp', 'Expenses']];
+// Managed accounts (QAC…, admin view): only what qode_portfolios supports (myQode lib/managedReports.ts)
+const MANAGED_KINDS = [['fs', 'Fact sheet'], ['cash', 'Cash flows'], ['trades', 'Trades']];
+const CashFlows = p => <Transactions {...p} fixedGroup="money" title="Cash flows" />;
+const Trades = p => <Transactions {...p} fixedGroup="trades" title="Trades" />;
 export default function DesktopReports({ V }) {
+  setPdfManaged(!!V.managedView);
   const opts = reportAccountOptions(V);
   const singles = singleAccounts(opts);
   const ids = singles.map(o => o.id);
@@ -1040,13 +1045,14 @@ export default function DesktopReports({ V }) {
   const [kind, setKind] = useState('fs');
   // "All accounts" is offered first, but the default stays the first single account.
   const accountId = sel && opts.some(o => o.id === sel) ? sel : singles[0] && singles[0].id;
-  const Body = { txn: Transactions, cg: CapitalGains, exp: Expenses, fs: Factsheet, pl: PnlBalanceSheet }[kind];
+  const kinds = V.managedView ? MANAGED_KINDS : KINDS;
+  const Body = { txn: Transactions, cg: CapitalGains, exp: Expenses, fs: Factsheet, pl: PnlBalanceSheet, cash: CashFlows, trades: Trades }[kinds.some(k => k[0] === kind) ? kind : 'fs'];
   const account = <AccountDropdown options={opts} value={accountId} onPick={setSel} count={ids.length} />;
   // The page title ("Reports") is the top bar's heading; one short line here.
   return (
     <View>
-      <PageIntro sub="Custodian statements from Nuvama, each available as a PDF." />
-      <Tabs value={kind} options={KINDS} onChange={k => { setKind(k); track('event', 'report_view', { tab: k }); }} style={{ marginBottom: 16 }} />
+      <PageIntro sub={V.managedView ? 'Managed account reports, computed by Qode from the account\'s daily values and broker records. Each is available as a PDF.' : 'Custodian statements from Nuvama, each available as a PDF.'} />
+      <Tabs value={kinds.some(k => k[0] === kind) ? kind : 'fs'} options={kinds} onChange={k => { setKind(k); track('event', 'report_view', { tab: k }); }} style={{ marginBottom: 16 }} />
       {/* keyed so filters and paging reset when the account or report changes */}
       {accountId ? <Body key={kind + accountId + (accountId === ALL_ID ? ids.join(',') : '')} accountId={accountId} ids={ids} names={names} rk={V.rk} account={account} /> : <Empty>No active account found.</Empty>}
     </View>

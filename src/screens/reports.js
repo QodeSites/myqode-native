@@ -16,7 +16,7 @@ import { useLoad, ErrorBox, Empty, SectionLabel, Loading } from './kit';
 import { inr, sinr, pct, fmtDate } from '../adapt';
 import { Download, ChevronDown, Check } from '../icons';
 import { savePdf } from './partner';
-import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactionsAllPdf, capitalGainsAllPdf, expensesAllPdf, factsheetAllPdf, plbsPdf } from './reportPdf';
+import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactionsAllPdf, capitalGainsAllPdf, expensesAllPdf, factsheetAllPdf, plbsPdf, setPdfManaged } from './reportPdf';
 import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE } from '../combine';
 import { track } from '../api/track';
 
@@ -392,8 +392,9 @@ function TxnRow({ t, last }) {
     </Row>
   );
 }
-function Transactions({ accountId, ids, rk, account }) {
-  const [group, setGroup] = useState('all');
+// fixedGroup / title: a managed account's "Cash flows" (money) and "Trades" reports reuse this screen, one group each.
+function Transactions({ accountId, ids, rk, account, fixedGroup, title = 'Transactions' }) {
+  const [group, setGroup] = useState(fixedGroup || 'all');
   const [period, setPeriod] = useState(ALL_TIME);
   const all = accountId === ALL_ID;
   const L = usePaged(offset => (all
@@ -413,7 +414,7 @@ function Transactions({ accountId, ids, rk, account }) {
   return (
     <>
       <Controls account={account} period={<PeriodChip value={period} onChange={setPeriod} sub="By date of transaction. Applies to the list and the PDF." since={h && h.coverage && h.coverage.from} />}
-        pdf={<PdfButton make={makePdf} name={`Transactions ${all ? 'All accounts' : accountId}${rangeFile(period)}`} disabled={!L.items.length} />} />
+        pdf={<PdfButton make={makePdf} name={`${title} ${all ? 'All accounts' : accountId}${rangeFile(period)}`} disabled={!L.items.length} />} />
       <StatusLine parts={[asOfPart(h && h.asOf), rangeText(period.from, period.to) || 'All time', countPart(L), recordsPart(h && h.coverage)]} />
       {h && h.asOf && (
         <Strip items={[
@@ -423,7 +424,8 @@ function Transactions({ accountId, ids, rk, account }) {
         ]} />
       )}
       <CombinedNote h={h} />
-      <FilterChips options={TXN_GROUPS} value={group} onPick={setGroup} />
+      {!!(h && h.note) && <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 8, marginLeft: 2 }}>{h.note}</Tx>}
+      {!fixedGroup && <FilterChips options={TXN_GROUPS} value={group} onPick={setGroup} />}
       <View style={{ marginTop: 4 }}><Status L={L} empty={!L.loading && !L.err && !L.items.length ? empty : null} /></View>
       {!L.loading && !L.err && byMonth(L.items, t => t.date).map(m => (
         <View key={m.key}>
@@ -902,7 +904,12 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
 
 // ── page ──────────────────────────────────────────────────────────────────────────────────────────────────
 const KINDS = [['fs', 'Fact sheet'], ['pl', 'P&L and balance sheet'], ['cg', 'Capital gains'], ['txn', 'Transactions'], ['exp', 'Expenses']];
+// Managed accounts (QAC…, admin view): only what qode_portfolios supports (myQode lib/managedReports.ts)
+const MANAGED_KINDS = [['fs', 'Fact sheet'], ['cash', 'Cash flows'], ['trades', 'Trades']];
+const CashFlows = p => <Transactions {...p} fixedGroup="money" title="Cash flows" />;
+const Trades = p => <Transactions {...p} fixedGroup="trades" title="Trades" />;
 export function ReportsPage({ V }) {
+  setPdfManaged(!!V.managedView);
   const opts = reportAccountOptions(V);
   const singles = singleAccounts(opts);
   const ids = singles.map(o => o.id);
@@ -911,13 +918,14 @@ export function ReportsPage({ V }) {
   const [kind, setKind] = useState('fs');
   // "All accounts" is offered first, but the default stays the first single account.
   const accountId = sel && opts.some(o => o.id === sel) ? sel : singles[0] && singles[0].id;
-  const Body = { txn: Transactions, cg: CapitalGains, exp: Expenses, fs: Factsheet, pl: PnlBalanceSheet }[kind];
+  const kinds = V.managedView ? MANAGED_KINDS : KINDS;
+  const Body = { txn: Transactions, cg: CapitalGains, exp: Expenses, fs: Factsheet, pl: PnlBalanceSheet, cash: CashFlows, trades: Trades }[kinds.some(k => k[0] === kind) ? kind : 'fs'];
   const account = <AccountChip options={opts} value={accountId} onPick={setSel} count={ids.length} />;
   return (
     <>
       {/* report tabs: one scrollable row */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 18, paddingHorizontal: 2 }}>
-        {KINDS.map(([k, l]) => {
+        {kinds.map(([k, l]) => {
           const on = kind === k;
           return (
             <Pressable key={k} onPress={() => { setKind(k); track('event', 'report_view', { tab: k }); }} accessibilityRole="tab" accessibilityState={{ selected: on }} hitSlop={6} style={{ paddingVertical: 8 }}>

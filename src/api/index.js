@@ -391,6 +391,9 @@ export const backoffice = {
   resetLink: email => (TEST_MODE ? Promise.reject(new BlockedError('emailing a password reset link')) : bo('/users/reset-link', { method: 'POST', body: { email } })),
   unlock: email => bo('/users/unlock', { method: 'POST', body: { email } }),
   impersonate: ({ email, target = 'app' }) => bo('/impersonate', { method: 'POST', body: { email, target } }),
+  // Managed accounts (OneView's book: people QUS…, accounts QAC…): list, and a read-only view of one person
+  managed: (q = '') => bo('/managed', { query: { q } }),
+  impersonateManaged: icode => bo('/managed', { method: 'POST', body: { icode } }),
   createDistributor: body => bo('/distributors', { method: 'POST', body }),
   deleteDistributor: email => bo('/distributors', { method: 'DELETE', query: { email } }),
   audit: (opts = {}) => bo('/audit', { query: { limit: 100, ...opts } }),

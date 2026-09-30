@@ -95,7 +95,10 @@ export function viewRows(h, view) {
 }
 // The web's NAV-10 anchor the day before inception is right for a Nuvama series (it starts at 10 and its first row
 // already carries a day's return). An Orbis series starts on a base row at NAV 100 before any money: no anchor.
-const anchorsAt10 = view => view !== 'orbis' && view !== 'consolidated';
+// Managed accounts (QAC, qode_portfolios master_sheet) are the same shape at base 100: their NAV starts at 100 the day
+// before the first row, which already carries a day's return. The anchor is that base NAV (0 = none).
+const anchorOf = (h, view) => (view === 'orbis' || view === 'consolidated' ? 0 : h && h.managed ? 100 : 10);
+const baseOf = anchor => (anchor === true ? 10 : Number(anchor) || 0);
 
 const isMonthEnd = d => { const x = new Date(d); x.setDate(x.getDate() + 1); return x.getMonth() !== d.getMonth(); };
 
@@ -126,7 +129,8 @@ function trailing(data, inceptionDate, tenDDate) {
 function anchoredReturn(rows, anchor = true) {
   const first = rows.find(x => n(x.nav) > 0), last = [...rows].reverse().find(x => n(x.nav) > 0);
   if (!first || !last) return 0;
-  const synthetic = anchor && n(first.nav) !== 10, baseNav = synthetic ? 10 : n(first.nav);
+  const base = baseOf(anchor);
+  const synthetic = !!base && n(first.nav) !== base, baseNav = synthetic ? base : n(first.nav);
   const baseDate = new Date(first.report_date); if (synthetic) baseDate.setDate(baseDate.getDate() - 1);
   const years = (new Date(last.report_date) - baseDate) / DAY / 365.25;
   const v = years >= 1 ? (Math.pow(n(last.nav) / baseNav, 1 / years) - 1) * 100 : (n(last.nav) / baseNav - 1) * 100;
@@ -144,20 +148,20 @@ function enrich(rows, bench, anchor = true) {
   const firstNav = n(rows[0].nav);
   const firstB = bench.length ? benchOnOrBefore(bench, rows[0].report_date) : null;
   const firstBench = firstB ? firstB.nav : 0, hasBench = bench.length > 0 && firstBench > 0;
-  const synth = anchor && firstNav !== 10;
-  let peak = synth ? 10 : firstNav, bPeak = hasBench ? 10 : 0;
+  const base = baseOf(anchor), synth = !!base && firstNav !== base, bBase = base || 10;
+  let peak = synth ? base : firstNav, bPeak = hasBench ? bBase : 0;
   if (synth) {
     const d = new Date(rows[0].report_date); d.setDate(d.getDate() - 1);
-    const synthetic = { report_date: d.toISOString().split('T')[0], nav: 10, _synthetic: true };
+    const synthetic = { report_date: d.toISOString().split('T')[0], nav: base, _synthetic: true };
     rows = [synthetic, ...rows];
   }
   return rows.map(x => {
-    if (x._synthetic) return { date: x.report_date, nav: 10, dd: 0, bench: hasBench ? 10 : null, benchValue: hasBench ? firstBench : null, bdd: hasBench ? 0 : null, synthetic: true };
+    if (x._synthetic) return { date: x.report_date, nav: base, dd: 0, bench: hasBench ? bBase : null, benchValue: hasBench ? firstBench : null, bdd: hasBench ? 0 : null, synthetic: true };
     const nav = n(x.nav);
     if (nav > peak) peak = nav;
     const out = { date: x.report_date, nav, dd: peak > 0 ? ((nav - peak) / peak) * 100 : 0, bench: null, benchValue: null, bdd: null };
     if (hasBench) {
-      const b = benchOnOrBefore(bench, x.report_date), val = b ? b.nav : firstBench, norm = (val / firstBench) * 10;
+      const b = benchOnOrBefore(bench, x.report_date), val = b ? b.nav : firstBench, norm = (val / firstBench) * bBase;
       if (norm > bPeak) bPeak = norm;
       out.bench = norm; out.benchValue = val; out.bdd = ((norm - bPeak) / bPeak) * 100;
     }
@@ -170,7 +174,7 @@ export function perfFrom(h, view) {
   const rows = viewRows(h, view);
   if (!rows.length) return null;
   const bench = asc(h.benchmark || [], 'date');
-  const anchor = anchorsAt10(view);
+  const anchor = anchorOf(h, view);
   // Every view's rows carry its real cash flows (Orbis: capital changes; Orbis + Nuvama: without the transfer), so
   // net invested = the sum of the flows and the current value = the last row's value.
   const invested = rows.reduce((t, x) => t + n(x.cash_in_out), 0);
@@ -202,7 +206,7 @@ function windowed(h, view, period) {
   const rows = viewRows(h, view);
   if (!rows.length) return { rows: [], e: [] };
   const lastT = new Date(rows[rows.length - 1].report_date);
-  const e = enrich(rows, asc(h.benchmark || [], 'date').filter(b => new Date(b.date) <= lastT), anchorsAt10(view));
+  const e = enrich(rows, asc(h.benchmark || [], 'date').filter(b => new Date(b.date) <= lastT), anchorOf(h, view));
   const days = PERIOD_DAYS[period];
   if (!days) return { rows, e };   // "SI" (ALL) = the web chart, synthetic starting row included
   const from = new Date(rows[rows.length - 1].report_date).getTime() - days * DAY;

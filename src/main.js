@@ -68,6 +68,7 @@ const MIME_BY_EXT = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg
 const guessMime = name => MIME_BY_EXT[(String(name || '').split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
 
 const PERIOD = { '1W': '1W', '10D': '10D', '1M': '1M', '6M': '6M', '1Y': '1Y', '3Y': '3Y', SI: 'ALL' };
+const isManagedCode = id => /^QAC\d+$/i.test(String(id || ''));   // managed accounts (qode_portfolios), admin view only
 const RANGE_IDS = ['1W', '10D', '1M', '6M', '1Y', '3Y', 'SI'];
 // Runs fn when the JS thread is idle (requestIdleCallback, in React Native and most browsers); a short timer where
 // it is missing (Safari).
@@ -233,6 +234,8 @@ export default class MyQode extends React.Component {
       // Not while a full-screen page is open (e.g. Reports): coming back from the share sheet must not reset its lists.
       if (st === 'active' && this.state.phase === 'app' && !this.state.page && Date.now() - (this.lastLoad || 0) > 60000) this.refresh();
       if (st === 'active' && this.state.phase === 'app') { this.loadNotifs(); this.pushSync(); }
+      // Back from Settings with notifications turned on: register this phone at once (admin mode too).
+      if (st === 'active' && this.state.phase === 'admin') { this.setState({ pushOffer: false }); this.pushSync(); }
       // A release can land while the app sits in the background: look again when it comes back, at most every 30 min.
       if (st === 'active' && Date.now() - (this.lastVersionCheck || 0) > 30 * 60 * 1000) this.checkVersion();
       if (this.store) { if (st === 'active') this.store.onForeground(); else if (st === 'background') this.store.onBackground(); }
@@ -398,7 +401,7 @@ export default class MyQode extends React.Component {
     if (typeof S.acct === 'string') {       // 'a:<accountCode>' = one strategy account, like picking it in the web dropdown
       const code = S.acct.slice(2);
       for (const o of [...sc.owners, ...(sc.closedOwners || [])]) {
-        const a = (o.accounts || []).find(x => String(x.id) === code) || (o.closed || []).find(x => String(x.id) === code);
+        const a = (o.accounts || []).find(x => String(x.id) === code) || (o.closedAccounts || []).find(x => String(x.id) === code);
         // shown as member + strategy: the member's initials, "<member> · <strategy prefix>"
         if (a) return { id: String(a.id), kind: 'account', name: o.name, initials: o.initials, tag: a.strategyPrefix || a.strategyName || '', code: a.id + ' · ' + (a.strategyName || a.id), value: num(a.portfolioValue) || 0, accounts: [a], closed: !!a.isClosed, closedOn: a.closedOn || null };
       }
@@ -422,7 +425,7 @@ export default class MyQode extends React.Component {
     const scopes = buildScopes(snap, this.codes());
     this.fellBack = {};
     // Every account closed: open the most recently closed one (its history, with the "closed on" banner).
-    const lastClosed = !scopes.owners.length && (scopes.closedOwners || []).flatMap(o => o.closed)
+    const lastClosed = !scopes.owners.length && (scopes.closedOwners || []).flatMap(o => o.closedAccounts)
       .sort((a, b) => String(b.closedOn || '').localeCompare(String(a.closedOn || '')))[0];
     await new Promise(r => this.setState({ snap, scopes, acct: lastClosed ? 'a:' + lastClosed.id : scopes.family ? -1 : 0, d: null, hold: {}, navs: {}, dErr: '' }, r));
     await this.loadScope();
@@ -477,6 +480,14 @@ export default class MyQode extends React.Component {
         this.setState({ hist: fam, dv: 'nuvama' }, () => this.applyView('nuvama', true));
         this.lastLoad = Date.now();
         this.loadHoldings(scope, seq); this.loadIrr(scope, seq);
+        return;
+      }
+      // Managed account (QAC…): one raw series from qode_portfolios, every figure computed here (webcalc, base NAV 100)
+      if (k === 'account' && isManagedCode(scope.id)) {
+        const h = await portfolio.history(scope.id);
+        if (seq !== this.seq) return;
+        this.setState({ hist: h, dv: 'nuvama' }, () => this.applyView('nuvama', true));
+        this.lastLoad = Date.now();
         return;
       }
       // Performance is required; every other part is optional so one failing endpoint can't blank the portfolio.
@@ -894,9 +905,10 @@ export default class MyQode extends React.Component {
 
   // "Open as user": a 4-hour token for that user, issued by the backoffice. The admin token stays in this.origToken
   // (and on the device, see ADMIN_KEY); the user is loaded exactly like a normal sign-in.
-  openAsUser = async ({ email, name } = {}) => {
-    if (!email) return;
-    const r = await backoffice.impersonate({ email, target: 'app' });
+  openAsUser = async ({ email, name, icode } = {}) => {
+    if (!email && !icode) return;
+    // icode: a managed-account person (QUS…), viewed read-only with their QAC accounts
+    const r = icode ? await backoffice.impersonateManaged(icode) : await backoffice.impersonate({ email, target: 'app' });
     if (!r || !r.token) throw new ApiError('The server did not return a session for this user.');
     trackStop();   // an admin viewing a user is not that user's usage
     const adminToken = this.origToken || await getToken();
@@ -907,7 +919,7 @@ export default class MyQode extends React.Component {
     clearUserCaches();
     this.seq++;
     const user = { ...(r.user || {}), isImpersonated: true };
-    const imp = { name: user.name || name || email, email, backoffice: false };
+    const imp = { name: user.name || name || email || icode, email: email || user.email || icode, backoffice: false, managed: !!icode };
     cleanAddress();
     const reset = { user, imp, page: null, sheet: null, tab: 'home', acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '', viewing: null, uccSeen: true };
     if (user.isDistributor) { this.setState({ ...reset, phase: 'partner' }); return; }
@@ -1004,7 +1016,7 @@ export default class MyQode extends React.Component {
       await push.reportStart(this.state.phase + (this.ownSession() ? '' : ' (viewing)'));
       if (await push.shouldAskNow()) { await new Promise(r => setTimeout(r, 1200)); const p = await push.ask(); track('event', 'notification_permission', { result: p, via: 'prompt' }); }
       if (this.ownSession()) await push.register();
-      if (this.state.phase === 'app' && !this.state.pushOffer && (await push.shouldOffer())) this.setState({ pushOffer: true });
+      if ((this.state.phase === 'app' || this.state.phase === 'admin') && !this.state.pushOffer) { const k = await push.shouldOffer(); if (k) this.setState({ pushOffer: k }); }
     } finally { this.pushBusy = false; }
   };
   // Payments received but not in the portfolio yet (Home's "On its way" card).
@@ -1333,8 +1345,9 @@ export default class MyQode extends React.Component {
       notesMarkAll: () => this.markNotes([], true), notesCanMark: this.ownSession(),
       openNotifSettings: () => { set({ sheet: null }); screen('page:notifications'); set({ page: 'notifications' }); },
       inFlight: S.viewing ? [] : (S.inFlight || []), reloadInFlight: () => this.loadInFlight(),
-      pushOffer: !!S.pushOffer && !S.viewing,
-      pushOfferYes: async () => { set({ pushOffer: false }); const p = await push.ask(); track('event', 'notification_permission', { result: p, via: 'card' }); if (p === 'granted') this.pushSync(); },
+      managedView: !!(S.user && S.user.managed),   // an admin viewing a managed-account person (QUS…)
+      pushOffer: !!S.pushOffer && !S.viewing, pushOfferSettings: S.pushOffer === 'settings', adminMode: S.phase === 'admin',
+      pushOfferYes: async () => { if (S.pushOffer === 'settings') { set({ pushOffer: false }); track('event', 'notification_permission', { result: 'settings', via: 'card' }); push.openSettings(); return; } set({ pushOffer: false }); const p = await push.ask(); track('event', 'notification_permission', { result: p, via: 'card' }); if (p === 'granted') this.pushSync(); },
       pushOfferNo: () => { set({ pushOffer: false }); push.snooze(); },
       svcPending: false, svcNone: true, svcPendingSub: '',
       tab: S.tab, scopeKey: S.acct,
@@ -1354,7 +1367,8 @@ export default class MyQode extends React.Component {
       rangeLabel: RANGE_LABEL[shownRange] || shownRange, rangePhrase: shownRange === 'SI' ? 'since inception' : 'over ' + (RANGE_LABEL[shownRange] || shownRange), rangeLoading, asOf, benchName, sinceLbl: perf && perf.inceptionDate ? 'Since ' + fmtDate(perf.inceptionDate) : '',
       growthNow: navNow.toFixed(2), navNow: navNow.toFixed(2),
       yTicks: axis.ticks, xDates,
-      hasViews: !!S.hist && !S.hist.family,
+      // Nuvama / Orbis / Orbis + Nuvama: only for an account that really has Orbis rows (not a family total or a managed account)
+      hasViews: !!S.hist && !S.hist.family && !S.hist.managed && !!(S.hist.orbis && S.hist.orbis.length),
       viewChips: [['nuvama', 'Nuvama'], ['orbis', 'Orbis (Legacy)'], ['consolidated', 'Orbis + Nuvama']].map(([id, label]) => ({ label, active: (S.dvPending || S.dv) === id, pick: () => this.applyView(id) })),
       // Web note under the returns table: in the Orbis and Combined views the invested / current figures come from Orbis' latest records.
       orbisNote: !!(S.hist && !S.hist.family && S.hist.orbisMetrics && (S.dv === 'orbis' || S.dv === 'consolidated')),
@@ -1459,14 +1473,14 @@ export default class MyQode extends React.Component {
           id: String(x.id), name: x.strategyName || x.id, code: x.id, color: x.strategyColor || C.gray,
           orbis: !!x.hasOrbis,   // web: "Orbis+Nuvama" badge on accounts with legacy Orbis rows
           value: this.fmt(num(x.portfolioValue) || 0), pick: () => this.pickScope('a:' + x.id), active: S.acct === 'a:' + x.id,
-        })).concat((a.closed || []).map(x => this.closedSubOf(x))),
+        })).concat((a.closedAccounts || []).map(x => this.closedSubOf(x))),
       })).concat(((S.scopes && S.scopes.closedOwners) || []).map(o => ({
-        id: o.id + ':closed', name: o.name, code: o.closed.length + (o.closed.length === 1 ? ' account' : ' accounts'), role: 'CLOSED', crown: false,
-        initials: o.initials, closedOwner: true, value: '', pick: () => this.pickScope('a:' + o.closed[0].id), active: false,
-        subs: o.closed.map(x => this.closedSubOf(x)),
+        id: o.id + ':closed', name: o.name, code: o.closedAccounts.length + (o.closedAccounts.length === 1 ? ' account' : ' accounts'), role: 'CLOSED', crown: false,
+        initials: o.initials, closedOwner: true, value: '', pick: () => this.pickScope('a:' + o.closedAccounts[0].id), active: false,
+        subs: o.closedAccounts.map(x => this.closedSubOf(x)),
       }))),
       // A closed account on screen: one line at the top of the dashboard.
-      closedNote: scope && scope.closed ? `This account was closed${scope.closedOn ? ' on ' + fmtDate(scope.closedOn) : ''} after a full withdrawal. Figures are as of closing.` : '',
+      closedNote: scope && scope.kind === 'account' && scope.closed === true ? `This account was closed${scope.closedOn ? ' on ' + fmtDate(scope.closedOn) : ''} after a full withdrawal. Figures are as of closing.` : '',
       hasFamily: !!family,
       pickFamily: () => this.pickScope(-1),
       famActive: S.acct === -1 && !!family,
