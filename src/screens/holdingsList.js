@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Pressable } from 'react-native';
 import { C, Tx, Amt, Card } from '../ui';
-import { useLoad, Loading, ErrorBox, Empty, SectionLabel, AccountChips } from './kit';
+import { useLoad, Loading, ErrorBox, Empty, SectionLabel, AccountSelect } from './kit';
 import { portfolio } from '../api';
 import { inr, sinr, pct, fmtDate } from '../adapt';
 
@@ -55,8 +55,8 @@ export function HoldingsList({ V }) {
 
   return (
     <View>
-      <AccountChips value={codes.length === 1 && scope.length > 1 ? codes[0] : 'all'} onPick={id => { setAcct(id); setAll(false); }}
-        options={scope.length > 1 ? [{ id: 'all', label: 'All accounts' }, ...accts.map(h => ({ id: h.id, label: short(h.name) + ' ' + h.id }))] : []} />
+      <AccountSelect value={codes.length === 1 && scope.length > 1 ? codes[0] : 'all'} onPick={id => { setAcct(id); setAll(false); }}
+        options={scope.length > 1 ? [{ id: 'all', label: 'All accounts' }, ...accts.map(h => ({ id: h.id, label: short(h.name) + ' ' + h.id, dot: h.color }))] : []} />
 
       {err && !data ? <View style={{ marginTop: 14 }}><ErrorBox msg={err} onRetry={reload} /></View>
         : loading && !data ? <Loading rows={4} /> : !data ? null : (
@@ -83,8 +83,8 @@ export function HoldingsList({ V }) {
             <>
               <SectionLabel>BY SECTOR</SectionLabel>
               <Card style={{ paddingVertical: 14, paddingHorizontal: 16, gap: 11 }}>
-                {bars.map(b => (
-                  <View key={b.label}>
+                {bars.map((b, k) => (
+                  <View key={b.label + ':' + k}>
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
                       <Tx s={12} numberOfLines={1} style={{ flex: 1 }}>{b.label}</Tx>
                       <Amt s={12}>{b.w.toFixed(2)}%</Amt>

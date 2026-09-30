@@ -673,8 +673,8 @@ function SheetSections({ d }) {
         <>
           <SectionLabel>SECTOR ALLOCATION</SectionLabel>
           <Card style={{ padding: 14, gap: 12 }}>
-            {sectors.slice().sort((a, b) => (b.pct || 0) - (a.pct || 0)).map(s => (
-              <View key={s.sector}>
+            {sectors.slice().sort((a, b) => (b.pct || 0) - (a.pct || 0)).map((s, k) => (
+              <View key={s.sector + ':' + k}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
                   <Tx s={12} style={{ flex: 1 }} numberOfLines={1}>{s.sector}</Tx>
                   <Amt s={12} w={700}>{(s.pct || 0).toFixed(2)}%</Amt>

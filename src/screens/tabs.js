@@ -3,7 +3,7 @@ import React from 'react';
 import { View, Pressable, ScrollView, TextInput } from 'react-native';
 import { C, Tx, Amt, Card, Chip, ChipRow, Fade, Skel, useUI } from '../ui';
 import { ddPct } from '../adapt';
-import { Plus, ArrowDown, Swap, DocIcon, Bars, Download, ChevronRight, Phone, MailIcon, Search, InfoCircle, GoldDocIcon } from '../icons';
+import { ArrowDown, Download, ChevronRight, Phone, MailIcon, Search, InfoCircle, GoldDocIcon } from '../icons';
 import { NavChart, DrawdownChart, Donut } from './charts';
 import { UccNotice } from './ucc';
 import HoldingsList from './holdingsList';
@@ -55,20 +55,6 @@ export function TxRow({ t, last, status }) {
         {status && <Tx w={700} s={8.5} ls={0.1} c={t.stColor} style={{ marginTop: 4 }}>{t.status}</Tx>}
       </View>
     </View>
-  );
-}
-
-function Action({ icon, label, onPress, primary }) {
-  return (
-    <Pressable onPress={onPress} style={{ alignItems: 'center', gap: 7, flex: 1 }}>
-      <View style={{
-        width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center',
-        backgroundColor: primary ? C.green : C.card,
-        borderWidth: primary ? 0 : 1, borderColor: C.greenBorder,
-        shadowColor: C.ink, shadowOpacity: primary ? 0.25 : 0, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: primary ? 4 : 0,
-      }}>{icon}</View>
-      <Tx w={700} s={11}>{label}</Tx>
-    </Pressable>
   );
 }
 
@@ -141,12 +127,6 @@ export function HomeCream({ V }) {
       </Card>
       <UccNotice visible={V.showUcc} onClose={V.dismissUcc} />
       <PushOfferCard V={V} />
-      <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
-        {!V.viewing && <Action icon={<Plus />} label="Add funds" onPress={V.openAdd} primary />}
-        {!V.viewing && <Action icon={<Swap />} label="Switch" onPress={V.openSwitchStrategy} />}
-        <Action icon={<DocIcon />} label="Documents" onPress={V.goDocs} />
-        <Action icon={<Bars />} label="Reports" onPress={() => V.openPage('reports')} />
-      </View>
       <Grid2 style={{ marginTop: 22 }}>
         {V.tiles.map(t => <Tile key={t.label} t={t} />)}
       </Grid2>

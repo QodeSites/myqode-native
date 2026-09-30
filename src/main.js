@@ -69,6 +69,10 @@ const guessMime = name => MIME_BY_EXT[(String(name || '').split('.').pop() || ''
 
 const PERIOD = { '1W': '1W', '10D': '10D', '1M': '1M', '6M': '6M', '1Y': '1Y', '3Y': '3Y', SI: 'ALL' };
 const RANGE_IDS = ['1W', '10D', '1M', '6M', '1Y', '3Y', 'SI'];
+// Runs fn when the JS thread is idle (requestIdleCallback, in React Native and most browsers); a short timer where
+// it is missing (Safari).
+const whenIdle = fn => (typeof requestIdleCallback === 'function' ? requestIdleCallback(() => fn(), { timeout: 2000 }) : setTimeout(fn, 50));
+const HOME_VIEW = 'nuvama';   // the data view Home always shows for an account with Orbis history (see applyView)
 const RANGE_LABEL = { '1W': 'the last week', '10D': 'the last 10 days', '1M': 'the last month', '6M': 'the last 6 months', '1Y': 'the last year', '3Y': 'the last 3 years', SI: 'since inception' };
 const normRange = r => (r === 'All' || r === 'ALL' || !PERIOD[r] ? 'SI' : r);   // 'All' was the old name of SI
 // The API windows (nav / drawdown ?period=) are 1W, 1M, 3M, 6M, 1Y, 3Y, ALL. 10D isn't one of them: it is
@@ -105,6 +109,49 @@ const noSpace = t => String(t || '').replace(/\s+/g, '');
 function cleanAddress() {
   if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.history || !window.location) return;
   if (window.location.pathname !== '/app') window.history.replaceState(window.history.state, '', '/app');
+}
+
+// Chart geometry for one NAV / drawdown entry: series, rebased lines, axis and SVG paths. Cached per entry object;
+// the view cache (viewNav) returns the same entry for the same view and period, so switching views, tabs or
+// back to a range already seen reuses it instead of rebuilding thousands of points on every render.
+const geomCache = new WeakMap();
+function chartGeom(navEntry) {
+  const hit = navEntry && geomCache.get(navEntry);
+  if (hit) return hit;
+  const navForChart = navEntry.nav && Array.isArray(navEntry.nav.series) ? { ...navEntry.nav, series: navEntry.nav.series.filter(p => !p.synthetic) } : navEntry.nav;
+  const { pts, bench, dates, navs, bvals } = navSeries(navForChart);
+  const rawByDate = {}; dates.forEach((d, i) => { rawByDate[d] = [navs[i], bvals[i]]; });
+  const { pts: ddPts, bench: ddBench, dates: ddDates } = navSeries(navEntry.dd);
+  const p3 = buildPaths(ddPts, ddBench, 330, 100, 0);
+  // Plot in real NAV terms like the web chart: portfolio = raw NAV, benchmark scaled to start at the same NAV.
+  const hasRaw = pts.length > 1 && navs.length === pts.length && navs.every(v => v != null && v > 0);
+  // Every range is drawn from 10 (the PMS convention the full-history chart already used): portfolio and
+  // benchmark are both rebased to 10 at the first date shown. The real NAV is still what the tooltip and the
+  // "current NAV" figure show (rawLine / navs), only the drawing is rebased.
+  const rawLine = hasRaw ? navs : pts;
+  const cPts = rawLine.length ? rawLine.map(v => (v / rawLine[0]) * 10) : [];
+  const cBench = bench && bench.length ? bench.map(b => (b / bench[0]) * 10) : null;
+  // Axis: a rounded range around the data; its bottom is exactly 10 unless the line dips below 10. 10.00 is always
+  // labelled — as the bottom tick, or at its own height when the axis goes lower. Labels carry two decimals.
+  const axisVals = cBench ? cPts.concat(cBench) : cPts;
+  let axis = { lo: 0, hi: 1, ticks: [] };
+  if (cPts.length > 1) {
+    const nice = niceAxis(axisVals);
+    const lo = Math.min(...axisVals) >= 10 ? 10 : nice.lo, hi = Math.max(nice.hi, lo + 0.01);
+    const at = v => ({ t: v.toFixed(2), f: (hi - v) / (hi - lo) });   // f: 0 = top, 1 = bottom
+    let ticks = [at(hi), at((hi + lo) / 2), at(lo)];
+    if (lo < 10 && hi > 10) {
+      const ten = at(10);
+      ticks = ticks.filter(k => Math.abs(k.f - ten.f) > 0.15).concat(ten);   // drop a tick that would crowd it
+    }
+    axis = { lo, hi, ticks };
+  }
+  const p1 = buildPaths(cPts, cBench, 330, 120, null, [axis.lo, axis.hi]);
+  const p2 = buildPaths(cPts, cBench, 358, 110, null, [axis.lo, axis.hi]);
+  const navNow = rawLine.length ? rawLine[rawLine.length - 1] : 0;   // the real NAV, not the rebased line
+  const g = { pts, bench, dates, navs, bvals, rawByDate, ddPts, ddBench, ddDates, p1, p2, p3, hasRaw, rawLine, cPts, cBench, axis, navNow };
+  if (navEntry) geomCache.set(navEntry, g);
+  return g;
 }
 
 export default class MyQode extends React.Component {
@@ -427,7 +474,7 @@ export default class MyQode extends React.Component {
           if (this.stepDown(scope)) return;       // can't build the family total: fall back to the first member
           throw new Error(e.message || 'We couldn’t build the family total.');
         }
-        this.setState({ hist: fam, dv: 'nuvama' }, () => this.applyView('nuvama'));
+        this.setState({ hist: fam, dv: 'nuvama' }, () => this.applyView('nuvama', true));
         this.lastLoad = Date.now();
         this.loadHoldings(scope, seq); this.loadIrr(scope, seq);
         return;
@@ -457,8 +504,8 @@ export default class MyQode extends React.Component {
         try { const h = await portfolio.history(legacyId); if (h && h.orbis && h.orbis.length) hist = h; } catch {}
         if (seq !== this.seq) return;
       }
-      if (hist) { this.setState({ hist }, () => this.applyView(this.state.dv)); this.lastLoad = Date.now(); this.loadHoldings(scope, seq); this.loadIrr(scope, seq); return; }
-      this.setState({ hist: null, d: { id: scope.id, kind: k, perf, cash, fys: buildFys(monthly), fysQ: buildFysQ(quarterly) }, navs: { [period]: { nav, dd } }, dl: false, pnlFy: 0, pnlOpen: null });
+      if (hist) { this.setState({ hist }, () => this.applyView(this.state.dv, true)); this.lastLoad = Date.now(); this.loadHoldings(scope, seq); this.loadIrr(scope, seq); return; }
+      this.setState({ hist: null, homeD: null, homeNavs: null, d: { id: scope.id, kind: k, perf, cash, fys: buildFys(monthly), fysQ: buildFysQ(quarterly) }, navs: { [period]: { nav, dd } }, dl: false, pnlFy: 0, pnlOpen: null });
       this.lastLoad = Date.now();
       this.loadHoldings(scope, seq); this.loadIrr(scope, seq);
     } catch (e) {
@@ -504,15 +551,49 @@ export default class MyQode extends React.Component {
   }
 
   // Build the whole portfolio state locally for one of the web's views: 'nuvama' | 'orbis' | 'consolidated'.
-  applyView(dv) {
+  // The Nuvama / Orbis / Orbis + Nuvama toggle belongs to the Portfolio page: it replaces `d` / `navs` only. Home keeps
+  // its own copy (homeD / homeNavs) in the default view, built when the account loads (withHome), so switching the
+  // toggle never changes a figure on Home.
+  //
+  // A view is costly to build on a phone (the whole history is re-derived: up to a second on Hermes), so each is built
+  // once per history and kept: the portfolio per view, the NAV / drawdown per view and period. A new history (another
+  // account, a refresh) starts a fresh cache. After a load the other views are built in the background (warmViews),
+  // one piece at a time while the app is idle, so even the first switch is instant.
+  viewCache(h) { if (this.vcFor !== h) { this.vcFor = h; this.vc = new Map(); } return this.vc; }
+  memoView(h, key, make) { const c = this.viewCache(h); if (!c.has(key)) c.set(key, make()); return c.get(key); }
+  viewD(h, dv) {
+    return this.memoView(h, 'd:' + dv, () => {
+      const pl = plFrom(h, dv);
+      return { id: h.accountId, kind: 'account', local: true, perf: perfFrom(h, dv), cash: cashFrom(h, dv), fys: buildFys(pl.monthly), fysQ: buildFysQ(pl.quarterly) };
+    });
+  }
+  viewNav(h, dv, period) { return this.memoView(h, `n:${dv}:${period}`, () => ({ nav: navFrom(h, dv, period), dd: ddFrom(h, dv, period) })); }
+  viewData(h, dv) {
+    const period = PERIOD[normRange(this.state.range)];
+    return { d: this.viewD(h, dv), navs: { [period]: this.viewNav(h, dv, period) } };
+  }
+  viewReady(h, dv) { const c = this.viewCache(h); return c.has('d:' + dv) && c.has(`n:${dv}:${PERIOD[normRange(this.state.range)]}`); }
+  // now: build immediately. A tap on a view not built yet highlights its button first (dvPending) and builds on the
+  // next tick, so the tap answers at once; of several quick taps only the last one is built.
+  applyView(dv, withHome = false, now = false) {
     const h = this.state.hist;
     if (!h) return;
-    const period = PERIOD[normRange(this.state.range)], pl = plFrom(h, dv);
-    this.setState({
-      dv, dl: false, pnlFy: 0, pnlOpen: null,
-      d: { id: h.accountId, kind: 'account', local: true, perf: perfFrom(h, dv), cash: cashFrom(h, dv), fys: buildFys(pl.monthly), fysQ: buildFysQ(pl.quarterly) },
-      navs: { [period]: { nav: navFrom(h, dv, period), dd: ddFrom(h, dv, period) } },
-    });
+    if (!withHome && !now && !this.viewReady(h, dv)) {
+      this.setState({ dvPending: dv }, () => setTimeout(() => { if (this.state.hist === h && this.state.dvPending === dv) this.applyView(dv, false, true); }, 16));
+      return;
+    }
+    const home = withHome ? this.viewData(h, HOME_VIEW) : null;
+    this.setState({ dv, dvPending: null, dl: false, pnlFy: 0, pnlOpen: null, ...this.viewData(h, dv), ...(home ? { homeD: home.d, homeNavs: home.navs } : {}) });
+    if (withHome) this.warmViews(h);
+  }
+  warmViews(h) {
+    const period = PERIOD[normRange(this.state.range)];
+    const jobs = ['nuvama', 'orbis', 'consolidated'].flatMap(dv => [() => this.viewD(h, dv), () => this.viewNav(h, dv, period)]);
+    const next = () => {
+      if (this.state.hist !== h || !jobs.length) return;
+      whenIdle(() => { if (this.state.hist !== h) return; jobs.shift()(); setTimeout(next, 30); });
+    };
+    setTimeout(next, 300);
   }
 
   // `shownRange` = the last range whose data is on screen; vals() keeps drawing it until the new one has loaded.
@@ -537,7 +618,8 @@ export default class MyQode extends React.Component {
     this.setState({ range: id, shownRange });
     if (d && d.local && this.state.hist) {
       const h = this.state.hist, dv = this.state.dv;
-      this.setState(s => ({ shownRange: id, navs: { ...s.navs, [period]: { nav: navFrom(h, dv, period), dd: ddFrom(h, dv, period) } } }));
+      this.setState(s => ({ shownRange: id, navs: { ...s.navs, [period]: this.viewNav(h, dv, period) },
+        ...(s.homeD ? { homeNavs: { ...s.homeNavs, [period]: this.viewNav(h, HOME_VIEW, period) } } : {}) }));
       return;
     }
     if (!d || this.state.navs[period]) return;
@@ -1096,7 +1178,9 @@ export default class MyQode extends React.Component {
   }
 
   vals() {
-    const S = this.state, set = p => this.setState(p);
+    const st = this.state, set = p => this.setState(p);
+    const homeCopy = st.tab === 'home' && st.homeD && st.d && st.homeD.id === st.d.id;
+    const S = homeCopy ? { ...st, d: st.homeD, navs: st.homeNavs, dv: HOME_VIEW } : st;
     const scope = this.curScope();
     const perf = S.d && S.d.perf;
     const hasData = !!perf;
@@ -1120,37 +1204,7 @@ export default class MyQode extends React.Component {
     // The NAV chart plots real days only: the web's synthetic NAV=10 anchor (one day before inception, added when
     // the first NAV isn't 10 — e.g. Orbis series start at 100) would put a jump at the left edge and, with both
     // lines rebased to 10 from it, squash the benchmark flat under a 100-scale series. Returns and drawdown keep it.
-    const navForChart = navEntry.nav && Array.isArray(navEntry.nav.series) ? { ...navEntry.nav, series: navEntry.nav.series.filter(p => !p.synthetic) } : navEntry.nav;
-    const { pts, bench, dates, navs, bvals } = navSeries(navForChart);
-    const rawByDate = {}; dates.forEach((d, i) => { rawByDate[d] = [navs[i], bvals[i]]; });
-    const { pts: ddPts, bench: ddBench, dates: ddDates } = navSeries(navEntry.dd);
-    const p3 = buildPaths(ddPts, ddBench, 330, 100, 0);
-    // Plot in real NAV terms like the web chart: portfolio = raw NAV, benchmark scaled to start at the same NAV.
-    const hasRaw = pts.length > 1 && navs.length === pts.length && navs.every(v => v != null && v > 0);
-    // Every range is drawn from 10 (the PMS convention the full-history chart already used): portfolio and
-    // benchmark are both rebased to 10 at the first date shown. The real NAV is still what the tooltip and the
-    // "current NAV" figure show (rawLine / navs), only the drawing is rebased.
-    const rawLine = hasRaw ? navs : pts;
-    const cPts = rawLine.length ? rawLine.map(v => (v / rawLine[0]) * 10) : [];
-    const cBench = bench && bench.length ? bench.map(b => (b / bench[0]) * 10) : null;
-    // Axis: a rounded range around the data; its bottom is exactly 10 unless the line dips below 10. 10.00 is always
-    // labelled — as the bottom tick, or at its own height when the axis goes lower. Labels carry two decimals.
-    const axisVals = cBench ? cPts.concat(cBench) : cPts;
-    let axis = { lo: 0, hi: 1, ticks: [] };
-    if (cPts.length > 1) {
-      const nice = niceAxis(axisVals);
-      const lo = Math.min(...axisVals) >= 10 ? 10 : nice.lo, hi = Math.max(nice.hi, lo + 0.01);
-      const at = v => ({ t: v.toFixed(2), f: (hi - v) / (hi - lo) });   // f: 0 = top, 1 = bottom
-      let ticks = [at(hi), at((hi + lo) / 2), at(lo)];
-      if (lo < 10 && hi > 10) {
-        const ten = at(10);
-        ticks = ticks.filter(k => Math.abs(k.f - ten.f) > 0.15).concat(ten);   // drop a tick that would crowd it
-      }
-      axis = { lo, hi, ticks };
-    }
-    const p1 = buildPaths(cPts, cBench, 330, 120, null, [axis.lo, axis.hi]);
-    const p2 = buildPaths(cPts, cBench, 358, 110, null, [axis.lo, axis.hi]);
-    const navNow = rawLine.length ? rawLine[rawLine.length - 1] : 0;   // the real NAV, not the rebased line
+    const { pts, bench, dates, navs, bvals, rawByDate, ddPts, ddBench, ddDates, p1, p2, p3, hasRaw, rawLine, cPts, cBench, axis, navNow } = chartGeom(navEntry);
     // Short windows (a few trading days, weekends skipped) label days, longer ones months.
     const shortSpan = dates.length > 1 && new Date(dates[dates.length - 1]) - new Date(dates[0]) < 62 * 864e5;
     const xFmt = shortSpan ? fmtDayMon : fmtMonth;
@@ -1301,7 +1355,7 @@ export default class MyQode extends React.Component {
       growthNow: navNow.toFixed(2), navNow: navNow.toFixed(2),
       yTicks: axis.ticks, xDates,
       hasViews: !!S.hist && !S.hist.family,
-      viewChips: [['nuvama', 'Nuvama'], ['orbis', 'Orbis (Legacy)'], ['consolidated', 'Orbis + Nuvama']].map(([id, label]) => ({ label, active: S.dv === id, pick: () => this.applyView(id) })),
+      viewChips: [['nuvama', 'Nuvama'], ['orbis', 'Orbis (Legacy)'], ['consolidated', 'Orbis + Nuvama']].map(([id, label]) => ({ label, active: (S.dvPending || S.dv) === id, pick: () => this.applyView(id) })),
       // Web note under the returns table: in the Orbis and Combined views the invested / current figures come from Orbis' latest records.
       orbisNote: !!(S.hist && !S.hist.family && S.hist.orbisMetrics && (S.dv === 'orbis' || S.dv === 'consolidated')),
       tiles: [
@@ -1323,11 +1377,11 @@ export default class MyQode extends React.Component {
       ddTip: { kind: 'dd', dates: ddDates, pts: ddPts, bench: ddBench, navs: ddDates.map(d => (rawByDate[d] || [])[0]), bvals: ddDates.map(d => (rawByDate[d] || [])[1]), xy: p3.xy, bxy: p3.bxy, benchName },
       ddLine: p3.line, ddArea: p3.area, ddBench: p3.bench, hasDd: ddPts.length > 1, ddNow: ddPts.length ? ddPts[ddPts.length - 1] : 0,
       perfLine: p2.line, perfBench: p2.bench, hasBench: !!bench,
-      ranges: RANGE_IDS.map(id => { const off = !this.rangeOk(id); return { label: id, disabled: off, pick: () => { if (!off) this.pickRange(id); }, active: S.range === id, loading: rangeLoading && S.range === id }; }),
+      ranges: RANGE_IDS.map(id => { const off = !this.rangeOk(id, S); return { label: id, disabled: off, pick: () => { if (!off) this.pickRange(id); }, active: S.range === id, loading: rangeLoading && S.range === id }; }),
       tx3: cashTx.slice(0, 3).map(tx), txAll: cashTx.map(tx), hasTx: cashTx.length > 0,
       holdings: holdRows, chartColor,
       // IRR (money-weighted) beside TWRR: [{ period, label, value, color }] for SI / 1Y / 3Y when available.
-      irrRows: ['SI', '1Y', '3Y'].map(p => { const x = irrPeriod(S.irr, p); return x && x.irr != null && this.rangeOk(p) ? { period: p, label: irrLabel(x), value: fmtIrr(x), color: c(x.irr) } : null; }).filter(Boolean),
+      irrRows: ['SI', '1Y', '3Y'].map(p => { const x = irrPeriod(S.irr, p); return x && x.irr != null && this.rangeOk(p, S) ? { period: p, label: irrLabel(x), value: fmtIrr(x), color: c(x.irr) } : null; }).filter(Boolean),
       // One slice per strategy, as on the web (strategySlices in src/web/desktop.js): a family can hold the same strategy
       // in several accounts. The ring draws exact shares (pct): rounded shares can total 99 and leave a gap. The legend
       // shows `alloc` to 2 decimals, like the other holdings percentages.

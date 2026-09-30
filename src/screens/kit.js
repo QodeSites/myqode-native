@@ -1,8 +1,8 @@
 // Small shared pieces for the data-driven screens (documents, services, pages).
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Pressable, Linking, Alert } from 'react-native';
+import { View, Pressable, Linking, Alert, Modal, ScrollView } from 'react-native';
 import { C, Tx, Card, Skel, CTA } from '../ui';
-import { ChevronRight } from '../icons';
+import { ChevronRight, ChevronDown } from '../icons';
 import { isDemo } from '../api';
 
 export function useLoad(fn, deps = []) {
@@ -93,6 +93,51 @@ export function AccountChips({ options, value, onPick }) {
         );
       })}
     </View>
+  );
+}
+
+// The same choice as AccountChips as one dropdown, for lists too long to lay out as chips (a family with many
+// strategy accounts). Built like the distributor's Investors filter (src/screens/distributor.js Dropdown): a small
+// label above the current choice with a chevron, green while narrowed; tapping opens a centred card of options, each
+// with its strategy colour dot and a tick on the current one. options: [{ id, label, dot? }]; the first is "all".
+export function AccountSelect({ options, value, onPick, label = 'Account', title = 'SHOW HOLDINGS FOR' }) {
+  const [open, setOpen] = useState(false);
+  if (!options || options.length < 2) return null;
+  const cur = options.find(o => o.id === value) || options[0];
+  const active = cur.id !== options[0].id;
+  return (
+    <>
+      <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel={`${label}: ${cur.label}. Change`}
+        style={({ pressed }) => ({ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 11, borderRadius: 10, borderWidth: 1,
+          borderColor: active ? C.green : C.mutedBorder35, backgroundColor: active ? 'rgba(2,66,43,0.06)' : pressed ? 'rgba(2,66,43,0.03)' : 'transparent' })}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Tx w={700} s={9} ls={0.1} c={C.muted}>{label.toUpperCase()}</Tx>
+          <Tx w={700} s={12.5} c={active ? C.green : C.ink} numberOfLines={1} style={{ marginTop: 1 }}>{cur.label}</Tx>
+        </View>
+        <ChevronDown s={10} c={active ? C.green : C.muted} />
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable onPress={() => setOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(0,32,23,0.45)', justifyContent: 'center', padding: 28 }}>
+          <Card style={{ paddingVertical: 6, overflow: 'hidden', maxHeight: '80%' }}>
+            <Tx w={700} s={10} ls={0.12} c={C.muted} style={{ paddingHorizontal: 18, paddingTop: 10, paddingBottom: 6 }}>{title}</Tx>
+            <ScrollView>
+              {options.map(o => {
+                const on = o.id === cur.id;
+                return (
+                  <Pressable key={o.id} onPress={() => { setOpen(false); if (!on) onPick(o.id); }} accessibilityRole="button" accessibilityState={{ selected: on }}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 18, borderTopWidth: 1, borderColor: C.hairline,
+                      backgroundColor: on ? 'rgba(2,66,43,0.06)' : pressed ? 'rgba(2,66,43,0.03)' : 'transparent' })}>
+                    {!!o.dot && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: o.dot }} />}
+                    <Tx w={on ? 700 : 400} s={13} c={on ? C.green : C.ink} numberOfLines={2} style={{ flex: 1 }}>{o.label}</Tx>
+                    {on && <Tx w={700} s={13} c={C.green}>✓</Tx>}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </Card>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 

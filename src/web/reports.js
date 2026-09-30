@@ -723,8 +723,8 @@ function SectorsPanel({ d }) {
     <Panel title="Sector allocation" sub={sectors.length ? `${sectors.length} ${sectors.length === 1 ? 'sector' : 'sectors'}, share of assets` : null}>
       {sectors.length === 0 && <Tx s={13} c={C.ink2}>No sector split in this fact sheet.</Tx>}
       <View style={{ gap: 14 }}>
-        {sectors.map(x => (
-          <View key={x.sector}>
+        {sectors.map((x, k) => (
+          <View key={x.sector + ':' + k}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
               <Tx s={13} style={{ flex: 1 }} numberOfLines={1}>{x.sector}</Tx>
               <Amt s={13} w={600}>{(x.pct || 0).toFixed(2)}%</Amt>

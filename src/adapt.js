@@ -105,15 +105,38 @@ export function buildFys(monthly) {
 }
 
 // domain = [lo, hi] fixes the y-axis (used for the NAV charts so the axis labels are exact).
+// Which points to draw: every one when they fit, else per slice of the chart width its first, lowest, highest and last
+// point (in order), so peaks, troughs and the ends look exactly as with every point, at a fraction of the vertices.
+// Years of daily NAVs are ~3,000 points on a ~330 pt wide chart; drawing them all made each redraw slow on a phone.
+function drawIdx(a, w) {
+  const n = a.length, slices = Math.max(2, Math.round(w));   // one slice per point of chart width
+  if (n <= slices * 2) return null;
+  const out = [];
+  for (let s = 0; s < slices; s++) {
+    const i0 = Math.floor((s * n) / slices), i1 = Math.floor(((s + 1) * n) / slices) - 1;
+    if (i1 < i0) continue;
+    let lo = i0, hi = i0;
+    for (let i = i0 + 1; i <= i1; i++) { if (a[i] < a[lo]) lo = i; if (a[i] > a[hi]) hi = i; }
+    [i0, Math.min(lo, hi), Math.max(lo, hi), i1].forEach(i => { if (i !== out[out.length - 1]) out.push(i); });
+  }
+  return out;
+}
 export function buildPaths(pts, bench, w, h, forceMax, domain) {
   if (!pts || pts.length < 2) return { line: '', area: '', bench: '', xy: [], bxy: [] };
   const b = bench && bench.length === pts.length ? bench : pts;
-  const all = pts.concat(b), pad = 8;
-  const min = domain ? domain[0] : Math.min(...all), max = domain ? domain[1] : forceMax != null ? Math.max(forceMax, ...all) : Math.max(...all), span = max - min || 1;
-  const xy = a => a.map((v, i) => [(i / (a.length - 1)) * w, pad + (1 - (v - min) / span) * (h - 2 * pad)]);
-  const ln = a => 'M' + xy(a).map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('L');
-  const top = forceMax != null ? xy([forceMax])[0][1] : h;
-  return { line: ln(pts), area: ln(pts) + `L${w},${top}L0,${top}Z`, bench: ln(b), xy: xy(pts), bxy: bench && bench.length === pts.length ? xy(bench) : [] };
+  let min, max;
+  if (domain) { min = domain[0]; max = domain[1]; } else {
+    min = Infinity; max = -Infinity;
+    for (let i = 0; i < pts.length; i++) { const u = pts[i], v = b[i]; if (u < min) min = u; if (u > max) max = u; if (v < min) min = v; if (v > max) max = v; }
+    if (forceMax != null) max = Math.max(max, forceMax);
+  }
+  const pad = 8, span = max - min || 1, last = pts.length - 1;
+  const X = i => (i / last) * w, Y = v => pad + (1 - (v - min) / span) * (h - 2 * pad);
+  // Tooltips keep every point (they land on the same dates as the web); only the drawn line is thinned.
+  const xy = a => a.map((v, i) => [X(i), Y(v)]);
+  const ln = (a, idx) => 'M' + (idx || a.map((_, i) => i)).map(i => X(i).toFixed(1) + ',' + Y(a[i]).toFixed(1)).join('L');
+  const line = ln(pts, drawIdx(pts, w)), top = forceMax != null ? Y(forceMax) : h;
+  return { line, area: line + `L${w},${top}L0,${top}Z`, bench: ln(b, drawIdx(b, w)), xy: xy(pts), bxy: bench && bench.length === pts.length ? xy(bench) : [] };
 }
 
 // Round y-axis for a NAV chart: lo/hi snapped to a "nice" step, with three tick labels.
