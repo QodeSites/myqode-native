@@ -135,7 +135,7 @@ function DarkZone({ V }) {
       {V.isHoldings && (
         <Fade style={{ paddingTop: 16, paddingHorizontal: 22 }}>
           <Tx w={700} s={11} ls={0.14} c={C.gold}>HOLDINGS</Tx>
-          <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>{V.holdCount} {V.holdCount === 1 ? 'strategy' : 'strategies'}</Tx>
+          <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>{V.holdSlices.length} {V.holdSlices.length === 1 ? 'Strategy' : 'Strategies'}</Tx>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 6 }}>
             <Amt s={12} c={C.cream60}>{V.heroValue}</Amt>
             <Tx s={12} c={C.cream60}> · As of {V.asOf}</Tx>

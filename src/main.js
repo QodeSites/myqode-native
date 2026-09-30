@@ -1316,8 +1316,14 @@ export default class MyQode extends React.Component {
       holdings: holdRows, chartColor,
       // IRR (money-weighted) beside TWRR: [{ period, label, value, color }] for SI / 1Y / 3Y when available.
       irrRows: ['SI', '1Y', '3Y'].map(p => { const x = irrPeriod(S.irr, p); return x && x.irr != null && this.rangeOk(p) ? { period: p, label: irrLabel(x), value: fmtIrr(x), color: c(x.irr) } : null; }).filter(Boolean),
-      // The ring draws exact shares (pct): rounded shares can total 99 and leave a gap. The legend shows `alloc`, rounded.
-      holdSlices: holdRows.map(h => ({ id: h.id, pct: h.w, alloc: h.alloc, color: h.color, name: h.name })),
+      // One slice per strategy, as on the web (strategySlices in src/web/desktop.js): a family can hold the same strategy
+      // in several accounts. The ring draws exact shares (pct): rounded shares can total 99 and leave a gap. The legend
+      // shows `alloc` to 2 decimals, like the other holdings percentages.
+      holdSlices: [...holdRows.reduce((by, h) => {
+        const k = h.name || h.id, g = by.get(k);
+        if (g) { g.pct += h.w || 0; g.n += 1; } else by.set(k, { id: k, name: k, color: h.color, pct: h.w || 0, n: 1 });
+        return by;
+      }, new Map()).values()].sort((a, b) => b.pct - a.pct).map(g => ({ ...g, alloc: g.pct.toFixed(2) })),
       holdCount: holdRows.length,
       flows: [
         { label: 'TOTAL CONTRIBUTIONS', value: this.fmt(flows.inflow), color: C.ink },

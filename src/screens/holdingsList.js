@@ -13,6 +13,26 @@ const BARS = ['#02422B', '#DABD38', '#2F6F5E', '#8A700C', '#5B8A7A', '#B89A2E'];
 const PAGE = 30;
 const short = name => String(name || '');   // full strategy names ("Qode All Weather"), everywhere
 
+function SumCol({ label, divider, children }) {
+  return (
+    <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 6, borderLeftWidth: divider ? 1 : 0, borderColor: C.hairline }}>
+      <Tx w={700} s={9.5} ls={0.1} c={C.muted} center numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Tx>
+      <View style={{ marginTop: 5, alignItems: 'center' }}>{children}</View>
+    </View>
+  );
+}
+
+// The web's change badge (src/web/kit.js Delta): the percentage on a green / red tint, neutral at zero.
+function GainBadge({ v }) {
+  const r = Math.round(v * 100);
+  const fg = r === 0 ? C.muted : r < 0 ? C.red : C.pos, bg = r === 0 ? C.hairline : r < 0 ? 'rgba(194,54,47,0.10)' : 'rgba(21,128,61,0.11)';
+  return (
+    <View style={{ marginTop: 5, backgroundColor: bg, borderRadius: 6, paddingVertical: 2, paddingHorizontal: 7 }}>
+      <Amt s={11} w={700} c={fg}>{pct(v)}</Amt>
+    </View>
+  );
+}
+
 export function HoldingsList({ V }) {
   const accts = V.holdings || [];
   const scope = accts.map(h => h.id);
@@ -42,22 +62,20 @@ export function HoldingsList({ V }) {
         : loading && !data ? <Loading rows={4} /> : !data ? null : (
         <View style={{ opacity: loading ? 0.55 : 1 }}>
           <Card style={{ marginTop: 14, paddingVertical: 16, paddingHorizontal: 16 }}>
-            <Tx w={700} s={10.5} ls={0.12} c={C.muted}>CURRENT VALUE</Tx>
-            <Amt s={22} style={{ marginTop: 6 }}>{inr(tot.value)}</Amt>
+            <Tx w={700} s={10.5} ls={0.12} c={C.muted} center>CURRENT VALUE</Tx>
+            <Amt s={22} center style={{ marginTop: 6 }}>{inr(tot.value)}</Amt>
+            {/* Three equal columns split by hairlines, each centred: label, figure, then the gain badge under the gain. */}
             <View style={{ flexDirection: 'row', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderColor: C.hairline }}>
-              <View style={{ flex: 1 }}>
-                <Tx w={700} s={9.5} ls={0.1} c={C.muted}>INVESTED</Tx>
-                <Amt s={13} style={{ marginTop: 4 }}>{inr(tot.invested, 0)}</Amt>
-              </View>
-              <View style={{ flex: 1.2 }}>
-                <Tx w={700} s={9.5} ls={0.1} c={C.muted}>UNREALISED GAIN</Tx>
-                <Amt s={13} c={signCol(tot.gain)} style={{ marginTop: 4 }}>{sinr(tot.gain, 0)}</Amt>
-                {tot.gainPct != null && <Amt s={11} c={signCol(tot.gainPct)}>{pct(tot.gainPct)}</Amt>}
-              </View>
-              <View style={{ flex: 0.7, alignItems: 'flex-end' }}>
-                <Tx w={700} s={9.5} ls={0.1} c={C.muted}>HOLDINGS</Tx>
-                <Amt s={13} style={{ marginTop: 4 }}>{tot.count}</Amt>
-              </View>
+              <SumCol label="INVESTED">
+                <Amt s={13} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{inr(tot.invested, 0)}</Amt>
+              </SumCol>
+              <SumCol label="UNREALISED GAIN" divider>
+                <Amt s={13} c={signCol(tot.gain)} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{sinr(tot.gain, 0)}</Amt>
+                {tot.gainPct != null && <GainBadge v={tot.gainPct} />}
+              </SumCol>
+              <SumCol label="HOLDINGS" divider>
+                <Amt s={13}>{tot.count}</Amt>
+              </SumCol>
             </View>
           </Card>
 

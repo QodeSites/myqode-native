@@ -356,12 +356,16 @@ export function HoldingsCream({ V }) {
   return (
     <Fade>
       <Card big style={{ marginTop: -34, paddingVertical: 18, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-        <Donut slices={V.holdSlices} count={V.holdCount} />
+        <Donut slices={V.holdSlices} count={V.holdSlices.length} label={V.holdSlices.length === 1 ? 'STRATEGY' : 'STRATEGIES'} />
         <View style={{ flex: 1, gap: 8 }}>
+          <Tx s={11} c={C.muted}>{V.holdCount} {V.holdCount === 1 ? 'account' : 'accounts'} across {V.holdSlices.length} {V.holdSlices.length === 1 ? 'strategy' : 'strategies'}</Tx>
           {V.holdSlices.map(h => (
             <View key={h.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: h.color }} />
-              <Tx s={12} style={{ flex: 1 }}>{h.name}</Tx>
+              <View style={{ flex: 1 }}>
+                <Tx s={12}>{h.name}</Tx>
+                {h.n > 1 && <Tx s={10.5} c={C.muted}>{h.n} accounts</Tx>}
+              </View>
               <Amt s={12}>{h.alloc}%</Amt>
             </View>
           ))}

@@ -303,21 +303,29 @@ const FilterChips = ({ options, value, onPick }) => (
 // ── shared bits ───────────────────────────────────────────────────────────────────────────────────────────
 // One compact summary card per report: a 2-column grid split by hairlines, small muted label (optional tiny
 // suffix such as an entry count) above a 14 px figure. items: [{ label, value, color, note }].
+// Cells are centred and the grid lines are drawn in a visible rule colour; an odd last figure spans the full width
+// instead of leaving a blank half cell beside it.
+const RULE = 'rgba(55,88,79,0.22)';
 function Strip({ items, caption, footer, style }) {
   const list = (items || []).filter(Boolean);
+  const odd = list.length % 2 === 1;
   return (
     <Card style={[{ marginTop: 14, overflow: 'hidden' }, style]}>
-      {!!caption && <Tx w={700} s={10} ls={0.1} c={C.muted} center numberOfLines={2} style={{ paddingHorizontal: 14, paddingTop: 12 }}>{caption}</Tx>}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: caption ? 2 : 0 }}>
-        {list.map((it, i) => (
-          <View key={it.label} style={{ width: '50%', paddingVertical: 10, paddingHorizontal: 14, borderLeftWidth: i % 2 ? 1 : 0, borderTopWidth: i >= 2 ? 1 : 0, borderColor: C.hairline }}>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-              <Tx w={700} s={9.5} ls={0.1} c={C.muted} numberOfLines={1} style={{ flexShrink: 1 }}>{it.label}</Tx>
-              {!!it.note && <Tx s={9.5} c={C.gray} numberOfLines={1}>{it.note}</Tx>}
+      {!!caption && <Tx w={700} s={10} ls={0.1} c={C.muted} center numberOfLines={2} style={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, borderBottomWidth: 1, borderColor: RULE }}>{caption}</Tx>}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+        {list.map((it, i) => {
+          const full = odd && i === list.length - 1;
+          return (
+            <View key={it.label} style={{ width: full ? '100%' : '50%', alignItems: 'center', justifyContent: 'center', paddingVertical: 11, paddingHorizontal: 12,
+              borderLeftWidth: !full && i % 2 ? 1 : 0, borderTopWidth: i >= 2 ? 1 : 0, borderColor: RULE }}>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 4, maxWidth: '100%' }}>
+                <Tx w={700} s={9.5} ls={0.1} c={C.muted} center numberOfLines={1} style={{ flexShrink: 1 }}>{it.label}</Tx>
+                {!!it.note && <Tx s={9.5} c={C.gray} numberOfLines={1}>{it.note}</Tx>}
+              </View>
+              <Amt s={14} c={it.color || C.ink} center numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ marginTop: 4, maxWidth: '100%' }}>{it.value}</Amt>
             </View>
-            <Amt s={14} c={it.color || C.ink} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ marginTop: 3 }}>{it.value}</Amt>
-          </View>
-        ))}
+          );
+        })}
       </View>
       {footer}
     </Card>
@@ -337,8 +345,9 @@ const DateBox = ({ d }) => (
     <Tx s={10} c={C.muted}>{d ? MON[+d.slice(5, 7) - 1] : ''}</Tx>
   </View>
 );
-const Badge = ({ label, color = C.muted }) => (
-  <View style={{ borderWidth: 1, borderColor: color, borderRadius: 999, paddingVertical: 1, paddingHorizontal: 6, alignSelf: 'flex-start' }}>
+// align: where the badge sits in its column ('flex-end' under a right-aligned figure, so a list's badges line up).
+const Badge = ({ label, color = C.muted, align = 'flex-start' }) => (
+  <View style={{ borderWidth: 1, borderColor: color, borderRadius: 999, paddingVertical: 1, paddingHorizontal: 6, alignSelf: align }}>
     <Tx w={700} s={9} c={color}>{label}</Tx>
   </View>
 );
@@ -498,7 +507,7 @@ function CapitalGains({ accountId, ids, rk, account }) {
               </View>
               <View style={{ alignItems: 'flex-end', gap: 4 }}>
                 <Amt s={12.5} c={gainColor(l.gain)}>{signed(l.gain)}</Amt>
-                <Badge label={l.term} />
+                <Badge label={l.term} align="flex-end" />
               </View>
             </Row>
           ))}
@@ -569,7 +578,7 @@ function Expenses({ accountId, ids, rk, account }) {
               </View>
               <View style={{ alignItems: 'flex-end', gap: 4 }}>
                 <Amt s={12.5}>{inr(x.amount)}</Amt>
-                {x.status === 'payable' && <Badge label="PAYABLE" color={C.gold} />}
+                {x.status === 'payable' && <Badge label="PAYABLE" color={C.gold} align="flex-end" />}
               </View>
             </Row>
           ))}
@@ -739,7 +748,7 @@ function Factsheet({ accountId, ids, names, rk, account }) {
         <StatusLine parts={[asOfPart(d.asOf), 'latest across accounts', `${ids.length} accounts`]} />
         <CombinedNote h={d} />
         <Strip caption={`ALL ACCOUNTS · ${ids.length}`} items={sheetStrip(d)}
-          footer={<Tx s={10.5} c={C.muted} style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderColor: C.hairline }}>{FACTSHEET_NOTE}</Tx>} />
+          footer={<Tx s={10.5} c={C.muted} style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderColor: RULE }}>{FACTSHEET_NOTE}</Tx>} />
         {sheets.map(({ accountId: id, data: x }) => (
           <View key={id}>
             <SectionLabel style={{ marginTop: 22 }}>{String(names[id] || id).toUpperCase()}</SectionLabel>
@@ -747,7 +756,7 @@ function Factsheet({ accountId, ids, names, rk, account }) {
               <>
                 {!!(x.computed && x.note) && <Tx s={11} c={C.muted} lh={1.5} style={{ marginBottom: 8, marginLeft: 2 }}>{x.note}</Tx>}
                 <Strip style={{ marginTop: 0 }} items={sheetStrip(x)}
-                  footer={<Tx s={10.5} c={C.muted} style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderColor: C.hairline }}>As of {dt(x.asOf)} · since inception {dt(x.inceptionDate)}</Tx>} />
+                  footer={<Tx s={10.5} c={C.muted} style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderColor: RULE }}>As of {dt(x.asOf)} · since inception {dt(x.inceptionDate)}</Tx>} />
                 <SheetSections d={x} />
               </>
             ) : <Empty>No fact sheet for this date.</Empty>}
@@ -777,7 +786,7 @@ function PRow({ label, amount, mid, kind = 'line', note, color }) {
   if (head) return <Tx w={700} s={9.5} ls={0.1} c={C.muted} style={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 2 }}>{label.toUpperCase()}</Tx>;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, paddingVertical: 8, paddingHorizontal: 14, borderTopWidth: total ? (kind === 'grand' ? 1.5 : 1) : 0,
-      borderColor: kind === 'grand' ? C.green : C.hairline, marginTop: total ? 2 : 0 }}>
+      borderColor: kind === 'grand' ? C.green : RULE, marginTop: total ? 2 : 0 }}>
       <View style={{ flex: 1, minWidth: 0, paddingLeft: kind === 'sub' ? 10 : 0 }}>
         <Tx w={total ? 700 : 400} s={12} c={kind === 'grand' ? C.green : C.ink}>{label}</Tx>
         {!!note && <Tx s={10.5} c={C.gray} lh={1.4} style={{ marginTop: 2 }}>{note}</Tx>}
@@ -883,7 +892,7 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
               <PRow label="Surplus in the P&L" amount={r.computed} />
               <PRow label="Difference" note={diffText(r.diff)} />
             </>}
-            {!!r.note && <Tx s={10.5} c={C.gray} lh={1.45} style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderColor: C.hairline }}>{r.note}</Tx>}
+            {!!r.note && <Tx s={10.5} c={C.gray} lh={1.45} style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderColor: RULE }}>{r.note}</Tx>}
           </Card>
         </>
       )}
