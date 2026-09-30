@@ -226,7 +226,11 @@ function Summary({ V }) {
         <Label c={C.gold}>Current value</Label>
         <FitAmt w={700} s={36} min={20} c={C.cream} style={{ marginTop: 6, letterSpacing: -0.8 }}>{V.heroValue}</FitAmt>
         <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 10 }} />
-        <Tx s={12} c="rgba(239,236,211,0.6)" style={{ marginTop: 8 }}>{[V.acctName, V.sinceLbl].filter(Boolean).join('  ·  ')}</Tx>
+        {/* "Since 04-Apr-2025" wraps as one piece: never "Since 04-Apr-" on one line and "2025" on the next. */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', marginTop: 8 }}>
+          {!!V.acctName && <Tx s={12} c="rgba(239,236,211,0.6)">{V.acctName}{V.sinceLbl ? '  ·  ' : ''}</Tx>}
+          {!!V.sinceLbl && <Tx s={12} c="rgba(239,236,211,0.6)" style={{ whiteSpace: 'nowrap' }}>{V.sinceLbl}</Tx>}
+        </View>
       </View>
       <Div />
       {cell('Net invested', (f[2] || {}).value || '–')}

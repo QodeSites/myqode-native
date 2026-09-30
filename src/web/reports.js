@@ -601,7 +601,8 @@ function ReturnsChart({ periods, a, b, height = 240 }) {
               {[[a[i], C.green, -bw - 1.5], [b[i], C.gold, 1.5]].map(([v, col, off], k) => (v == null ? null : (
                 <Rect key={k} x={cx + off} y={Math.min(y(0), y(v))} width={bw} height={Math.max(1, Math.abs(y(v) - y(0)))} rx={2} fill={col} />
               )))}
-              {periodLabel(per).split(/\s+(?=\d)/).map((ln, k) => (
+              {/* Two lines at most (the space below the axis holds two): "Since" over "04 Apr 2025", never a third line cut off. */}
+              {periodLabel(per).replace(/^(\S+)\s+(?=\d)/, '$1\n').split('\n').map((ln, k) => (
                 <SvgText key={k} x={cx} y={H - B + 15 + k * 11} textAnchor="middle" fill={C.ink2} fontSize={10}>{ln}</SvgText>
               ))}
             </React.Fragment>

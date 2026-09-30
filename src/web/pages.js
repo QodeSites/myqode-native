@@ -426,10 +426,7 @@ function Philosophy({ V }) {
       <Row gap={20}>
         {rest.map((sec, i) => (
           <Card key={sec.h} style={{ flex: 1, paddingVertical: 26, paddingHorizontal: 26 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <IconChip name={PHILO_ICON[sec.h] || 'chart'} />
-              <Tx w={600} s={13} c={C.gold}>{String(i + 2).padStart(2, '0')}</Tx>
-            </View>
+            <IconChip name={PHILO_ICON[sec.h] || 'chart'} />
             <Tx f="play" w={600} s={21} style={{ marginTop: 18 }}>{sec.h}</Tx>
             {sec.p.map((t, j) => <Body key={j} style={{ marginTop: 10 }}>{t}</Body>)}
           </Card>

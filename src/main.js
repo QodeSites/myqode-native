@@ -72,6 +72,8 @@ const RANGE_IDS = ['1W', '10D', '1M', '6M', '1Y', '3Y', 'SI'];
 // Runs fn when the JS thread is idle (requestIdleCallback, in React Native and most browsers); a short timer where
 // it is missing (Safari).
 const whenIdle = fn => (typeof requestIdleCallback === 'function' ? requestIdleCallback(() => fn(), { timeout: 2000 }) : setTimeout(fn, 50));
+// How long the app may sit in the background before it asks for Face ID / fingerprint again (when the lock is on).
+const RELOCK_MS = 60 * 1000;
 const HOME_VIEW = 'nuvama';   // the data view Home always shows for an account with Orbis history (see applyView)
 const RANGE_LABEL = { '1W': 'the last week', '10D': 'the last 10 days', '1M': 'the last month', '6M': 'the last 6 months', '1Y': 'the last year', '3Y': 'the last 3 years', SI: 'since inception' };
 const normRange = r => (r === 'All' || r === 'ALL' || !PERIOD[r] ? 'SI' : r);   // 'All' was the old name of SI
@@ -171,6 +173,7 @@ export default class MyQode extends React.Component {
     loginAs: 'client', // login screen switch: 'client' | 'distributor'
     bio: null,         // { label } when Face ID / fingerprint is available on this device
     bioOn: false,      // user turned the start-up lock on
+    lockResume: null,   // phase to return to after a re-lock on return from the background
     lockErr: '', lockBusy: false, lockGone: false,   // lockGone: lock was on but this phone no longer has biometrics
   };
 
@@ -230,6 +233,10 @@ export default class MyQode extends React.Component {
       window.addEventListener('popstate', this.onPop);
     }
     this.appSub = AppState.addEventListener('change', st => {
+      // Face ID / fingerprint lock also on return from the background (not only at a cold start): after RELOCK_MS
+      // away, a signed-in app shows the lock screen before any content, and the rest of this handler waits for it.
+      if (st === 'background') this.bgAt = Date.now();
+      if (st === 'active' && this.shouldRelock()) { this.relock(); return; }
       // Not while a full-screen page is open (e.g. Reports): coming back from the share sheet must not reset its lists.
       if (st === 'active' && this.state.phase === 'app' && !this.state.page && Date.now() - (this.lastLoad || 0) > 60000) this.refresh();
       if (st === 'active' && this.state.phase === 'app') { this.loadNotifs(); this.pushSync(); }
@@ -720,16 +727,41 @@ export default class MyQode extends React.Component {
     track('event', on ? 'biometric_enabled' : 'biometric_disabled', {});
     this.setState({ bioOn: on });
   };
+  shouldRelock() {
+    const S = this.state, away = this.bgAt ? Date.now() - this.bgAt : 0;
+    return Platform.OS !== 'web' && S.bioOn && (S.phase === 'app' || S.phase === 'partner') && !S.lockResume && away > RELOCK_MS;
+  }
+  // Locks a signed-in app that came back from the background: the lock screen replaces the content at once, then the
+  // system prompt opens. Unlocking returns to the same place (lockResume) with nothing reloaded.
+  relock = async () => {
+    this.bgAt = 0;
+    this.setState({ phase: 'lock', lockResume: this.state.phase, lockErr: '', lockGone: false, lockOffline: false, lockBusy: false });
+    const bio = await biometricAvailable();
+    if (!bio) {
+      // Fingerprints / face removed from the phone while away: never reopen unlocked — the password is the way in.
+      this.setState({ lockGone: true, lockErr: 'Fingerprint / face unlock is no longer set up on this phone. Sign in with your password to continue.' });
+      return;
+    }
+    this.setState({ bio });
+    this.lockRetry();
+  };
   lockRetry = async () => {
     if (this.state.lockBusy) return;
     if (this.state.lockOffline) { this.setState({ lockOffline: false, phase: 'splash' }); this.boot(true); return; }   // already unlocked: just try the server again
     this.setState({ lockBusy: true, lockErr: '' });
     const r = await biometricUnlock((this.state.bio || {}).label);
     if (!r.ok) { this.setState({ lockBusy: false, lockErr: r.message }); return; }
+    if (this.state.lockResume) {
+      const back = this.state.lockResume;
+      this.setState({ lockBusy: false, lockResume: null, phase: back });
+      if (back === 'app' && !this.state.page && Date.now() - (this.lastLoad || 0) > 60000) this.refresh();
+      if (back === 'app') { this.loadNotifs(); this.pushSync(); }
+      return;
+    }
     this.setState({ lockBusy: false, phase: 'splash' });
     this.boot(true);
   };
-  lockUsePassword = async () => { await setBiometricEnabled(false); this.setState({ bioOn: false }); this.signOut(); };
+  lockUsePassword = async () => { await setBiometricEnabled(false); this.setState({ bioOn: false, lockResume: null }); this.signOut(); };
 
   async beginSetup(id) {
     try {

@@ -3,7 +3,7 @@
 import React from 'react';
 import { View, Pressable, Platform } from 'react-native';
 import { C, Tx, Amt, Sheet, Field, CTA, Chip, ChipRow, Toggle, Hairline } from '../ui';
-import { Crown, ChevronRight, FamilyIcon, Bell, DocIcon, Gear, GroupIcon } from '../icons';
+import { Crown, ChevronRight, FamilyIcon, Bell, DocIcon, Gear, GroupIcon, LogOut } from '../icons';
 
 // The bell: every notification the login has had (myQode app_notifications), newest first. Popups on the phone
 // are the same items; tapping either opens its destination (src/nav.js openLink) and marks it read.
@@ -123,13 +123,13 @@ export function SwitchSheet({ V }) {
             <Tx f="play" w={600} s={21}>Family accounts</Tx>
             <Tx s={12} c={C.muted} style={{ marginTop: 3 }}>Switch between linked PMS accounts</Tx>
           </View>
-          {/* Same red outline as the Sign out button on More. A distributor viewing an investor leaves the view there
+          {/* Sign out icon, in the red of the Sign out button on More. A distributor viewing an investor leaves the view there
               instead, so it is not offered then. */}
           {!V.viewing && (
             <Pressable onPress={V.doLogout} accessibilityRole="button" accessibilityLabel="Sign out" hitSlop={8}
-              style={({ pressed }) => ({ marginTop: 4, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(239,68,68,0.45)',
-                backgroundColor: pressed ? 'rgba(239,68,68,0.06)' : 'transparent' })}>
-              <Tx w={700} s={12} ls={0.04} c={C.red}>Sign out</Tx>
+              style={({ pressed }) => ({ marginTop: 2, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: 1,
+                borderColor: 'rgba(239,68,68,0.45)', backgroundColor: pressed ? 'rgba(239,68,68,0.10)' : 'transparent' })}>
+              <LogOut s={17} c={C.red} />
             </Pressable>
           )}
         </View>

@@ -244,3 +244,11 @@ export const GroupIcon = ({ name, s = 18, c = C.green, w = 1.75 }) => (
     {(GROUP_PATHS[name] || []).map(d => <Path key={d} d={d} />)}
   </Svg>
 );
+
+// Sign out: a door with an arrow leaving it (lucide "log-out").
+export const LogOut = ({ s = 18, c = C.red }) => (
+  <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <Path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke={c} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    <Path d="M16 17l5-5-5-5M21 12H9" stroke={c} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);

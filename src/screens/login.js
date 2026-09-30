@@ -4,6 +4,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise, KeyboardScroll, useKeyboardHeight, Wordmark } from '../ui';
 
+// The text links under the sign-in card are tappable on their words only (plus a little side padding), not across the
+// whole width, so a tap beside a link does nothing.
+const textLink = { alignSelf: 'center', paddingHorizontal: 10 };
+
 function DarkHead({ children, pct = 0.42 }) {
   return (
     <LinearGradient colors={C.darkGrad} locations={[0, 0.6, 1]} start={{ x: 0.1, y: 0 }} end={{ x: 0.6, y: 1 }}
@@ -59,7 +63,7 @@ export function Login({ V }) {
               <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'SIGN IN SECURELY'} onPress={V.doLogin} style={{ marginTop: 22, opacity: V.authBusy ? 0.6 : 1 }} />
             </Card>
           </Rise>
-          <Pressable onPress={V.doForgot} style={{ marginTop: 14, minHeight: 32, justifyContent: 'center' }}>
+          <Pressable onPress={V.doForgot} style={[{ marginTop: 14, minHeight: 32, justifyContent: 'center' }, textLink]}>
             <Tx s={12} c={C.muted} center>Forgot password</Tx>
           </Pressable>
         </View>
@@ -107,7 +111,7 @@ export function Login({ V }) {
               )}
             </Card>
           )}
-          <Pressable onPress={V.startDemo} style={{ marginTop: 14 }}>
+          <Pressable onPress={V.startDemo} style={[{ marginTop: 14 }, textLink]}>
             <Tx w={700} s={12} c={C.green} center>Explore a demo with sample data</Tx>
           </Pressable>
           {V.hasResume && (
@@ -128,7 +132,7 @@ export function Login({ V }) {
               </Pressable>
             </Card>
           )}
-          <Pressable onPress={V.startOb} style={{ marginTop: 14 }}>
+          <Pressable onPress={V.startOb} style={[{ marginTop: 14 }, textLink]}>
             <Tx s={12} c={C.muted} center>New to Qode? <Tx w={700} s={12} c={C.green}>Begin your journey</Tx></Tx>
           </Pressable>
           <Tx s={10} ls={0.08} c={C.gray} center style={{ marginTop: 26 }}>PROTECTED BY 256-BIT ENCRYPTION</Tx>
