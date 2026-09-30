@@ -262,7 +262,7 @@ function Allocation({ V, style }) {
     <Panel title="Allocation" sub={n + (n === 1 ? ' account' : ' accounts') + ' across ' + slices.length + (slices.length === 1 ? ' strategy' : ' strategies')} style={[{ flex: 1 }, style]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 22 }}>
         <Donut slices={slices} count={''} label={''} size={128} />
-        <BarList style={{ flex: 1 }} items={slices.map(g => ({ key: g.id, label: String(g.name).replace('Qode ', ''), sub: g.n > 1 ? g.n + ' accounts' : '', pct: g.w, color: g.color }))} />
+        <BarList style={{ flex: 1 }} items={slices.map(g => ({ key: g.id, label: String(g.name), sub: g.n > 1 ? g.n + ' accounts' : '', pct: g.w, color: g.color }))} />
       </View>
       {slices.some(g => g.raw) && (
         <KeyVals style={{ marginTop: 18, borderTopWidth: 1, borderColor: C.line, paddingTop: 4 }}
@@ -530,7 +530,7 @@ function Holdings({ V }) {
       <View style={{ gap: 20 }}>
         <Row>
           <Stat label="Total value" value={rows.length ? inr(total) : '–'} note={rows.length + (rows.length === 1 ? ' account' : ' accounts')} style={{ flex: 1.3 }} />
-          <Stat label="Strategies" value={String(slices.length)} note={slices.map(s => String(s.name).replace('Qode ', '')).join(', ')} style={{ flex: 1 }} />
+          <Stat label="Strategies" value={String(slices.length)} note={slices.map(s => String(s.name)).join(', ')} style={{ flex: 1 }} />
           <Stat label="Best return (SI)" value={best ? best.ret : '–'} color={best ? best.retColor : C.ink} note={best ? best.name + ' · ' + best.id : ''} style={{ flex: 1 }} />
           <Stat label="Deepest drawdown" value={deepest ? deepest.mdd : '–'} color={deepest ? C.red : C.ink} note={deepest ? deepest.name + ' · ' + deepest.id : ''} style={{ flex: 1 }} />
         </Row>

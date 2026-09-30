@@ -24,7 +24,7 @@ export const TX = [
   { title: 'Contribution', sub: '15 Jun 2026 · Growth', v: 1000000, st: 'COMPLETED' },
   { title: 'STT & charges', sub: '02 Jun 2026', v: -4310, st: 'COMPLETED' },
   { title: 'Withdrawal', sub: '22 May 2026 · To HDFC ••4021', v: -750000, st: 'PROCESSING' },
-  { title: 'Contribution', sub: '05 May 2026 · Tactical', v: 750000, st: 'COMPLETED' },
+  { title: 'Contribution', sub: '05 May 2026 · Qode Tactical Fund', v: 750000, st: 'COMPLETED' },
 ];
 
 // Profit & Loss by fiscal year: [month, value, pct, note?]
@@ -38,8 +38,8 @@ export const QUARTER_LABELS = [['Q1', 'Jan – Mar'], ['Q2', 'Apr – Jun'], ['Q
 
 export const HOLD = [
   { name: 'Qode All Weather', tag: 'Multi-asset · Low volatility', alloc: 41, gain: 19.4, color: '#008455', xirr: '+26.1%', mdd: '−9.2%', hasM: true },
-  { name: 'Qode Growth', tag: 'Concentrated equity', alloc: 31, gain: 26.8, color: '#0A3452', xirr: '+29.4%', mdd: '−16.8%', hasM: true },
-  { name: 'Qode Tactical', tag: 'Momentum · Hedged', alloc: 18, gain: 11.2, color: '#550E0E', xirr: '+21.7%', mdd: '−7.5%', hasM: true },
+  { name: 'Qode Growth Fund', tag: 'Concentrated equity', alloc: 31, gain: 26.8, color: '#0A3452', xirr: '+29.4%', mdd: '−16.8%', hasM: true },
+  { name: 'Qode Tactical Fund', tag: 'Momentum · Hedged', alloc: 18, gain: 11.2, color: '#550E0E', xirr: '+21.7%', mdd: '−7.5%', hasM: true },
   { name: 'Liquid & Cash', tag: 'Ultra short duration', alloc: 10, gain: 6.4, color: '#9CA3AF', xirr: '', mdd: '', hasM: false },
 ];
 

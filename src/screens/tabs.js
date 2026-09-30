@@ -361,7 +361,7 @@ export function HoldingsCream({ V }) {
           {V.holdSlices.map(h => (
             <View key={h.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: h.color }} />
-              <Tx s={12} style={{ flex: 1 }}>{h.name.replace('Qode ', '')}</Tx>
+              <Tx s={12} style={{ flex: 1 }}>{h.name}</Tx>
               <Amt s={12}>{h.alloc}%</Amt>
             </View>
           ))}

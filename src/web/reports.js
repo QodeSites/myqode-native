@@ -742,7 +742,7 @@ function Factsheet({ accountId, ids, names, rk, account }) {
   useEffect(() => { if (d && Array.isArray(d.dates)) setDates(d.dates); }, [d]);
   const [coverage, setCoverage] = useState(null);
   useEffect(() => { if (d && d.coverage && (d.coverage.from || d.coverage.to)) setCoverage(d.coverage); }, [d]);
-  const strategy = d && d.strategy ? d.strategy.replace(/^QODE ADVISORS LLP - /, '') : '';
+  const strategy = d && d.strategy ? d.strategy.replace(/^QODE ADVISORS LLP\s*-\s*/i, '') : '';
   const has = !!(d && d.asOf);
   const head = {
     account,
