@@ -144,8 +144,9 @@ export function SwitchSheet({ V }) {
                 </View>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
+                {a.closedOwner ? <Tx s={10} c={C.gray}>{a.code}</Tx> : <>
                 <Amt s={13}>{a.value}</Amt>
-                <Tx s={10} c={C.gray} style={{ marginTop: 2 }}>{a.code} · all strategies</Tx>
+                <Tx s={10} c={C.gray} style={{ marginTop: 2 }}>{a.code} · all strategies</Tx></>}
               </View>
             </Pressable>
             {a.subs.map(x => (
@@ -156,18 +157,23 @@ export function SwitchSheet({ V }) {
                 borderLeftWidth: 2, borderLeftColor: x.active ? C.gold : 'transparent',
               }}>
                 <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: x.color }} />
-                <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flex: 1, minWidth: 0, opacity: x.closed ? 0.6 : 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <Tx w={700} s={12}>{x.name}</Tx>
+                    {x.closed && (
+                      <View style={{ borderWidth: 1, borderColor: C.mutedBorder35, borderRadius: 4, paddingVertical: 1, paddingHorizontal: 5 }}>
+                        <Tx w={700} s={8} ls={0.06} c={C.muted}>CLOSED</Tx>
+                      </View>
+                    )}
                     {x.orbis && (
                       <View style={{ borderWidth: 1, borderColor: C.mutedBorder35, borderRadius: 4, paddingVertical: 1, paddingHorizontal: 5 }}>
                         <Tx w={700} s={8} ls={0.06} c={C.muted}>ORBIS+NUVAMA</Tx>
                       </View>
                     )}
                   </View>
-                  <Tx s={10} c={C.gray} style={{ marginTop: 1 }}>{x.code}</Tx>
+                  <Tx s={10} c={C.gray} style={{ marginTop: 1 }}>{x.closed ? x.code + ' · ' + x.closedText : x.code}</Tx>
                 </View>
-                <Amt s={12}>{x.value}</Amt>
+                {!x.closed && <Amt s={12}>{x.value}</Amt>}
               </Pressable>
             ))}
             </View>

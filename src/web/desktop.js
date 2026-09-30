@@ -6,6 +6,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, ScrollView, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Wordmark } from '../ui';
+import { ClosedNote } from '../screens/tabs';
 import { Refresh, Bell, ChevronDown, ChevronLeft, ChevronRight, FamilyIcon, GroupIcon, Bars, Plus, Swap } from '../icons';
 import { NavChart, DrawdownChart, Donut, GUTTER } from '../screens/charts';
 import { RequestSheets } from '../screens/services';
@@ -463,6 +464,7 @@ function Overview({ V }) {
     <DataState V={V}>
       <View style={{ gap: 20 }}>
         {!V.viewing && <UccNotice visible={V.showUcc} onClose={V.dismissUcc} />}
+        <ClosedNote text={V.closedNote} />
         <DataSource V={V} />
         <Summary V={V} />
         <NavPanel V={V} height={300} />

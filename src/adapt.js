@@ -51,6 +51,12 @@ export const normId = v => String(v == null ? '' : v).trim().replace(/\.0+$/, ''
 export function buildScopes(snap, codes) {
   const allowed = codes && codes.length ? new Set(codes.map(normId)) : null;
   const can = id => !allowed || allowed.has(normId(id));
+  // Closed accounts (fully withdrawn, myQode lib/accountClosure.ts) stay out of every total and view, but are listed
+  // (greyed, "Closed on …") so a client can still open their history: each owner's `closed`, and `closedOwners` for a
+  // person whose accounts are all closed.
+  const closedOf = o => (o.accounts || []).filter(a => a.isClosed && can(a.id));
+  const closedOwners = (snap.owners || []).filter(o => closedOf(o).length && !(o.accounts || []).some(a => !a.isClosed && can(a.id)))
+    .map(o => ({ id: String(o.id), name: o.name, initials: initials(o.name), closed: closedOf(o) }));
   const owners = (snap.owners || []).map(o => {
     const accounts = (o.accounts || []).filter(a => !a.isClosed && can(a.id));
     return {
@@ -59,7 +65,7 @@ export function buildScopes(snap, codes) {
       role: o.isHeadOfFamily ? 'HEAD OF FAMILY' : 'MEMBER', crown: !!o.isHeadOfFamily,
       // Owner view always uses the owner-level aggregate (like the web's "All Strategies"): it carries the
       // owner's full history, including accounts that have since closed — a single account does not.
-      value: num(o.totalValue) || 0, accounts,
+      value: num(o.totalValue) || 0, accounts, closed: closedOf(o),
       // not authorised for the owner aggregate → fall back to the owner's first strategy account
       ...(can(o.id) ? { kind: 'owner' } : { kind: 'account', id: accounts[0] ? String(accounts[0].id) : String(o.id) }),
       groupId: o.groupId,
@@ -76,7 +82,7 @@ export function buildScopes(snap, codes) {
     : owners.length > 1
       ? { id: 'family', kind: 'local-family', name: 'Entire Family', initials: 'MF', code: owners.length + ' members', value: owners.reduce((s, o) => s + o.value, 0), accounts: owners.flatMap(o => o.accounts), members: owners.map(o => o.id) }
       : null;
-  return { owners, family };
+  return { owners, family, closedOwners };
 }
 
 // Monthly P&L → calendar years, newest year first; months run Jan → Dec inside a year — same as the web P&L table.

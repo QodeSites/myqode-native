@@ -350,13 +350,22 @@ export default class MyQode extends React.Component {
     if (!sc) return null;
     if (typeof S.acct === 'string') {       // 'a:<accountCode>' = one strategy account, like picking it in the web dropdown
       const code = S.acct.slice(2);
-      for (const o of sc.owners) {
-        const a = o.accounts.find(x => String(x.id) === code);
+      for (const o of [...sc.owners, ...(sc.closedOwners || [])]) {
+        const a = (o.accounts || []).find(x => String(x.id) === code) || (o.closed || []).find(x => String(x.id) === code);
         // shown as member + strategy: the member's initials, "<member> · <strategy prefix>"
-        if (a) return { id: String(a.id), kind: 'account', name: o.name, initials: o.initials, tag: a.strategyPrefix || a.strategyName || '', code: a.id + ' · ' + (a.strategyName || a.id), value: num(a.portfolioValue) || 0, accounts: [a] };
+        if (a) return { id: String(a.id), kind: 'account', name: o.name, initials: o.initials, tag: a.strategyPrefix || a.strategyName || '', code: a.id + ' · ' + (a.strategyName || a.id), value: num(a.portfolioValue) || 0, accounts: [a], closed: !!a.isClosed, closedOn: a.closedOn || null };
       }
     }
     return (S.acct === -1 ? sc.family : sc.owners[S.acct]) || sc.owners[0] || null;
+  }
+
+  // A closed account in the Family accounts sheet: greyed, "Closed on 23 Sep 2026", still opens its history.
+  closedSubOf(x) {
+    return {
+      id: String(x.id), name: x.strategyName || x.id, code: x.id, color: C.gray, closed: true,
+      closedText: x.closedOn ? 'Closed on ' + fmtDate(x.closedOn) : 'Closed',
+      value: this.fmt(num(x.portfolioValue) || 0), pick: () => this.pickScope('a:' + x.id), active: this.state.acct === 'a:' + x.id,
+    };
   }
 
   codes() { return isDemo() ? null : (this.state.user && this.state.user.accountCodes) || null; }
@@ -365,7 +374,10 @@ export default class MyQode extends React.Component {
     const snap = await portfolio.snapshot();
     const scopes = buildScopes(snap, this.codes());
     this.fellBack = {};
-    await new Promise(r => this.setState({ snap, scopes, acct: scopes.family ? -1 : 0, d: null, hold: {}, navs: {}, dErr: '' }, r));
+    // Every account closed: open the most recently closed one (its history, with the "closed on" banner).
+    const lastClosed = !scopes.owners.length && (scopes.closedOwners || []).flatMap(o => o.closed)
+      .sort((a, b) => String(b.closedOn || '').localeCompare(String(a.closedOn || '')))[0];
+    await new Promise(r => this.setState({ snap, scopes, acct: lastClosed ? 'a:' + lastClosed.id : scopes.family ? -1 : 0, d: null, hold: {}, navs: {}, dErr: '' }, r));
     await this.loadScope();
   }
 
@@ -1393,8 +1405,14 @@ export default class MyQode extends React.Component {
           id: String(x.id), name: x.strategyName || x.id, code: x.id, color: x.strategyColor || C.gray,
           orbis: !!x.hasOrbis,   // web: "Orbis+Nuvama" badge on accounts with legacy Orbis rows
           value: this.fmt(num(x.portfolioValue) || 0), pick: () => this.pickScope('a:' + x.id), active: S.acct === 'a:' + x.id,
-        })),
-      })),
+        })).concat((a.closed || []).map(x => this.closedSubOf(x))),
+      })).concat(((S.scopes && S.scopes.closedOwners) || []).map(o => ({
+        id: o.id + ':closed', name: o.name, code: o.closed.length + (o.closed.length === 1 ? ' account' : ' accounts'), role: 'CLOSED', crown: false,
+        initials: o.initials, closedOwner: true, value: '', pick: () => this.pickScope('a:' + o.closed[0].id), active: false,
+        subs: o.closed.map(x => this.closedSubOf(x)),
+      }))),
+      // A closed account on screen: one line at the top of the dashboard.
+      closedNote: scope && scope.closed ? `This account was closed${scope.closedOn ? ' on ' + fmtDate(scope.closedOn) : ''} after a full withdrawal. Figures are as of closing.` : '',
       hasFamily: !!family,
       pickFamily: () => this.pickScope(-1),
       famActive: S.acct === -1 && !!family,

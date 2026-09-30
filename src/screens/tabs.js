@@ -72,6 +72,19 @@ function Action({ icon, label, onPress, primary }) {
   );
 }
 
+// A closed account on screen (fully withdrawn): one muted line saying when, so ₹0 / a few rupees never looks like a loss.
+export function ClosedNote({ text, style }) {
+  if (!text) return null;
+  return (
+    <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(55,88,79,0.08)', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 10 }, style]}>
+      <View style={{ borderWidth: 1, borderColor: C.mutedBorder35, borderRadius: 4, paddingVertical: 1, paddingHorizontal: 5 }}>
+        <Tx w={700} s={8} ls={0.06} c={C.muted}>CLOSED</Tx>
+      </View>
+      <Tx s={11.5} c={C.ink} lh={1.4} style={{ flex: 1 }}>{text}</Tx>
+    </View>
+  );
+}
+
 export function HomeSkeleton() {
   return (
     <View style={{ marginTop: -34 }}>
@@ -100,6 +113,7 @@ export function HomeCream({ V }) {
   return (
     <Fade>
       <Card big style={{ marginTop: -34, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 14 }}>
+        <ClosedNote text={V.closedNote} style={{ marginBottom: 12 }} />
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <Tx w={700} s={11} ls={0.12} c={C.muted}>NAV PERFORMANCE</Tx>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 5 }}>
@@ -321,6 +335,7 @@ export function PortfolioCream({ V }) {
           </View>
         ))}
       </Card>
+      <ClosedNote text={V.closedNote} style={{ marginTop: 12 }} />
       <RangeRow ranges={V.ranges} style={{ marginTop: 16 }} />
       {V.hasDd && (
         <Card style={{ marginTop: 16, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 14 }}>
