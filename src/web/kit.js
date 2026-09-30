@@ -404,8 +404,9 @@ export function Table({ cols, rows, onRowPress, empty = 'Nothing to show yet.', 
   );
 }
 
-/** Horizontal bar list (allocation, breakdowns). items: [{ key, label, sub?, value (text), pct (0-100), color }] */
-export function BarList({ items, style }) {
+/** Horizontal bar list (allocation, breakdowns). items: [{ key, label, sub?, value (text), pct (0-100), color }].
+ *  dp: decimals on the percentage (holdings show 2). */
+export function BarList({ items, style, dp = 0 }) {
   return (
     <View style={[{ gap: 14 }, style]}>
       {items.map(it => (
@@ -414,7 +415,7 @@ export function BarList({ items, style }) {
             <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: it.color || C.green }} />
             <Tx w={600} s={13} numberOfLines={1} style={{ flex: 1 }}>{it.label}{it.sub ? <Tx s={12} c={C.ink3}>{'  ' + it.sub}</Tx> : null}</Tx>
             {!!it.value && <Amt s={12.5} c={C.ink2}>{it.value}</Amt>}
-            <Amt w={600} s={13} style={{ width: 48, textAlign: 'right' }}>{Math.round(it.pct)}%</Amt>
+            <Amt w={600} s={13} style={{ width: dp ? 64 : 48, textAlign: 'right' }}>{dp ? (Number(it.pct) || 0).toFixed(dp) : Math.round(it.pct)}%</Amt>
           </View>
           <View style={{ height: 6, borderRadius: 3, backgroundColor: C.track, marginTop: 7, overflow: 'hidden' }}>
             <View style={{ width: Math.max(1.5, Math.min(100, it.pct)) + '%', height: 6, borderRadius: 3, backgroundColor: it.color || C.green }} />

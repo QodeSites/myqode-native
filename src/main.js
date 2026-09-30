@@ -1181,7 +1181,7 @@ export default class MyQode extends React.Component {
     const holdRows = accts.map(a => {
       const hp = S.hold[a.id], v = num(a.portfolioValue) || 0;
       return {
-        id: a.id, name: a.strategyName, tag: a.type || a.id, alloc: Math.round(v / holdTotal * 100), w: v / holdTotal * 100, color: a.strategyColor || C.gray,
+        id: a.id, name: a.strategyName, tag: a.type || a.id, alloc: (holdTotal ? v / holdTotal * 100 : 0).toFixed(2), w: v / holdTotal * 100, color: a.strategyColor || C.gray,
         value: this.fmt(v),
         gain: hp ? pct(hp.returnsPercent) + ' SI' : '',
         ret: hp ? pct(hp.returnsPercent) : '', retColor: c(hp ? hp.returnsPercent : 0), mdd: hp ? ddPct(hp.trailingReturns.portfolio.maxDD) : '', hasM: !!hp,

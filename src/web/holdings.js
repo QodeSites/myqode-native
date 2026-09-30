@@ -146,10 +146,10 @@ export default function DesktopHoldings({ V }) {
               </Panel>
               <View style={{ flex: 1.1, gap: 20, minWidth: 280 }}>
                 <Panel title="Sector allocation" sub="Share of the current value">
-                  {sectorBars.length ? <BarList items={sectorBars} /> : <Tx s={13} c={C.ink3}>No sectors to show.</Tx>}
+                  {sectorBars.length ? <BarList items={sectorBars} dp={2} /> : <Tx s={13} c={C.ink3}>No sectors to show.</Tx>}
                 </Panel>
                 <Panel title="Asset class" sub="Stocks, ETFs, funds, derivatives and cash">
-                  {classBars.length ? <BarList items={classBars} /> : <Tx s={13} c={C.ink3}>No holdings to show.</Tx>}
+                  {classBars.length ? <BarList items={classBars} dp={2} /> : <Tx s={13} c={C.ink3}>No holdings to show.</Tx>}
                 </Panel>
               </View>
             </Row>

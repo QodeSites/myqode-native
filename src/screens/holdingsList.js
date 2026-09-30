@@ -69,7 +69,7 @@ export function HoldingsList({ V }) {
                   <View key={b.label}>
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
                       <Tx s={12} numberOfLines={1} style={{ flex: 1 }}>{b.label}</Tx>
-                      <Amt s={12}>{b.w.toFixed(1)}%</Amt>
+                      <Amt s={12}>{b.w.toFixed(2)}%</Amt>
                     </View>
                     <View style={{ height: 5, borderRadius: 3, backgroundColor: C.hairline, marginTop: 5, overflow: 'hidden' }}>
                       <View style={{ width: Math.max(1.5, Math.min(100, b.w)) + '%', height: 5, borderRadius: 3, backgroundColor: b.color }} />
@@ -95,7 +95,7 @@ export function HoldingsList({ V }) {
                     <Amt s={13}>{inr(i.value, 0)}</Amt>
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
                       {i.gainPct != null && <Amt s={11} c={signCol(i.gainPct)}>{pct(i.gainPct)}</Amt>}
-                      <Amt s={11} c={C.muted}>{i.weight.toFixed(1)}%</Amt>
+                      <Amt s={11} c={C.muted}>{i.weight.toFixed(2)}%</Amt>
                     </View>
                   </View>
                 </View>

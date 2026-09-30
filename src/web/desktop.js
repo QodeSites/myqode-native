@@ -262,7 +262,7 @@ function Allocation({ V, style }) {
     <Panel title="Allocation" sub={n + (n === 1 ? ' account' : ' accounts') + ' across ' + slices.length + (slices.length === 1 ? ' strategy' : ' strategies')} style={[{ flex: 1 }, style]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 22 }}>
         <Donut slices={slices} count={''} label={''} size={128} />
-        <BarList style={{ flex: 1 }} items={slices.map(g => ({ key: g.id, label: String(g.name), sub: g.n > 1 ? g.n + ' accounts' : '', pct: g.w, color: g.color }))} />
+        <BarList style={{ flex: 1 }} dp={2} items={slices.map(g => ({ key: g.id, label: String(g.name), sub: g.n > 1 ? g.n + ' accounts' : '', pct: g.w, color: g.color }))} />
       </View>
       {slices.some(g => g.raw) && (
         <KeyVals style={{ marginTop: 18, borderTopWidth: 1, borderColor: C.line, paddingTop: 4 }}
