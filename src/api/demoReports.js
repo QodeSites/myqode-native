@@ -173,7 +173,6 @@ function demoStatement(accountId, from, to) {
   return {
     accountId: codes.join(','), accounts: codes, from, to, asOf: to, computed: true,
     note: 'Computed by Qode from Nuvama transaction, holdings and expense data.',
-    basis: 'Accrual basis, as in Nuvama: income and charges by booking date, dividends by ex-date, realised gains by sale date. The surplus excludes unrealised gains, which are shown separately. The balance sheet is at cost: portfolio value = total assets + unrealised gain − current liabilities.',
     coverage: { from: PL_START, to: AS_OF }, periods: [], holder: codes.length === 1 ? { name: 'Rohan Mehta', strategy: null } : null,
     pnl: { income, incomeTotal, expenses, expenseTotal, surplus },
     unrealised: { investments, options, net: unrealisedNet },

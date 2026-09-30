@@ -29,7 +29,7 @@ export function RangeRow({ ranges, style }) {
   return (
     // Seven windows (1W to SI) share one row: tighter gaps and a smaller label so they fit a 320pt-wide phone.
     <View style={[{ flexDirection: 'row', gap: 4 }, style]}>
-      {ranges.map(r => <View key={r.label} style={{ flex: 1, minWidth: 0, opacity: r.loading ? 0.55 : 1 }}><Chip label={r.label} active={r.active} onPress={r.pick} flex py={6} s={10.5} /></View>)}
+      {ranges.map(r => <View key={r.label} style={{ flex: 1, minWidth: 0, opacity: r.loading ? 0.55 : 1 }}><Chip label={r.label} active={r.active} disabled={r.disabled} onPress={r.pick} flex py={6} s={10.5} /></View>)}
     </View>
   );
 }

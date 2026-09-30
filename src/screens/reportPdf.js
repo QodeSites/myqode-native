@@ -524,6 +524,6 @@ export function plbsPdf(r, accountId) {
     + `<h3>Profit and loss account · ${dl(r.from)} to ${dl(r.to)}</h3>${pnl}`
     + `<h3>Unrealised gain / loss in the value of investments</h3>${unreal}<p class="note">Shown for information; not part of the surplus.</p>`
     + `<div class="pb"></div><h3>Balance sheet as of ${dl(r.to)} · at cost</h3>${bs}`
-    + recon + (r.basis ? `<p class="note">${esc(r.basis)}</p>` : '');
+    + recon;
   return { html: page(false, head, body, pnlSummary(r, !accountId)), landscape: false };
 }

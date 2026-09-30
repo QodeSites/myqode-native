@@ -208,16 +208,18 @@ export function Btn({ label, onPress, kind = 'primary', icon, disabled, busy, st
   );
 }
 
-/** Segmented control (filters, ranges). options: [[value, label]]; small for a compact one (table header rows). */
+/** Segmented control (filters, ranges). options: [[value, label, disabled?]]; small for a compact one (table header
+ *  rows). A disabled option is greyed out and can't be picked (e.g. a period with no data behind it yet). */
 export function Chips({ value, options, onChange, style, small }) {
   return (
     <View style={[{ flexDirection: 'row', flexWrap: 'wrap', alignSelf: 'flex-start', backgroundColor: 'rgba(55,88,79,0.09)', borderRadius: 9, padding: 3, gap: 2 }, style]}>
-      {options.map(([k, l]) => {
+      {options.map(([k, l, off]) => {
         const on = value === k;
         return (
-          <Pressable key={String(k)} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => onChange(k)} style={({ hovered }) => ({
+          <Pressable key={String(k)} accessibilityRole="button" accessibilityState={{ selected: on, disabled: !!off }} disabled={!!off} onPress={off ? undefined : () => onChange(k)} style={({ hovered }) => ({
             paddingVertical: small ? 4 : 6, paddingHorizontal: small ? 10 : 12, borderRadius: 7, outlineStyle: 'none',
-            backgroundColor: on ? C.green : hovered ? 'rgba(255,255,255,0.6)' : 'transparent',
+            backgroundColor: on ? C.green : hovered && !off ? 'rgba(255,255,255,0.6)' : 'transparent', opacity: off ? 0.35 : 1,
+            cursor: off ? 'not-allowed' : undefined,
           })}>
             <Tx w={600} s={small ? 12 : 12.5} c={on ? C.gold : C.ink2}>{l}</Tx>
           </Pressable>
@@ -228,7 +230,7 @@ export function Chips({ value, options, onChange, style, small }) {
 }
 
 /** Dropdown: a field-like trigger (optional muted label, the current text, a chevron) that opens a floating menu.
- *  options: [{ id, label, note? }] or { section: 'Heading' } rows; value: the selected id; onPick(id) closes the menu
+ *  options: [{ id, label, note?, disabled? }] or { section: 'Heading' } rows (a disabled option is greyed out); value: the selected id; onPick(id) closes the menu
  *  unless the id is in keepOpen (e.g. 'custom', to show extra fields). children: extra content under the options,
  *  or a function (close) => node. Clicking outside or pressing Escape closes it. Give the row it sits in a zIndex
  *  so the menu floats over what follows. */
@@ -263,10 +265,11 @@ export function Dropdown({ label, text, options = [], value, onPick, keepOpen = 
                 {options.map((o, i) => (o.section ? (
                   <Tx key={'s' + i} w={600} s={11.5} c={C.ink3} style={{ paddingHorizontal: 14, paddingTop: i ? 10 : 6, paddingBottom: 4 }}>{o.section}</Tx>
                 ) : (
-                  <Pressable key={String(o.id)} accessibilityRole="menuitem" accessibilityState={{ selected: o.id === value }}
-                    onPress={() => { if (onPick) onPick(o.id); if (!keepOpen.includes(o.id)) close(); }}
+                  <Pressable key={String(o.id)} accessibilityRole="menuitem" accessibilityState={{ selected: o.id === value, disabled: !!o.disabled }} disabled={!!o.disabled}
+                    onPress={o.disabled ? undefined : () => { if (onPick) onPick(o.id); if (!keepOpen.includes(o.id)) close(); }}
                     style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'baseline', gap: 10, paddingVertical: 9, paddingHorizontal: 14, outlineStyle: 'none',
-                      backgroundColor: o.id === value ? C.greenTint : hovered ? C.hover : 'transparent' })}>
+                      opacity: o.disabled ? 0.4 : 1, cursor: o.disabled ? 'not-allowed' : undefined,
+                      backgroundColor: o.id === value ? C.greenTint : hovered && !o.disabled ? C.hover : 'transparent' })}>
                     <Tx w={o.id === value ? 600 : 400} s={13} c={o.id === value ? C.green : C.ink} numberOfLines={1} style={{ flex: 1 }}>{o.label}</Tx>
                     {!!o.note && <Tx s={12} c={C.ink3} numberOfLines={1}>{o.note}</Tx>}
                   </Pressable>

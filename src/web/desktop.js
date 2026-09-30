@@ -244,7 +244,7 @@ function Summary({ V }) {
 function NavPanel({ V, height = 250, style }) {
   return (
     <Panel title="NAV performance" sub={'Growth of your portfolio' + (V.hasBench ? ' against ' + V.benchName : '') + ', rebased to 100'} style={style}
-      right={<Chips value={(V.ranges.find(r => r.active) || {}).label} options={V.ranges.map(r => [r.label, r.label])} onChange={l => { const r = V.ranges.find(x => x.label === l); if (r) r.pick(); }} />}>
+      right={<Chips value={(V.ranges.find(r => r.active) || {}).label} options={V.ranges.map(r => [r.label, r.label, r.disabled])} onChange={l => { const r = V.ranges.find(x => x.label === l); if (r) r.pick(); }} />}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 18, marginBottom: 10 }}>
         <View><Tx s={11.5} w={600} c={C.ink3}>Current NAV</Tx><Amt w={600} s={20}>{V.navNow}</Amt></View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><View style={{ width: 14, height: 2.5, borderRadius: 1, backgroundColor: V.chartColor || C.green }} /><Tx s={12} c={C.ink2}>Your portfolio</Tx></View>

@@ -164,8 +164,10 @@ export function trailingRows(perf) {
   const t = perf && perf.trailingReturns;
   if (!t) return [];
   const P = t.portfolio || {}, B = t.benchmark || {};
+  // Same rule as the period buttons: a window longer than the account's history is not shown.
+  const days = historyDays(perf.inceptionDate, perf.dataAsOf || perf.asOf || null);
   return [['1W', 'w1'], ['10D', 'd10'], ['1M', 'm1'], ['3M', 'm3'], ['6M', 'm6'], ['1Y', 'y1'], ['3Y', 'y3'], ['SI', 'sinceInception']]
-    .filter(([, k]) => P[k] != null)
+    .filter(([p, k]) => P[k] != null && rangeHasData(p, days))
     .map(([p, k]) => ({
       p, pf: pct(P[k]), n: pct(B[k]),
       x: P[k] != null && B[k] != null ? pct(P[k] - B[k]) : '–',
@@ -202,3 +204,22 @@ export function fmtD(v, { utc = false } = {}) {
 }
 // DD Mon, for tight spots (a date range chip)
 export const fmtDM = v => { const s = fmtD(v); return /^\d{2} [A-Z][a-z]{2} \d{4}$/.test(s) ? s.slice(0, 6) : s; };
+
+// ── Period buttons: offer a window only when the account has that much history ──────────────────────────────
+// Day count of each window, less a few days' grace (weekends / holidays at the edges). SI is always available.
+const RANGE_MIN_DAYS = { '1W': 5, '10D': 10, '1M': 27, '3M': 85, '6M': 175, '1Y': 358, '3Y': 1088, '5Y': 1820 };
+/** A date from ISO ("2026-09-25…"), "25-Sep-2026" / "25 Sep 2026", or a Date → ms (UTC midnight), else null. */
+export function dayMs(v) {
+  if (v == null || v === '') return null;
+  if (v instanceof Date) return isNaN(v) ? null : Date.UTC(v.getFullYear(), v.getMonth(), v.getDate());
+  const s = String(v), iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return Date.UTC(+iso[1], +iso[2] - 1, +iso[3]);
+  const dmy = s.match(/^(\d{1,2})[-\s]([A-Za-z]{3,4})[-\s](\d{4})/);
+  if (dmy && MON_IDX[dmy[2].toLowerCase()] != null) return Date.UTC(+dmy[3], MON_IDX[dmy[2].toLowerCase()], +dmy[1]);
+  const t = new Date(s);
+  return isNaN(t) ? null : Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
+}
+/** Days of history between two dates (null when either is unknown). */
+export const historyDays = (from, to) => { const a = dayMs(from), b = dayMs(to == null ? new Date() : to); return a == null || b == null ? null : Math.round((b - a) / 86400000); };
+/** Whether a period button ('1M', '1Y', 'SI', …) has enough history behind it. Unknown history → available. */
+export const rangeHasData = (id, days) => id === 'SI' || id === 'ALL' || days == null || RANGE_MIN_DAYS[id] == null || days >= RANGE_MIN_DAYS[id];

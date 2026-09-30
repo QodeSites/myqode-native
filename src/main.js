@@ -35,7 +35,7 @@ import { irrPeriod, fmtIrr, irrLabel } from './irr';
 import { BASE_URL, auth, portfolio, meta, admin, notifications, payments, backoffice, onAdminDenied, distributor, setViewToken, services, documents, clearUserCaches, ApiError, onUnauthorized, getToken, setToken, clearToken, setDemo, isDemo, TEST_MODE, DEV_BYPASS, APP_VERSION, SHOW_UPDATE_BANNER } from './api';
 import { trackStart, trackStop, screen, track, flush as trackFlush } from './api/track';
 import { perfFrom, navFrom, ddFrom, cashFrom, plFrom, combineFamily } from './webcalc';
-import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, ddPct, inr, sinr, fmtDate, fmtMonth, fmtDayMon, titleCase, semverLt, fmtD, fmtDM } from './adapt';
+import { buildScopes, buildFys, buildFysQ, buildPaths, niceAxis, navSeries, trailingRows, flowTotals, num, pct, ddPct, inr, sinr, fmtDate, fmtMonth, fmtDayMon, titleCase, semverLt, fmtD, fmtDM, historyDays, rangeHasData } from './adapt';
 import Splash from './screens/splash';
 import Carousel from './screens/carousel';
 import { Login, OtpScreen, SetPassword } from './screens/login';
@@ -504,6 +504,20 @@ export default class MyQode extends React.Component {
   }
 
   // `shownRange` = the last range whose data is on screen; vals() keeps drawing it until the new one has loaded.
+  // Days of history behind the portfolio on screen (inception → latest value date); null while unknown.
+  histDays(S = this.state) {
+    const p = S.d && S.d.perf;
+    return p ? historyDays(p.inceptionDate, p.dataAsOf || p.asOf || null) : null;
+  }
+  // A period button is offered only when the account has that much history (a client onboarded last month sees
+  // no 1Y / 3Y). SI is always there.
+  rangeOk(id, S = this.state) { return rangeHasData(id, this.histDays(S)); }
+
+  componentDidUpdate(_, prev) {
+    // A newly loaded portfolio without enough history for the chosen period falls back to Since inception.
+    if (this.state.d && this.state.d !== prev.d && !this.rangeOk(this.state.range)) this.pickRange('SI');
+  }
+
   async pickRange(id) {
     id = normRange(id);
     const period = PERIOD[id], d = this.state.d;
@@ -1297,11 +1311,11 @@ export default class MyQode extends React.Component {
       ddTip: { kind: 'dd', dates: ddDates, pts: ddPts, bench: ddBench, navs: ddDates.map(d => (rawByDate[d] || [])[0]), bvals: ddDates.map(d => (rawByDate[d] || [])[1]), xy: p3.xy, bxy: p3.bxy, benchName },
       ddLine: p3.line, ddArea: p3.area, ddBench: p3.bench, hasDd: ddPts.length > 1, ddNow: ddPts.length ? ddPts[ddPts.length - 1] : 0,
       perfLine: p2.line, perfBench: p2.bench, hasBench: !!bench,
-      ranges: RANGE_IDS.map(id => ({ label: id, pick: () => this.pickRange(id), active: S.range === id, loading: rangeLoading && S.range === id })),
+      ranges: RANGE_IDS.map(id => { const off = !this.rangeOk(id); return { label: id, disabled: off, pick: () => { if (!off) this.pickRange(id); }, active: S.range === id, loading: rangeLoading && S.range === id }; }),
       tx3: cashTx.slice(0, 3).map(tx), txAll: cashTx.map(tx), hasTx: cashTx.length > 0,
       holdings: holdRows, chartColor,
       // IRR (money-weighted) beside TWRR: [{ period, label, value, color }] for SI / 1Y / 3Y when available.
-      irrRows: ['SI', '1Y', '3Y'].map(p => { const x = irrPeriod(S.irr, p); return x && x.irr != null ? { period: p, label: irrLabel(x), value: fmtIrr(x), color: c(x.irr) } : null; }).filter(Boolean),
+      irrRows: ['SI', '1Y', '3Y'].map(p => { const x = irrPeriod(S.irr, p); return x && x.irr != null && this.rangeOk(p) ? { period: p, label: irrLabel(x), value: fmtIrr(x), color: c(x.irr) } : null; }).filter(Boolean),
       // The ring draws exact shares (pct): rounded shares can total 99 and leave a gap. The legend shows `alloc`, rounded.
       holdSlices: holdRows.map(h => ({ id: h.id, pct: h.w, alloc: h.alloc, color: h.color, name: h.name })),
       holdCount: holdRows.length,

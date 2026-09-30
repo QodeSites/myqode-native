@@ -300,6 +300,14 @@ function useCoverage(head) {
 
 // ── period dropdown: presets, and "Custom…" shows From / To inside the menu ──────────────────────────────
 const PERIOD_OPTS = PRESETS.map(([k, l]) => ({ id: k, label: k === 'custom' ? 'Custom…' : l }));
+// A preset needs history behind it: 3M / 12M need the account to be at least that old, Last FY needs some of that
+// year on record. `since` = the first date on record; unknown → every preset is offered.
+const presetOk = (k, since) => {
+  if (!since || !['3m', '12m', 'lfy'].includes(k)) return true;
+  const r = presetRange(k);
+  return k === 'lfy' ? since <= r.to : Date.parse(since) <= Date.parse(r.from) + 5 * 86400000;
+};
+const periodOpts = since => PERIOD_OPTS.map(o => (presetOk(o.id, since) ? o : { ...o, note: 'Not enough history', disabled: true }));
 const presetLabel = k => (PRESETS.find(p => p[0] === k) || [])[1] || '';
 function CustomDates({ R, cov }) {
   const today = isoOf(new Date());
@@ -316,11 +324,12 @@ function CustomDates({ R, cov }) {
 }
 // head: extra options above the presets (capital gains: the financial years). value / onPick / text override the
 // plain preset behaviour; note: a short line under the menu (what the period applies to).
-function PeriodDropdown({ R, cov, head = [], value, onPick, text, note, label = 'Period' }) {
+// cov.from is the account's first date on record, except on capital gains (first sale), which passes history={false}.
+function PeriodDropdown({ R, cov, head = [], value, onPick, text, note, label = 'Period', history = true }) {
   const custom = R.preset === 'custom';
   return (
     <Dropdown label={label} text={text || (custom ? (R.from || R.to ? periodText(R.range) : 'Custom dates') : presetLabel(R.preset))}
-      options={[...head, ...PERIOD_OPTS]} value={value !== undefined ? value : R.preset} onPick={onPick || R.pick} keepOpen={['custom']} menuWidth={360}>
+      options={[...head, ...periodOpts(history && cov ? cov.from : null)]} value={value !== undefined ? value : R.preset} onPick={onPick || R.pick} keepOpen={['custom']} menuWidth={360}>
       {custom || note ? (
         <View style={{ gap: 10 }}>
           {custom && <CustomDates R={R} cov={cov} />}
@@ -461,7 +470,7 @@ function CapitalGains({ accountId, ids, rk, account }) {
 
   // Period: the financial years first, then the sale-date presets (and custom dates).
   const periodDd = (
-    <PeriodDropdown R={RC} cov={cov}
+    <PeriodDropdown R={RC} cov={cov} history={false}
       text={R.preset === 'custom' ? (R.from || R.to ? periodText(R.range) : 'Custom dates') : byFy ? (curFy ? `FY ${curFy}` : 'Financial year') : presetLabel(R.preset)}
       head={years.length ? [{ section: 'Financial year' }, ...years.map(y => ({ id: 'fy:' + y.fy, label: 'FY ' + y.fy })), { section: 'By date of sale' }] : []}
       value={R.preset === 'custom' ? 'custom' : byFy ? 'fy:' + curFy : R.preset}
@@ -985,7 +994,7 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
     status: {
       parts: [asOfPart(d && d.asOf, !L.loading && !L.err), periodText(period), recordsPart(cov),
         all && has && d.accounts ? `${d.accounts.length} accounts summed` : null, has && !d.computed ? 'Nuvama report' : null],
-      computed: has && !!d.computed, note: has && d.computed && d.note ? d.note + (d.basis ? ' ' + d.basis : '') : '',
+      computed: has && !!d.computed, note: has && d.computed && d.note ? d.note : '',
     },
   };
   if (L.loading) return <ReportLayout {...head}><Loading rows={6} /></ReportLayout>;

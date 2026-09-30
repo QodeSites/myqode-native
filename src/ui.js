@@ -111,11 +111,13 @@ export function CTA({ label, onPress, outline, style, ls = 0.08 }) {
   );
 }
 
-export function Chip({ label, active, onPress, flex, py = 8, px = 14, s = 11, round = true }) {
+// disabled: greyed out and not tappable (e.g. a period with no data behind it yet).
+export function Chip({ label, active, onPress, flex, py = 8, px = 14, s = 11, round = true, disabled }) {
   return (
     <Pressable
-      onPress={onPress}
+      onPress={disabled ? undefined : onPress} disabled={!!disabled} accessibilityState={{ selected: !!active, disabled: !!disabled }}
       style={{
+        opacity: disabled ? 0.35 : 1,
         flex: flex ? 1 : undefined, alignItems: 'center', justifyContent: 'center',
         paddingVertical: py, paddingHorizontal: flex ? 0 : px,
         borderRadius: round ? 999 : 8, borderWidth: 1,

@@ -80,6 +80,13 @@ const ALL_PRESETS = ['fy', 'lfy', '3m', '12m', 'all', 'custom'];
 const ALL_TIME = { key: 'all', from: undefined, to: undefined };
 const rangeText = (from, to) => (from && to ? `${dt(from)} to ${dt(to)}` : from ? `From ${dt(from)}` : to ? `Up to ${dt(to)}` : '');
 const rangeQuery = p => ({ from: (p && p.from) || undefined, to: (p && p.to) || undefined });
+// A preset needs history behind it: 3M / 12M need the account to be at least that old, Last FY needs some of that
+// year on record. `since` = the first date on record ("Records from"); unknown → every preset is offered.
+const presetOk = (k, since) => {
+  if (!since || !['3m', '12m', 'lfy'].includes(k)) return true;
+  const r = PRESETS[k][1](new Date()), grace = 5 * 86400000;
+  return k === 'lfy' ? since <= r.to : Date.parse(since) <= Date.parse(r.from) + grace;
+};
 const rangeFile = p => (p && (p.from || p.to) ? ` ${p.from || 'start'} to ${p.to || isoOf(new Date())}` : '');
 // The PDF shows the period the user asked for, even if a (demo) response does not echo it.
 const withRange = (d, p) => ({ ...d, from: d.from || (p && p.from) || null, to: d.to || (p && p.to) || null });
@@ -142,8 +149,8 @@ function OptionList({ options, value, onPick }) {
       {options.map((o, i) => (o.section ? (
         <Tx key={'s' + i} w={700} s={10} ls={0.12} c={C.gray} style={{ marginTop: i ? 16 : 6, marginBottom: 2 }}>{o.section.toUpperCase()}</Tx>
       ) : (
-        <Pressable key={String(o.id)} onPress={() => onPick(o.id)} accessibilityRole="button" accessibilityState={{ selected: o.id === value }}
-          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, borderBottomWidth: 1, borderColor: C.hairline, opacity: pressed ? 0.6 : 1 })}>
+        <Pressable key={String(o.id)} onPress={o.disabled ? undefined : () => onPick(o.id)} disabled={!!o.disabled} accessibilityRole="button" accessibilityState={{ selected: o.id === value, disabled: !!o.disabled }}
+          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, borderBottomWidth: 1, borderColor: C.hairline, opacity: o.disabled ? 0.4 : pressed ? 0.6 : 1 })}>
           <Tx w={o.id === value ? 700 : 400} s={13.5} c={o.id === value ? C.green : C.ink} numberOfLines={2} style={{ flex: 1 }}>{o.label}</Tx>
           {!!o.note && <Tx s={11.5} c={C.muted} numberOfLines={1}>{o.note}</Tx>}
           <View style={{ width: 16, alignItems: 'flex-end' }}>{o.id === value ? <Check s={13} c={C.green} /> : null}</View>
@@ -189,7 +196,7 @@ function RangeBody({ init, onApply, onBack }) {
 // (capital gains: the financial years), picked through onHead; selected overrides which choice is ticked.
 const PRESET_LONG = { fy: 'This FY', lfy: 'Last FY', '3m': 'Last 3 months', '12m': 'Last 12 months', all: 'All time', custom: 'Custom…' };
 const periodChipText = p => (!p ? '' : p.key === 'custom' ? rangeText(p.from, p.to) || 'Custom' : PRESET_LONG[p.key]);
-function PeriodChip({ value, onChange, keys = ALL_PRESETS, head = [], onHead, selected, text, sub, keysTitle }) {
+function PeriodChip({ value, onChange, keys = ALL_PRESETS, head = [], onHead, selected, text, sub, keysTitle, since }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState('list');
   const close = () => { setOpen(false); setMode('list'); };
@@ -199,7 +206,7 @@ function PeriodChip({ value, onChange, keys = ALL_PRESETS, head = [], onHead, se
     close();
     onChange({ key: id, ...PRESETS[id][1](new Date()) });
   };
-  const opts = [...head, ...(keysTitle ? [{ section: keysTitle }] : []), ...keys.map(k => ({ id: k, label: PRESET_LONG[k] }))];
+  const opts = [...head, ...(keysTitle ? [{ section: keysTitle }] : []), ...keys.map(k => presetOk(k, since) ? { id: k, label: PRESET_LONG[k] } : { id: k, label: PRESET_LONG[k], note: 'Not enough history', disabled: true })];
   return (
     <>
       <SelectChip label={text || periodChipText(value) || 'Period'} a11y="Period" onPress={() => setOpen(true)} />
@@ -396,7 +403,7 @@ function Transactions({ accountId, ids, rk, account }) {
 
   return (
     <>
-      <Controls account={account} period={<PeriodChip value={period} onChange={setPeriod} sub="By date of transaction. Applies to the list and the PDF." />}
+      <Controls account={account} period={<PeriodChip value={period} onChange={setPeriod} sub="By date of transaction. Applies to the list and the PDF." since={h && h.coverage && h.coverage.from} />}
         pdf={<PdfButton make={makePdf} name={`Transactions ${all ? 'All accounts' : accountId}${rangeFile(period)}`} disabled={!L.items.length} />} />
       <StatusLine parts={[asOfPart(h && h.asOf), rangeText(period.from, period.to) || 'All time', countPart(L), recordsPart(h && h.coverage)]} />
       {h && h.asOf && (
@@ -537,7 +544,7 @@ function Expenses({ accountId, ids, rk, account }) {
 
   return (
     <>
-      <Controls account={account} period={<PeriodChip value={period} onChange={setPeriod} sub="By date of charge. Applies to the list and the PDF." />}
+      <Controls account={account} period={<PeriodChip value={period} onChange={setPeriod} sub="By date of charge. Applies to the list and the PDF." since={h && h.coverage && h.coverage.from} />}
         pdf={<PdfButton make={makePdf} name={`Expenses ${all ? 'All accounts' : accountId}${rangeFile(period)}`} disabled={!L.items.length} />} />
       <StatusLine parts={[asOfPart(h && h.asOf), rangeText(period.from, period.to) || 'All time', countPart(L),
         h && h.period && (h.period.from || h.period.to) ? `Statement covers ${rangeText(h.period.from, h.period.to)}` : null]} />
@@ -795,7 +802,7 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
   const d = L.data;
   const has = !!(d && d.asOf);
   const pdf = <PdfButton make={has ? async () => plbsPdf(d, all ? null : accountId) : null} name={has ? `PnL and balance sheet ${all ? 'All accounts' : accountId} ${d.from} to ${d.to}` : ''} disabled={!has} />;
-  const controls = <Controls account={account} period={<PeriodChip value={period} onChange={setPeriod} sub="The P&L covers the period; the balance sheet is as of its last day." />} pdf={pdf} />;
+  const controls = <Controls account={account} period={<PeriodChip value={period} onChange={setPeriod} sub="The P&L covers the period; the balance sheet is as of its last day." since={d && d.coverage && d.coverage.from} />} pdf={pdf} />;
   if (L.loading) return <>{controls}<View style={{ marginTop: 16 }}><Loading rows={4} h={90} /></View></>;
   if (L.err) return <>{controls}<View style={{ marginTop: 16 }}><ErrorBox msg={L.err} onRetry={L.reload} /></View></>;
   if (!has) {
@@ -880,7 +887,6 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
           </Card>
         </>
       )}
-      {!!d.basis && <Tx s={10.5} c={C.gray} lh={1.5} style={{ marginTop: 12, marginLeft: 2 }}>{d.basis}</Tx>}
     </>
   );
 }
