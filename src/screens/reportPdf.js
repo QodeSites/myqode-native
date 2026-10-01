@@ -221,25 +221,63 @@ const header = (title, asOf, fields, period) => `
     <div class="rt"><div class="rtitle">${esc(title)}</div><div class="accent"></div>${period ? `<div class="period">${esc(period)}</div>` : ''}${asOf ? `<div class="asof">As of ${esc(dl(asOf))}</div>` : ''}</div></div>
   <div class="strip">${fields.filter(f => f && f[1]).map(([l, v]) => `<div><div class="lbl">${esc(l)}</div><div class="val">${esc(v)}</div></div>`).join('')}</div>`;
 const tiles = list => `<div class="tiles" data-fit="${list.length},${Math.max(1, ...list.map(t => plain(String(t[1])).length))}">${list.map(([l, v, c]) => `<div class="tile"><div class="lbl">${esc(l)}</div><div class="v ${c || ''}">${v}</div></div>`).join('')}</div>`;
-const strategyName = (holder, fallback) => String((holder && holder.strategy) || fallback || '').replace(/^QODE ADVISORS LLP - /, '');
+const strategyName = (holder, fallback) => String((holder && holder.strategy) || fallback || '').replace(/^QODE ADVISORS LLP - /i, '');
 const acctFields = (accountId, holder, fallbackStrategy) => [['Account', accountId], ['Account holder', holder && holder.name], ['Strategy', strategyName(holder, fallbackStrategy)]];
 
 // ── Transaction statement ─────────────────────────────────────────────────────────────────────────────────
+// Nuvama's transaction statement layout in Qode's colours (landscape): one section per asset class (Shares –
+// Listed, Equity ETF, Liquid ETF, Options – Index, Initial Margin, then cash and bank entries), oldest first, with
+// exchange, unit price, brokerage, STT and Nuvama's settlement amount (STT added to a purchase, taken off a sale),
+// then a summary per transaction type: settled during the period, not yet settled, total.
+const CLASS_ORDER = ['Shares - Listed', 'Shares - Equity ETF', 'Shares - Liquid ETF', 'Shares', 'Mutual Fund', 'Bonds', 'Options - Index', 'Options', 'Futures', 'Options - Initial Margin'];
+const classRank = c => {
+  if (!c) return 90;
+  if (/^Cash/i.test(c)) return 80;
+  if (/^Fixed Deposit/i.test(c)) return 85;
+  const i = CLASS_ORDER.indexOf(c); if (i >= 0) return i;
+  const j = CLASS_ORDER.findIndex(x => c.startsWith(x)); return j >= 0 ? j + 0.5 : 70;
+};
+const classLabel = c => (!c ? 'Other' : /^Cash/i.test(c) ? 'Cash and bank' : /^Fixed Deposit/i.test(c) ? 'Fixed deposits' : c.replace(/ - /g, ' – '));
+const settleAmt = t => (t.settlement != null ? t.settlement : t.amount);
+function statementBody(r, withAccount) {
+  const end = r.to || r.asOf || '';
+  const items = r.items.map((t, i) => ({ ...t, _i: i }))
+    .sort((x, y) => classRank(x.assetClass) - classRank(y.assetClass) || String(x.assetClass || '').localeCompare(String(y.assetClass || ''))
+      || String(x.date || '').localeCompare(String(y.date || ''))
+      || (x.type < y.type ? -1 : x.type > y.type ? 1 : 0) || (x.security < y.security ? -1 : x.security > y.security ? 1 : 0) || y._i - x._i);   // same day: by transaction, then security (as Nuvama orders it)
+  const cols = withAccount ? 11 : 10;
+  let last = null;
+  const rows = items.map(t => {
+    const cls = classLabel(t.assetClass), sec = cls !== last ? `<tr class="sec"><td colspan="${cols}">${esc(cls)}</td></tr>` : '';
+    last = cls;
+    const cash = /^Cash|^Fixed/i.test(t.assetClass || '');   // cash and deposit entries: the amount only
+    return sec + `<tr class="z"><td class="wrap">${esc(t.type)}</td>${withAccount ? `<td class="wrap">${esc(t.account)}</td>` : ''}<td>${ds(t.date)}</td><td>${ds(t.settleDate)}</td>
+      <td class="wrap">${esc(t.security || t.notes || '')}</td><td>${esc(t.exchange || '')}</td><td class="r">${!cash && t.qty != null ? nf(t.qty, 3) : ''}</td>
+      <td class="r">${!cash && t.rate != null ? nf(t.rate, 4) : ''}</td><td class="r">${!cash && t.brokerage != null ? (+t.brokerage).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : ''}</td><td class="r">${!cash && t.stt != null ? nf(t.stt) : ''}</td>
+      <td class="r">${nf(settleAmt(t))}</td></tr>`;
+  }).join('');
+  // summary per transaction type, in the order the types first appear
+  const sum = new Map();
+  for (const t of items) {
+    const k = t.type || 'Other', v = settleAmt(t) || 0, settled = !!t.settleDate && (!end || t.settleDate <= end);
+    const s = sum.get(k) || { done: 0, open: 0 }; settled ? (s.done += v) : (s.open += v); sum.set(k, s);
+  }
+  const sumRows = [...sum].map(([k, v]) => `<tr class="z"><td>${esc(k)}</td><td class="r">${nf(v.done)}</td><td class="r">${nf(v.open)}</td><td class="r">${nf(v.done + v.open)}</td></tr>`).join('');
+  const w = withAccount
+    ? ['13%', '8%', '6.5%', '6.5%', '', '4.5%', '8%', '7.5%', '5.5%', '5%', '10%']
+    : ['14%', '6.5%', '6.5%', '', '4.5%', '8.5%', '8%', '6%', '5.5%', '10.5%'];
+  return `${r.items.length ? '' : '<p class="note">No transactions in this period.</p>'}<h3>Transactions · ${r.items.length}${r.hasMore || r.truncated ? ' <span class="note">(latest 5,000)</span>' : ''}</h3>
+    <table class="fixed"><colgroup>${w.map(x => (x ? `<col style="width:${x}">` : '<col>')).join('')}</colgroup>
+    <thead><tr><th>Transaction</th>${withAccount ? '<th>Account</th>' : ''}<th>Trade date</th><th>Settlement date</th><th>Security</th><th>Exch.</th><th class="r">Quantity</th><th class="r">Unit price</th><th class="r">Brokerage</th><th class="r">STT</th><th class="r">Settlement amount (₹)</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    ${sum.size ? `<h3>Transaction statement summary</h3>
+    <table class="fixed" style="width:70%"><colgroup><col><col style="width:22%"><col style="width:22%"><col style="width:22%"></colgroup>
+    <thead><tr><th>Transaction</th><th class="r">Settled during the period (₹)</th><th class="r">Not yet settled (₹)</th><th class="r">Total (₹)</th></tr></thead><tbody>${sumRows}</tbody></table>` : ''}
+    <p class="note">Settlement amount: the amount settled for the trade, including STT on purchases and net of STT on sales. Securities transferred in are dated by the day they reached the account.</p>`;
+}
 export function transactionsPdf(r, accountId, groupLabel) {
   const head = header('Transaction Statement', r.asOf, [...acctFields(accountId, r.holder), ['Showing', groupLabel || 'All']], periodLine(r.from, r.to, 'All records'));
-  const flows = tiles([['Money in', inr(r.moneyIn), 'pos'], ['Money out', inr(r.moneyOut)], ...r.summary.filter(s => s.group !== 'money').slice(0, 2).map(s => [`${s.label} · ${s.count}`, inr(s.amount)])]);
-  let last = '';
-  const rows = r.items.map(t => {
-    const m = (t.date || '').slice(0, 7), sec = m !== last ? `<tr class="sec"><td colspan="7">${m ? `${MON[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}` : ''}</td></tr>` : '';
-    last = m;
-    const amt = (t.direction === 'out' ? -1 : 1) * (t.amount || 0);
-    return sec + `<tr class="z"><td>${ds(t.date)}</td><td>${ds(t.settleDate)}</td><td>${esc(t.type)}</td><td class="wrap">${esc(t.security || t.notes || '')}</td>
-      <td class="r">${qty(t.qty)}</td><td class="r">${t.rate != null ? nf(t.rate) : ''}</td><td class="r ${t.direction === 'in' ? 'pos' : ''}">${nf(amt)}</td></tr>`;
-  }).join('');
-  const body = flows + `${r.items.length ? '' : '<p class="note">No transactions in this period.</p>'}<h3>Transactions${r.hasMore ? ' <span class="note">(latest 5,000)</span>' : ''}</h3>
-    <table class="fixed"><colgroup><col style="width:9%"><col style="width:9%"><col style="width:17%"><col><col style="width:10%"><col style="width:10%"><col style="width:14%"></colgroup>
-    <thead><tr><th>Date</th><th>Settled</th><th>Transaction</th><th>Security / details</th><th class="r">Quantity</th><th class="r">Rate</th><th class="r">Amount (₹)</th></tr></thead><tbody>${rows}</tbody></table>`;
-  return { html: page(false, head, body, transactionsSummary(r, false)), landscape: false };
+  return { html: page(true, head, statementBody(r, false), transactionsSummary(r, false)), landscape: true };
 }
 
 // ── Capital gain / loss (landscape; per category, with the advance-tax quarter summary) ──────────────────
@@ -381,19 +419,7 @@ const capNote = r => (r.truncated ? ' <span class="note">(latest 5,000 per accou
 
 export function transactionsAllPdf(r, groupLabel) {
   const head = header('Transaction Statement', r.asOf, [...allFields(r), ['Showing', groupLabel || 'All']], periodLine(r.from, r.to, 'All records'));
-  const flows = tiles([['Money in', inr(r.moneyIn), 'pos'], ['Money out', inr(r.moneyOut)], ...r.summary.filter(s => s.group !== 'money').slice(0, 2).map(s => [`${s.label} · ${s.count}`, inr(s.amount)])]);
-  let last = '';
-  const rows = r.items.map(t => {
-    const m = (t.date || '').slice(0, 7), sec = m !== last ? `<tr class="sec"><td colspan="8">${m ? `${MON[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}` : ''}</td></tr>` : '';
-    last = m;
-    const amt = (t.direction === 'out' ? -1 : 1) * (t.amount || 0);
-    return sec + `<tr class="z"><td>${ds(t.date)}</td><td>${ds(t.settleDate)}</td><td class="wrap">${esc(t.account)}</td><td>${esc(t.type)}</td><td class="wrap">${esc(t.security || t.notes || '')}</td>
-      <td class="r">${qty(t.qty)}</td><td class="r">${t.rate != null ? nf(t.rate) : ''}</td><td class="r ${t.direction === 'in' ? 'pos' : ''}">${nf(amt)}</td></tr>`;
-  }).join('');
-  const body = failedNote(r) + flows + `${r.items.length ? '' : '<p class="note">No transactions in this period.</p>'}<h3>Transactions · ${r.items.length}${capNote(r)}</h3>
-    <table class="fixed"><colgroup><col style="width:8%"><col style="width:8%"><col style="width:10%"><col style="width:15%"><col><col style="width:9%"><col style="width:9%"><col style="width:13%"></colgroup>
-    <thead><tr><th>Date</th><th>Settled</th><th>Account</th><th>Transaction</th><th>Security / details</th><th class="r">Quantity</th><th class="r">Rate</th><th class="r">Amount (₹)</th></tr></thead><tbody>${rows}</tbody></table>`;
-  return { html: page(false, head, body, transactionsSummary(r, true)), landscape: false };
+  return { html: page(true, head, failedNote(r) + statementBody({ ...r, hasMore: false, truncated: r.truncated }, true), transactionsSummary(r, true)), landscape: true };
 }
 
 export function capitalGainsAllPdf(r) {
