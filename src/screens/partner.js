@@ -395,10 +395,11 @@ export function Fees({ onStatement, onInvoice }) {
             <Tx s={11.5} c={C.muted} style={{ marginTop: 6 }}>of the standard fee for your clients{t.discount > 0 ? ', less the discounts you’ve given' : ''}</Tx>
           </>)}
           {t.shareNet > 0 && <Tx s={11.5} lh={1.5} style={{ marginTop: 6 }}>Plus GST of <Tx w={700} s={11.5}>₹ {inr(t.shareGst)}</Tx>: invoice ₹ {inr(t.share)} in total</Tx>}
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
-            <IconButton label="RAISE INVOICE" icon={<DocIcon s={15} c={C.gold} w={1.8} />} primary onPress={() => onInvoice(period)} style={{ flex: 1.35 }} />
+          {/* Raise invoice gets its own row; three buttons in one row cut their labels off on a phone */}
+          <IconButton label="RAISE INVOICE" icon={<DocIcon s={15} c={C.gold} w={1.8} />} primary onPress={() => onInvoice(period)} style={{ marginTop: 14 }} />
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
             <IconButton label="STATEMENT" onPress={() => onStatement(period)} style={{ flex: 1 }} />
-            <IconButton label={csvBusy ? '…' : 'CSV'} icon={<Download s={15} c={C.green} />} onPress={downloadCsv} style={{ flex: 0.75 }} accessibilityLabel="Download CSV" />
+            <IconButton label={csvBusy ? '…' : 'CSV'} icon={<Download s={15} c={C.green} />} onPress={downloadCsv} style={{ flex: 1 }} accessibilityLabel="Download CSV" />
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 16, borderTopWidth: 1, borderColor: C.hairline, paddingTop: 12 }}>
             {[['CLIENT AUM', inrCompact(t.aum)], ['FIXED FEES', inrCompact(t.fixedFees)], ['PERFORMANCE FEES', inrCompact(t.perfFees)], ['TOTAL FEES BILLED', inrCompact(t.totalFees), `+ ${inrCompact(t.gst)} GST`]].map(([k, v, sub]) => (
@@ -543,7 +544,7 @@ const IconButton = ({ label, icon, primary, onPress, style, accessibilityLabel }
     style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, paddingHorizontal: 8, borderRadius: 8,
       backgroundColor: primary ? C.green : 'transparent', borderWidth: primary ? 0 : 1, borderColor: 'rgba(2,66,43,0.35)', transform: [{ scale: pressed ? 0.98 : 1 }] }, style]}>
     {icon}
-    <Tx w={700} s={12} ls={0.06} c={primary ? C.gold : C.green} numberOfLines={1}>{label}</Tx>
+    <Tx w={700} s={12} ls={0.06} c={primary ? C.gold : C.green} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ flexShrink: 1 }}>{label}</Tx>
   </Pressable>
 );
 

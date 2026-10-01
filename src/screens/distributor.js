@@ -84,6 +84,10 @@ export const INFLOW_RANGES = [
   { key: '6m', label: 'Last 6 months', months: 6 },
   { key: '3m', label: 'Last 3 months', months: 3 },
 ];
+// The range buttons only appear with more than 6 months of history (an investor book started in June has nothing to
+// narrow down), and only list ranges shorter than the history itself.
+export const INFLOW_MIN_MONTHS = 6;
+export const inflowRanges = months => (months > INFLOW_MIN_MONTHS ? INFLOW_RANGES.filter(r => r.months == null || months > r.months) : []);
 const QAW_GREEN = '#008455';
 const day = iso => { if (!iso) return '–'; const t = new Date(iso); return isNaN(t.getTime()) ? '–' : t.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); };
 
@@ -390,9 +394,9 @@ function Overview({ journey, split, onOpen, onDetail, onLinks }) {
         <SectionLabel>MONEY YOU HAVE BROUGHT IN</SectionLabel>
         <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: -4, marginBottom: 10, marginLeft: 2 }}>By the month each investor started investing.</Tx>
         <Card style={{ padding: 16 }}>
-          {monthlyInflow.length > 3 && (
+          {inflowRanges(monthlyInflow.length).length > 0 && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-              {INFLOW_RANGES.filter(r => r.months == null || monthlyInflow.length > r.months).map(r => {
+              {inflowRanges(monthlyInflow.length).map(r => {
                 const on = inflowRange === r.key;
                 return (
                   <Pressable key={r.key} onPress={() => { setInflowRange(r.key); setPickedMonth(null); }} style={{ paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: on ? C.green : C.mutedBorder35, backgroundColor: on ? C.green : 'transparent' }}>
@@ -599,14 +603,14 @@ function InflowBars({ data, picked, onPick, onSee }) {
   return (
     <View>
       {/* tooltip, like the web's on hover */}
-      <View style={{ minHeight: 44, marginBottom: 6 }}>
+      <View style={{ minHeight: pt ? 44 : 0, marginBottom: 8 }}>
         {pt ? (
           <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: C.hairline, borderRadius: 8, backgroundColor: C.card, paddingVertical: 6, paddingHorizontal: 10 }}>
             <Tx w={700} s={11.5}>{pt.label}</Tx>
             <Tx s={11.5} c={C.muted}>Brought in: {inr(pt.amount)} from {pt.investors} {pt.investors === 1 ? 'investor' : 'investors'}</Tx>
             {pt.investors > 0 && <Pressable onPress={() => onSee(pt)} hitSlop={6}><Tx w={700} s={11.5} c={C.green} style={{ marginTop: 2 }}>See these investors ›</Tx></Pressable>}
           </View>
-        ) : <Tx s={11} c={C.gray} style={{ marginTop: 14 }}>Tap a bar to see the month.</Tx>}
+        ) : <Tx s={11} c={C.gray}>Tap a bar to see the month.</Tx>}
       </View>
       <View style={{ flexDirection: 'row' }}>
         {/* y-axis, the web's labels */}

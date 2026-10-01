@@ -20,7 +20,7 @@ import { inr, fmtDate } from '../adapt';
 import * as content from '../content';
 import { GST_STATE_CODES, QODE_ENTITY, qodeAddressLines, isQodeEntityComplete, amountInWords } from '../partnerTax';
 import {
-  S, STATUS_ORDER, ONBOARDING_SEQUENCE, statusFor, fundedDate, STATUS_COLOR, STATUS_TEXT, INFLOW_RANGES, DATE_BASES,
+  S, STATUS_ORDER, ONBOARDING_SEQUENCE, statusFor, fundedDate, STATUS_COLOR, STATUS_TEXT, INFLOW_RANGES, inflowRanges, DATE_BASES,
   bookFigures, filterInvestors, IconDashboard, IconUsers, IconCalculator, IconLineChart, IconShare, IconFile, IconShield, IconLifeBuoy,
 } from '../screens/distributor';
 import {
@@ -442,7 +442,7 @@ function InflowPanel({ data: all, onOpen }) {
   const total = data.reduce((n, x) => n + x.amount, 0);
   return (
     <Panel title="Money you have brought in" sub="By the month each investor started investing" style={{ flex: 2, minWidth: 0 }}
-      right={all.length > 3 ? <Chips value={range} options={INFLOW_RANGES.filter(r => r.months == null || all.length > r.months).map(r => [r.key, r.label])} onChange={k => { setRange(k); setHover(null); }} /> : null}>
+      right={inflowRanges(all.length).length ? <Chips value={range} options={inflowRanges(all.length).map(r => [r.key, r.label])} onChange={k => { setRange(k); setHover(null); }} /> : null}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 22, marginBottom: 10 }}>
         {pt ? (<>
           <Tx w={600} s={13}>{noSept(pt.label)}</Tx>
