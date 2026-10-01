@@ -20,6 +20,7 @@ import { transactionsSummary, capitalGainsSummary, expensesSummary, factsheetSum
 import { track } from '../api/track';
 
 import { userMessage } from '../errors';
+import { latestDate, monthEnds, earliestDate, asOfHint } from '../reportDates';
 // ── formatting (the app-wide formatters; only quantity and period headers are local, as on the phone) ────────
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const monthLabel = d => `${MON[+d.slice(5, 7) - 1]} ${d.slice(0, 4)}`;
@@ -622,17 +623,17 @@ const Legend = ({ color, label }) => (
   </View>
 );
 
-// "As of" dropdown for the fact sheet: recent Nuvama snapshot dates, or "Custom date…" for any date in the
-// account's coverage (the backend computes a fact sheet for dates without a snapshot). '' means the latest.
+// "As of" dropdown for the fact sheet: Latest, month-ends back to the account's start, or any date
+// (src/reportDates.js). The server answers any date — Nuvama's own fact sheet where imported, otherwise computed.
+// '' means the latest.
 function AsOfDropdown({ dates, date, shown, coverage, onPick }) {
   const [custom, setCustom] = useState(false);
   const [draft, setDraft] = useState('');
   const [err, setErr] = useState('');
-  const recent = dates.slice(0, 8);
-  const cur = date || shown || dates[0] || '';
+  const latest = latestDate(dates, coverage), lo = earliestDate(dates, coverage);
+  const ends = monthEnds(lo, latest);
   const today = isoOf(new Date());
-  const lo = (coverage && coverage.from) || (dates.length ? dates[dates.length - 1] : undefined);
-  const hi = coverage && coverage.to && coverage.to < today ? coverage.to : today;
+  const hi = latest && latest < today ? latest : today;
   const edit = v => {
     const t = (v || '').trim();
     setDraft(t);
@@ -640,25 +641,25 @@ function AsOfDropdown({ dates, date, shown, coverage, onPick }) {
     if (!ISO_RE.test(t)) { setErr('Enter the date as YYYY-MM-DD.'); return; }
     if (lo && t < lo) { setErr(`Choose a date on or after ${fmtDate(lo)}.`); return; }
     if (t > hi) { setErr(`Choose a date on or before ${fmtDate(hi)}.`); return; }
-    setErr(''); onPick(t);
+    setErr(''); onPick(t === latest ? '' : t);
   };
-  const isCustom = custom || (!!cur && !recent.includes(cur));
-  const covText = coverageText(coverage);
+  const isCustom = custom || (!!date && !ends.includes(date));
   const pick = id => {
-    if (id === 'custom') { setCustom(true); if (!draft) setDraft(cur); return; }
+    if (id === 'custom') { setCustom(true); if (!draft) setDraft(date || latest || ''); return; }
     setCustom(false); setDraft(''); setErr('');
-    onPick(id === dates[0] ? '' : id);
+    onPick(id === 'latest' ? '' : id);
   };
+  const text = date ? fmtDate(date) : latest ? fmtDate(latest) + ' (latest)' : 'Latest';
   return (
-    <Dropdown label="As of" text={cur ? fmtDate(cur) + (cur === dates[0] ? ' (latest)' : '') : 'Latest'} value={isCustom ? 'custom' : cur}
-      options={[...(recent.length ? [{ section: 'Nuvama snapshots' }] : []), ...recent.map((x, i) => ({ id: x, label: fmtDate(x), note: i === 0 ? 'Latest' : null })), { id: 'custom', label: 'Custom date…' }]}
+    <Dropdown label="As of" text={text} value={isCustom ? 'custom' : date || 'latest'}
+      options={[{ id: 'latest', label: 'Latest', note: latest ? fmtDate(latest) : null },
+        ...(ends.length ? [{ section: 'Month-end' }, ...ends.map(x => ({ id: x, label: fmtDate(x) }))] : []),
+        { id: 'custom', label: 'Pick a date…' }]}
       onPick={pick} keepOpen={['custom']} menuWidth={340}>
       <View style={{ gap: 8 }}>
         {isCustom && <DateField label="Date" value={draft} onChangeText={edit} min={lo} max={hi} error={!!err} />}
         {!!err && <Tx s={12} c={C.red} lh={1.45}>{err}</Tx>}
-        <Tx s={11.5} c={C.ink3} lh={1.45}>{covText
-          ? `Any date from ${fmtDate(coverage.from)} to ${fmtDate(coverage.to)}. Dates other than a Nuvama snapshot are computed from your transaction and holdings data.`
-          : 'Dates other than a Nuvama snapshot are computed from your transaction and holdings data.'}</Tx>
+        <Tx s={11.5} c={C.ink3} lh={1.45}>{asOfHint(lo, latest, fmtDate)}</Tx>
       </View>
     </Dropdown>
   );

@@ -21,6 +21,7 @@ import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransacti
 import { track } from '../api/track';
 
 import { userMessage } from '../errors';
+import { latestDate, monthEnds, earliestDate, asOfHint } from '../reportDates';
 // ── formatting ────────────────────────────────────────────────────────────────────────────────────────────
 // Money, percentages and dates use the app-wide formatters (src/adapt.js) so Reports matches every other screen.
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -591,11 +592,8 @@ function Expenses({ accountId, ids, rk, account }) {
 }
 
 // ── Fact sheet ────────────────────────────────────────────────────────────────────────────────────────────
-// "As of" chip: the newest Nuvama snapshots plus any other date in the account's coverage (the API computes a
-// fact sheet for a date without a snapshot, computed: true). dates come from the last response, newest first.
-const covHint = cov => (cov && cov.from && cov.to
-  ? `Pick any date from ${dt(cov.from)} to ${dt(cov.to)}. Dates other than a Nuvama snapshot are computed from your transaction and holdings data.`
-  : 'Dates other than a Nuvama snapshot are computed from your transaction and holdings data.');
+// "As of" chip: Latest, month-ends back to the account's start, or any date (src/reportDates.js). The server answers
+// any date — Nuvama's own fact sheet where one was imported, otherwise computed (computed: true).
 function AsOfBody({ init, min, max, hint, onApply, onBack }) {
   const [v, setV] = useState(() => init || isoOf(new Date()));
   const [open, setOpen] = useState(Platform.OS === 'ios');
@@ -611,31 +609,35 @@ function AsOfBody({ init, min, max, hint, onApply, onBack }) {
 function AsOfChip({ dates, date, coverage, onPick }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState('list');
-  const hasCov = !!(coverage && coverage.from && coverage.to);
-  const top = dates.slice(0, 5);
-  const current = date || dates[0];
+  const latest = latestDate(dates, coverage), first = earliestDate(dates, coverage);
+  const ends = monthEnds(first, latest);
   const today = new Date();
-  const hi = hasCov && dateOf(coverage.to) < today ? dateOf(coverage.to) : today;
-  const other = !!current && !top.includes(current);
+  const hi = latest && dateOf(latest) < today ? dateOf(latest) : today;
+  const hint = asOfHint(first, latest, dt);
   const close = () => { setOpen(false); setMode('list'); };
   const pick = id => {
     if (id === 'other') { setMode('date'); return; }
     close();
-    onPick(id === dates[0] ? null : id);
+    onPick(id === 'latest' ? null : id);
   };
-  const label = current ? `As of ${dt(current)}${!date ? ' (latest)' : ''}` : 'As of latest';
+  const value = !date ? 'latest' : ends.includes(date) ? date : 'other';
+  const label = date ? `As of ${dt(date)}` : latest ? `As of ${dt(latest)} (latest)` : 'As of latest';
+  const options = [
+    { id: 'latest', label: 'Latest', note: latest ? dt(latest) : null },
+    ...(ends.length ? [{ section: 'Month-end' }, ...ends.map(x => ({ id: x, label: dt(x) }))] : []),
+    { id: 'other', label: value === 'other' ? `Other date (${dt(date)})` : 'Pick a date…' },
+  ];
   return (
     <>
-      <SelectChip label={label} a11y="Fact sheet date" onPress={() => { if (dates.length || hasCov) setOpen(true); }} />
+      <SelectChip label={label} a11y="Fact sheet date" onPress={() => { if (latest) setOpen(true); }} />
       <Sheet visible={open} onClose={close}>
         <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
           {mode === 'date'
-            ? <AsOfBody init={date} min={dateOf(hasCov ? coverage.from : dates[dates.length - 1])} max={hi} hint={covHint(coverage)} onBack={() => setMode('list')}
-                onApply={x => { close(); onPick(dates.length && x === dates[0] ? null : x); }} />
+            ? <AsOfBody init={date} min={dateOf(first)} max={hi} hint={hint} onBack={() => setMode('list')}
+                onApply={x => { close(); onPick(x === latest ? null : x); }} />
             : <>
-                <SheetTitle title="Fact sheet as of" sub={covHint(coverage)} />
-                <OptionList options={[...top.map((x, i) => ({ id: x, label: dt(x), note: i === 0 ? 'Latest' : null })), { id: 'other', label: other ? `Other date (${dt(current)})` : 'Other date…' }]}
-                  value={other ? 'other' : current} onPick={pick} />
+                <SheetTitle title="Fact sheet as of" sub={hint} />
+                <OptionList options={options} value={value} onPick={pick} />
               </>}
         </View>
       </Sheet>
