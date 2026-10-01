@@ -10,7 +10,7 @@ import { C, Tx, Amt, Card, CTA, Chip, Field, Sheet, GoldThreads, CurveCap, Keybo
 import { Refresh, Search } from '../icons';
 import { backoffice } from '../api';
 import { useLoad, SectionLabel, Loading, ErrorBox, Empty, SignOutButton } from './kit';
-import { DeviceCard } from './notifications';
+import { DeviceCard, PushOfferCard } from './notifications';
 
 // ── Shared helpers (also used by src/web/admin.js) ───────────────────────────────────────────────────────────
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -728,7 +728,7 @@ export function AdminConsole({ V }) {
             : tab === 'distributors' ? <UserList key="dist" V={V} fixedType="distributor" endRef={endRef} tick={tick} />
             : tab === 'audit' ? <AuditList V={V} tick={tick} />
             : tab === 'notifications' ? <NotifList tick={tick} />
-            : <Overview tick={tick} />}
+            : <>{/* notifications off on this phone: one tap to Settings, so Zoho alerts reach it */}<PushOfferCard V={V} /><View style={{ height: V.pushOffer ? 12 : 0 }} /><Overview tick={tick} /></>}
           <SignOutButton onPress={V.doLogout} style={{ marginTop: 30 }} />
         </View>
       </KeyboardScroll>

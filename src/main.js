@@ -240,6 +240,8 @@ export default class MyQode extends React.Component {
       // Not while a full-screen page is open (e.g. Reports): coming back from the share sheet must not reset its lists.
       if (st === 'active' && this.state.phase === 'app' && !this.state.page && Date.now() - (this.lastLoad || 0) > 60000) this.refresh();
       if (st === 'active' && this.state.phase === 'app') { this.loadNotifs(); this.pushSync(); }
+      // Back from Settings with notifications turned on: register this phone at once (admin mode too).
+      if (st === 'active' && this.state.phase === 'admin') { this.setState({ pushOffer: false }); this.pushSync(); }
       // A release can land while the app sits in the background: look again when it comes back, at most every 30 min.
       if (st === 'active' && Date.now() - (this.lastVersionCheck || 0) > 30 * 60 * 1000) this.checkVersion();
       if (this.store) { if (st === 'active') this.store.onForeground(); else if (st === 'background') this.store.onBackground(); }
@@ -1036,7 +1038,7 @@ export default class MyQode extends React.Component {
       await push.reportStart(this.state.phase + (this.ownSession() ? '' : ' (viewing)'));
       if (await push.shouldAskNow()) { await new Promise(r => setTimeout(r, 1200)); const p = await push.ask(); track('event', 'notification_permission', { result: p, via: 'prompt' }); }
       if (this.ownSession()) await push.register();
-      if (this.state.phase === 'app' && !this.state.pushOffer && (await push.shouldOffer())) this.setState({ pushOffer: true });
+      if ((this.state.phase === 'app' || this.state.phase === 'admin') && !this.state.pushOffer) { const k = await push.shouldOffer(); if (k) this.setState({ pushOffer: k }); }
     } finally { this.pushBusy = false; }
   };
   // Payments received but not in the portfolio yet (Home's "On its way" card).
@@ -1365,8 +1367,8 @@ export default class MyQode extends React.Component {
       notesMarkAll: () => this.markNotes([], true), notesCanMark: this.ownSession(),
       openNotifSettings: () => { set({ sheet: null }); screen('page:notifications'); set({ page: 'notifications' }); },
       inFlight: S.viewing ? [] : (S.inFlight || []), reloadInFlight: () => this.loadInFlight(),
-      pushOffer: !!S.pushOffer && !S.viewing,
-      pushOfferYes: async () => { set({ pushOffer: false }); const p = await push.ask(); track('event', 'notification_permission', { result: p, via: 'card' }); if (p === 'granted') this.pushSync(); },
+      pushOffer: !!S.pushOffer && !S.viewing, pushOfferSettings: S.pushOffer === 'settings', adminMode: S.phase === 'admin',
+      pushOfferYes: async () => { if (S.pushOffer === 'settings') { set({ pushOffer: false }); track('event', 'notification_permission', { result: 'settings', via: 'card' }); push.openSettings(); return; } set({ pushOffer: false }); const p = await push.ask(); track('event', 'notification_permission', { result: p, via: 'card' }); if (p === 'granted') this.pushSync(); },
       pushOfferNo: () => { set({ pushOffer: false }); push.snooze(); },
       svcPending: false, svcNone: true, svcPendingSub: '',
       tab: S.tab, scopeKey: S.acct,
