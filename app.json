@@ -54,6 +54,7 @@
         }
       ],
       "package": "com.qodeinvest.myqode",
+      "versionCode": 44,
       "googleServicesFile": "./google-services.json"
     },
     "web": {
@@ -85,6 +86,7 @@
       ],
       "expo-sharing",
       "./plugins/withSceneLifecycle",
+      "./plugins/withReleaseSigning",
       [
         "expo-notifications",
         {
