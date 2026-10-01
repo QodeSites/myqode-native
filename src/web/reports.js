@@ -693,6 +693,8 @@ function PerfPanel({ d }) {
   );
 }
 // limit: show only the top holdings (all-accounts page); the single-account page lists every holding.
+// Holdings can lag the fact sheet date (the holdings feed is a day behind the values): say which day they are from.
+const lagNote = d => (d.holdingsDate && d.asOf && d.holdingsDate < d.asOf ? `, as of ${fmtDate(d.holdingsDate)}` : '');
 function HoldingsPanel({ d, limit }) {
   const holdings = d.holdings || [];
   if (!holdings.length) return null;
@@ -712,7 +714,7 @@ function HoldingsPanel({ d, limit }) {
       </View>
     ) },
   ];
-  const sub = `${holdings.length} ${holdings.length === 1 ? 'security' : 'securities'}${shown.length < holdings.length ? `, top ${shown.length} shown` : ''}`;
+  const sub = `${holdings.length} ${holdings.length === 1 ? 'security' : 'securities'}${shown.length < holdings.length ? `, top ${shown.length} shown` : ''}${lagNote(d)}`;
   return (
     <Panel title={limit ? 'Top holdings' : 'Portfolio holdings'} sub={sub} pad={0}
       right={<Tx s={12.5} c={C.ink2}>Total <Amt s={12.5} w={600}>{inr(total)}</Amt></Tx>}>
@@ -723,7 +725,7 @@ function HoldingsPanel({ d, limit }) {
 function SectorsPanel({ d }) {
   const sectors = (d.sectors || []).slice().sort((x, y) => (y.pct || 0) - (x.pct || 0));
   return (
-    <Panel title="Sector allocation" sub={sectors.length ? `${sectors.length} ${sectors.length === 1 ? 'sector' : 'sectors'}, share of assets` : null}>
+    <Panel title="Sector allocation" sub={sectors.length ? `${sectors.length} ${sectors.length === 1 ? 'sector' : 'sectors'}, share of assets${lagNote(d)}` : null}>
       {sectors.length === 0 && <Tx s={13} c={C.ink2}>No sector split in this fact sheet.</Tx>}
       <View style={{ gap: 14 }}>
         {sectors.map((x, k) => (

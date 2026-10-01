@@ -649,6 +649,8 @@ function SheetSections({ d }) {
   const [showAll, setShowAll] = useState(false);
   const r = d.returns || {}, periods = r.periods || [];
   const holdings = d.holdings || [], shown = showAll ? holdings : holdings.slice(0, 10);
+  // Holdings can lag the fact sheet date (the holdings feed is a day behind the values): say which day they are from.
+  const hAsOf = d.holdingsDate && d.asOf && d.holdingsDate < d.asOf ? ` · AS OF ${dt(d.holdingsDate).toUpperCase()}` : '';
   const sectors = d.sectors || [];
   return (
     <>
@@ -674,7 +676,7 @@ function SheetSections({ d }) {
       )}
       {sectors.length > 0 && (
         <>
-          <SectionLabel>SECTOR ALLOCATION</SectionLabel>
+          <SectionLabel>SECTOR ALLOCATION{hAsOf}</SectionLabel>
           <Card style={{ padding: 14, gap: 12 }}>
             {sectors.slice().sort((a, b) => (b.pct || 0) - (a.pct || 0)).map((s, k) => (
               <View key={s.sector + ':' + k}>
@@ -692,7 +694,7 @@ function SheetSections({ d }) {
       )}
       {holdings.length > 0 && (
         <>
-          <SectionLabel>PORTFOLIO HOLDINGS · {holdings.length}</SectionLabel>
+          <SectionLabel>PORTFOLIO HOLDINGS · {holdings.length}{hAsOf}</SectionLabel>
           <Card style={{ overflow: 'hidden' }}>
             {shown.map((x, i) => (
               <Row key={i} last={i === shown.length - 1}>
