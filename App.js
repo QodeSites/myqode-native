@@ -6,6 +6,7 @@ import { PlayfairDisplay_500Medium, PlayfairDisplay_600SemiBold, PlayfairDisplay
 import { Lato_400Regular, Lato_700Bold, Lato_900Black } from '@expo-google-fonts/lato';
 import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import MyQode from './src/main';
+import CrashGuard from './src/crashGuard';
 
 // Web: a deploy replaces the hashed bundle, but an open tab keeps running the old one. When the tab comes back into
 // view, compare the page's bundle with the server's and reload onto the new build.
@@ -39,7 +40,7 @@ export default function App() {
   if (!loaded) return <View style={{ flex: 1, backgroundColor: '#001008' }} />;
   const app = (
     <SafeAreaProvider>
-      <MyQode desktop={desktop} />
+      <CrashGuard><MyQode desktop={desktop} /></CrashGuard>
     </SafeAreaProvider>
   );
   if (Platform.OS !== 'web') return app;

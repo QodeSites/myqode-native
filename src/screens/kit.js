@@ -5,6 +5,7 @@ import { C, Tx, Card, Skel, CTA } from '../ui';
 import { ChevronRight, ChevronDown } from '../icons';
 import { isDemo } from '../api';
 
+import { userMessage } from '../errors';
 export function useLoad(fn, deps = []) {
   const [st, set] = useState({ loading: true, data: null, err: '' });
   const [tick, setTick] = useState(0);
@@ -14,7 +15,7 @@ export function useLoad(fn, deps = []) {
     set(s => ({ ...s, loading: true, err: '' }));
     Promise.resolve().then(run)
       .then(d => { if (!dead) set({ loading: false, data: d, err: '' }); })
-      .catch(e => { if (!dead) set({ loading: false, data: null, err: (e && e.message) || 'Something went wrong.' }); });
+      .catch(e => { if (!dead) set({ loading: false, data: null, err: userMessage(e, 'Something went wrong.') }); });
     return () => { dead = true; };
   }, [run, tick]);
   return { ...st, reload: () => setTick(t => t + 1) };
@@ -42,7 +43,7 @@ export function ErrorBox({ msg, onRetry }) {
   return (
     <Card style={{ padding: 18, alignItems: 'center' }}>
       <Tx w={700} s={13} center>We couldn’t load this</Tx>
-      <Tx s={12} c={C.muted} center lh={1.5} style={{ marginTop: 6 }}>{/server error|\(5\d\d\)/i.test(msg || '') ? 'This is unavailable right now. Please try again later.' : msg}</Tx>
+      <Tx s={12} c={C.muted} center lh={1.5} style={{ marginTop: 6 }}>{userMessage(msg)}</Tx>
       {onRetry && <CTA label="TRY AGAIN" onPress={onRetry} style={{ marginTop: 14, alignSelf: 'stretch' }} />}
     </Card>
   );

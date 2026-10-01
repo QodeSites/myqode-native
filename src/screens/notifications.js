@@ -8,6 +8,7 @@ import { notifications } from '../api';
 import { useLoad, Loading, ErrorBox, SectionLabel } from './kit';
 import * as push from '../push';
 
+import { userMessage } from '../errors';
 const KINDS = [
   ['money', 'Money in and out', 'Payments received, investments and withdrawals recorded, SIP instalments. Always on.'],
   ['portfolio', 'Portfolio updates', 'Your monthly update, new highs, milestones and account anniversaries.'],
@@ -54,7 +55,7 @@ export function NotificationSettings() {
     const prev = p, next = { ...p, [k]: !p[k] };
     setP(next); setErr('');
     try { setP(await notifications.savePrefs({ [k]: next[k] })); }
-    catch (e) { setP(prev); setErr(e.message || 'We couldn’t save that. Please try again.'); }
+    catch (e) { setP(prev); setErr(userMessage(e, 'We couldn’t save that. Please try again.')); }
   };
   return (
     <>

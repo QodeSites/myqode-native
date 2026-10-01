@@ -12,6 +12,7 @@ import { useLoad } from '../screens/kit';
 import { accountRequest } from '../screens/services';
 import { ContactIRLink } from './contact';
 
+import { userMessage } from '../errors';
 // Same list as the phone (ITEMS in src/screens/services.js, which is not exported): withdrawals are deliberately
 // not offered in the app, and Add funds is the call to action above the list.
 const ITEMS = [
@@ -142,7 +143,7 @@ function Investments({ V, opts, accountId, onPickAccount, inv, all }) {
       const r = action === 'cancel' ? await services.cancelSip(it.orderId, accountId) : await services.pauseResumeSip(it.orderId, accountId, action);
       setAct({ busy: '', msg: (r && r.message) || 'Done.', err: '' });
       inv.reload();
-    } catch (e) { setAct({ busy: '', msg: '', err: e.message }); }
+    } catch (e) { setAct({ busy: '', msg: '', err: userMessage(e) }); }
   };
   // SIP_AUTHORISED = mandate registered, first instalment ahead (cancel only); SIP_ACTIVE = charged at least once
   // (Razorpay can pause only then).

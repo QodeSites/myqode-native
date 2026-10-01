@@ -1,15 +1,18 @@
 import { getToken, hasViewToken } from './session';
 import { APP_VERSION } from './config';
 import { deviceString } from './device';
+import { MSG, isFriendly, statusMessage } from '../errors';
 
 // Point at a local myQode dev server (e.g. http://192.168.x.x:2069) with EXPO_PUBLIC_API_BASE_URL.
 // The web build (served at /app by the myQode server itself) uses "/": same origin, so requests are relative.
 export const BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || 'https://myqode.qodeinvest.com').replace(/\/$/, '');
 
+// message is always fit to show a user (see src/errors.js): our server's own wording, or a plain message for the
+// status. The server's raw text, if any, stays in .data for logs and checks.
 export class ApiError extends Error {
   constructor(message, { status = 0, code, data } = {}) {
     super(message);
-    this.status = status; this.code = code; this.data = data;
+    this.status = status; this.code = code; this.data = data; this.friendly = true;
   }
 }
 
@@ -44,7 +47,10 @@ export async function api(path, { method = 'GET', query, body, auth = true, time
   try {
     res = await fetch(url, { cache: 'no-store', method, headers, body: body ? JSON.stringify(body) : undefined, signal: ctl.signal });
   } catch {
-    throw new ApiError('Unable to reach Qode. Check your connection and try again.');
+    // No answer: our own timeout (the request was cut after `timeout` ms) or no network at all.
+    const timedOut = ctl.signal.aborted;
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    throw new ApiError(timedOut && !offline ? MSG.slow : MSG.offline, { code: timedOut && !offline ? 'TIMEOUT' : 'OFFLINE' });
   } finally {
     clearTimeout(timer);
   }
@@ -54,7 +60,10 @@ export async function api(path, { method = 'GET', query, body, auth = true, time
     // Only a 401 for the token still in use counts: a late reply for an expired view/impersonation token must not
     // sign out the session that replaced it.
     if (res.status === 401 && auth && token && !tokenOverride && unauthorizedHandler && token === await getToken()) unauthorizedHandler();
-    throw new ApiError((data && data.error) || `Something went wrong (${res.status}).`, { status: res.status, code: data && data.code, data });
+    // Our routes answer with sentences written for clients ("No account found for this email or ID…"); anything else
+    // (an HTML error page from a proxy, "Internal server error", a field name) becomes a plain message for the status.
+    const said = data && data.error;
+    throw new ApiError(isFriendly(said) ? said : statusMessage(res.status), { status: res.status, code: data && data.code, data });
   }
   return data;
 }

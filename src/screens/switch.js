@@ -22,6 +22,7 @@ import { services } from '../api';
 import { useLoad, Loading, ErrorBox } from './kit';
 import { track } from '../api/track';
 
+import { userMessage } from '../errors';
 const STRATS = ['QAW', 'QTF', 'QGF'];
 const NAMES = { QAW: 'Qode All Weather', QTF: 'Qode Tactical Fund', QGF: 'Qode Growth Fund' };
 const PCTS = [25, 50, 75];   // Partial — 100% is Full
@@ -174,7 +175,7 @@ export function SwitchForm({ onClose, preferName }) {
       const r = await services.submitSwitchRequest({ investorId: inv.id, ...body });
       track('event', 'switch_request_submitted', { type: body.switchType });
       setSt({ busy: false, err: '', done: r });
-    } catch (x) { setSt({ busy: false, err: x.message, done: null }); }
+    } catch (x) { setSt({ busy: false, err: userMessage(x), done: null }); }
   };
 
   if (info.loading) return <View style={{ marginTop: 16 }}><Loading rows={2} h={60} /></View>;

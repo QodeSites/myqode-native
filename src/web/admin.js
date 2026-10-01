@@ -6,6 +6,7 @@ import { C, Tx, Amt, Card, Grid, Row, PageIntro, Panel, Stat, Btn, Chips, Tabs, 
 import { Refresh } from '../icons';
 import { backoffice } from '../api';
 import { useLoad } from '../screens/kit';
+import { userMessage } from '../errors';
 import {
   fmtWhen, fmtDay, fmtAgo, fmtN, pwProblem, isEmail, userBadges, detailsText, useUserList, useUserActions, DailyBars,
   TYPE_OPTS, STATUS_OPTS, ADMIN_TABS, useNotifAdmin, NOTE_SAMPLES, NOTE_LINKS, AUDIENCES, campaignStats, audienceText,
@@ -94,7 +95,7 @@ function NewDistributorDialog({ V, visible, onClose, onDone }) {
       await backoffice.createDistributor({ name, email, password: f.pw, ...(fee !== undefined ? { feePercentage: fee } : {}) });
       V.toast('Distributor created');
       onDone();
-    } catch (e) { setErr(e.status === 409 ? 'A user with this email already exists.' : e.message); }
+    } catch (e) { setErr(e.status === 409 ? 'A user with this email already exists.' : userMessage(e)); }
     finally { setBusy(false); }
   };
   return (

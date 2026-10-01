@@ -20,6 +20,7 @@ import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactio
 import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE } from '../combine';
 import { track } from '../api/track';
 
+import { userMessage } from '../errors';
 // ── formatting ────────────────────────────────────────────────────────────────────────────────────────────
 // Money, percentages and dates use the app-wide formatters (src/adapt.js) so Reports matches every other screen.
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -43,7 +44,7 @@ function usePaged(fetchPage, deps) {
     set({ head: null, items: [], loading: true, more: false, err: '', busy: false });
     fetchPage(0).then(
       d => { if (g === gen.current) set({ head: d, items: d.items || [], loading: false, more: !!d.hasMore, err: '', busy: false }); },
-      e => { if (g === gen.current) set(s => ({ ...s, loading: false, err: (e && e.message) || 'Something went wrong.' })); });
+      e => { if (g === gen.current) set(s => ({ ...s, loading: false, err: userMessage(e, 'Something went wrong.') })); });
   }, [...deps, tick]);
   const loadMore = () => {
     if (st.busy || !st.more) return;
@@ -51,7 +52,7 @@ function usePaged(fetchPage, deps) {
     set(s => ({ ...s, busy: true }));
     fetchPage(st.items.length).then(
       d => { if (g === gen.current) set(s => ({ ...s, items: s.items.concat(d.items || []), more: !!d.hasMore, busy: false })); },
-      e => { if (g !== gen.current) return; set(s => ({ ...s, busy: false })); Alert.alert('Couldn’t load more', (e && e.message) || 'Please try again.'); });
+      e => { if (g !== gen.current) return; set(s => ({ ...s, busy: false })); Alert.alert('Couldn’t load more', userMessage(e, 'Please try again.')); });
   };
   return { ...st, loadMore, reload: () => setTick(t => t + 1) };
 }
@@ -249,7 +250,7 @@ function PdfButton({ make, name, disabled }) {
     if (busy || off) return;
     setBusy(true);
     try { const out = await make(); const doc = typeof out === 'string' ? { html: out, landscape: false } : out; await savePdf(doc.html, name, { share: true, landscape: doc.landscape }); }
-    catch (e) { Alert.alert('Couldn’t create the PDF', (e && e.message) || 'Please try again.'); }
+    catch (e) { Alert.alert('Couldn’t create the PDF', userMessage(e, 'Please try again.')); }
     finally { setBusy(false); }
   };
   return (

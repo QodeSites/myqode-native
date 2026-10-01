@@ -19,6 +19,7 @@ import { NotificationSettings } from './notifications';
 import { VoicePage } from './voice';
 import { CashList } from './services';
 
+import { userMessage } from '../errors';
 // Placeholder for pages still being built.
 const ComingSoon = () => <Card style={{ padding: 20 }}><Tx s={13} c={C.muted}>Coming soon</Tx></Card>;
 
@@ -279,7 +280,7 @@ function AdminPage({ V }) {
     const code = c.headClientCode || (c.accountCodes || [])[0];
     if (!code || st.busy) return;
     setSt({ busy: code, err: '' });
-    try { await V.impersonate(code); } catch (e) { setSt({ busy: '', err: e.message }); }
+    try { await V.impersonate(code); } catch (e) { setSt({ busy: '', err: userMessage(e) }); }
   };
   return (
     <>

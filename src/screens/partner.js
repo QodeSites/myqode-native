@@ -26,6 +26,7 @@ import * as content from '../content';
 import { computeTax, GST_STATE_CODES, validateGstin, validatePan, amountInWords, QODE_ENTITY, qodeAddressLines, isQodeEntityComplete } from '../partnerTax';
 import { savePdf } from './pdfSave';
 
+import { userMessage } from '../errors';
 // ── shared ───────────────────────────────────────────────────────────────────
 export const STRATEGY_COLOR = { 'Qode All Weather': '#008455', 'Qode Growth Fund': '#0A3452', 'Qode Tactical Fund': '#550E0E' };
 const NEUTRAL = '#9CA3AF';
@@ -733,13 +734,13 @@ export function Statement({ period, distributorName, onBack, onInvoice }) {
         {/* Actions first, so they're visible without scrolling past the breakdown */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
           <IconButton label={busy ? 'PREPARING…' : 'SAVE AS PDF'} icon={<Download s={15} c={C.gold} />} primary style={{ flex: 1 }}
-            onPress={async () => { if (busy) return; setBusy(true); setPdfErr(''); setPdfSaved(''); try { const r = await savePdf(html(), 'Fee statement ' + ref); if (r && r.savedTo) setPdfSaved(r.savedTo); } catch (e) { setPdfErr(e.message); } setBusy(false); }} />
+            onPress={async () => { if (busy) return; setBusy(true); setPdfErr(''); setPdfSaved(''); try { const r = await savePdf(html(), 'Fee statement ' + ref); if (r && r.savedTo) setPdfSaved(r.savedTo); } catch (e) { setPdfErr(userMessage(e)); } setBusy(false); }} />
           <CTA label="RAISE INVOICE" outline onPress={() => onInvoice(period)} style={{ flex: 1, paddingVertical: 11 }} />
         </View>
         {!!pdfErr && <Tx s={12} c={C.red} lh={1.45} style={{ marginTop: 8 }}>{pdfErr}</Tx>}
         {!!pdfSaved && (
           <Tx s={12} c={C.green} lh={1.45} style={{ marginTop: 8 }}>Saved to {pdfSaved}.{'  '}
-            <Tx w={700} s={12} c={C.green} style={{ textDecorationLine: 'underline' }} onPress={() => savePdf(html(), 'Fee statement ' + ref, { share: true }).catch(e => setPdfErr(e.message))}>Share</Tx>
+            <Tx w={700} s={12} c={C.green} style={{ textDecorationLine: 'underline' }} onPress={() => savePdf(html(), 'Fee statement ' + ref, { share: true }).catch(e => setPdfErr(userMessage(e)))}>Share</Tx>
           </Tx>
         )}
 
@@ -894,7 +895,7 @@ export function Invoice({ period, distributorName, onBack }) {
     if (Object.keys(profileErrs).length) { setErrs(e); return false; }
     setState(s => ({ ...s, saving: true, err: '' }));
     try { await api.saveInvoiceProfile({ ...p, gstin: p.gstin.trim().toUpperCase(), pan: p.pan.trim().toUpperCase(), bankIfsc: p.bankIfsc.trim().toUpperCase() }); setState(s => ({ ...s, saving: false, saved: true })); return true; }
-    catch (x) { setErrs(o => ({ ...o, ...((x.data && x.data.errors) || {}) })); setState(s => ({ ...s, saving: false, err: x.message })); return false; }
+    catch (x) { setErrs(o => ({ ...o, ...((x.data && x.data.errors) || {}) })); setState(s => ({ ...s, saving: false, err: userMessage(x) })); return false; }
   };
   const html = () => invoiceHtml({ p, period, invoiceNumber, date, tax, ratePct, clientCount, discount, distributorName });
   const generate = async () => {
@@ -909,8 +910,8 @@ export function Invoice({ period, distributorName, onBack }) {
       setNum(null);
       // The number is recorded; a PDF problem is reported on its own so it isn't mistaken for a failed invoice.
       try { const r = await savePdf(html(), 'Invoice ' + invoiceNumber); setState(s => ({ ...s, issuing: false, msg: `Invoice ${invoiceNumber} recorded.` + (r && r.savedTo ? ` PDF saved to ${r.savedTo}.` : '') })); }
-      catch (pe) { setState(s => ({ ...s, issuing: false, msg: `Invoice ${invoiceNumber} recorded.`, err: pe.message })); }
-    } catch (x) { setState(s => ({ ...s, issuing: false, err: x.status === 409 ? x.message : 'Could not record the invoice' })); }
+      catch (pe) { setState(s => ({ ...s, issuing: false, msg: `Invoice ${invoiceNumber} recorded.`, err: userMessage(pe) })); }
+    } catch (x) { setState(s => ({ ...s, issuing: false, err: x.status === 409 ? userMessage(x) : 'Could not record the invoice' })); }
   };
   const F = (k, label, props = {}) => <Field label={label} value={String(p[k] || '')} onChangeText={t => set(k, props.upper ? t.toUpperCase() : t)} error={errs[k]} style={{ marginTop: 14 }} {...props} />;
   return (
@@ -1286,7 +1287,7 @@ export function Ticket({ onBack }) {
     try {
       await api.ticket({ topic, aboutInvestor: topic === 'investor' || topic === 'onboarding' ? about.trim() : '', message: message.trim() });
       setSt({ busy: false, err: '', done: true });
-    } catch (e) { setSt({ busy: false, err: e.status ? e.message || 'We couldn’t send that. Please try again.' : 'We couldn’t send that. Please check your connection and try again.', done: false }); }
+    } catch (e) { setSt({ busy: false, err: e.status ? userMessage(e, 'We couldn’t send that. Please try again.') : 'We couldn’t send that. Please check your connection and try again.', done: false }); }
   };
   if (st.done) return (
     <Fade>
@@ -1370,7 +1371,7 @@ export function ChangePassword({ onBack }) {
     if (e) return setSt({ busy: false, err: e, done: false });
     setSt({ busy: true, err: '', done: false });
     try { await auth.changePassword(cur, np); setSt({ busy: false, err: '', done: true }); }
-    catch (x) { setSt({ busy: false, err: x.message || 'Could not change the password. Please try again.', done: false }); }
+    catch (x) { setSt({ busy: false, err: userMessage(x, 'Could not change the password. Please try again.'), done: false }); }
   };
   if (st.done) {
     return (

@@ -19,6 +19,7 @@ import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransacti
 import { transactionsSummary, capitalGainsSummary, expensesSummary, factsheetSummary, pnlSummary } from '../reportSummary';
 import { track } from '../api/track';
 
+import { userMessage } from '../errors';
 // ── formatting (the app-wide formatters; only quantity and period headers are local, as on the phone) ────────
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const monthLabel = d => `${MON[+d.slice(5, 7) - 1]} ${d.slice(0, 4)}`;
@@ -27,7 +28,7 @@ const gainColor = v => (v != null && Math.round(v * 100) > 0 ? C.pos : v != null
 // Nuvama's period headers: "1m" → "1M", "Since 13/11/24" → "Since 13 Nov 2024".
 const periodLabel = p => String(p).replace(/^(\d+)([a-z])$/i, (_, n, u) => n + u.toUpperCase())
   .replace(/^Since (\d{2})\/(\d{2})\/(\d{2,4})$/i, (_, d, m, y) => `Since ${d} ${MON[+m - 1]} ${y.length === 2 ? '20' + y : y}`);
-const errMsg = e => (e && e.message) || 'Something went wrong.';
+const errMsg = e => userMessage(e, 'Something went wrong.');
 
 // ── a paged list: first page carries the summary (head); "Load more" appends ──────────────────────────────
 // Copied from the phone page. `gen` drops replies from an earlier filter/account so a slow first page can't

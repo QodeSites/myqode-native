@@ -9,13 +9,14 @@ import { C, Tx, CTA } from '../ui';
 import { clientReports } from '../api';
 import { savePdf } from './pdfSave';
 import { DateField } from './sip';
+import { userMessage } from '../errors';
 import {
   REPORT_KINDS, AS_OF, ALL_ID, periodChoices, defaultPeriod, resolvePeriod, periodError, accountChoices, fileName, buildReport, todayIso,
 } from '../clientReports';
 
-const errText = e => (e && e.status === 403 ? (e.message && e.message !== 'Forbidden' ? e.message : 'This investor is not in your book.')
-  : e && e.status === 503 ? (e.message || 'We couldn’t confirm this investor just now. Please try again in a few minutes.')
-  : (e && e.message) || 'Something went wrong. Please try again.');
+const errText = e => (e && e.status === 403 ? (e.data && e.data.error && e.data.error !== 'Forbidden' ? userMessage(e, 'This investor is not in your book.') : 'This investor is not in your book.')
+  : e && e.status === 503 ? (userMessage(e, 'We couldn’t confirm this investor just now. Please try again in a few minutes.'))
+  : userMessage(e, 'Something went wrong. Please try again.'));
 const pad = v => String(v).padStart(2, '0');
 const isoOf = d => (d ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` : '');
 const dateOf = s => (s ? new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) : null);

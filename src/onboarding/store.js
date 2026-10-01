@@ -9,6 +9,7 @@ import { isOffline } from './http.js';
 import { satisfiedFromServer } from './mapping.js';
 import { TIMINGS, UPLOAD } from './config.js';
 
+import { userMessage } from '../errors.js';
 const KYC_DONE = ['approved', 'success', 'approval_pending'];
 const KYC_FAILED = ['rejected', 'failed', 'expired'];
 const ESIGN_DONE = ['completed', 'signed', 'approved'];
@@ -174,7 +175,7 @@ export default class OnboardingStore {
       return res.id;
     } catch (e) {
       const off = isOffline(e);
-      this.set({ creating: false, createError: e.message, offline: off || this.s.offline, saveState: off ? 'offline' : 'error', saveError: e.message });
+      this.set({ creating: false, createError: userMessage(e), offline: off || this.s.offline, saveState: off ? 'offline' : 'error', saveError: userMessage(e) });
       if (e.retryable || off) this.scheduleRetry();
       return null;
     }
@@ -223,11 +224,11 @@ export default class OnboardingStore {
         });
       } catch (e) {
         this.pending = { ...sent, ...this.pending };
-        if (e.code === 'locked') { this.markLocked(); this.notice('warn', e.message); }
-        else if (e.code === 'not_found') { this.set({ saving: false, saveState: 'error', saveError: e.message }); this.notice('err', e.message); }
+        if (e.code === 'locked') { this.markLocked(); this.notice('warn', userMessage(e)); }
+        else if (e.code === 'not_found') { this.set({ saving: false, saveState: 'error', saveError: userMessage(e) }); this.notice('err', userMessage(e)); }
         else {
           const off = isOffline(e);
-          this.set({ saving: false, saveState: off ? 'offline' : 'error', saveError: e.message, offline: off || this.s.offline });
+          this.set({ saving: false, saveState: off ? 'offline' : 'error', saveError: userMessage(e), offline: off || this.s.offline });
           this.scheduleRetry();
         }
       } finally {
@@ -262,7 +263,7 @@ export default class OnboardingStore {
       if (sub.status === 'submitted') this.refreshProgress();
       return sub;
     } catch (e) {
-      this.set({ hydrating: false, hydrateError: e.message, offline: isOffline(e) || this.s.offline });
+      this.set({ hydrating: false, hydrateError: userMessage(e), offline: isOffline(e) || this.s.offline });
       if (e.code === 'not_found') { await this.storage.clear(); this.set({ saved: null }); }
       throw e;
     }
@@ -337,9 +338,9 @@ export default class OnboardingStore {
       this.startPolling(key);
       return check;
     } catch (e) {
-      let msg = e.message;
+      let msg = userMessage(e);
       if (e.code === 'unavailable') {
-        this.set({ digio: 'disabled', digioMessage: e.message });
+        this.set({ digio: 'disabled', digioMessage: userMessage(e) });
         msg = 'Online verification isn’t available right now. You can upload your documents instead. Nothing else changes.';
       } else if (e.code === 'locked') { this.markLocked(); }
       else if (isOffline(e)) { this.set({ offline: true }); msg = 'You appear to be offline. Reconnect to verify online, or upload your documents instead.'; }
@@ -470,7 +471,7 @@ export default class OnboardingStore {
     } catch (e) {
       const unavailable = e.code === 'unavailable';
       this.set({ esign: unavailable ? 'unavailable' : this.s.esign });
-      this.setCheck(key, { starting: false, error: unavailable ? 'Your PMS agreement will be sent to your email for e-signature once it is ready.' : e.message, errorCode: e.code });
+      this.setCheck(key, { starting: false, error: unavailable ? 'Your PMS agreement will be sent to your email for e-signature once it is ready.' : userMessage(e), errorCode: e.code });
       return null;
     }
   }
@@ -507,7 +508,7 @@ export default class OnboardingStore {
     } catch (e) {
       const uploading = { ...this.s.uploading }; delete uploading[fieldKey];
       if (e.code === 'locked') this.markLocked();
-      this.set({ uploading, uploadErrors: { ...this.s.uploadErrors, [fieldKey]: e.message }, offline: isOffline(e) || this.s.offline });
+      this.set({ uploading, uploadErrors: { ...this.s.uploadErrors, [fieldKey]: userMessage(e) }, offline: isOffline(e) || this.s.offline });
       return false;
     }
   }
@@ -535,7 +536,7 @@ export default class OnboardingStore {
       return true;
     } catch (e) {
       if (e.code === 'locked') { this.markLocked(); return true; }
-      this.set({ submitting: false, submitError: e.message, offline: isOffline(e) || this.s.offline });
+      this.set({ submitting: false, submitError: userMessage(e), offline: isOffline(e) || this.s.offline });
       return false;
     }
   }

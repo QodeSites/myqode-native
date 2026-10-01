@@ -10,6 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { C as APP, Tx as AppTx, Amt, useUI } from '../ui';
 import { ChevronRight, ChevronDown } from '../icons';
 
+import { userMessage } from '../errors';
 export const C = {
   ...APP,
   canvas: '#EFECD3',     // page background: the brand cream
@@ -471,7 +472,7 @@ export function ErrorBlock({ msg, onRetry }) {
   return (
     <Card style={{ padding: 28, alignItems: 'center' }}>
       <Tx w={600} s={15} center>We couldn’t load this</Tx>
-      <Tx s={13} c={C.ink2} center lh={1.5} style={{ marginTop: 6, maxWidth: 520 }}>{/server error|\(5\d\d\)/i.test(msg || '') ? 'This is unavailable right now. Please try again later.' : msg}</Tx>
+      <Tx s={13} c={C.ink2} center lh={1.5} style={{ marginTop: 6, maxWidth: 520 }}>{userMessage(msg)}</Tx>
       {!!onRetry && <Btn label="Try again" kind="outline" small onPress={onRetry} style={{ marginTop: 14 }} />}
     </Card>
   );

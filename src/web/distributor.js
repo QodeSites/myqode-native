@@ -31,6 +31,7 @@ import {
 import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, ErrorBlock, Empty, Btn, PageIntro, Chips, Input, KeyVals, Pill, Dialog, FitAmt, Dropdown } from './kit';
 import { ClientReportsDialog } from './clientReports';
 
+import { userMessage } from '../errors';
 /* ── sections, addresses ────────────────────────────────────────────────────────────────────────────────── */
 const DocSmall = ({ c, s }) => <DocIcon s={s || 18} c={c} w={1.6} />;
 const NAV = [
@@ -294,8 +295,8 @@ export default function DesktopDistributor({ V }) {
     try { await V.viewInvestor(c.clientCode, { tab: section, filter, sub }); }
     catch (e) {
       if (web) history.replaceState(history.state, '', prev);
-      setOpenErr({ code: c.clientCode, text: e.status === 403 ? (e.message || 'This investor is not in your book.')
-        : e.status === 503 ? (e.message || 'We couldn’t confirm this investor just now. Please try again in a few minutes.')
+      setOpenErr({ code: c.clientCode, text: e.status === 403 ? (userMessage(e, 'This investor is not in your book.'))
+        : e.status === 503 ? (userMessage(e, 'We couldn’t confirm this investor just now. Please try again in a few minutes.'))
         : `We couldn’t open ${c.name || 'that'} account just now. Please try again.` });
       setOpening('');
     }
@@ -1034,7 +1035,7 @@ function StatementBody({ period, name, go }) {
   if (loading) return <Loading rows={4} />;
   if (err) return <ErrorBlock msg={`We couldn’t prepare the statement. ${err}. Please try again, or contact partnerships@qodeinvest.com.`} onRetry={reload} />;
   if (!rows.length) return <Empty title="No fees in this period">There is nothing to put on a statement for {period.label}. Try an earlier period.</Empty>;
-  const pdf = async () => { if (busy) return; setBusy(true); setPdfErr(''); try { await savePdf(doc.html(), 'Fee statement ' + ref); } catch (e) { setPdfErr(e.message); } setBusy(false); };
+  const pdf = async () => { if (busy) return; setBusy(true); setPdfErr(''); try { await savePdf(doc.html(), 'Fee statement ' + ref); } catch (e) { setPdfErr(userMessage(e)); } setBusy(false); };
   const cols = [
     { key: 'name', label: 'Client', flex: 1.8, render: c => <View><Tx w={600} s={13.5} numberOfLines={1}>{c.name}</Tx>{c.accounts > 1 && <Tx s={11.5} c={C.ink3}>{c.accounts} accounts</Tx>}</View> },
     { key: 'aum', label: 'Avg AUM', right: true, render: c => <Amt s={13}>{inr(c.aum)}</Amt> },
@@ -1138,7 +1139,7 @@ function InvoiceBody({ period, name, onIssued }) {
     if (Object.keys(profileErrs).length) { setErrs(e); return false; }
     setSt(s => ({ ...s, saving: true, err: '' }));
     try { await api.saveInvoiceProfile({ ...p, gstin: p.gstin.trim().toUpperCase(), pan: p.pan.trim().toUpperCase(), bankIfsc: p.bankIfsc.trim().toUpperCase() }); setSt(s => ({ ...s, saving: false, saved: true })); return true; }
-    catch (x) { setErrs(o => ({ ...o, ...((x.data && x.data.errors) || {}) })); setSt(s => ({ ...s, saving: false, err: x.message })); return false; }
+    catch (x) { setErrs(o => ({ ...o, ...((x.data && x.data.errors) || {}) })); setSt(s => ({ ...s, saving: false, err: userMessage(x) })); return false; }
   };
   const html = () => invoiceHtml({ p, period, invoiceNumber, date, tax, ratePct, clientCount, discount, distributorName: name });
   const generate = async () => {
@@ -1154,8 +1155,8 @@ function InvoiceBody({ period, name, onIssued }) {
       onIssued();
       // The number is recorded; a PDF problem is reported on its own so it isn't mistaken for a failed invoice.
       try { await savePdf(html(), 'Invoice ' + invoiceNumber); setSt(s => ({ ...s, issuing: false, msg: `Invoice ${invoiceNumber} recorded.` })); }
-      catch (pe) { setSt(s => ({ ...s, issuing: false, msg: `Invoice ${invoiceNumber} recorded.`, err: pe.message })); }
-    } catch (x) { setSt(s => ({ ...s, issuing: false, err: x.status === 409 ? x.message : 'Could not record the invoice' })); }
+      catch (pe) { setSt(s => ({ ...s, issuing: false, msg: `Invoice ${invoiceNumber} recorded.`, err: userMessage(pe) })); }
+    } catch (x) { setSt(s => ({ ...s, issuing: false, err: x.status === 409 ? userMessage(x) : 'Could not record the invoice' })); }
   };
   const F = (k, label, props = {}) => <Input label={label} value={String(p[k] || '')} onChangeText={t => set(k, props.upper ? t.toUpperCase() : t)} error={errs[k]} placeholder={props.placeholder} hint={props.hint} style={{ flex: 1, minWidth: 0 }} />;
   const addr = [p.addressLine1, p.addressLine2, [p.city, p.state, p.pincode].filter(Boolean).join(', ')].filter(Boolean);
@@ -1400,7 +1401,7 @@ function Support() {
     try {
       await api.ticket({ topic, aboutInvestor: withInvestor ? about.trim() : '', message: message.trim() });
       setSt({ busy: false, err: '', done: true });
-    } catch (e) { setSt({ busy: false, err: e.status ? e.message || 'We couldn’t send that. Please try again.' : 'We couldn’t send that. Please check your connection and try again.', done: false }); }
+    } catch (e) { setSt({ busy: false, err: e.status ? userMessage(e, 'We couldn’t send that. Please try again.') : 'We couldn’t send that. Please check your connection and try again.', done: false }); }
   };
   const contact = (
     <View style={{ width: 340, gap: 20 }}>

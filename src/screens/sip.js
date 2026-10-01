@@ -18,6 +18,7 @@ import { AccountChips, useLoad } from './kit';
 import { savePendingPayment, clearPendingPayment, hintFromReturnUrl, autoReturn } from './pay';
 import { track } from '../api/track';
 
+import { userMessage } from '../errors';
 const CHIPS = [5000, 10000, 25000, 50000];
 const MIN = 100, MAX = 500000;
 const FREQS = [['monthly', 'Monthly'], ['quarterly', 'Quarterly'], ['yearly', 'Yearly']];
@@ -151,7 +152,7 @@ export function SetupSip({ V, onDone, recover }) {
       // Authorised on our side (or the browser said success) but Razorpay still catching up: not a failure.
       if (v.authorised || hint === 'success') return finish('pending', v);
       return finish('cancelled', v);
-    } catch (e) { finish('error', null, e.message); }
+    } catch (e) { finish('error', null, userMessage(e)); }
   };
 
   const start = async () => {
@@ -161,7 +162,7 @@ export function SetupSip({ V, onDone, recover }) {
     set({ busy: true, err: '' });
     let sub;
     try { sub = await services.setupSip({ accountId: acct, amount: amt, frequency: freq, startDate, endDate }); }
-    catch (e) { track('event', 'payment_failed', { kind: 'sip', stage: 'create', amount: amt }); return set({ busy: false, err: e.message }); }
+    catch (e) { track('event', 'payment_failed', { kind: 'sip', stage: 'create', amount: amt }); return set({ busy: false, err: userMessage(e) }); }
     track('event', 'payment_started', { kind: 'sip', amount: amt, frequency: freq });
     set({ sub });
     if (isDemo()) return finish('success', await services.verifySip(sub.subscriptionId));
@@ -179,7 +180,7 @@ export function SetupSip({ V, onDone, recover }) {
     const stopWatch = autoReturn({ subId: sub.subscriptionId }, ret);
     try {
       res = await WebBrowser.openAuthSessionAsync(url, ret, { createTask: false, showInRecents: false, dismissButtonStyle: 'close', toolbarColor: '#02422B', controlsColor: '#DABD38' });
-    } catch (e) { stopWatch(); return finish('error', null, 'Could not open the authorisation window: ' + e.message); }
+    } catch (e) { stopWatch(); return finish('error', null, userMessage(e, 'We couldn’t open the authorisation window. Please try again.')); }
     stopWatch();
     if (res && res.type === 'success' && res.url) return verify(sub, hintFromReturnUrl(res.url));
     verify(sub, 'cancelled');   // browser closed by hand

@@ -13,9 +13,10 @@ import {
 } from '../clientReports';
 import { C, Tx, Btn, Chips, Dialog, DateField } from './kit';
 
-const errText = e => (e && e.status === 403 ? (e.message && e.message !== 'Forbidden' ? e.message : 'This investor is not in your book.')
-  : e && e.status === 503 ? (e.message || 'We couldn’t confirm this investor just now. Please try again in a few minutes.')
-  : (e && e.message) || 'Something went wrong. Please try again.');
+import { userMessage } from '../errors';
+const errText = e => (e && e.status === 403 ? (e.data && e.data.error && e.data.error !== 'Forbidden' ? userMessage(e, 'This investor is not in your book.') : 'This investor is not in your book.')
+  : e && e.status === 503 ? (userMessage(e, 'We couldn’t confirm this investor just now. Please try again in a few minutes.'))
+  : userMessage(e, 'Something went wrong. Please try again.'));
 
 function Field({ label, children }) {
   return (

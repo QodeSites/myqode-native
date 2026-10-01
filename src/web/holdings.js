@@ -9,6 +9,7 @@ import { C, Tx, Amt, Row, Panel, Stat, Chips, Table, BarList, Input, Btn, Loadin
 import { portfolio } from '../api';
 import { inr, sinr, pct, fmtDate } from '../adapt';
 
+import { userMessage } from '../errors';
 const signCol = v => (v == null ? C.ink3 : v < 0 ? C.red : v > 0 ? C.pos : C.ink2);
 const qtyFmt = v => (v == null ? '–' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 3 }));
 const priceFmt = v => (v == null ? '–' : inr(v));
@@ -29,7 +30,7 @@ function useSecurities(codes) {
     set(s => ({ ...s, loading: true, err: '' }));
     portfolio.securities(codes)
       .then(d => { if (!dead) set({ loading: false, data: d, err: '' }); })
-      .catch(e => { if (!dead) set({ loading: false, data: null, err: (e && e.message) || 'Something went wrong.' }); });
+      .catch(e => { if (!dead) set({ loading: false, data: null, err: userMessage(e, 'Something went wrong.') }); });
     return () => { dead = true; };
   }, [key, tick]);   // eslint-disable-line react-hooks/exhaustive-deps
   return { ...st, reload: () => setTick(t => t + 1) };

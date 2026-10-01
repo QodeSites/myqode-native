@@ -20,6 +20,7 @@ import { useLoad, SectionLabel, Loading, ErrorBox, SignOutButton } from './kit';
 import { InvestorDetail, Fees, Statement, Invoice, Decks, Indicators, Ticket, Policies, ChangePassword, BackRow, openPdf, warmPartnerData } from './partner';
 import { DateField } from './sip';
 
+import { userMessage } from '../errors';
 // ── Vocabulary: port of myQode/lib/distributorVocabulary.ts ──────────────────
 export const S = {
   invested:    { key: 'invested', label: 'First Fund Initiated', short: 'First fund initiated', detail: 'Money is in the market', tone: 'good' },
@@ -136,8 +137,8 @@ export function DistributorShell({ V }) {
     setOpening(c.clientCode); setOpenErr(''); setOpenErrFor('');
     try { await V.viewInvestor(c.clientCode, { tab, filter, sub }); }
     catch (e) {
-      setOpenErr(e.status === 403 ? (e.message || 'This investor is not in your book.')
-        : e.status === 503 ? (e.message || 'We couldn’t confirm this investor just now. Please try again in a few minutes.')
+      setOpenErr(e.status === 403 ? (userMessage(e, 'This investor is not in your book.'))
+        : e.status === 503 ? (userMessage(e, 'We couldn’t confirm this investor just now. Please try again in a few minutes.'))
         : `We couldn’t open ${c.name || 'that'} account just now. Please try again.`);
       setOpenErrFor(c.clientCode); setOpening('');
     }

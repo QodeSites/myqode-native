@@ -7,6 +7,7 @@ import { storeGet, storeSet, storeDel } from '../api/session';
 import { withPdfFonts } from '../pdfFonts';
 import { track } from '../api/track';
 
+import { userMessage } from '../errors';
 // Statement / invoice PDF: render → give it a readable name → share sheet (save to Files / Drive, send by mail…).
 // If rendering or sharing fails, fall back to the phone's print screen, which always offers "Save as PDF".
 // Throws only when both fail, so the screen can say so instead of doing nothing.

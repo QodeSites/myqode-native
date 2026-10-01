@@ -61,6 +61,7 @@ import { API_BASE, RESUME_HOSTS, UPLOAD } from './onboarding/config';
 import { PAGE_ALIASES, openLink } from './nav';
 import * as push from './push';
 import { setPdfSummaries } from './screens/reportPdf';
+import { userMessage } from './errors';
 // Report summaries are a web feature; the phone app shows the figures and tables only.
 setPdfSummaries(Platform.OS === 'web');
 
@@ -454,7 +455,7 @@ export default class MyQode extends React.Component {
         catch (e) {
           if (e.status === 401) throw e;
           if (attempt < 2 && MyQode.transient(e)) { await MyQode.wait(1500 * (attempt + 1)); continue; }
-          this.setState({ snap: null, scopes: null, d: null, dl: false, dErr: e.message || 'We couldn’t load your accounts.' });
+          this.setState({ snap: null, scopes: null, d: null, dl: false, dErr: userMessage(e, 'We couldn’t load your accounts.') });
           return;
         }
       }
@@ -481,7 +482,7 @@ export default class MyQode extends React.Component {
           const e = (got.find(x => x.status === 'rejected') || {}).reason || {};
           if (e.status === 401) throw e;
           if (this.stepDown(scope)) return;       // can't build the family total: fall back to the first member
-          throw new Error(e.message || 'We couldn’t build the family total.');
+          throw new Error(userMessage(e, 'We couldn’t build the family total.'));
         }
         this.setState({ hist: fam, dv: 'nuvama' }, () => this.applyView('nuvama', true));
         this.lastLoad = Date.now();
@@ -522,7 +523,7 @@ export default class MyQode extends React.Component {
       // Transient failure: keep the skeleton and try again (twice) before showing an error — a tunnel or
       // Wi-Fi hiccup on the first request must not flash "couldn't load" over a portfolio that loads fine.
       if (attempt < 2 && MyQode.transient(e)) { await MyQode.wait(1500 * (attempt + 1)); if (seq === this.seq) return this.loadScope(attempt + 1); return; }
-      this.setState({ dl: false, dErr: e.message });
+      this.setState({ dl: false, dErr: userMessage(e) });
     }
   }
 
@@ -665,7 +666,7 @@ export default class MyQode extends React.Component {
     const msg = {
       USER_NOT_FOUND: 'We couldn’t find an account with those details.',
       ACCOUNT_CLOSED: 'This account has been closed. Please contact investor relations.',
-    }[e.code] || (e.status === 401 ? 'Incorrect password. Please try again.' : e.message);
+    }[e.code] || (e.status === 401 ? 'Incorrect password. Please try again.' : userMessage(e));
     this.setState({ busy: false, authErr: msg });
   }
 
@@ -679,7 +680,7 @@ export default class MyQode extends React.Component {
       { const r = await auth.login(id, pw, this.state.loginAs); await this.finishLogin(r.token, r.user); }
     } catch (e) {
       if (e.code === 'PASSWORD_SETUP_REQUIRED') return this.beginSetup(id);
-      if (e.code === 'ROLE_MISMATCH' && e.data && e.data.role) { this.setState({ loginAs: e.data.role, busy: false, authErr: e.message }); return; }
+      if (e.code === 'ROLE_MISMATCH' && e.data && e.data.role) { this.setState({ loginAs: e.data.role, busy: false, authErr: userMessage(e) }); return; }
       this.authFail(e);
     }
   };
@@ -839,7 +840,7 @@ export default class MyQode extends React.Component {
       await this.finishLogin(r.token, r.user);
     } catch (e) {
       // a non-development server demands the password: 400 "Fields required…" (or 401 on older builds)
-      if (e.status === 400 || (e.status === 401 && /credentials/i.test(e.message))) e.message = 'The server refused a passwordless login. It must run with NODE_ENV=development (npm run dev in myQode/).';
+      if (e.status === 400 || (e.status === 401 && /credentials/i.test((e.data && e.data.error) || ''))) e.message = 'The server refused a passwordless login. It must run with NODE_ENV=development (npm run dev in myQode/).';
       this.authFail(e);
     }
   };
@@ -852,7 +853,7 @@ export default class MyQode extends React.Component {
   loadDevClients = async () => {
     this.setState({ devClients: null, devErr: '' });
     try { const r = await auth.devClients(); this.setState({ devClients: r.clients || [], devErr: (r.clients || []).length ? '' : 'The server returned no Discretionary clients.' }); }
-    catch (e) { this.setState({ devClients: [], devErr: (e.status === 404 ? 'Client list is only available when the server runs in development.' : e.message) + ' (' + BASE_URL + ')' }); }
+    catch (e) { this.setState({ devClients: [], devErr: (e.status === 404 ? 'Client list is only available when the server runs in development.' : userMessage(e)) + ' (' + BASE_URL + ')' }); }
   };
 
   startDemo = async () => {
@@ -1056,7 +1057,7 @@ export default class MyQode extends React.Component {
       this.setState({ notes: { items: r.items || [], unread: r.unread || 0, hasMore: !!r.hasMore, loading: false, err: '' } });
       if (this.ownSession()) push.setBadge(r.unread || 0);
     } catch (e) {
-      this.setState({ notes: { ...(cur || { items: [], unread: 0 }), loading: false, err: e.message || 'We couldn’t load your notifications.' } });
+      this.setState({ notes: { ...(cur || { items: [], unread: 0 }), loading: false, err: userMessage(e, 'We couldn’t load your notifications.') } });
     } finally { this.notesBusy = false; }
   };
   markNotes = (ids, all) => {
@@ -1164,7 +1165,7 @@ export default class MyQode extends React.Component {
       this.store.setBaseline(toBackendData(ob, server));
       this.setState({ phase: 'ob', ob, resume: null });
     } catch (e) {
-      this.setState({ resume: { token, source, loading: false, error: e.message, code: e.code } });
+      this.setState({ resume: { token, source, loading: false, error: userMessage(e), code: e.code } });
     }
   }
 

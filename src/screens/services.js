@@ -16,6 +16,7 @@ import { ContactIRLink } from './contact';
 import { track } from '../api/track';
 import { dayLabel } from './pay';
 
+import { userMessage } from '../errors';
 const STRATS = [['QAW', 'Qode All Weather'], ['QTF', 'Qode Tactical Fund'], ['QGF', 'Qode Growth Fund']];
 
 // Withdrawals are deliberately not offered in the app (Investor Relations handles them); the API route stays.
@@ -179,7 +180,7 @@ function Investments({ V, opts, accountId, onPickAccount, inv, all }) {
       const r = action === 'cancel' ? await services.cancelSip(it.orderId, accountId) : await services.pauseResumeSip(it.orderId, accountId, action);
       setAct({ busy: '', msg: (r && r.message) || 'Done.', err: '' });
       inv.reload();
-    } catch (e) { setAct({ busy: '', msg: '', err: e.message }); }
+    } catch (e) { setAct({ busy: '', msg: '', err: userMessage(e) }); }
   };
 
   return (
@@ -413,7 +414,7 @@ export function FormBody({ cfg, opts, onDone, doneLabel = 'DONE' }) {
       const r = await cfg.submit(acct, v);
       track('event', cfg.event || 'request_submitted', { kind: cfg.title || 'request' });
       setSt({ busy: false, err: '', ref: String((r && r.inquiry_id) || '') });
-    } catch (e) { setSt({ busy: false, err: e.message, ref: null }); }
+    } catch (e) { setSt({ busy: false, err: userMessage(e), ref: null }); }
   };
 
   if (st.ref !== null) {

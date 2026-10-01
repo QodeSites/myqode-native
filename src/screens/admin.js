@@ -12,6 +12,7 @@ import { backoffice } from '../api';
 import { useLoad, SectionLabel, Loading, ErrorBox, Empty, SignOutButton } from './kit';
 import { DeviceCard, PushOfferCard } from './notifications';
 
+import { userMessage } from '../errors';
 // ── Shared helpers (also used by src/web/admin.js) ───────────────────────────────────────────────────────────
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const pad = n => String(n).padStart(2, '0');
@@ -88,7 +89,7 @@ export function useNotifAdmin(tick) {
       setMsg({ ok: true, text: f.type === 'test' ? 'Sent to you. It should pop up on your phone within a few seconds.' : `Sent to ${r.recipients} ${r.recipients === 1 ? 'person' : 'people'}.` });
       if (f.type !== 'test') setF(x => ({ ...x, title: '', body: '' }));
       q.reload();
-    } catch (e) { setMsg({ ok: false, text: e.message || 'Could not send.' }); }
+    } catch (e) { setMsg({ ok: false, text: userMessage(e, 'Could not send.') }); }
     finally { setBusy(false); }
   };
   return { q, f, set, sample, problem, send, busy, msg };
@@ -127,7 +128,7 @@ export function useUserList({ q = '', type = 'all', status = 'all', tick = 0 }) 
       setSt(s => ({ items: page === 1 ? got : [...s.items, ...got], total: (r && r.total) || 0, page, loading: false, more: false, err: '' }));
     } catch (e) {
       if (g !== gen.current) return;
-      setSt(s => ({ ...s, loading: false, more: false, err: (e && e.message) || 'Something went wrong.' }));
+      setSt(s => ({ ...s, loading: false, more: false, err: userMessage(e, 'Something went wrong.') }));
     }
   }, [q, type, status]);
   useEffect(() => {
@@ -392,7 +393,7 @@ function NewDistributorSheet({ V, visible, onClose, onDone }) {
       await backoffice.createDistributor({ name, email, password: f.pw, ...(fee !== undefined ? { feePercentage: fee } : {}) });
       V.toast('Distributor created');
       onDone();
-    } catch (e) { setErr(e.status === 409 ? 'A user with this email already exists.' : e.message); }
+    } catch (e) { setErr(e.status === 409 ? 'A user with this email already exists.' : userMessage(e)); }
     finally { setBusy(false); }
   };
   return (
@@ -471,7 +472,7 @@ export function useUserActions({ V, email, name, reload, onDeleted }) {
       if (okMsg) V.toast(okMsg);
       setSheet(null);
       if (after) after(); else if (reload) reload();
-    } catch (e) { setErr((e && e.message) || 'Something went wrong.'); }
+    } catch (e) { setErr(userMessage(e, 'Something went wrong.')); }
     finally { setBusy(''); }
   };
   return {

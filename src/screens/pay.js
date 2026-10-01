@@ -22,6 +22,7 @@ import { storeGet, storeSet, storeDel } from '../api/session';
 import { AccountChips } from './kit';
 import { track } from '../api/track';
 
+import { userMessage } from '../errors';
 const PENDING_KEY = 'myqode.pendingPayment';
 const PENDING_MAX_AGE = 45 * 60 * 1000;   // a Razorpay order is payable for ~this long
 // One record for whatever is in the browser right now: a one-time order ({ orderId }) or a SIP mandate
@@ -125,7 +126,7 @@ export function PayOnline({ V, onDone, recover }) {
       if (hint === 'expired') return finish('expired', v);
       if (hint === 'cancelled' && !v.attempts) return finish('cancelled', v);
       return finish('pending', v, hint === 'failed' ? 'The bank reported a failure; waiting for Razorpay to confirm.' : '');
-    } catch (e) { finish('error', null, e.message); }
+    } catch (e) { finish('error', null, userMessage(e)); }
   };
 
   const start = async () => {
@@ -135,7 +136,7 @@ export function PayOnline({ V, onDone, recover }) {
     set({ busy: true, err: '' });
     let order;
     try { order = await payments.razorpay.createOrder({ accountId: acct, amount: amt }); }
-    catch (e) { track('event', 'payment_failed', { kind: 'one_time', stage: 'create', amount: amt }); return set({ busy: false, err: e.message }); }
+    catch (e) { track('event', 'payment_failed', { kind: 'one_time', stage: 'create', amount: amt }); return set({ busy: false, err: userMessage(e) }); }
     track('event', 'payment_started', { kind: 'one_time', amount: amt });
     set({ order });
     if (isDemo()) return finish('success', await payments.razorpay.verify({ razorpay_order_id: order.orderId }));
@@ -158,7 +159,7 @@ export function PayOnline({ V, onDone, recover }) {
       // Auth session: the tab closes when the app receives `ret` (browser redirect or autoReturn), and the URL
       // comes back here. createTask:false keeps the tab in the app's own task, so a manual close also lands here.
       res = await WebBrowser.openAuthSessionAsync(url, ret, { createTask: false, showInRecents: false, dismissButtonStyle: 'close', toolbarColor: '#02422B', controlsColor: '#DABD38' });
-    } catch (e) { stopWatch(); return finish('error', null, 'Could not open the payment window: ' + e.message); }
+    } catch (e) { stopWatch(); return finish('error', null, userMessage(e, 'We couldn’t open the payment window. Please try again.')); }
     stopWatch();
     if (res && res.type === 'success' && res.url) return verify(order, hintFromReturnUrl(res.url));
     // browser closed by hand: the user may have paid, failed or cancelled — the server knows

@@ -8,6 +8,7 @@ import { Check } from '../icons';
 import { engagement } from '../api';
 import { track } from '../api/track';
 
+import { userMessage } from '../errors';
 export const VOICE_QUESTIONS = [
   { k: 'recommend', q: 'How likely are you to recommend Qode?' },
   { k: 'satisfaction', q: 'Overall satisfaction with Qode?' },
@@ -39,7 +40,7 @@ export function useVoiceForm(V) {
       track('event', 'feedback_submitted', { recommend: r && r.recommend });
       setSt({ busy: false, err: '', done: true });
     } catch (e) {
-      setSt({ busy: false, err: (e && e.message) || 'Could not send your feedback. Please try again.', done: false });
+      setSt({ busy: false, err: userMessage(e, 'Could not send your feedback. Please try again.'), done: false });
     }
   };
   const reset = () => { setR({}); setComment(''); setErrs({}); setSt({ busy: false, err: '', done: false }); };
