@@ -38,7 +38,9 @@ export function Tile({ t }) {
   return (
     <Card style={{ width: '48%', paddingVertical: 13, paddingHorizontal: 14 }}>
       <Tx w={700} s={10.5} ls={0.12} c={C.muted}>{t.label}</Tx>
-      <Amt s={16} c={t.color} style={{ marginTop: 6 }}>{t.value}</Amt>
+      {/* one line always: crores with paise (−₹1,30,48,459.27) wrapped in a half-width tile; long figures start smaller
+          and shrink to fit on the phone (the web has no shrink-to-fit, so the smaller start covers it there) */}
+      <Amt s={String(t.value || '').length > 13 ? 14 : 16} c={t.color} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={{ marginTop: 6 }}>{t.value}</Amt>
     </Card>
   );
 }
