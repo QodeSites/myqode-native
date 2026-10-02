@@ -13,6 +13,8 @@ import { useLoad, SectionLabel, Loading, ErrorBox, Empty, SignOutButton } from '
 import { DeviceCard, PushOfferCard } from './notifications';
 
 import { userMessage } from '../errors';
+// Group codes come from the data as "14410838.0": show them as whole numbers.
+const groupText = g => (g == null ? '' : String(g).replace(/\.0+$/, ''));
 // ── Shared helpers (also used by src/web/admin.js) ───────────────────────────────────────────────────────────
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const pad = n => String(n).padStart(2, '0');
@@ -522,7 +524,7 @@ function UserDetail({ V, email, onBack }) {
           {!isDist && !!(u.clientCodes || []).length && <KV k="Client codes" v={u.clientCodes.join(', ')} />}
           {isDist && <KV k="Investors" v={fmtN(u.clientCount)} />}
           {!!u.intermediary && <KV k="Intermediary" v={u.intermediary} />}
-          {!!u.groupId && <KV k="Group" v={String(u.groupId)} />}
+          {!!u.groupId && <KV k="Group" v={groupText(u.groupId)} />}
           <KV k="Last sign-in" v={u.lastLoginAt ? fmtWhen(u.lastLoginAt) : 'Never'} />
           <KV k="Sign-ins" v={`${fmtN(u.loginCount)} (web ${fmtN(u.webLogins)}, app ${fmtN(u.appLogins)})`} />
         </View>

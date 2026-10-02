@@ -7,6 +7,8 @@ import { Refresh } from '../icons';
 import { backoffice } from '../api';
 import { useLoad } from '../screens/kit';
 import { userMessage } from '../errors';
+// Group codes come from the data as "14410838.0": show them as whole numbers.
+const groupText = g => (g == null ? '' : String(g).replace(/\.0+$/, ''));
 import {
   fmtWhen, fmtDay, fmtAgo, fmtN, pwProblem, isEmail, userBadges, detailsText, useUserList, useUserActions, DailyBars,
   TYPE_OPTS, STATUS_OPTS, ADMIN_TABS, useNotifAdmin, NOTE_SAMPLES, NOTE_LINKS, AUDIENCES, campaignStats, audienceText,
@@ -215,7 +217,7 @@ function UserDetail({ V, email, onBack }) {
           <KeyVals items={[
             ...(isDist ? [['Investors', fmtN(u.clientCount)]] : [['Client codes', (u.clientCodes || []).join(', ') || 'None']]),
             ...(u.intermediary ? [['Intermediary', String(u.intermediary)]] : []),
-            ...(u.groupId ? [['Group', String(u.groupId)]] : []),
+            ...(u.groupId ? [['Group', groupText(u.groupId)]] : []),
             ['Last sign-in', u.lastLoginAt ? fmtWhen(u.lastLoginAt) : 'Never'],
             ['Last web sign-in', u.lastWebLoginAt ? fmtWhen(u.lastWebLoginAt) : 'Never'],
             ['Last app sign-in', u.lastAppLoginAt ? fmtWhen(u.lastAppLoginAt) : 'Never'],
@@ -234,7 +236,7 @@ function UserDetail({ V, email, onBack }) {
             { key: 'strategy', label: 'Strategy', flex: 1.6 },
             { key: 'name', label: 'Holder', flex: 1.6 },
             { key: 'status', label: 'Status', render: a => (a.status ? <Pill label={a.status} tone={/active/i.test(a.status) ? 'ok' : 'neutral'} /> : null) },
-            { key: 'group', label: 'Group', render: a => small([a.groupId, a.headOfFamily ? 'head' : ''].filter(Boolean).join(' · ')) },
+            { key: 'group', label: 'Group', render: a => small([groupText(a.groupId), a.headOfFamily ? 'head' : ''].filter(Boolean).join(' · ')) },
             { key: 'maturityDate', label: 'Maturity', right: true, render: a => small(fmtDay(a.maturityDate)) },
           ]} />
         </Panel>
