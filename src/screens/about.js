@@ -272,6 +272,9 @@ function SnapshotViewer({ report, images, onClose }) {
 }
 
 export function PortalGuide() {
+  // Hidden for now (4 Oct 2026): only the WealthSpectrum card shows. The snapshots / video tutorials and the
+  // sections below are kept here to switch back on.
+  /*
   const g = useLoad(() => engagement.portalGuide(), []);
   const [viewer, setViewer] = useState(null);
   const videos = (g.data && g.data.videos) || [];
@@ -279,11 +282,14 @@ export function PortalGuide() {
   const videoFor = name => videos.find(v => norm(v.filename) === norm(name));
   const snapsFor = name => { const k = Object.keys(snapByFolder).find(f => norm(f) === norm(name)); return k ? snapByFolder[k] : []; };
   let n = 0;
+  */
   return (
     <>
       <Banner>Access all your portfolio details anytime on our secure reporting portal.</Banner>
       <Body style={{ marginTop: 14 }}>At Qode, transparency is central to our philosophy. That's why we provide 24x7 access to your portfolio through <Tx w={700} s={13} c={C.ink}>WealthSpectrum</Tx>, our secure reporting partner. From performance snapshots to tax packs, everything you need is organized in one place.</Body>
+      {/*
       <Image source={{ uri: WEB + '/nuvama-dashboard.png' }} style={{ width: '100%', aspectRatio: 16 / 10, borderRadius: 10, marginTop: 16, borderWidth: 1, borderColor: C.hairline, backgroundColor: '#fff' }} resizeMode="contain" accessibilityLabel="Nuvama WealthSpectrum Dashboard screenshot" />
+      */}
       <CTA label="OPEN WEALTHSPECTRUM PORTAL" onPress={() => go(WEALTHSPECTRUM)} style={{ marginTop: 16 }} />
       <Tx s={11.5} c={C.muted} center style={{ fontStyle: 'italic', marginTop: 8 }}>Your WealthSpectrum login can be either your Account ID or your registered Email ID.</Tx>
       <Card style={{ padding: 14, marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -293,6 +299,7 @@ export function PortalGuide() {
         </Pressable>
       </Card>
 
+      {/*
       <Heading>What You Can Access</Heading>
       <Card style={{ overflow: 'hidden' }}>
         {ACCESS.map(([f, d], i) => (
@@ -343,6 +350,7 @@ export function PortalGuide() {
         </View>
       ))}
       {!!viewer && <SnapshotViewer report={viewer.report} images={viewer.images} onClose={() => setViewer(null)} />}
+      */}
     </>
   );
 }

@@ -252,6 +252,9 @@ function SnapshotDialog({ report, images, onClose }) {
 }
 
 function PortalGuide() {
+  // Hidden for now (4 Oct 2026): only the WealthSpectrum card shows. The snapshots / video tutorials and the
+  // sections below are kept here to switch back on.
+  /*
   const g = useLoad(() => engagement.portalGuide(), []);
   const [viewer, setViewer] = useState(null);
   const [grp, setGrp] = useState('all');
@@ -278,6 +281,7 @@ function PortalGuide() {
       );
     } },
   ];
+  */
   return (
     <View>
       <Row>
@@ -291,11 +295,14 @@ function PortalGuide() {
           </View>
           <Tx s={12} c={C.cream60} style={{ marginTop: 14 }}>Your WealthSpectrum login can be either your Account ID or your registered Email ID.</Tx>
         </DarkCard>
+        {/*
         <Card style={{ flex: 1, padding: 12, justifyContent: 'center' }}>
           <Image source={{ uri: WEB + '/nuvama-dashboard.png' }} style={{ width: '100%', aspectRatio: 16 / 10, borderRadius: 8, backgroundColor: '#fff' }} resizeMode="contain" accessibilityLabel="Nuvama WealthSpectrum Dashboard screenshot" />
         </Card>
+        */}
       </Row>
 
+      {/*
       <SectionTitle>What you can access</SectionTitle>
       <Grid min={330}>
         {ACCESS.map(([f, d]) => (
@@ -314,6 +321,7 @@ function PortalGuide() {
         <Table dense cols={cols} rows={rows} />
       </Card>
       {!!viewer && <SnapshotDialog report={viewer.report} images={viewer.images} onClose={() => setViewer(null)} />}
+      */}
     </View>
   );
 }
