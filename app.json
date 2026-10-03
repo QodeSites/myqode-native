@@ -94,6 +94,14 @@
           "color": "#02422B",
           "defaultChannel": "default"
         }
+      ],
+      [
+        "@sentry/react-native",
+        {
+          "url": "https://sentry.qodeinvest.com/",
+          "organization": "sentry",
+          "project": "qode-app"
+        }
       ]
     ],
     "scheme": "myqode",

@@ -7,6 +7,9 @@ import { Lato_400Regular, Lato_700Bold, Lato_900Black } from '@expo-google-fonts
 import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import MyQode from './src/main';
 import CrashGuard from './src/crashGuard';
+import { initMonitoring, wrapRoot } from './src/monitoring';
+
+initMonitoring();
 
 // Web: a deploy replaces the hashed bundle, but an open tab keeps running the old one. When the tab comes back into
 // view, compare the page's bundle with the server's and reload onto the new build.
@@ -28,7 +31,7 @@ function useWebBuildRefresh() {
   }, []);
 }
 
-export default function App() {
+function App() {
   useWebBuildRefresh();
   const { width } = useWindowDimensions();
   const desktop = Platform.OS === 'web' && width >= 1024;   // signed in: src/web/desktop.js dashboard
@@ -55,3 +58,5 @@ export default function App() {
     </View>
   );
 }
+
+export default wrapRoot(App);

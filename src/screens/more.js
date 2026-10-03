@@ -1,13 +1,14 @@
 // More tab: profile and settings at the top, then the investor menu's five groups (NAV_GROUPS in src/nav.js, shared
 // with the desktop sidebar), admin, legal and the session. Investor Relations' contact lives on Your Team at Qode.
 import React from 'react';
-import { View, Pressable } from 'react-native';
+import { View, Pressable, Platform, Alert } from 'react-native';
 import { C, Tx, Card, Fade, Toggle } from '../ui';
 import { ChevronRight, FaceID, GroupIcon } from '../icons';
 import { NAV_GROUPS, LEGAL_LINKS, openItem, visibleItems } from '../nav';
 import { SignOutButton, SectionLabel } from './kit';
 import { ContactIRLink } from './contact';
 
+import { monitoringOn, reportError } from '../monitoring';
 function MenuRow({ label, onPress, last }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={{
@@ -82,7 +83,13 @@ export function MoreCream({ V }) {
         <>
           <SectionLabel>ADMIN</SectionLabel>
           <Card style={{ overflow: 'hidden' }}>
-            <MenuRow label={V.impersonated ? 'Admin · exit impersonation' : 'Admin · clients and impersonation'} onPress={() => V.openPage('admin')} last />
+            <MenuRow label={V.impersonated ? 'Admin · exit impersonation' : 'Admin · clients and impersonation'} onPress={() => V.openPage('admin')} last={!(monitoringOn && V.isSuperAdmin)} />
+            {monitoringOn && V.isSuperAdmin && (
+              <MenuRow label="Admin · send a test error report" last onPress={() => {
+                reportError(new Error(`Test report from the myQode app (${Platform.OS}), sent by an admin from More`));
+                Alert.alert('Test report sent', 'It should appear in Sentry (qode-app) and Teams within a minute.');
+              }} />
+            )}
           </Card>
         </>
       )}

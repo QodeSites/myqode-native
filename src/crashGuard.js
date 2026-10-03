@@ -4,13 +4,15 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { MSG } from './errors';
+import { reportError } from './monitoring';
 
 export default class CrashGuard extends React.Component {
   state = { failed: false, attempt: 0 };
   static getDerivedStateFromError() { return { failed: true }; }
   componentDidCatch(error, info) {
-    // Developers still see the cause in the logs; users never see it.
+    // Developers still see the cause in the logs and in Sentry (src/monitoring.js); users never see it.
     console.warn('[myQode] screen crashed:', error && error.message, info && info.componentStack ? info.componentStack.split('\n').slice(0, 4).join(' ') : '');
+    reportError(error, { componentStack: info && info.componentStack ? info.componentStack.split('\n').slice(0, 12).join('\n') : '' });
   }
   retry = () => this.setState(s => ({ failed: false, attempt: s.attempt + 1 }));
   render() {

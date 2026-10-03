@@ -7,6 +7,9 @@
 # signed in to Xcode (Settings → Accounts), which needs App Store Connect access and its owner's 2FA.
 # API URL and flags come from .env.production (loaded over .env for Release builds).
 set -euo pipefail
+# Sentry (src/monitoring.js): crash reports work without this; uploading source maps / debug symbols (readable
+# stack traces) needs SENTRY_AUTH_TOKEN for sentry.qodeinvest.com. Until one is set, skip the upload step.
+[ -n "${SENTRY_AUTH_TOKEN:-}" ] || export SENTRY_DISABLE_AUTO_UPLOAD=true
 TEAM_ID="${1:-U3H68NKMV6}"   # Qode's team (from myqode-mobile eas.json)
 cd "$(dirname "$0")/.."
 

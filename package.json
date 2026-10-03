@@ -7,6 +7,7 @@
     "@expo-google-fonts/lato": "^0.4.1",
     "@expo-google-fonts/playfair-display": "^0.4.2",
     "@react-native-community/datetimepicker": "9.1.0",
+    "@sentry/react-native": "~7.11.0",
     "expo": "~57.0.25",
     "expo-clipboard": "~57.0.2",
     "expo-device": "~57.0.2",
@@ -34,8 +35,8 @@
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
     "web": "expo start --web",
     "start:tunnel": "node scripts/start-tunnel.mjs",
     "test": "node --test --test-force-exit \"tests/**/*.test.mjs\"",

@@ -8,6 +8,9 @@
 #   - versionCode above the one already on Play (43 = 1.2.6)
 # Output: ~/Desktop/qode/apk/myQode-<version>-<versionCode>.aab
 set -euo pipefail
+# Sentry (src/monitoring.js): crash reports work without this; uploading source maps / debug symbols (readable
+# stack traces) needs SENTRY_AUTH_TOKEN for sentry.qodeinvest.com. Until one is set, skip the upload step.
+[ -n "${SENTRY_AUTH_TOKEN:-}" ] || export SENTRY_DISABLE_AUTO_UPLOAD=true
 cd "$(dirname "$0")/.."
 
 PLAY_UPLOAD_SHA1="43:AF:35:02:15:06:A9:DC:F4:6F:F2:F1:51:F2:0D:AE:B9:DA:20:54"
