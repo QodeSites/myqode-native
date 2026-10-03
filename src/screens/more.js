@@ -87,7 +87,8 @@ export function MoreCream({ V }) {
             {monitoringOn && V.isSuperAdmin && (
               <MenuRow label="Admin · send a test error report" last onPress={() => {
                 reportError(new Error(`Test report from the myQode app (${Platform.OS}), sent by an admin from More`));
-                Alert.alert('Test report sent', 'It should appear in Sentry (qode-app) and Teams within a minute.');
+                const msg = 'It should appear in Sentry (qode-app) and Teams within a minute.';
+                if (Platform.OS === 'web') { if (typeof window !== 'undefined') window.alert(`Test report sent. ${msg}`); } else Alert.alert('Test report sent', msg);
               }} />
             )}
           </Card>

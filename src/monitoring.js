@@ -1,6 +1,6 @@
 // Crash and error reporting to Qode's self-hosted Sentry (project "qode-app" on sentry.qodeinvest.com; alerts reach
-// Teams through the server's sentry-teams-relay). On only in real phone builds that carry EXPO_PUBLIC_SENTRY_DSN
-// (.env / .env.production, not in git): never in development or the web build.
+// Teams through the server's sentry-teams-relay). On in release builds that carry EXPO_PUBLIC_SENTRY_DSN (.env /
+// .env.production, not in git) — phone apps and the web app at /app — never in development.
 // Privacy: no user identity, no request bodies, no console logs; emails, PANs, phone numbers, client codes and long
 // digit runs are masked in whatever text does go out.
 import * as Sentry from '@sentry/react-native';
@@ -9,7 +9,7 @@ import Constants from 'expo-constants';
 
 const DSN = process.env.EXPO_PUBLIC_SENTRY_DSN || '';
 const API = process.env.EXPO_PUBLIC_API_BASE_URL || '';
-export const monitoringOn = !!DSN && !__DEV__ && Platform.OS !== 'web';
+export const monitoringOn = !!DSN && !__DEV__;
 
 const MASKS = [
   [/[\w.+-]+@[\w-]+\.[\w.]+/g, '[email]'],
@@ -34,7 +34,8 @@ export function initMonitoring() {
   const version = (Constants.expoConfig && Constants.expoConfig.version) || '0';
   Sentry.init({
     dsn: DSN,
-    environment: /testing/.test(API) ? 'testing' : 'production',
+    // web: the API is '/' (same site), so the site's own address says which server this is
+    environment: /testing/.test(Platform.OS === 'web' && typeof location !== 'undefined' ? location.hostname : API) ? 'testing' : 'production',
     release: `myqode-app@${version}`,
     dist: Platform.OS,
     sendDefaultPii: false,
