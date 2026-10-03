@@ -1,0 +1,29 @@
+# Runs on every push and pull request. No secrets needed (Sentry is off without EXPO_PUBLIC_SENTRY_DSN).
+name: CI
+on:
+  push:
+    branches: [master]
+  pull_request:
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Unit tests
+        run: npm test
+      - name: Expo dependency check
+        run: npx expo-doctor || true      # report only: SDK/version drift
+      - name: Web build compiles (same settings as build:web, output discarded)
+        run: >
+          EXPO_PUBLIC_API_BASE_URL=/ EXPO_PUBLIC_TEST_MODE=0 EXPO_PUBLIC_DEV_BYPASS=0
+          EXPO_PUBLIC_ONBOARDING_API_BASE=https://onboarding.qodeinvest.com
+          npx expo export --platform web --output-dir /tmp/web-build --clear
