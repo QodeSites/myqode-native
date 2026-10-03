@@ -18,3 +18,6 @@ export const APP_VERSION = (Constants.expoConfig && Constants.expoConfig.version
 // Update pop-up: always on in a release build (TEST_MODE off). While testing it is hidden, unless
 // EXPO_PUBLIC_SHOW_UPDATE_PROMPT=1 — which shows it without turning test mode (and its client protections) off.
 export const SHOW_UPDATE_BANNER = !TEST_MODE || on(process.env.EXPO_PUBLIC_SHOW_UPDATE_PROMPT);
+
+// "New to Qode? Begin your journey" (account opening) on the sign-in screens. Hidden for now; set to true to bring it back.
+export const SHOW_ONBOARDING = false;

@@ -11,6 +11,7 @@ import { FaceID, ChevronLeft } from '../icons';
 import Onboarding, { ResumeScreen } from '../screens/onboarding';
 import { ActivityIndicator } from 'react-native';
 
+import { SHOW_ONBOARDING } from '../api/config';
 // The sign-in screens keep the brand look (green and gold on cream, Lato) with their own small controls, so the
 // dashboard's design system can change without touching them.
 const Label = ({ children, style, c = C.muted }) => <Tx w={700} s={10.5} ls={0.12} c={c} style={style}>{children}</Tx>;
@@ -324,9 +325,11 @@ function SignIn({ V }) {
         <View style={{ flex: 1, height: 1, backgroundColor: C.hairline }} />
       </View>
       <Btn label="Explore a demo with sample data" kind="outline" onPress={V.startDemo} style={{ marginTop: 20 }} />
-      <Pressable onPress={V.startOb} accessibilityRole="button" style={({ hovered }) => ({ marginTop: 22, alignSelf: 'center', opacity: hovered ? 0.7 : 1 })}>
-        <Tx s={13} c={C.muted} center>New to Qode? <Tx w={700} s={13} c={C.green}>Begin your journey</Tx></Tx>
-      </Pressable>
+      {SHOW_ONBOARDING && (
+        <Pressable onPress={V.startOb} accessibilityRole="button" style={({ hovered }) => ({ marginTop: 22, alignSelf: 'center', opacity: hovered ? 0.7 : 1 })}>
+          <Tx s={13} c={C.muted} center>New to Qode? <Tx w={700} s={13} c={C.green}>Begin your journey</Tx></Tx>
+        </Pressable>
+      )}
     </View>
   );
 }

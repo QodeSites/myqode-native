@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise, KeyboardScroll, useKeyboardHeight, Wordmark } from '../ui';
 
+import { SHOW_ONBOARDING } from '../api/config';
 // The text links under the sign-in card are tappable on their words only (plus a little side padding), not across the
 // whole width, so a tap beside a link does nothing.
 const textLink = { alignSelf: 'center', paddingHorizontal: 10 };
@@ -132,9 +133,11 @@ export function Login({ V }) {
               </Pressable>
             </Card>
           )}
-          <Pressable onPress={V.startOb} style={[{ marginTop: 14 }, textLink]}>
-            <Tx s={12} c={C.muted} center>New to Qode? <Tx w={700} s={12} c={C.green}>Begin your journey</Tx></Tx>
-          </Pressable>
+          {SHOW_ONBOARDING && (
+            <Pressable onPress={V.startOb} style={[{ marginTop: 14 }, textLink]}>
+              <Tx s={12} c={C.muted} center>New to Qode? <Tx w={700} s={12} c={C.green}>Begin your journey</Tx></Tx>
+            </Pressable>
+          )}
           <Tx s={10} ls={0.08} c={C.gray} center style={{ marginTop: 26 }}>PROTECTED BY 256-BIT ENCRYPTION</Tx>
         </View>
       </ScrollView>
