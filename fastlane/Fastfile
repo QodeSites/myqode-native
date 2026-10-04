@@ -33,6 +33,17 @@ def play_key
 end
 
 platform :ios do
+  desc "Read-only: can the key see the app? Lists its versions and the newest builds"
+  lane :check do
+    Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.from(hash: asc_key)
+    app = Spaceship::ConnectAPI::App.find(APP_ID) || UI.user_error!("Key cannot see #{APP_ID}")
+    UI.success("App Store: #{app.name} (#{app.bundle_id})")
+    app.get_app_store_versions.first(3).each { |v| UI.message("  version #{v.version_string}: #{v.app_store_state}") }
+    Spaceship::ConnectAPI::Build.all(app_id: app.id, sort: "-uploadedDate", limit: 3).each do |b|
+      UI.message("  build #{b.version} (#{b.app_version}): #{b.processing_state}")
+    end
+  end
+
   desc "Upload screenshots and texts to the App Store version (no submission)"
   lane :metadata do
     deliver(api_key: asc_key, app_identifier: APP_ID, app_version: VERSION, platform: "ios",
@@ -68,6 +79,15 @@ platform :ios do
 end
 
 platform :android do
+  desc "Read-only: can the service account see the app? Shows the production track"
+  lane :check do
+    validate_play_store_json_key(json_key: play_key)
+    codes = google_play_track_version_codes(json_key: play_key, package_name: APP_ID, track: "production")
+    UI.success("Play: #{APP_ID} production version codes: #{codes.inspect}")
+    internal = google_play_track_version_codes(json_key: play_key, package_name: APP_ID, track: "internal") rescue []
+    UI.message("  internal testing version codes: #{internal.inspect}")
+  end
+
   desc "Upload Play listing screenshots and texts (no release)"
   lane :metadata do
     supply(json_key: play_key, package_name: APP_ID, skip_upload_aab: true, skip_upload_apk: true,
