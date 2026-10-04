@@ -39,7 +39,8 @@ function walk(seed, cagr, sd) {
   const w = [0];
   for (let i = 1; i < n; i++) w.push(w[i - 1] + sd * gauss(r));
   const total = Math.log(Math.pow(1 + cagr, (n - 1) / 365.25));
-  return w.map((v, i) => 100 * Math.exp((i / (n - 1)) * total + v - (i / (n - 1)) * w[n - 1]));
+  return w.map((v, i) => 10 * Math.exp(   // NAVs start at 10, as Nuvama's do (the chart and "Current NAV" agree)
+    (i / (n - 1)) * total + v - (i / (n - 1)) * w[n - 1]));
 }
 
 const allAccts = OWNERS.flatMap(o => o.accts.map(([id, p, v]) => ({ id, p, v, owner: o })));
