@@ -12,7 +12,7 @@
 #   fastlane ios submit build:202610040135   attach that build, manual release, submit for review
 #   fastlane ios release               press "Release This Version" (only when told to)
 #   fastlane android metadata          Play screenshots + texts only
-#   fastlane android submit aab:~/Desktop/qode/apk/myQode-1.3.0-52.aab   upload to production as a DRAFT
+#   fastlane android submit [aab:…] [listing:true]   upload to production as a DRAFT (listing only with listing:true)
 #   fastlane android release code:52 rollout:0.2   publish the draft to 20% (1.0 = everyone; only when told to)
 
 APP_ID = "com.qodeinvest.myqode"
@@ -99,9 +99,12 @@ platform :android do
     aab = File.expand_path(options[:aab] || Dir[File.expand_path("~/Desktop/qode/apk/myQode-#{VERSION}-*.aab")].max_by { |f| f[/-(\d+)\.aab$/, 1].to_i })
     UI.user_error!("No .aab found") unless aab && File.exist?(aab)
     UI.message("Uploading #{File.basename(aab)}")
+    # Listing texts/screenshots go live on their own after review unless Managed publishing is on, so they are
+    # only sent with listing:true (on launch day, or once Managed publishing is switched on).
+    listing = options[:listing].to_s == "true"
     supply(json_key: play_key, package_name: APP_ID, track: "production", release_status: "draft", aab: aab,
-           metadata_path: File.expand_path("metadata/android", __dir__), skip_upload_images: false,
-           skip_upload_screenshots: false)
+           metadata_path: File.expand_path("metadata/android", __dir__),
+           skip_upload_metadata: !listing, skip_upload_images: !listing, skip_upload_screenshots: !listing)
   end
 
   desc "Publish the production draft to a share of users (rollout:0.2 = 20%, 1.0 = everyone)"
