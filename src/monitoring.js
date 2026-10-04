@@ -8,7 +8,6 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 const DSN = process.env.EXPO_PUBLIC_SENTRY_DSN || '';
-const API = process.env.EXPO_PUBLIC_API_BASE_URL || '';
 export const monitoringOn = !!DSN && !__DEV__;
 
 const MASKS = [
@@ -34,8 +33,9 @@ export function initMonitoring() {
   const version = (Constants.expoConfig && Constants.expoConfig.version) || '0';
   Sentry.init({
     dsn: DSN,
-    // web: the API is '/' (same site), so the site's own address says which server this is
-    environment: /testing/.test(Platform.OS === 'web' && typeof location !== 'undefined' ? location.hostname : API) ? 'testing' : 'production',
+    // myqode-testing.qodeinvest.com IS the production server since the 6 Oct 2026 launch, so the name says nothing;
+    // EXPO_PUBLIC_APP_ENV (e.g. "staging") marks any other build.
+    environment: process.env.EXPO_PUBLIC_APP_ENV || 'production',
     release: `myqode-app@${version}`,
     dist: Platform.OS,
     sendDefaultPii: false,
