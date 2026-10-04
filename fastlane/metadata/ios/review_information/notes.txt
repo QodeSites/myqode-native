@@ -1,0 +1,1 @@
+Sign in with the demo account above. It shows sample portfolio data (no real client data). Account creation is not available in the app: accounts are opened by Qode for its portfolio management clients.

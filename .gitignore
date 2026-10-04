@@ -50,3 +50,10 @@ yarn-error.*
 
 # Firebase service-account keys are secrets: never commit them (upload to Expo, then keep them out of the repo)
 *-firebase-adminsdk-*.json
+
+# fastlane: generated screenshots and the store-reviewer password stay out of git
+fastlane/screenshots/
+fastlane/metadata/android/en-US/images/
+fastlane/metadata/ios/review_information/demo_password.txt
+fastlane/report.xml
+fastlane/Preview.html
