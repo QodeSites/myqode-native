@@ -54,7 +54,12 @@ export function buildScopes(snap, codes) {
   // Closed accounts (fully withdrawn, myQode lib/accountClosure.ts) stay out of every total and view, but are listed
   // (greyed, "Closed on …") so a client can still open their history: each owner's `closedAccounts`, and `closedOwners` for a
   // person whose accounts are all closed.
-  const closedOf = o => (o.accounts || []).filter(a => a.isClosed && can(a.id));
+  // Plus the owner's matured accounts (snapshot `closedAccounts`: no longer in the portfolio, but their reports count,
+  // e.g. Pallavi Kalyani's QFH00051, closed 7 May 2026). The server authorises them for the owner.
+  const matured = o => (snap.closedAccounts || [])
+    .filter(c => normId(c.ownerId) === normId(o.id) && !(o.accounts || []).some(a => String(a.id) === String(c.id)))
+    .map(c => ({ ...c, isClosed: true, portfolioValue: 0 }));
+  const closedOf = o => [...(o.accounts || []).filter(a => a.isClosed && can(a.id)), ...matured(o)];
   const closedOwners = (snap.owners || []).filter(o => closedOf(o).length && !(o.accounts || []).some(a => !a.isClosed && can(a.id)))
     .map(o => ({ id: String(o.id), name: o.name, initials: initials(o.name), closedAccounts: closedOf(o) }));
   const owners = (snap.owners || []).map(o => {

@@ -20,6 +20,11 @@ export function reportAccountOptions(V) {
     const name = cleanName(names[String(o.id)]);
     return { id: o.id, name, label: name ? `${name} ${o.id}` : String(o.label || o.id) };
   });
+  // Closed accounts: in "All accounts" and pickable, marked closed (their charges, trades and gains still count).
+  ((V && V.reportClosed) || []).filter(c => !list.some(o => String(o.id) === c.id)).forEach(c => {
+    const name = cleanName(c.name);
+    list.push({ id: c.id, name, label: `${name ? `${name} ${c.id}` : c.id} (closed)`, closed: true });
+  });
   return list.length >= 2 ? [{ id: ALL_ID, label: ALL_LABEL, name: ALL_LABEL, all: true }, ...list] : list;
 }
 export const singleAccounts = options => (options || []).filter(o => o.id !== ALL_ID);

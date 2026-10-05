@@ -1471,6 +1471,10 @@ export default class MyQode extends React.Component {
       user: S.user, isSuperAdmin: !!(S.user && S.user.isSuperAdmin), impersonated: !!(S.user && S.user.isImpersonated),
       page: S.page, openPage: k => { k = PAGE_ALIASES[k] || k; screen('page:' + k); set({ page: k }); }, closePage: () => set({ page: null }),
       acctOptions: (scope ? scope.accounts : []).map(a => ({ id: a.id, label: a.strategyPrefix ? a.strategyPrefix + ' · ' + a.id : a.id })),
+      // closed accounts of the scope's people, for Reports only (Nuvama's statements include them)
+      reportClosed: !scope || scope.kind === 'account' ? []
+        : (scope.kind === 'owner' ? scope.closedAccounts || [] : ((S.scopes && S.scopes.owners) || []).flatMap(o => o.closedAccounts || []))
+          .map(a => ({ id: String(a.id), name: a.strategyName || '' })),
       openReq: (k, preset) => { if (!S.viewing) set({ sheet: k, sheetPreset: preset || null }); }, sheetPreset: S.sheetPreset || null,   // no requests in a client's name while a distributor views the account
       bumpRefresh: () => set(s => ({ rk: s.rk + 1 })),
       openAdd: () => { if (!S.viewing) set({ sheet: 'r-add' }); },
