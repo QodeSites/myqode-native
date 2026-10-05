@@ -23,8 +23,8 @@ import { useLoad, Loading, ErrorBox } from './kit';
 import { track } from '../api/track';
 
 import { userMessage } from '../errors';
-const STRATS = ['QAW', 'QTF', 'QGF'];
-const NAMES = { QAW: 'Qode All Weather', QTF: 'Qode Tactical Fund', QGF: 'Qode Growth Fund' };
+const STRATS = ['QAW', 'QTF', 'QGF', 'QLF'];
+const NAMES = { QAW: 'Qode All Weather', QTF: 'Qode Tactical Fund', QGF: 'Qode Growth Fund', QLF: 'Qode Liquid Fund' };
 const PCTS = [25, 50, 75];   // Partial — 100% is Full
 const STEPS = [['Switch from', ''], ['Switch to', 'Where the money goes'], ['Review', 'Check the details and send']];
 const fmt = v => inr(Number(v || 0));
@@ -95,7 +95,7 @@ export function SwitchForm({ onClose, preferName }) {
   const [invId, setInvId] = useState(null);
   const [pickInv, setPickInv] = useState(false);
   const inv = investors.find(i => i.id === invId) || investors.find(i => preferName && norm(i.legalName) === norm(preferName)) || investors[0] || null;
-  const invested = (inv && inv.invested) || { QAW: 0, QTF: 0, QGF: 0 };
+  const invested = (inv && inv.invested) || { QAW: 0, QTF: 0, QGF: 0, QLF: 0 };
   const held = STRATS.filter(s => invested[s] > 0);
   // Pending requests (server: a list, each with from/to). An older server sent one request with no strategies —
   // then every strategy counts as taken, as that server enforced.

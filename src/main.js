@@ -1476,7 +1476,7 @@ export default class MyQode extends React.Component {
       openAdd: () => { if (!S.viewing) set({ sheet: 'r-add' }); },
       openSwitchStrategy: () => { if (!S.viewing) set({ sheet: 'r-switch' }); },
       // every strategy account in the current scope, with its current value (snapshot) for the switch form
-      switchAccounts: (scope ? scope.accounts : []).filter(a => a.strategyPrefix && a.strategyPrefix !== 'QLF').map(a => ({
+      switchAccounts: (scope ? scope.accounts : []).filter(a => a.strategyPrefix).map(a => ({
         id: String(a.id), prefix: a.strategyPrefix, name: a.strategyName || a.id,
         value: num((S.hold[a.id] && S.hold[a.id].currentValue) != null ? S.hold[a.id].currentValue : a.portfolioValue) || 0,
       })),
