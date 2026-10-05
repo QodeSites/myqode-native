@@ -1081,14 +1081,10 @@ function StatementBody({ period, name, go }) {
             <View style={{ flex: 1 }}><Label>Statement for</Label><Tx w={600} s={14} style={{ marginTop: 4 }}>{name || '–'}</Tx></View>
             <View style={{ flex: 1, alignItems: 'flex-end' }}><Label>Period</Label><Tx w={600} s={14} style={{ marginTop: 4 }}>{period.label}</Tx><Tx s={12} c={C.ink3}>{dday(period.startDate)} to {dday(period.endDate)}</Tx></View>
           </View>
-          <Label style={{ marginTop: 16 }}>Total payable to you, inclusive of GST</Label>
+          <Label style={{ marginTop: 16 }}>Total payable to you (incl. GST)</Label>
           <Amt w={600} s={30} style={{ marginTop: 4, letterSpacing: -0.5 }}>{inr(t.share)}</Amt>
-          <Tx s={12.5} c={C.ink3} style={{ fontStyle: 'italic', marginTop: 2 }}>{amountInWords(t.share)}</Tx>
-          <Notice style={{ marginTop: 14 }}>
-            <Tx s={13} lh={1.55} c={C.ink2}><Tx w={600} s={13}>This amount already includes GST. Do not add GST on top.</Tx> Invoice Qode Advisors LLP for <Tx w={600} s={13}>{inr(t.share)}</Tx> in total, shown on your invoice as <Tx w={600} s={13}>{inr(t.shareNet)}</Tx> plus GST of <Tx w={600} s={13}>{inr(t.shareGst)}</Tx>.</Tx>
-          </Notice>
+          <Tx s={12.5} c={C.ink2} style={{ marginTop: 6 }}>{inr(t.shareNet)} fee + {inr(t.shareGst)} GST · invoice this total; don’t add GST again</Tx>
           {!!pdfErr && <Tx s={12.5} c={C.red} style={{ marginTop: 10 }}>{pdfErr}</Tx>}
-          <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 12 }}>Download PDF opens your browser’s print dialog: choose “Save as PDF”. This statement is not a tax invoice; use Raise invoice to generate one.</Tx>
         </Panel>
         <Panel title="Calculation" style={{ flex: 1 }}>
           <KeyVals items={calc.map(([k, sub, v, kind]) => [sub ? `${k} (${sub})` : k, kind === 'total' ? <Amt key={k} w={700} s={15} c={C.green}>{money2(v)}</Amt> : money2(v), v < 0 ? C.red : undefined])} />
@@ -1293,7 +1289,6 @@ function LinkPanel({ title, sub, url }) {
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
         <Btn small label={copied ? 'Copied' : 'Copy link'} icon={<Copy s={13} c={C.gold} />} onPress={() => { Clipboard.setStringAsync(url).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 1500); }} />
         <Btn small kind="outline" label="Open" onPress={() => Linking.openURL(url).catch(() => {})} />
-        <Btn small kind="outline" label="Send by email" icon={<MailIcon s={13} c={C.ink2} />} onPress={() => Linking.openURL('mailto:?subject=' + encodeURIComponent('Open your Qode account') + '&body=' + encodeURIComponent(url)).catch(() => {})} />
       </View>
     </Panel>
   );
@@ -1327,38 +1322,72 @@ function Decks() {
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState({});
   const get = async d => {
-    if (busy) return;
+    if (!d || busy) return;
     setBusy(d.slug); setErr(e => ({ ...e, [d.slug]: '' }));
     try { await openFile({ kind: 'deck', slug: d.slug }, 'That document is unavailable just now.'); }
     catch (e) { setErr(o => ({ ...o, [d.slug]: e.status === 401 || e.status === 403 ? 'Please sign in again to download this.' : e.status ? 'That document is unavailable just now.' : 'Download failed. Please check your connection and try again.' })); }
     setBusy('');
   };
-  const sections = [['The firm', DECKS.filter(d => !d.strategy)], ['Strategy decks', DECKS.filter(d => d.strategy && d.kind !== 'factsheet')], ['Factsheets', DECKS.filter(d => d.kind === 'factsheet')]];
+  const firm = DECKS.find(d => !d.strategy);
+  const strategies = [...new Set(DECKS.filter(d => d.strategy).map(d => d.strategy))].map(name => ({
+    name, deck: DECKS.find(d => d.strategy === name && d.kind !== 'factsheet'), sheet: DECKS.find(d => d.strategy === name && d.kind === 'factsheet'),
+    info: (content.STRATEGIES || []).find(s => name.toLowerCase().replace(/[^a-z]/g, '').startsWith(s.name.toLowerCase().replace(/\(.*$/, '').replace(/[^a-z]/g, ''))),
+  }));
+  const label = d => (busy === (d && d.slug) ? 'Preparing…' : null);
   return (
     <View style={{ gap: 20 }}>
-      <PageIntro sub="Download and share with prospective investors. Each file opens in a new tab." />
-      <Grid min={320} gap={20}>
-        {sections.map(([h, items]) => (
-          <Panel key={h} title={h} pad={0}>
-            {items.map(d => {
-              const col = d.strategy ? STRATEGY_COLOR[d.strategy] || C.ink3 : C.green;
-              return (
-                <View key={d.slug} style={{ paddingVertical: 12, paddingHorizontal: 20, borderTopWidth: 1, borderColor: C.line }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: col + '1a', alignItems: 'center', justifyContent: 'center' }}><DocIcon s={17} c={col} /></View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Tx w={600} s={13.5} numberOfLines={1}>{d.title}</Tx>
-                      <Tx s={12} c={C.ink3}>{d.asOf}</Tx>
-                    </View>
-                    <Btn small kind="outline" label={busy === d.slug ? 'Preparing…' : 'Download'} icon={<Download s={13} c={C.ink2} />} onPress={() => get(d)} disabled={!!busy && busy !== d.slug} />
+      {!!firm && (
+        <LinearGradient colors={['#0B3B2A', '#05221A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: 16, padding: 28, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 24 }}>
+          <View style={{ flex: 1, minWidth: 280 }}>
+            <Tx w={600} s={12} c={C.gold} style={{ letterSpacing: 0.6 }}>START HERE</Tx>
+            <Tx f="play" w={600} s={26} c={C.cream} style={{ marginTop: 6 }}>{firm.title}</Tx>
+            <Tx s={13.5} lh={1.6} c="rgba(243,238,220,0.72)" style={{ marginTop: 8, maxWidth: 560 }}>Who Qode is and how we invest, in one deck. The best first thing to share with a new prospect, before a strategy.</Tx>
+            <Tx s={12} c="rgba(243,238,220,0.72)" style={{ marginTop: 10 }}>Updated {firm.asOf}</Tx>
+          </View>
+          <View style={{ alignItems: 'flex-start', gap: 6 }}>
+            <Btn kind="gold" label={label(firm) || 'Download corporate overview'} icon={<Download s={14} c={C.ink} />} onPress={() => get(firm)} disabled={!!busy && busy !== firm.slug} />
+            {!!err[firm.slug] && <Tx s={12} c={C.redSoft || '#F3B4B4'}>{err[firm.slug]}</Tx>}
+          </View>
+        </LinearGradient>
+      )}
+
+      <View>
+        <Tx f="play" w={600} s={20}>Strategies</Tx>
+        <Tx s={13} c={C.ink3} style={{ marginTop: 2 }}>A deck to present each strategy, and a factsheet with its latest numbers.</Tx>
+      </View>
+      <Grid min={300} gap={20}>
+        {strategies.map(s => {
+          const col = STRATEGY_COLOR[s.name] || C.green;
+          return (
+            <Card key={s.name} style={{ flex: 1, padding: 0, overflow: 'hidden' }}>
+              <View style={{ height: 6, backgroundColor: col }} />
+              <View style={{ padding: 22, gap: 14, flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: col + '1a', alignItems: 'center', justifyContent: 'center' }}><DocIcon s={18} c={col} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Tx w={600} s={16}>{s.name}</Tx>
+                    <Tx s={12} c={C.ink3}>Updated {(s.deck || s.sheet).asOf}</Tx>
                   </View>
-                  {!!err[d.slug] && <Tx s={12} c={C.red} style={{ marginTop: 6 }}>{err[d.slug]}</Tx>}
                 </View>
-              );
-            })}
-          </Panel>
-        ))}
+                {!!s.info && (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {s.info.points.map(pt => (
+                      <View key={pt} style={{ paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999, backgroundColor: col + '12', borderWidth: 1, borderColor: col + '33' }}>
+                        <Tx w={600} s={11.5} c={col}>{pt.replace(/\*$/, '')}</Tx>
+                      </View>))}
+                  </View>
+                )}
+                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 'auto' }}>
+                  {!!s.deck && <Btn small label={label(s.deck) || 'Strategy deck'} icon={<Download s={13} c={C.gold} />} onPress={() => get(s.deck)} disabled={!!busy && busy !== s.deck.slug} />}
+                  {!!s.sheet && <Btn small kind="outline" label={label(s.sheet) || 'Factsheet'} icon={<Download s={13} c={C.ink2} />} onPress={() => get(s.sheet)} disabled={!!busy && busy !== s.sheet.slug} />}
+                </View>
+                {[s.deck, s.sheet].filter(Boolean).map(d => err[d.slug] ? <Tx key={d.slug} s={12} c={C.red}>{err[d.slug]}</Tx> : null)}
+              </View>
+            </Card>
+          );
+        })}
       </Grid>
+      <Tx s={12} c={C.ink3}>Files open in a new tab as PDFs. Share the PDF itself with prospects.</Tx>
     </View>
   );
 }
