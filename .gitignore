@@ -47,6 +47,7 @@ yarn-error.*
 # local environment variants (never committed)
 .env.production
 .env.backup-*
+.env_khushal
 
 # Firebase service-account keys are secrets: never commit them (upload to Expo, then keep them out of the repo)
 *-firebase-adminsdk-*.json
@@ -57,3 +58,6 @@ fastlane/metadata/android/en-US/images/
 fastlane/metadata/ios/review_information/demo_password.txt
 fastlane/report.xml
 fastlane/Preview.html
+
+#android build issue logs
+build_log.txt
