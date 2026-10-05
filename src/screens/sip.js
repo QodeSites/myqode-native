@@ -231,8 +231,8 @@ export function SetupSip({ V, onDone, recover }) {
       <Field value={amt ? amt.toLocaleString('en-IN') : ''} onChangeText={t => { const n = parseInt(t.replace(/\D/g, '') || '0', 10); setAmt(Math.min(n, MAX)); set({ err: n > MAX ? `SIP amount is capped at ${fmt(MAX)} per cycle. Amount set to the maximum.` : '' }); }} numeric s={26} prefix="₹" />
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
         {CHIPS.map(v => (
-          <Pressable key={v} onPress={() => { setAmt(v); set({ err: '' }); }} style={{ borderWidth: 1, borderColor: C.greenBorder, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 }}>
-            <Amt s={12} c={C.green}>{fmt(v)}</Amt>
+          <Pressable key={v} onPress={() => { setAmt(v); set({ err: '' }); }} style={{ flex: 1, minWidth: 0, alignItems: 'center', borderWidth: 1, borderColor: C.greenBorder, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 6 }}>
+            <Amt s={12} c={C.green} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{fmt(v)}</Amt>
           </Pressable>
         ))}
       </View>
@@ -245,10 +245,10 @@ export function SetupSip({ V, onDone, recover }) {
         ))}
       </View>
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
-        <DateField label="START DATE" value={from} min={today()} max={addMonths(tomorrow(), 12)} onChange={setFrom} hint={isToday(from) ? 'today · charged at authorisation' : 'first charge'} />
+        <DateField label="START DATE" value={from} min={today()} max={addMonths(tomorrow(), 12)} onChange={setFrom} hint={isToday(from) ? 'today · first debit once your bank confirms' : 'first debit'} />
         <DateField label="END DATE (OPTIONAL)" value={until} min={addMonths(from, 1)} max={addMonths(from, 120)} onChange={d => { setUntil(d); setUntilTouched(true); }} hint={untilTouched ? 'last charge on or before' : '10 years · default'} />
       </View>
-      <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 12 }}>{isToday(from) ? <>First instalment of <Tx w={700} s={11.5}>{fmt(amt)}</Tx> is collected when you authorise, then</> : <>First charge on <Tx w={700} s={11.5}>{niceDate(from)}</Tx>, then</>} on the {ordinal(day)} of {freq === 'monthly' ? 'every month' : freq === 'quarterly' ? 'every third month' : `${MONTHS_LONG[from.getMonth()]} every year`} until <Tx w={700} s={11.5}>{niceDate(until)}</Tx>, unless you cancel earlier.{day > 28 ? ' In shorter months the debit falls on the last day.' : ''}</Tx>
+      <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 12 }}>{isToday(from) ? <>Authorising registers your mandate; nothing is debited at that moment. The first instalment of <Tx w={700} s={11.5}>{fmt(amt)}</Tx> is debited once your bank confirms the mandate (usually within 1–2 working days), then</> : <>Authorising registers your mandate; nothing is debited at that moment. The first instalment of <Tx w={700} s={11.5}>{fmt(amt)}</Tx> is debited on <Tx w={700} s={11.5}>{niceDate(from)}</Tx>, then</>} on the {ordinal(day)} of {freq === 'monthly' ? 'every month' : freq === 'quarterly' ? 'every third month' : `${MONTHS_LONG[from.getMonth()]} every year`} until <Tx w={700} s={11.5}>{niceDate(until)}</Tx>, unless you cancel earlier.{day > 28 ? ' In shorter months the debit falls on the last day.' : ''}</Tx>
       <Lbl>DEBIT ACCOUNT</Lbl>
       <View style={{ marginTop: 8, borderWidth: 1, borderColor: bank ? C.greenBorder : C.gold35, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12 }}>
         {bankQ.loading && !bankQ.data ? <Tx s={12} c={C.muted}>Checking your registered bank…</Tx>

@@ -211,8 +211,8 @@ export function PayOnline({ V, onDone, recover }) {
       <Field value={amt ? amt.toLocaleString('en-IN') : ''} onChangeText={t => { const n = parseInt(t.replace(/\D/g, '') || '0', 10); setAmt(Math.min(n, MAX)); set({ err: n > MAX ? `Online payments are capped at ${fmt(MAX)} per transaction. Amount set to the maximum. For more, use a bank transfer.` : '' }); }} numeric s={26} prefix="₹" />
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
         {CHIPS.map(v => (
-          <Pressable key={v} onPress={() => { setAmt(v); set({ err: '' }); }} style={{ borderWidth: 1, borderColor: amt === v ? C.green : C.greenBorder, backgroundColor: amt === v ? C.green : 'transparent', borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 }}>
-            <Amt s={12} c={amt === v ? C.cream : C.green}>{fmt(v)}</Amt>
+          <Pressable key={v} onPress={() => { setAmt(v); set({ err: '' }); }} style={{ flex: 1, minWidth: 0, alignItems: 'center', borderWidth: 1, borderColor: amt === v ? C.green : C.greenBorder, backgroundColor: amt === v ? C.green : 'transparent', borderRadius: 999, paddingVertical: 8, paddingHorizontal: 6 }}>
+            <Amt s={12} c={amt === v ? C.cream : C.green} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{fmt(v)}</Amt>
           </Pressable>
         ))}
       </View>
