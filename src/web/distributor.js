@@ -35,22 +35,22 @@ import { ClientReportsDialog } from './clientReports';
 import { userMessage } from '../errors';
 /* ── sections, addresses ────────────────────────────────────────────────────────────────────────────────── */
 const DocSmall = ({ c, s }) => <DocIcon s={s || 18} c={c} w={1.6} />;
-// Six places in the menu. Related pages live together: Earnings (Fees · Statement · Invoice, as tabs), Sales kit
+// Six places in the menu. Related pages live together: Earnings (Fees · Statement · Invoice, as tabs), Resources
 // (onboarding links, sales decks, risk and controls, on one page) and Help (raise a ticket + your account). Every old
 // address (/app/d/statement, /app/d/decks, /app/d/profile …) still works and opens the merged page.
 const NAV = [
   { key: 'overview', label: 'Overview', Icon: IconDashboard },
   { key: 'investors', label: 'Investors', Icon: IconUsers },
   { key: 'fees', label: 'Earnings', Icon: IconCalculator },
-  { key: 'links', label: 'Sales kit', Icon: IconShare },
+  { key: 'links', label: 'Resources', Icon: IconShare },
   { key: 'policies', label: 'Risk and controls', Icon: IconShield },
   { key: 'indicators', label: 'Indicators', Icon: IconLineChart },
   { key: 'support', label: 'Help', Icon: IconLifeBuoy },
 ];
-const GROUPS = [['Your book', ['overview', 'investors', 'fees']], ['Resources', ['links', 'policies', 'indicators', 'support']]];
+const GROUPS = [['Your book', ['overview', 'investors', 'fees']], ['More', ['links', 'policies', 'indicators', 'support']]];
 const PARENT = { statement: 'fees', invoice: 'fees', decks: 'links', profile: 'support' };
 const EARNINGS_TABS = [['fees', 'Fees'], ['statement', 'Statement'], ['invoice', 'Invoice']];
-const TITLES = { overview: 'Overview', investors: 'Investors', fees: 'Earnings', statement: 'Earnings', invoice: 'Earnings', links: 'Sales kit', decks: 'Sales kit', policies: 'Risk and controls', indicators: 'Market indicators', support: 'Help', profile: 'Help' };
+const TITLES = { overview: 'Overview', investors: 'Investors', fees: 'Earnings', statement: 'Earnings', invoice: 'Earnings', links: 'Resources', decks: 'Resources', policies: 'Risk and controls', indicators: 'Market indicators', support: 'Help', profile: 'Help' };
 const SECTIONS = ['overview', 'investors', 'fees', 'statement', 'invoice', 'links', 'decks', 'indicators', 'support', 'policies', 'profile'];
 const BASE = '/app/d/';
 const web = typeof window !== 'undefined' && typeof history !== 'undefined' && typeof location !== 'undefined';
@@ -1580,7 +1580,7 @@ function Tabs({ tabs, active, onPick }) {
   );
 }
 
-// Sales kit: the two onboarding links and the material to share with a prospect, as one page.
+// Resources: the two onboarding links and the material to share with a prospect, as one page.
 function GrowPage({ journey, focus }) {
   const [copied, setCopied] = useState('');
   const [busy, setBusy] = useState('');
