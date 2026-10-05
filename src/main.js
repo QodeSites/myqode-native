@@ -886,7 +886,7 @@ export default class MyQode extends React.Component {
     this.setState({
       phase: 'login', tab: 'home', sheet: null, page: null, user: null, acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {},
       dErr: '', dl: false, pw: '', busy: false, otp: ['', '', '', '', '', ''], authErr: msg, authInfo: '', uccSeen: false, payRecover: null, viewing: null,
-      imp: null, adm: null, notes: null, pushOffer: false,
+      imp: null, adm: null, notes: null, inFlight: [], pushOffer: false,
     });
   };
   expire() {
@@ -907,7 +907,8 @@ export default class MyQode extends React.Component {
     await setToken(r.token);
     clearUserCaches();
     services.warmSwitchInfo();
-    await new Promise(res => this.setState({ user: r.user, page: null, tab: 'home' }, res));
+    this.seq++;
+    await new Promise(res => this.setState({ user: r.user, page: null, tab: 'home', inFlight: [], notes: null }, res));
     await this.openPortfolio();
   };
   exitImpersonation = async () => {
@@ -916,7 +917,8 @@ export default class MyQode extends React.Component {
     const t = this.origToken; this.origToken = null;
     if (!t) return this.signOut();
     await setToken(t);
-    try { const me = await auth.me(); await new Promise(res => this.setState({ user: me, page: null, tab: 'home' }, res)); await this.openPortfolio(); }
+    this.seq++;
+    try { const me = await auth.me(); await new Promise(res => this.setState({ user: me, page: null, tab: 'home', inFlight: [], notes: null }, res)); await this.openPortfolio(); }
     catch { this.signOut('Your admin session has expired. Please sign in again.'); }
   };
 
@@ -944,7 +946,7 @@ export default class MyQode extends React.Component {
     const user = { ...(r.user || {}), isImpersonated: true };
     const imp = { name: user.name || name || email, email, backoffice: false };
     cleanAddress();
-    const reset = { user, imp, page: null, sheet: null, tab: 'home', acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '', viewing: null, uccSeen: true };
+    const reset = { user, imp, page: null, sheet: null, tab: 'home', acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '', viewing: null, uccSeen: true, inFlight: [], notes: null };
     if (user.isDistributor) { this.setState({ ...reset, phase: 'partner' }); return; }
     await new Promise(res => this.setState(reset, res));
     await this.openPortfolio();
@@ -963,7 +965,8 @@ export default class MyQode extends React.Component {
     await setToken(t);
     { const au = this.adminUser || this.state.user; if (au && au.email) trackStart('a:' + au.email, 'admin'); }   // tracking resumes as the admin
     cleanAddress();
-    this.setState({ phase: 'admin', user: this.adminUser || this.state.user, imp: null, viewing: null, page: null, sheet: null, tab: 'home',
+    this.seq++;
+    this.setState({ phase: 'admin', user: this.adminUser || this.state.user, imp: null, viewing: null, page: null, sheet: null, tab: 'home', inFlight: [], notes: null,
       acct: 0, hist: null, dv: 'nuvama', snap: null, scopes: null, d: null, hold: {}, navs: {}, dErr: '', lifting: false },
       () => this.pushSync());   // once the admin's own session is in state: register this phone for the admin's test sends
     if (msg) this.toast(msg);
@@ -1045,7 +1048,8 @@ export default class MyQode extends React.Component {
   // Payments received but not in the portfolio yet (Home's "On its way" card).
   loadInFlight = async () => {
     if (this.state.viewing || this.state.phase === 'admin' || this.state.phase === 'partner') return;   // called as the app opens, before phase flips to 'app'
-    try { const r = await payments.inFlight(); this.setState({ inFlight: (r && r.items) || [] }); } catch {}
+    const seq = this.seq;   // a switch of user while this is in flight makes the answer someone else's: drop it
+    try { const r = await payments.inFlight(); if (seq === this.seq) this.setState({ inFlight: (r && r.items) || [] }); } catch {}
   };
   loadNotifs = async () => {
     if (this.state.phase !== 'app' || this.notesBusy) return;
@@ -1053,7 +1057,9 @@ export default class MyQode extends React.Component {
     const cur = this.state.notes;
     this.setState({ notes: { ...(cur || { items: [], unread: 0 }), loading: true, err: '' } });
     try {
+      const seq = this.seq;
       const r = await notifications.list();
+      if (seq !== this.seq) return;   // the user changed while this was loading
       this.setState({ notes: { items: r.items || [], unread: r.unread || 0, hasMore: !!r.hasMore, loading: false, err: '' } });
       if (this.ownSession()) push.setBadge(r.unread || 0);
     } catch (e) {
