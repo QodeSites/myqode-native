@@ -43,13 +43,14 @@ const NAV = [
   { key: 'investors', label: 'Investors', Icon: IconUsers },
   { key: 'fees', label: 'Earnings', Icon: IconCalculator },
   { key: 'links', label: 'Grow your book', Icon: IconShare },
+  { key: 'policies', label: 'Risk and controls', Icon: IconShield },
   { key: 'indicators', label: 'Indicators', Icon: IconLineChart },
   { key: 'support', label: 'Help', Icon: IconLifeBuoy },
 ];
-const GROUPS = [['Your book', ['overview', 'investors', 'fees']], ['Resources', ['links', 'indicators', 'support']]];
-const PARENT = { statement: 'fees', invoice: 'fees', decks: 'links', policies: 'links', profile: 'support' };
+const GROUPS = [['Your book', ['overview', 'investors', 'fees']], ['Resources', ['links', 'policies', 'indicators', 'support']]];
+const PARENT = { statement: 'fees', invoice: 'fees', decks: 'links', profile: 'support' };
 const EARNINGS_TABS = [['fees', 'Fees'], ['statement', 'Statement'], ['invoice', 'Invoice']];
-const TITLES = { overview: 'Overview', investors: 'Investors', fees: 'Earnings', statement: 'Earnings', invoice: 'Earnings', links: 'Grow your book', decks: 'Grow your book', policies: 'Grow your book', indicators: 'Market indicators', support: 'Help', profile: 'Help' };
+const TITLES = { overview: 'Overview', investors: 'Investors', fees: 'Earnings', statement: 'Earnings', invoice: 'Earnings', links: 'Grow your book', decks: 'Grow your book', policies: 'Risk and controls', indicators: 'Market indicators', support: 'Help', profile: 'Help' };
 const SECTIONS = ['overview', 'investors', 'fees', 'statement', 'invoice', 'links', 'decks', 'indicators', 'support', 'policies', 'profile'];
 const BASE = '/app/d/';
 const web = typeof window !== 'undefined' && typeof history !== 'undefined' && typeof location !== 'undefined';
@@ -316,7 +317,8 @@ export default function DesktopDistributor({ V }) {
         : section === 'statement' ? <StatementPage periods={periods} period={period} setPeriod={setPeriod} name={name} go={go} />
         : <InvoicePage periods={periods} period={period} setPeriod={setPeriod} name={name} />}
     </View>);
-  else if (section === 'links' || section === 'decks' || section === 'policies') body = <GrowPage journey={journey} focus={section} />;
+  else if (section === 'links' || section === 'decks') body = <GrowPage journey={journey} focus={section} />;
+  else if (section === 'policies') body = <Policies />;
   else if (section === 'indicators') body = <Indicators />;
   else body = (
     <View style={{ gap: 24 }}>
@@ -1570,26 +1572,81 @@ function Tabs({ tabs, active, onPick }) {
   );
 }
 
-// Grow your book: everything to bring in and convince a prospect, on one page.
+// Grow your book: the two onboarding links and the material to share with a prospect, as one page.
 function GrowPage({ journey, focus }) {
+  const [copied, setCopied] = useState('');
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState({});
   useEffect(() => {
-    if (!web || focus === 'links') return;
-    const t = setTimeout(() => { const el = document.getElementById('grow-' + focus); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300);
+    if (!web || focus !== 'decks') return;
+    const t = setTimeout(() => { const el = document.getElementById('grow-decks'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300);
     return () => clearTimeout(t);
   }, [focus]);
-  const H = ({ id, title, sub }) => (
-    <View nativeID={id} style={{ marginTop: 8 }}>
-      <Tx f="play" w={600} s={20}>{title}</Tx>
-      {!!sub && <Tx s={13} c={C.ink3} style={{ marginTop: 2 }}>{sub}</Tx>}
-    </View>);
+  const d = journey.data, L = d && d.referralLinks;
+  const copy = async (k, url) => { try { await Clipboard.setStringAsync(url); setCopied(k); setTimeout(() => setCopied(''), 1800); } catch {} };
+  const get = async doc => {
+    if (!doc || busy) return;
+    setBusy(doc.slug); setErr(e => ({ ...e, [doc.slug]: '' }));
+    try { await openFile({ kind: 'deck', slug: doc.slug }, 'That document is unavailable just now.'); }
+    catch (e) { setErr(o => ({ ...o, [doc.slug]: e.status === 401 || e.status === 403 ? 'Please sign in again.' : 'Unavailable just now. Please try again.' })); }
+    setBusy('');
+  };
+  const firm = DECKS.find(x => !x.strategy);
+  const tiles = [
+    ...(firm ? [{ key: firm.slug, title: firm.title, sub: 'Who Qode is and how we invest. Share this first.', color: C.gold, deck: firm, asOf: firm.asOf, points: [] }] : []),
+    ...[...new Set(DECKS.filter(x => x.strategy).map(x => x.strategy))].map(name => {
+      const info = (content.STRATEGIES || []).find(z => name.toLowerCase().replace(/[^a-z]/g, '').startsWith(z.name.toLowerCase().replace(/\(.*$/, '').replace(/[^a-z]/g, '')));
+      const deck = DECKS.find(x => x.strategy === name && x.kind !== 'factsheet'), sheet = DECKS.find(x => x.strategy === name && x.kind === 'factsheet');
+      return { key: name, title: name, color: STRATEGY_COLOR[name] || C.green, deck, sheet, asOf: (deck || sheet).asOf, points: info ? info.points.map(p => p.replace(/\*$/, '')) : [] };
+    }),
+  ];
+  const linkRows = L ? [['ind', 'For an individual', 'A person investing in their own name', L.individual], ['non', 'For a company, LLP, HUF or trust', 'Anything that is not an individual', L.nonIndividual]] : [];
   return (
     <View style={{ gap: 20 }}>
-      <H id="grow-links" title="Onboarding links" />
-      <Links journey={journey} />
-      <H id="grow-decks" title="Sales decks" sub="Present Qode and each strategy." />
-      <Decks />
-      <H id="grow-policies" title="Risk and controls" />
-      <Policies />
+      <Panel title="Your onboarding links" sub="Anyone who signs up through these is recorded as your client automatically." pad={0}>
+        {journey.loading && !d ? <View style={{ padding: 20 }}><Loading rows={2} /></View>
+          : !L ? <View style={{ padding: 20 }}><Tx s={13} c={C.ink2}>Your links aren’t set up yet. Email {PARTNERSHIPS} and we’ll create them.</Tx></View>
+          : linkRows.map(([k, t, sub, url], i) => (
+            <View key={k} style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 16, paddingVertical: 16, paddingHorizontal: 20, borderTopWidth: 1, borderColor: C.line }}>
+              <View style={{ width: 230 }}>
+                <Tx w={600} s={14}>{t}</Tx>
+                <Tx s={12} c={C.ink3}>{sub}</Tx>
+              </View>
+              <View style={{ flex: 1, minWidth: 260, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 8, backgroundColor: C.cream, borderWidth: 1, borderColor: C.line }}>
+                <Tx s={13} c={C.green} numberOfLines={1}>{url}</Tx>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Btn small label={copied === k ? 'Copied' : 'Copy link'} icon={<Copy s={13} c={C.gold} />} onPress={() => copy(k, url)} />
+                <Btn small kind="outline" label="Open" onPress={() => openUrl(url)} />
+              </View>
+            </View>))}
+      </Panel>
+
+      <View nativeID="grow-decks">
+        <Panel title="Sales material" sub="Decks and factsheets to share with prospects. Each opens as a PDF." pad={20}>
+          <Grid min={250} gap={16}>
+            {tiles.map(tl => (
+              <View key={tl.key} style={{ flex: 1, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: C.card, overflow: 'hidden' }}>
+                <View style={{ height: 5, backgroundColor: tl.color }} />
+                <View style={{ padding: 18, gap: 12, flex: 1 }}>
+                  <View>
+                    <Tx w={600} s={15}>{tl.title}</Tx>
+                    <Tx s={12} c={C.ink3}>Updated {tl.asOf}</Tx>
+                  </View>
+                  {tl.sub ? <Tx s={12.5} c={C.ink2} lh={1.5}>{tl.sub}</Tx> : (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {tl.points.map(pt => <View key={pt} style={{ paddingVertical: 3, paddingHorizontal: 9, borderRadius: 999, backgroundColor: tl.color + '14' }}><Tx w={600} s={11} c={tl.color}>{pt}</Tx></View>)}
+                    </View>)}
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 'auto', paddingTop: 4 }}>
+                    {!!tl.deck && <Btn small label={busy === tl.deck.slug ? 'Preparing…' : tl.sheet ? 'Deck' : 'Download'} icon={<Download s={13} c={C.gold} />} onPress={() => get(tl.deck)} disabled={!!busy && busy !== tl.deck.slug} />}
+                    {!!tl.sheet && <Btn small kind="outline" label={busy === tl.sheet.slug ? 'Preparing…' : 'Factsheet'} icon={<Download s={13} c={C.ink2} />} onPress={() => get(tl.sheet)} disabled={!!busy && busy !== tl.sheet.slug} />}
+                  </View>
+                  {[tl.deck, tl.sheet].filter(Boolean).map(x => err[x.slug] ? <Tx key={x.slug} s={11.5} c={C.red}>{err[x.slug]}</Tx> : null)}
+                </View>
+              </View>))}
+          </Grid>
+        </Panel>
+      </View>
     </View>
   );
 }
