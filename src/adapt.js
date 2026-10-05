@@ -59,18 +59,23 @@ export function buildScopes(snap, codes) {
   const matured = o => (snap.closedAccounts || [])
     .filter(c => normId(c.ownerId) === normId(o.id) && !(o.accounts || []).some(a => String(a.id) === String(c.id)))
     .map(c => ({ ...c, isClosed: true, portfolioValue: 0 }));
-  const closedOf = o => [...(o.accounts || []).filter(a => a.isClosed && can(a.id)), ...matured(o)];
+  // Qode Future Horizons (QFH) is never shown as an account of its own (all closed): left out of every list, but its
+  // charges, trades and gains still count in "All accounts" reports (hiddenAccounts), as in Nuvama's statements.
+  const isQFH = a => /^QFH/i.test(String(a.id));
+  const closedAll = o => [...(o.accounts || []).filter(a => a.isClosed && can(a.id)), ...matured(o)];
+  const closedOf = o => closedAll(o).filter(a => !isQFH(a));
+  const hiddenOf = o => closedAll(o).filter(isQFH).map(a => String(a.id));
   const closedOwners = (snap.owners || []).filter(o => closedOf(o).length && !(o.accounts || []).some(a => !a.isClosed && can(a.id)))
     .map(o => ({ id: String(o.id), name: o.name, initials: initials(o.name), closedAccounts: closedOf(o) }));
   const owners = (snap.owners || []).map(o => {
-    const accounts = (o.accounts || []).filter(a => !a.isClosed && can(a.id));
+    const accounts = (o.accounts || []).filter(a => !a.isClosed && can(a.id) && !/^QFH/i.test(String(a.id)));
     return {
       id: String(o.id), name: o.name, initials: initials(o.name),
       code: accounts.length + (accounts.length === 1 ? ' account' : ' accounts'),
       role: o.isHeadOfFamily ? 'HEAD OF FAMILY' : 'MEMBER', crown: !!o.isHeadOfFamily,
       // Owner view always uses the owner-level aggregate (like the web's "All Strategies"): it carries the
       // owner's full history, including accounts that have since closed — a single account does not.
-      value: num(o.totalValue) || 0, accounts, closedAccounts: closedOf(o),
+      value: num(o.totalValue) || 0, accounts, closedAccounts: closedOf(o), hiddenAccounts: hiddenOf(o),
       // not authorised for the owner aggregate → fall back to the owner's first strategy account
       ...(can(o.id) ? { kind: 'owner' } : { kind: 'account', id: accounts[0] ? String(accounts[0].id) : String(o.id) }),
       groupId: o.groupId,

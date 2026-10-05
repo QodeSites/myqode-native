@@ -970,7 +970,7 @@ function Fees({ periods, period, setPeriod, go }) {
                       {g.unmapped && <Pill label="No rate" tone="bad" />}
                     </View>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 3 }}>
-                      {g.accounts.map((a, i) => <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Dot s={7} color={SCHEME_COLOR[code3(a)] || C.ink3} /><Tx s={11.5} c={C.ink3}>{code3(a)}</Tx></View>)}
+                      {g.accounts.filter(a => code3(a) !== 'QFH').map((a, i) => <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Dot s={7} color={SCHEME_COLOR[code3(a)] || C.ink3} /><Tx s={11.5} c={C.ink3}>{code3(a)}</Tx></View>)}
                     </View>
                   </View>) },
                 { key: 'aum', label: 'Client AUM', right: true, render: g => <Amt s={13}>{inrCompact(g.aum)}</Amt> },
@@ -1008,7 +1008,7 @@ function ClientFeesDialog({ g, onClose }) {
   return (
     <Dialog visible onClose={onClose} title={g.name} width={620}>
       {terms && <Tx s={13} c={C.ink2} style={{ marginBottom: 12 }}>Fee terms: management {terms.mf}, performance {terms.pf}, hurdle {terms.h}</Tx>}
-      {g.accounts.map((a, i) => {
+      {g.accounts.filter(a => code3(a) !== 'QFH').map((a, i) => {
         const standardFee = num(a.totalRackRateFee) || num(a.totalFees);
         const isDiscounted = num(a.discountAmount) > 0 && standardFee > num(a.totalFees);
         const unmapped = a.rateSource === 'unmapped';

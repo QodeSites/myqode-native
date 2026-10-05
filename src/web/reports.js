@@ -787,7 +787,7 @@ function Factsheet({ accountId, ids, names, rk, account }) {
 
   if (all) {
     // Combined summary (values summed), a by-account table, then each account's own fact sheet.
-    const sheets = d.sheets || [];
+    const sheets = (d.sheets || []).filter(x => !/^QFH/i.test(String(x.accountId)));
     const byCols = [
       { key: 'acct', label: 'Account', flex: 2.4, render: x => cellTx(names[x.accountId] || x.accountId, { w: 600 }) },
       { key: 'asof', label: 'As of', flex: 1, render: x => cellTx(x.data.asOf ? fmtDate(x.data.asOf) : 'No fact sheet', { c: C.ink2 }) },
@@ -989,7 +989,8 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
   // "All time" asks from the earliest possible date; the server starts it at the first date on record.
   const q = R.preset === 'all' ? { from: '2000-01-01' } : { from: R.from, to: R.to };
   const L = useOnce(() => reports.pnl(all ? ids : accountId, q), [accountId, q.from, q.to, rk]);
-  const d = L.data;
+  // QFH accounts count in the totals but are never named (the server sums every account of the owner).
+  const d = L.data && L.data.accounts ? { ...L.data, accounts: L.data.accounts.filter(c => !/^QFH/i.test(String(c))) } : L.data;
   const cov = useCoverage(d);
   const has = !!(d && d.asOf);
   const period = has ? { from: d.from, to: d.to } : (R.preset === 'all' ? {} : R.range);
@@ -1039,14 +1040,15 @@ const KINDS = [['fs', 'Fact sheet'], ['pl', 'P&L and balance sheet'], ['cg', 'Ca
 export default function DesktopReports({ V }) {
   const opts = reportAccountOptions(V);
   const singles = singleAccounts(opts);
-  const ids = singles.map(o => o.id);
+  // "All accounts" also covers accounts that are never listed (QFH), so totals match Nuvama's statements.
+  const ids = [...singles.map(o => o.id), ...((V && V.reportHidden) || []).filter(id => !singles.some(o => String(o.id) === id))];
   const names = Object.fromEntries(singles.map(o => [o.id, o.label]));
   const [sel, setSel] = useState(null);
   const [kind, setKind] = useState('fs');
   // "All accounts" is offered first, but the default stays the first single account.
   const accountId = sel && opts.some(o => o.id === sel) ? sel : singles[0] && singles[0].id;
   const Body = { txn: Transactions, cg: CapitalGains, exp: Expenses, fs: Factsheet, pl: PnlBalanceSheet }[kind];
-  const account = <AccountDropdown options={opts} value={accountId} onPick={setSel} count={ids.length} />;
+  const account = <AccountDropdown options={opts} value={accountId} onPick={setSel} count={singles.length} />;
   // The page title ("Reports") is the top bar's heading; one short line here.
   return (
     <View>

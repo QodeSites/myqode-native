@@ -746,13 +746,13 @@ function Factsheet({ accountId, ids, names, rk, account }) {
     return <>{controls}<CombinedNote h={d} /><View style={{ marginTop: 16 }}><Empty>{first + cov}</Empty></View></>;
   }
   if (all) {
-    const sheets = d.sheets || [];
+    const sheets = (d.sheets || []).filter(x => !/^QFH/i.test(String(x.accountId)));
     return (
       <>
         {controls}
-        <StatusLine parts={[asOfPart(d.asOf), 'latest across accounts', `${ids.length} accounts`]} />
+        <StatusLine parts={[asOfPart(d.asOf), 'latest across accounts', `${sheets.length} accounts`]} />
         <CombinedNote h={d} />
-        <Strip caption={`ALL ACCOUNTS · ${ids.length}`} items={sheetStrip(d)}
+        <Strip caption={`ALL ACCOUNTS · ${sheets.length}`} items={sheetStrip(d)}
           footer={<Tx s={10.5} c={C.muted} style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderColor: RULE }}>{FACTSHEET_NOTE}</Tx>} />
         {sheets.map(({ accountId: id, data: x }) => (
           <View key={id}>
@@ -813,7 +813,8 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
   // "All" asks from the earliest possible date; the server starts it at the first date on record.
   const q = period.key === 'all' ? { from: '2000-01-01' } : rangeQuery(period);
   const L = useLoad(() => reports.pnl(all ? ids : accountId, q), [accountId, q.from, q.to, rk]);
-  const d = L.data;
+  // QFH accounts count in the totals but are never named (the server sums every account of the owner).
+  const d = L.data && L.data.accounts ? { ...L.data, accounts: L.data.accounts.filter(c => !/^QFH/i.test(String(c))) } : L.data;
   const has = !!(d && d.asOf);
   const pdf = <PdfButton make={has ? async () => plbsPdf(d, all ? null : accountId) : null} name={has ? `PnL and balance sheet ${all ? 'All accounts' : accountId} ${d.from} to ${d.to}` : ''} disabled={!has} />;
   const controls = <Controls account={account} period={<PeriodChip value={period} onChange={setPeriod} sub="The P&L covers the period; the balance sheet is as of its last day." since={d && d.coverage && d.coverage.from} />} pdf={pdf} />;
@@ -910,14 +911,15 @@ const KINDS = [['fs', 'Fact sheet'], ['pl', 'P&L and balance sheet'], ['cg', 'Ca
 export function ReportsPage({ V }) {
   const opts = reportAccountOptions(V);
   const singles = singleAccounts(opts);
-  const ids = singles.map(o => o.id);
+  // "All accounts" also covers accounts that are never listed (QFH), so totals match Nuvama's statements.
+  const ids = [...singles.map(o => o.id), ...((V && V.reportHidden) || []).filter(id => !singles.some(o => String(o.id) === id))];
   const names = Object.fromEntries(singles.map(o => [o.id, o.label]));
   const [sel, setSel] = useState(null);
   const [kind, setKind] = useState('fs');
   // "All accounts" is offered first, but the default stays the first single account.
   const accountId = sel && opts.some(o => o.id === sel) ? sel : singles[0] && singles[0].id;
   const Body = { txn: Transactions, cg: CapitalGains, exp: Expenses, fs: Factsheet, pl: PnlBalanceSheet }[kind];
-  const account = <AccountChip options={opts} value={accountId} onPick={setSel} count={ids.length} />;
+  const account = <AccountChip options={opts} value={accountId} onPick={setSel} count={singles.length} />;
   return (
     <>
       {/* report tabs: one scrollable row */}

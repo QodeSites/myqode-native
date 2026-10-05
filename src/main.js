@@ -1475,6 +1475,9 @@ export default class MyQode extends React.Component {
       reportClosed: !scope || scope.kind === 'account' ? []
         : (scope.kind === 'owner' ? scope.closedAccounts || [] : ((S.scopes && S.scopes.owners) || []).flatMap(o => o.closedAccounts || []))
           .map(a => ({ id: String(a.id), name: a.strategyName || '' })),
+      // QFH accounts: never listed, but part of "All accounts" in Reports
+      reportHidden: !scope || scope.kind === 'account' ? []
+        : scope.kind === 'owner' ? scope.hiddenAccounts || [] : ((S.scopes && S.scopes.owners) || []).flatMap(o => o.hiddenAccounts || []),
       openReq: (k, preset) => { if (!S.viewing) set({ sheet: k, sheetPreset: preset || null }); }, sheetPreset: S.sheetPreset || null,   // no requests in a client's name while a distributor views the account
       bumpRefresh: () => set(s => ({ rk: s.rk + 1 })),
       openAdd: () => { if (!S.viewing) set({ sheet: 'r-add' }); },

@@ -462,7 +462,7 @@ export function Fees({ onStatement, onInvoice }) {
                   <View style={{ flex: 1 }}>
                     <Tx w={700} s={13}>{g.name}{g.unmapped ? '  ' : ''}{g.unmapped && <Tx w={700} s={10} c={C.red}>NO RATE</Tx>}</Tx>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 5 }}>
-                      {g.accounts.map((a, i) => (
+                      {g.accounts.filter(a => code3(a) !== 'QFH').map((a, i) => (
                         <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                           <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: SCHEME_COLOR[code3(a)] || NEUTRAL }} />
                           <Tx w={700} s={10.5} c={C.muted}>{code3(a)}</Tx>
@@ -489,7 +489,7 @@ export function Fees({ onStatement, onInvoice }) {
                       ))}
                     </View>
                   )}
-                  {g.accounts.map((a, i) => {
+                  {g.accounts.filter(a => code3(a) !== 'QFH').map((a, i) => {
                     // Web: the standard (rack) rate shows under the management fee only when the client pays below it.
                     const standardFee = num(a.totalRackRateFee) || num(a.totalFees);
                     const isDiscounted = num(a.discountAmount) > 0 && standardFee > num(a.totalFees);

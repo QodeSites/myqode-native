@@ -55,13 +55,15 @@ const union = ranges => {
 };
 // Newest first by `key`, ties kept in account order (Array.sort is stable).
 const byDateDesc = (rows, key) => rows.slice().sort((a, b) => String(b[key] || '').localeCompare(String(a[key] || '')));
-const tag = (ok, pick) => ok.flatMap(({ accountId, data }) => (pick(data) || []).map((x, i) => ({ ...x, account: accountId, id: `${accountId}:${x.id != null ? x.id : i}` })));
+// QFH accounts are never shown by code: their rows count but carry no account label, and a failed one isn't named.
+const HIDDEN = id => /^QFH/i.test(String(id));
+const tag = (ok, pick) => ok.flatMap(({ accountId, data }) => (pick(data) || []).map((x, i) => ({ ...x, account: HIDDEN(accountId) ? '' : accountId, id: `${accountId}:${x.id != null ? x.id : i}` })));
 const holders = ok => {
   const names = [...new Set(ok.map(o => o.data && o.data.holder && o.data.holder.name).filter(Boolean))];
   return names.length ? { name: names.join(', ') } : null;
 };
 const base = (ok, failed) => ({
-  all: true, accounts: ok.map(o => o.accountId), failed, holder: holders(ok),
+  all: true, accounts: ok.map(o => o.accountId).filter(id => !HIDDEN(id)), failed: (failed || []).filter(f => !HIDDEN(f.accountId)), holder: holders(ok),
   asOf: maxStr(ok.map(o => o.data.asOf)), truncated: ok.some(o => o.data.hasMore), hasMore: false,
 });
 
@@ -159,7 +161,7 @@ export function mergeFactsheets({ ok, failed }, q = {}) {
   const sum = k => has.reduce((s, o) => s + n(o.data[k]), 0);
   const dates = [...new Set(ok.flatMap(o => o.data.dates || []))].sort().reverse();
   return {
-    all: true, accounts: ok.map(o => o.accountId), failed, holder: holders(ok), date: q.date || null,
+    all: true, accounts: ok.map(o => o.accountId).filter(id => !HIDDEN(id)), failed: (failed || []).filter(f => !HIDDEN(f.accountId)), holder: holders(ok), date: q.date || null,
     asOf: maxStr(has.map(o => o.data.asOf)), valueDate: maxStr(has.map(o => o.data.valueDate || o.data.asOf)),
     inceptionDate: minStr(has.map(o => o.data.inceptionDate)),
     contribution: sum('contribution'), withdrawal: sum('withdrawal'), profitLoss: sum('profitLoss'), portfolioValue: sum('portfolioValue'),
