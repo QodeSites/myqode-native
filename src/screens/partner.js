@@ -904,7 +904,7 @@ export function Invoice({ period, distributorName, onBack }) {
     setState(s => ({ ...s, issuing: true, err: '' }));
     if (!(await save())) { setState(s => ({ ...s, issuing: false })); return; }
     try {
-      await api.issueInvoice({ invoiceNumber: String(invoiceNumber).trim(), invoiceDate: date, periodLabel: period.label, periodStart: period.startDate, periodEnd: period.endDate, amountBeforeTax: tax.taxableValue, taxAmount: tax.totalTax, totalAmount: tax.total });
+      await api.issueInvoice({ invoiceNumber: String(invoiceNumber).trim(), invoiceDate: date, periodLabel: period.label, periodStart: period.startDate, periodEnd: period.endDate, amountBeforeTax: tax.taxableValue, taxAmount: tax.totalTax, totalAmount: tax.total, invoiceHtml: html() });
       const n = String(invoiceNumber).match(/(\d+)\s*$/);
       if (n) setP(o => ({ ...o, lastInvoiceNumber: Math.max(Number(o.lastInvoiceNumber || 0), Number(n[1])) }));
       setNum(null);
