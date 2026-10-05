@@ -1121,7 +1121,7 @@ function InvoicePage({ periods, period, setPeriod, name }) {
       <View style={{ gap: 20 }}>
         <PeriodBar periods={periods} period={period} setPeriod={setPeriod} />
         {!!period && <InvoiceBody key={period.label} period={period} name={name} onIssued={() => setTick(x => x + 1)} />}
-        <Panel title="Invoices you have issued" sub="Your 24 most recent" pad={0}>
+        <Panel title="Invoices you have issued" sub="Your 24 most recent, with payment status. You’ll also get an email when one is paid." pad={0}>
           {history_.loading && !history_.data ? <View style={{ padding: 20 }}><Loading rows={2} /></View>
             : history_.err ? <Tx s={13} c={C.ink3} style={{ padding: 20 }}>We couldn’t load your invoice history just now.</Tx>
             : <Table dense rows={past.map((r, i) => ({ ...r, id: r.invoiceNumber + i }))} empty="No invoices recorded yet." cols={[
@@ -1131,6 +1131,14 @@ function InvoicePage({ periods, period, setPeriod, name }) {
               { key: 'amountBeforeTax', label: 'Before tax', right: true, render: r => <Amt s={13}>{inr(r.amountBeforeTax)}</Amt> },
               { key: 'taxAmount', label: 'Tax', right: true, render: r => <Amt s={13} c={C.ink2}>{inr(r.taxAmount)}</Amt> },
               { key: 'totalAmount', label: 'Total', right: true, render: r => <Amt w={600} s={13}>{inr(r.totalAmount)}</Amt> },
+              // payment status, set by Qode (Admin → Distributor invoices); paid ones show the date and UTR
+              { key: 'status', label: 'Status', render: r => (
+                <View style={{ minWidth: 0 }}>
+                  <Tx w={700} s={12.5} c={r.status === 'paid' ? C.green : r.status === 'on_hold' ? '#8A6D0B' : C.ink2}>{r.status === 'paid' ? 'Paid' : r.status === 'on_hold' ? 'On hold' : 'Unpaid'}</Tx>
+                  {r.status === 'paid' && <Tx s={11.5} c={C.ink3} numberOfLines={2}>{fmtDate(r.paidOn)} · UTR {r.paymentRef}{r.paidAmount != null && Math.abs(r.paidAmount - r.totalAmount) > 0.5 ? ' · ' + inr(r.paidAmount) : ''}</Tx>}
+                  {r.status !== 'paid' && !!r.paymentNote && <Tx s={11.5} c={C.ink3} numberOfLines={2}>{r.paymentNote}</Tx>}
+                </View>
+              ) },
             ]} />}
         </Panel>
       </View>
