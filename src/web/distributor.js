@@ -35,22 +35,22 @@ import { ClientReportsDialog } from './clientReports';
 import { userMessage } from '../errors';
 /* ── sections, addresses ────────────────────────────────────────────────────────────────────────────────── */
 const DocSmall = ({ c, s }) => <DocIcon s={s || 18} c={c} w={1.6} />;
+// Six places in the menu. Related pages live together: Earnings (Fees · Statement · Invoice, as tabs), Grow your book
+// (onboarding links, sales decks, risk and controls, on one page) and Help (raise a ticket + your account). Every old
+// address (/app/d/statement, /app/d/decks, /app/d/profile …) still works and opens the merged page.
 const NAV = [
   { key: 'overview', label: 'Overview', Icon: IconDashboard },
   { key: 'investors', label: 'Investors', Icon: IconUsers },
-  { key: 'fees', label: 'Fees', Icon: IconCalculator },
-  { key: 'statement', label: 'Fee statement', Icon: DocSmall },
-  { key: 'invoice', label: 'Invoices', Icon: DocSmall },
-  { key: 'links', label: 'Onboarding links', Icon: IconShare },
-  { key: 'decks', label: 'Sales decks', Icon: IconFile },
+  { key: 'fees', label: 'Earnings', Icon: IconCalculator },
+  { key: 'links', label: 'Grow your book', Icon: IconShare },
   { key: 'indicators', label: 'Indicators', Icon: IconLineChart },
-  { key: 'support', label: 'Support', Icon: IconLifeBuoy },
-  { key: 'policies', label: 'Risk and controls', Icon: IconShield },
-  { key: 'profile', label: 'Profile', Icon: ({ c }) => <UserGlyph c={c} /> },
+  { key: 'support', label: 'Help', Icon: IconLifeBuoy },
 ];
-const GROUPS = [['Your book', ['overview', 'investors']], ['Earnings', ['fees', 'statement', 'invoice']], ['Resources', ['links', 'decks', 'indicators']], ['Help', ['support', 'policies', 'profile']]];
-const TITLES = { overview: 'Overview', investors: 'Investors', fees: 'Your fees', statement: 'Fee statement', invoice: 'Invoices', links: 'Onboarding links', decks: 'Sales decks', indicators: 'Market indicators', support: 'Support', policies: 'Risk and controls', profile: 'Profile' };
-const SECTIONS = NAV.map(n => n.key);
+const GROUPS = [['Your book', ['overview', 'investors', 'fees']], ['Resources', ['links', 'indicators', 'support']]];
+const PARENT = { statement: 'fees', invoice: 'fees', decks: 'links', policies: 'links', profile: 'support' };
+const EARNINGS_TABS = [['fees', 'Fees'], ['statement', 'Statement'], ['invoice', 'Invoice']];
+const TITLES = { overview: 'Overview', investors: 'Investors', fees: 'Earnings', statement: 'Earnings', invoice: 'Earnings', links: 'Grow your book', decks: 'Grow your book', policies: 'Grow your book', indicators: 'Market indicators', support: 'Help', profile: 'Help' };
+const SECTIONS = ['overview', 'investors', 'fees', 'statement', 'invoice', 'links', 'decks', 'indicators', 'support', 'policies', 'profile'];
 const BASE = '/app/d/';
 const web = typeof window !== 'undefined' && typeof history !== 'undefined' && typeof location !== 'undefined';
 const sectionFromUrl = () => {
@@ -309,19 +309,24 @@ export default function DesktopDistributor({ V }) {
   if (section === 'overview') body = <Overview journey={journey} split={split} periods={periods} onOpen={f => go('investors', f)} onDetail={openDetail} go={go} />;
   else if (section === 'investors' && sub && sub.kind === 'detail') body = <InvestorPage c={sub.c} status={sub.st} view={view} onBack={() => { setOpenErr(null); setSub(null); }} />;
   else if (section === 'investors') body = <Investors journey={journey} filter={filter} setFilter={setFilter} onDetail={openDetail} view={view} onLinks={() => go('links')} />;
-  else if (section === 'fees') body = <Fees periods={periods} period={period} setPeriod={setPeriod} go={go} />;
-  else if (section === 'statement') body = <StatementPage periods={periods} period={period} setPeriod={setPeriod} name={name} go={go} />;
-  else if (section === 'invoice') body = <InvoicePage periods={periods} period={period} setPeriod={setPeriod} name={name} />;
-  else if (section === 'links') body = <Links journey={journey} />;
-  else if (section === 'decks') body = <Decks />;
+  else if (section === 'fees' || section === 'statement' || section === 'invoice') body = (
+    <View style={{ gap: 20 }}>
+      <Tabs tabs={EARNINGS_TABS} active={section} onPick={k => go(k)} />
+      {section === 'fees' ? <Fees periods={periods} period={period} setPeriod={setPeriod} go={go} />
+        : section === 'statement' ? <StatementPage periods={periods} period={period} setPeriod={setPeriod} name={name} go={go} />
+        : <InvoicePage periods={periods} period={period} setPeriod={setPeriod} name={name} />}
+    </View>);
+  else if (section === 'links' || section === 'decks' || section === 'policies') body = <GrowPage journey={journey} focus={section} />;
   else if (section === 'indicators') body = <Indicators />;
-  else if (section === 'support') body = <Support />;
-  else if (section === 'policies') body = <Policies />;
-  else body = <Profile V={V} journey={journey} go={go} />;
+  else body = (
+    <View style={{ gap: 24 }}>
+      <Support />
+      <Profile V={V} journey={journey} />
+    </View>);
 
   return (
     <View style={{ flex: 1, flexDirection: 'row', backgroundColor: C.cream }}>
-      <Sidebar V={V} active={section} onNav={k => go(k)} />
+      <Sidebar V={V} active={PARENT[section] || section} onNav={k => go(k)} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <TopBar V={V} title={section === 'investors' && sub ? (sub.c.name || 'Investor') : TITLES[section]} asOf={valuedOn ? fmtDate(valuedOn) : ''}
           busy={journey.loading || split.loading} onRefresh={() => setTick(t => t + 1)} />
@@ -1307,12 +1312,6 @@ function Links({ journey }) {
           <View style={{ flex: 1 }}><LinkPanel title="For a company, LLP, HUF or trust" sub="Anything that is not an individual" url={L.nonIndividual} /></View>
         </Row>
       )}
-      <Panel title="Questions about your investors or payouts?">
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-          <Tx s={13} c={C.ink2} lh={1.55} style={{ flex: 1 }}>Email {PARTNERSHIPS}. We usually reply the same day.</Tx>
-          <Btn small kind="outline" label="Email us" icon={<MailIcon s={13} c={C.ink2} />} onPress={() => mail(PARTNERSHIPS)} />
-        </View>
-      </Panel>
     </View>
   );
 }
@@ -1534,43 +1533,63 @@ function Policies() {
 }
 
 /* ── Profile ────────────────────────────────────────────────────────────────────────────────────────────── */
-function Profile({ V, journey, go }) {
+function Profile({ V, journey }) {
   const u = V.user || {};
   const d = journey.data || {};
   const dist = d.distributor || {};
   return (
-    <Row top>
-      <View style={{ flex: 1, gap: 20 }}>
-        <Panel title="Signed in as">
-          <KeyVals items={[
-            ['Name', u.name || dist.name || 'Distributor'],
-            ['Email', u.email || dist.email || '–'],
-            ...(dist.name && dist.name !== u.name ? [['Distributor record', dist.name]] : []),
-            ...(d.portalClientCount != null ? [['Client accounts in the portal', String(d.portalClientCount)]] : []),
-            ...(d.totals ? [['Investors referred', String(d.totals.investors || 0)]] : []),
-          ]} />
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-            <Btn kind="danger" label="Sign out" onPress={V.doLogout} />
-          </View>
-        </Panel>
-        {V.testMode && <Notice tone="bad">Test mode is on: actions that could reach a client are blocked.</Notice>}
+    <Panel title="Your account">
+      <KeyVals items={[
+        ['Name', u.name || dist.name || 'Distributor'],
+        ['Email', u.email || dist.email || '–'],
+        ...(dist.name && dist.name !== u.name ? [['Distributor record', dist.name]] : []),
+        ...(d.portalClientCount != null ? [['Client accounts in the portal', String(d.portalClientCount)]] : []),
+        ...(d.totals ? [['Investors referred', String(d.totals.investors || 0)]] : []),
+      ]} />
+      <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+        <Btn kind="danger" label="Sign out" onPress={V.doLogout} />
       </View>
-      <View style={{ flex: 1, gap: 20 }}>
-        <Panel title="Distributor tools">
-          {[['links', 'Onboarding links', 'Share with a prospective investor'], ['decks', 'Sales decks', 'Download and share with prospective investors'], ['policies', 'Risk and controls', 'The policies that guide portfolio construction'], ['support', 'Raise a ticket', 'Our team replies by email']].map(([k, t, s], i) => (
-            <Pressable key={k} onPress={() => go(k)} accessibilityRole="link" style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 10, marginHorizontal: -10, borderRadius: 8, borderTopWidth: i ? 1 : 0, borderColor: C.line, backgroundColor: hovered ? C.hover : 'transparent' })}>
-              <View style={{ flex: 1 }}><Tx w={600} s={13.5}>{t}</Tx><Tx s={12} c={C.ink3}>{s}</Tx></View>
-              <ChevronRight s={12} c={C.ink3} />
-            </Pressable>
-          ))}
-        </Panel>
-        <Panel title="Our distributor team">
-          <KeyVals items={[
-            ['Email', <TextLink key="e" label={PARTNERSHIPS} onPress={() => mail(PARTNERSHIPS)} />],
-            ['Phone', <TextLink key="p" label="+91 93265 35470" onPress={() => Linking.openURL('tel:+919326535470').catch(() => {})} />],
-          ]} />
-        </Panel>
-      </View>
-    </Row>
+      {V.testMode && <Notice tone="bad" style={{ marginTop: 14 }}>Test mode is on: actions that could reach a client are blocked.</Notice>}
+    </Panel>
+  );
+}
+
+// Tabs for the Earnings pages (same period across them).
+function Tabs({ tabs, active, onPick }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 6, alignSelf: 'flex-start', padding: 4, borderRadius: 999, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}>
+      {tabs.map(([k, l]) => {
+        const on = active === k;
+        return (
+          <Pressable key={k} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onPick(k)}
+            style={({ hovered }) => ({ paddingVertical: 8, paddingHorizontal: 18, borderRadius: 999, backgroundColor: on ? C.green : hovered ? C.hover : 'transparent' })}>
+            <Tx w={600} s={13.5} c={on ? C.gold : C.ink2}>{l}</Tx>
+          </Pressable>);
+      })}
+    </View>
+  );
+}
+
+// Grow your book: everything to bring in and convince a prospect, on one page.
+function GrowPage({ journey, focus }) {
+  useEffect(() => {
+    if (!web || focus === 'links') return;
+    const t = setTimeout(() => { const el = document.getElementById('grow-' + focus); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300);
+    return () => clearTimeout(t);
+  }, [focus]);
+  const H = ({ id, title, sub }) => (
+    <View nativeID={id} style={{ marginTop: 8 }}>
+      <Tx f="play" w={600} s={20}>{title}</Tx>
+      {!!sub && <Tx s={13} c={C.ink3} style={{ marginTop: 2 }}>{sub}</Tx>}
+    </View>);
+  return (
+    <View style={{ gap: 20 }}>
+      <H id="grow-links" title="Onboarding links" />
+      <Links journey={journey} />
+      <H id="grow-decks" title="Sales decks" sub="Present Qode and each strategy." />
+      <Decks />
+      <H id="grow-policies" title="Risk and controls" />
+      <Policies />
+    </View>
   );
 }
