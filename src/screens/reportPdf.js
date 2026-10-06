@@ -376,7 +376,8 @@ function barChart(periods, a, b) {
       const y0 = y(0), y1 = y(v);
       s += `<rect x="${cx + off}" y="${Math.min(y0, y1)}" width="${bw}" height="${Math.max(0.6, Math.abs(y1 - y0))}" rx="1.5" fill="${col}"/>`;
     });
-    String(p).split(/\s+(?=\d)/).forEach((ln, k) => { s += `<text x="${cx}" y="${H - B + 11 + k * 9}" text-anchor="middle" fill="${K.ink}">${esc(ln)}</text>`; });
+    // Two lines at most (the space under the axis holds two): "Since" over "04 Apr 2025", never a third line cut off.
+    String(p).replace(/^(\S+)\s+(?=\d)/, '$1\n').split('\n').forEach((ln, k) => { s += `<text x="${cx}" y="${H - B + 11 + k * 9}" text-anchor="middle" fill="${K.ink}">${esc(ln)}</text>`; });
   });
   return s + '</svg>';
 }

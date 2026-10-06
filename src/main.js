@@ -394,7 +394,8 @@ export default class MyQode extends React.Component {
   }
 
   async checkVersion() {
-    if (!SHOW_UPDATE_BANNER) return;
+    // The web always serves the latest build: an "update the app" prompt only belongs in the phone app.
+    if (!SHOW_UPDATE_BANNER || Platform.OS === 'web') return;
     try {
       const v = await meta.appVersion();
       this.lastVersionCheck = Date.now();
