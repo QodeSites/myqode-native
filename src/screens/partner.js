@@ -257,7 +257,7 @@ export function summarise(rows, search = '') {
     const g = groups.get(key) || { name: String(r.clientName || '').trim(), accounts: [], aum: 0, fixedFees: 0, perfFees: 0, totalFees: 0, gst: 0, share: 0, shareOfFee: 0, commission: 0, shareDiscount: 0, discount: 0, unmapped: true };
     g.accounts.push(r);
     g.aum += num(r.averageAum); g.fixedFees += num(r.fixedFees); g.perfFees += num(r.performanceFees); g.totalFees += num(r.totalFees);
-    g.gst += num(r.totalFeesGst); g.share += commissionOf(r) * 1.18; g.shareOfFee += num(r.yourShareOfFee) || num(r.distributorShare);
+    g.gst += num(r.totalFeesGst); g.share += commissionOf(r) * 1.18; g.shareOfFee += r.yourShareOfFee != null ? num(r.yourShareOfFee) : num(r.distributorShare);   // ₹0 is a real share (no fee billed), not a missing one
     g.commission += commissionOf(r); g.shareDiscount += num(r.shareDiscount); g.discount += num(r.discountAmount);
     if (r.rateSource && r.rateSource !== 'unmapped') g.unmapped = false;
     groups.set(key, g);
