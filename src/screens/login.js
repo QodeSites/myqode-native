@@ -51,14 +51,14 @@ export function Login({ V }) {
             <Card big style={{ marginTop: -30, paddingVertical: 24, paddingHorizontal: 22 }}>
               <Tx w={700} s={11} ls={0.14} c={C.muted}>WELCOME BACK</Tx>
               <View style={{ marginTop: 14, flexDirection: 'row', borderWidth: 1, borderColor: 'rgba(55,88,79,0.25)', borderRadius: 999, padding: 3 }}>
-                {[['client', 'CLIENT'], ['distributor', 'DISTRIBUTOR']].map(([k, l]) => (
+                {[['client', 'INVESTOR'], ['distributor', 'PARTNER']].map(([k, l]) => (
                   <Pressable key={k} onPress={() => V.setLoginAs(k)} accessibilityRole="button" accessibilityState={{ selected: V.loginAs === k }}
                     style={{ flex: 1, paddingVertical: 9, borderRadius: 999, alignItems: 'center', backgroundColor: V.loginAs === k ? C.green : 'transparent' }}>
                     <Tx w={700} s={10.5} ls={0.06} c={V.loginAs === k ? C.gold : C.muted}>{l}</Tx>
                   </Pressable>
                 ))}
               </View>
-              <Field label={V.loginAs === 'distributor' ? 'DISTRIBUTOR EMAIL' : 'EMAIL OR CLIENT CODE'} value={V.email} onChangeText={V.onEmail} placeholder={V.loginAs === 'distributor' ? 'name@firm.com' : 'you@example.com'} autoCapitalize="none" style={{ marginTop: 18 }} />
+              <Field label={V.loginAs === 'distributor' ? 'PARTNER EMAIL' : 'EMAIL OR ACCOUNT CODE'} value={V.email} onChangeText={V.onEmail} placeholder={V.loginAs === 'distributor' ? 'name@firm.com' : 'you@example.com'} autoCapitalize="none" style={{ marginTop: 18 }} />
               <Field label="PASSWORD" value={V.pw} onChangeText={V.onPw} placeholder="••••••••" secure style={{ marginTop: 16 }} />
               <Msg V={V} />
               <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'SIGN IN SECURELY'} onPress={V.doLogin} style={{ marginTop: 22, opacity: V.authBusy ? 0.6 : 1 }} />
@@ -83,18 +83,18 @@ export function Login({ V }) {
               </Pressable>
               {V.devOpen && (
                 <View style={{ marginTop: 12 }}>
-                  <Tx s={11} c={C.muted} lh={1.5}>Uses the email or client code typed above. The myQode server must be running in development (NODE_ENV=development).</Tx>
+                  <Tx s={11} c={C.muted} lh={1.5}>Uses the email or account code typed above. The myQode server must be running in development (NODE_ENV=development).</Tx>
                   <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'SIGN IN AS THIS USER (NO PASSWORD)'} onPress={() => V.bypassLogin()} outline style={{ marginTop: 12, opacity: V.authBusy ? 0.6 : 1 }} />
-                  <Field label={V.loginAs === 'distributor' ? 'FIND A DISTRIBUTOR' : 'FIND A CLIENT'} value={V.devQ} onChangeText={V.onDevQ} placeholder="name, email or code" autoCapitalize="none" style={{ marginTop: 14 }} />
+                  <Field label={V.loginAs === 'distributor' ? 'FIND A PARTNER' : 'FIND AN INVESTOR'} value={V.devQ} onChangeText={V.onDevQ} placeholder="name, email or code" autoCapitalize="none" style={{ marginTop: 14 }} />
                   <Tx s={10} c={C.gray} style={{ marginTop: 6 }}>Server: {V.apiBase}</Tx>
-                  {!V.devLoaded && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>Loading clients…</Tx>}
+                  {!V.devLoaded && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>Loading investors…</Tx>}
                   {!!V.devErr && (
                     <Pressable onPress={V.reloadDev} style={{ marginTop: 8 }}>
                       <Tx s={11} c={C.red} lh={1.45}>{V.devErr}</Tx>
                       <Tx w={700} s={11} c={C.green} style={{ marginTop: 4 }}>Tap to retry</Tx>
                     </Pressable>
                   )}
-                  {V.devLoaded && !V.devErr && V.devClients.length === 0 && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>{V.loginAs === 'distributor' ? 'No distributor login matches that search.' : 'No Discretionary client matches that search. Non-Discretionary accounts aren’t listed — type the code above and use the button instead.'}</Tx>}
+                  {V.devLoaded && !V.devErr && V.devClients.length === 0 && <Tx s={11} c={C.muted} style={{ marginTop: 8 }}>{V.loginAs === 'distributor' ? 'No partner login matches that search.' : 'No Discretionary investor matches that search. Non-Discretionary accounts aren’t listed — type the code above and use the button instead.'}</Tx>}
                   {V.devClients.length > 0 && (
                     <View style={{ marginTop: 8, maxHeight: 260, borderWidth: 1, borderColor: C.hairline, borderRadius: 8 }}>
                       <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 10 }}>
@@ -165,10 +165,14 @@ export function OtpScreen({ V }) {
                 <OtpRow boxes={V.otpBoxes} />
               </View>
               <Msg V={V} />
-              <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'VERIFY'} onPress={V.verifyOtp} style={{ marginTop: 18, opacity: V.authBusy ? 0.6 : 1 }} />
-              <Pressable onPress={V.resendOtp} style={{ marginTop: 14, minHeight: 32, justifyContent: 'center' }}>
-                <Tx w={700} s={12} c={C.green} center>Resend code</Tx>
-              </Pressable>
+              {V.otpLocked
+                ? <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'REQUEST A NEW CODE'} onPress={V.resendOtp} style={{ marginTop: 18, opacity: V.authBusy ? 0.6 : 1 }} />
+                : (<>
+                  <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'VERIFY'} onPress={V.verifyOtp} style={{ marginTop: 18, opacity: V.authBusy ? 0.6 : 1 }} />
+                  <Pressable onPress={V.resendOtp} style={{ marginTop: 14, minHeight: 32, justifyContent: 'center' }}>
+                    <Tx w={700} s={12} c={C.green} center>Resend code</Tx>
+                  </Pressable>
+                </>)}
             </Card>
           </Rise>
           <Pressable onPress={V.backToLogin} style={{ marginTop: 18 }}>

@@ -558,14 +558,16 @@ function Team({ V }) {
           </View>
         </Channel>
       </Row>
-      <Row gap={20}>
-        <Channel icon="calendar" title="Book a call" dark>
-          <Labelled dark label="Purpose">Quick, hassle‑free scheduling of calls with your IR team.</Labelled>
-          <View style={{ flex: 1 }} />
-          <Btn kind="gold" label="Book a call" onPress={() => go(BOOKING)} style={{ marginTop: 18, alignSelf: 'flex-start' }} />
-        </Channel>
-        <ContactCard code={code} style={{ flex: 1 }} />
-      </Row>
+      {/* A slim full-width strip: as a card beside the contact details it stretched to their height around one line of text. */}
+      <DarkCard style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 16, paddingVertical: 18 }}>
+        <IconChip name="calendar" dark />
+        <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 280, minWidth: 0 }}>
+          <Tx w={600} s={16} c={C.cream}>Book a call</Tx>
+          <Labelled dark label="Purpose" style={{ marginTop: 4 }}>Quick, hassle‑free scheduling of calls with your IR team.</Labelled>
+        </View>
+        <Btn kind="gold" label="Book a call" onPress={() => go(BOOKING)} />
+      </DarkCard>
+      <ContactCard code={code} />
     </View>
   );
 }
@@ -705,7 +707,7 @@ export const DESKTOP_PAGES = {
   family: { title: 'Account Mapping', body: () => <Family /> },
   nuvama: { title: 'Your Details on Nuvama', body: V => <NuvamaDetails V={V} /> },
   insights: { title: 'Insights & Events', body: () => <Insights /> },
-  guide: { title: 'Investor Portal Guide', body: () => <PortalGuide /> },
+  guide: { title: 'Login To Nuvama', body: () => <PortalGuide /> },
   referral: { title: 'Referral Program', body: V => <Referral V={V} /> },
   cadence: { title: 'Service Cadence', body: V => <Cadence V={V} /> },
   philosophy: { title: 'Qode Philosophy', body: V => <Philosophy V={V} /> },

@@ -23,7 +23,7 @@ const post = (path, body, fake = inquiry) => call(path, { method: 'POST', body }
 // Actions that email/notify/charge the signed-in client, or change their credentials.
 export class BlockedError extends ApiError {
   constructor(what) {
-    super(`Blocked in test mode: ${what}. This would reach the real client. Turn EXPO_PUBLIC_TEST_MODE off for production.`, { status: 0, code: 'TEST_MODE' });
+    super(`Blocked in test mode: ${what}. This would reach the real investor. Turn EXPO_PUBLIC_TEST_MODE off for production.`, { status: 0, code: 'TEST_MODE' });
   }
 }
 // In demo mode these never touch the network (there is no real session): they just report success.
@@ -213,7 +213,7 @@ export const services = {
   strategyInquiry: body => post('/services/strategy-inquiry', body),
   discussion: body => post('/services/discussion', body),
   accountRequest: body => post('/services/account-request', body),
-  registerPushToken: guarded('registering a push token (enables push notifications to the client)',
+  registerPushToken: guarded('registering a push token (enables push notifications to the investor)',
     pushToken => api('/services/register-push-token', { method: 'POST', body: { pushToken, platform, app: 'myqode', appVersion: APP_VERSION } })),
   unregisterPushToken: pushToken => api('/services/register-push-token', { method: 'DELETE', body: { pushToken, app: 'myqode' } }),
   // What happened on this phone when it tried to set up popups (server logs it as [push diag]). Never throws.

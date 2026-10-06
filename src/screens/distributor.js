@@ -85,9 +85,9 @@ export const INFLOW_RANGES = [
   { key: '6m', label: 'Last 6 months', months: 6 },
   { key: '3m', label: 'Last 3 months', months: 3 },
 ];
-// The range buttons only appear with more than 6 months of history (an investor book started in June has nothing to
-// narrow down), and only list ranges shorter than the history itself.
-export const INFLOW_MIN_MONTHS = 6;
+// The range buttons appear with more than 3 months of history and list only ranges shorter than the history itself
+// (web: distributors/page.tsx, inflowMonthCount > 3). Six months of history gets Since inception and Last 3 months.
+export const INFLOW_MIN_MONTHS = 3;
 export const inflowRanges = months => (months > INFLOW_MIN_MONTHS ? INFLOW_RANGES.filter(r => r.months == null || months > r.months) : []);
 const QAW_GREEN = '#008455';
 const day = iso => { if (!iso) return '–'; const t = new Date(iso); return isNaN(t.getTime()) ? '–' : t.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); };
@@ -117,7 +117,7 @@ const TABS = [
 ];
 // Page headings the web shows above a tab's content.
 const TITLE = { fees: 'Your Fees' };
-const SUBTITLE = { overview: 'Your book at a glance', investors: 'Everyone who joined Qode through your links', fees: 'What you have earned from client fees in the selected period.', indicators: 'Market indicators from Qode research', more: 'Links, decks, policies and support' };
+const SUBTITLE = { overview: 'Your book at a glance', investors: 'Everyone who joined Qode through your links', fees: 'What you have earned from investor fees in the selected period.', indicators: 'Market indicators from Qode research', more: 'Links, decks, policies and support' };
 
 export function DistributorShell({ V }) {
   const insets = useSafeAreaInsets();
@@ -162,7 +162,7 @@ export function DistributorShell({ V }) {
   const journey = useLoad(() => api.journey(), [tick]);
   const split = useLoad(() => api.strategyAum(), [tick]);
   const refresh = () => setTick(t => t + 1);
-  const name = (V.user && V.user.name) || 'Distributor';
+  const name = (V.user && V.user.name) || 'Partner';
   const busy = journey.loading || split.loading;
 
   return (
@@ -173,7 +173,7 @@ export function DistributorShell({ V }) {
           <GoldThreads height={300} />
           <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <View style={{ flex: 1 }}>
-              <Tx w={700} s={10} ls={0.18} c={C.gold}>QODE DISTRIBUTOR</Tx>
+              <Tx w={700} s={10} ls={0.18} c={C.gold}>QODE PARTNER</Tx>
               <Tx f="play" w={600} s={22} c={C.cream} numberOfLines={2} style={{ marginTop: 4 }}>{name}</Tx>
             </View>
             <Pressable onPress={refresh} accessibilityLabel="Refresh" style={{ width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: 'rgba(239,236,211,0.22)', alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.45 : 1 }}>
@@ -234,7 +234,7 @@ export function DistributorShell({ V }) {
 function CrmNotice({ data }) {
   if (!data) return null;
   if (!data.zohoAvailable) return <Notice text="Investor details are temporarily unavailable. Your links and account counts are still correct. Please pull to refresh in a few minutes." />;
-  if (!data.crmLinked) return <Notice text={`Your login address is not yet linked to your distributor record, so your ${data.portalClientCount || ''} client accounts cannot be listed here. Please email partnerships@qodeinvest.com and we will link it.`} />;
+  if (!data.crmLinked) return <Notice text={`Your login address is not yet linked to your partner record, so your ${data.portalClientCount || ''} investor accounts cannot be listed here. Please email partnerships@qodeinvest.com and we will link it.`} />;
   return null;
 }
 const Notice = ({ text }) => (
@@ -242,6 +242,19 @@ const Notice = ({ text }) => (
     <Tx s={12} c={C.muted} lh={1.55}>{text}</Tx>
   </Card>
 );
+
+// Percentages to two decimals that add up to exactly 100: each share is rounded down to a hundredth, and the
+// hundredths left over go to the shares that lost the most in rounding (largest remainder).
+export function sharesTo100(values) {
+  const total = values.reduce((n, v) => n + Math.max(0, v), 0);
+  if (!(total > 0)) return values.map(() => null);
+  const exact = values.map(v => (Math.max(0, v) / total) * 10000);
+  const out = exact.map(Math.floor);
+  let left = 10000 - out.reduce((n, x) => n + x, 0);
+  const order = exact.map((x, i) => [x - Math.floor(x), i]).sort((a, b) => b[0] - a[0]);
+  for (let k = 0; k < order.length && left > 0; k++, left--) out[order[k][1]] += 1;
+  return out.map(x => x / 100);
+}
 
 // Every Overview figure, from the journey payload and the strategy split (web: distributors/page.tsx). Pure, so the
 // phone Overview and the desktop dashboard (src/web/distributor.js) show the same numbers.
@@ -298,11 +311,11 @@ export function bookFigures(d, splitData) {
     const raw = rows.reduce((n, r) => n + r.value, 0);
     const book = d && d.totals ? d.totals.currentValue : null;
     const scale = exact && raw > 0 && (book || 0) > 0 ? book / raw : 1;
-    // pct is the web's figure exactly: the UNSCALED value over the SCALED total (distributors/page.tsx:769). That
-    // is a web bug (the shares then don't add up to 100% whenever the scale isn't 1), kept here so both agree;
-    // fix it on the web first, then here (pct: r.value / raw * 100).
+    // pct is each strategy's share of the unscaled total (scaling changes the rupee figures, not the proportions),
+    // rounded to two decimals so the shown shares add up to exactly 100.00%. Same rule in distributors/page.tsx.
     const total = raw * scale;
-    strat = { exact, rows: rows.map(r => ({ ...r, value: r.value * scale, pct: total > 0 ? (r.value / total) * 100 : null })), total };
+    const pcts = sharesTo100(rows.map(r => r.value));
+    strat = { exact, rows: rows.map((r, i) => ({ ...r, value: r.value * scale, pct: pcts[i] })), total };
   }
   const recent = clients.filter(c => { const w = fundedDate(c); const t = w ? new Date(w).getTime() : NaN; return !isNaN(t) && Date.now() - t < 30 * 864e5; })
     .sort((a, b) => String(fundedDate(b) || '').localeCompare(String(fundedDate(a) || '')));
@@ -426,7 +439,7 @@ function Overview({ journey, split, onOpen, onDetail, onLinks }) {
                   <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: STRATEGY_COLOR[s.name] || C.gray }} />
                   <Tx w={700} s={12.5} style={{ flex: 1 }}>{s.name}</Tx>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Tx w={700} s={12.5}>{s.pct != null ? s.pct.toFixed(1) + '%' : '–'}</Tx>
+                    <Tx w={700} s={12.5}>{s.pct != null ? s.pct.toFixed(2) + '%' : '–'}</Tx>
                     <Amt s={11} c={C.muted}>{inr(s.value)}</Amt>
                   </View>
                 </Pressable>
@@ -911,10 +924,10 @@ function More({ V, open }) {
     <Fade>
       <Card big style={{ marginTop: -34, padding: 18 }}>
         <Tx w={700} s={10.5} ls={0.12} c={C.muted}>SIGNED IN AS</Tx>
-        <Tx w={700} s={14} style={{ marginTop: 6 }}>{u.name || 'Distributor'}</Tx>
+        <Tx w={700} s={14} style={{ marginTop: 6 }}>{u.name || 'Partner'}</Tx>
         <Tx s={12} c={C.muted} style={{ marginTop: 2 }}>{u.email || ''}</Tx>
       </Card>
-      <SectionLabel>DISTRIBUTOR TOOLS</SectionLabel>
+      <SectionLabel>PARTNER TOOLS</SectionLabel>
       <Card style={{ overflow: 'hidden' }}>
         {MORE_ITEMS.map(([k, t, sub], i) => (
           <Pressable key={k} onPress={() => open(k)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: i < MORE_ITEMS.length - 1 ? 1 : 0, borderColor: C.hairline }}>

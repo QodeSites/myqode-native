@@ -4,43 +4,46 @@
 import React from 'react';
 import { View, Pressable, Linking } from 'react-native';
 import { C, Tx, Panel, Btn } from './kit';
-import { Phone, MailIcon, ChevronRight } from '../icons';
+import { ChevronRight } from '../icons';
 import { CONTACT } from '../content';
 import { irLinks } from '../screens/contact';
 
 const open = url => Linking.openURL(url).catch(() => {});
 
-function Line({ icon, title, sub, onPress, first }) {
-  return (
-    <Pressable accessibilityRole="link" accessibilityLabel={title + ', ' + sub} onPress={onPress} style={({ hovered }) => ({
-      flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 20,
-      borderTopWidth: first ? 0 : 1, borderColor: C.line, backgroundColor: hovered ? C.hover : 'transparent',
-    })}>
-      <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: C.greenTint, alignItems: 'center', justifyContent: 'center' }}>{icon}</View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Tx w={600} s={13}>{title}</Tx>
-        <Tx s={13} c={C.green} style={{ marginTop: 1 }} numberOfLines={1}>{sub}</Tx>
-      </View>
-      <ChevronRight s={12} c={C.ink3} />
-    </Pressable>
+// One contact row: label, then the value on the same line (the mockup's "Call  +91 …  ›").
+function Line({ title, sub, onPress }) {
+  const body = (
+    <>
+      <Tx w={600} s={13}>{title}</Tx>
+      <Tx s={13} c={onPress ? C.green : C.ink2} style={{ flex: 1, minWidth: 0 }} numberOfLines={onPress ? 1 : undefined} lh={onPress ? undefined : 1.5}>{sub}</Tx>
+      {!!onPress && <ChevronRight s={12} c={C.ink3} />}
+    </>
   );
+  const row = { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingVertical: 10, paddingHorizontal: 20, borderTopWidth: 1, borderColor: C.line };
+  return onPress
+    ? <Pressable accessibilityRole="link" accessibilityLabel={title + ', ' + sub} onPress={onPress} style={({ hovered }) => [row, { backgroundColor: hovered ? C.hover : 'transparent' }]}>{body}</Pressable>
+    : <View style={row}>{body}</View>;
 }
+
+// Two columns (Call and WhatsApp | Email and Office) that stack when the page is narrow.
+const col = { flexGrow: 1, flexShrink: 1, flexBasis: 340, minWidth: 0 };
 
 /** Investor Relations: call, WhatsApp, email, office and the investor community. */
 export function ContactCard({ code, style }) {
   const L = irLinks(code), K = CONTACT;
   return (
     <Panel title="Investor Relations" sub="Your regular point of contact at Qode" pad={0} style={style}>
-      <View style={{ borderTopWidth: 1, borderColor: C.line }}>
-        {!!L.phone && <Line first icon={<Phone s={15} />} title="Call" sub={L.phone.number} onPress={() => open(L.tel)} />}
-        {!!L.wa && <Line first={!L.phone} icon={<Phone s={15} />} title={L.wa.label} sub={L.wa.number + ', ' + L.wa.hours} onPress={() => open(L.whatsapp)} />}
-        {!!L.mail && <Line icon={<MailIcon s={15} />} title="Email" sub={L.mail.address} onPress={() => open(L.email('Account Query'))} />}
-        {K.address.length > 0 && (
-          <View style={{ paddingVertical: 12, paddingHorizontal: 20, borderTopWidth: 1, borderColor: C.line }}>
-            <Tx w={600} s={13}>Office</Tx>
-            {K.address.map((t, i) => <Tx key={i} s={13} c={C.ink2} lh={1.55} style={{ marginTop: i ? 0 : 3 }}>{t}</Tx>)}
+      <View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+          <View style={col}>
+            {!!L.phone && <Line title="Call" sub={L.phone.number} onPress={() => open(L.tel)} />}
+            {!!L.wa && <Line title={L.wa.label} sub={L.wa.number + ', ' + L.wa.hours} onPress={() => open(L.whatsapp)} />}
           </View>
-        )}
+          <View style={col}>
+            {!!L.mail && <Line title="Email" sub={L.mail.address} onPress={() => open(L.email('Account Query'))} />}
+            {K.address.length > 0 && <Line title="Office" sub={K.address.join(', ')} />}
+          </View>
+        </View>
         {!!K.community && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 20, borderTopWidth: 1, borderColor: C.line, backgroundColor: C.subtle }}>
             <Btn kind="outline" small label={'Join ' + K.community.label} onPress={() => open(K.community.url)} />

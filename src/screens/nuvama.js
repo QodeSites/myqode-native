@@ -84,7 +84,7 @@ export function NuvamaPage({ V }) {
           <Line k="Opened on" v={d(a.openedOn)} />
           <Line k="Inception" v={d(a.inceptionDate)} />
           <Line k="Relationship manager" v={a.rm || '–'} />
-          <Line k="Distributor" v={a.distributor ? title(a.distributor) : 'Direct'} />
+          <Line k="Partner" v={a.distributor ? title(a.distributor) : 'Direct'} />
           <Line k="Status" v={a.active ? 'Active' : 'Closed'} last />
         </Card>
       ))}

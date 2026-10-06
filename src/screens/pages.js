@@ -240,11 +240,11 @@ const REQS = [
   { s: 'Holdings · stock-level detail', ok: false, has: 'Only strategy accounts with their value/return (from performance per account code).', gap: 'Security-level holdings live with the custodian (Nuvama WealthSpectrum), not in pms_master_sheet. Needs a nightly import into a new holdings table + GET /api/mobile/portfolio/holdings?accountId.' },
   { s: 'Documents', ok: true, has: 'documents/list + documents/files/{category}: the web’s Account Documents page, section for section (PMS Agreement, Account Opening Documents, CML) from S3 docs/client-documents/{clientid}/, 5-minute signed links.', gap: 'Statements, factsheets, capital-gains and fee invoices are not stored anywhere yet: add S3 folders under docs/client-documents/{clientid}/ plus category ids in documents/list. S3 listing needs valid AWS keys on the server (the dev server currently answers InvalidAccessKeyId). Owner/family ids return 404, so the app asks per account code.' },
   { s: 'Services · requests', ok: true, has: 'services/withdrawal, switch, strategy-inquiry, discussion, account-request, engagement/referral, services/bank-details.', gap: 'No history: every request only returns an inquiry_id. To show past requests add GET /api/mobile/services/inquiries reading pms_clients_tracker.qode_microsite_inquiries by user_email.' },
-  { s: 'Services · pay online / SIP', ok: true, has: 'One-time top-ups through Razorpay: payments/razorpay/create-order → hosted Checkout in a WebView → payments/razorpay/verify (signature + gateway check) → payments/investment-status; a signed webhook (payments/razorpay/webhook) keeps the status current. Existing SIPs: verify-sip, pause-resume-sip, cancel-sip.', gap: 'New SIP mandates (UPI Autopay / eMandate) need Razorpay Subscriptions (not built). The Cashfree routes remain for the web. Client notifications for Razorpay payments are off unless RAZORPAY_NOTIFY_CLIENT=true on the server. Production needs live Razorpay keys, the webhook registered on the live URL, and a store build if you later switch to the native Razorpay SDK.' },
-  { s: 'Notifications (bell + popups)', ok: true, has: 'GET notifications, POST notifications/read, GET/PUT notifications/prefs; services/register-push-token with app: myqode (app_push_devices). Server: lib/appNotify.ts (inbox-first outbox, Expo push with retries and receipts), lib/appNotifyTriggers.ts (money, portfolio, reading), admin campaigns at /api/admin/bo/notifications.', gap: 'Android popups need Firebase (FCM) credentials in EAS. Sends to clients start only with PUSH_LIVE=1 on the server; registration is blocked in test mode.' },
+  { s: 'Services · pay online / SIP', ok: true, has: 'One-time top-ups through Razorpay: payments/razorpay/create-order → hosted Checkout in a WebView → payments/razorpay/verify (signature + gateway check) → payments/investment-status; a signed webhook (payments/razorpay/webhook) keeps the status current. Existing SIPs: verify-sip, pause-resume-sip, cancel-sip.', gap: 'New SIP mandates (UPI Autopay / eMandate) need Razorpay Subscriptions (not built). The Cashfree routes remain for the web. Investor notifications for Razorpay payments are off unless RAZORPAY_NOTIFY_CLIENT=true on the server. Production needs live Razorpay keys, the webhook registered on the live URL, and a store build if you later switch to the native Razorpay SDK.' },
+  { s: 'Notifications (bell + popups)', ok: true, has: 'GET notifications, POST notifications/read, GET/PUT notifications/prefs; services/register-push-token with app: myqode (app_push_devices). Server: lib/appNotify.ts (inbox-first outbox, Expo push with retries and receipts), lib/appNotifyTriggers.ts (money, portfolio, reading), admin campaigns at /api/admin/bo/notifications.', gap: 'Android popups need Firebase (FCM) credentials in EAS. Sends to investors start only with PUSH_LIVE=1 on the server; registration is blocked in test mode.' },
   { s: 'Family accounts', ok: true, has: 'experience/family (group → owner → accounts with masked PAN, mobile, city, status).', gap: 'Family-mapping changes go through services/account-request (email to IR); there is no self-service edit.' },
   { s: 'Insights & events, Portal guide', ok: true, has: 'engagement/newsletters, perspectives, events (S3 docs/newsletters, docs/prespectives, docs/events), engagement/portal-guide (S3 videos/reports-tutorial, images/reports-snapshot).', gap: 'Lists are empty until files exist in those S3 prefixes. Report descriptions are static text from the web page.' },
-  { s: 'Profile, KYC, bank & nominee', ok: false, has: 'auth/me (name, email, client code, account codes only).', gap: 'Needs GET /api/mobile/profile from pms_clients_master (PAN masked, address, mobile, bank, nominee, KYC status). Edits should stay request-based (services/account-request).' },
+  { s: 'Profile, KYC, bank & nominee', ok: false, has: 'auth/me (name, email, account code, account codes only).', gap: 'Needs GET /api/mobile/profile from pms_clients_master (PAN masked, address, mobile, bank, nominee, KYC status). Edits should stay request-based (services/account-request).' },
   { s: 'Nuvama primary UCC banner', ok: false, has: 'Web only: /api/primary-ucc (cookie session).', gap: 'Add GET /api/mobile/primary-ucc using lib/primaryUcc.ts with the mobile JWT.' },
   { s: 'Login · first-time password, forgot', ok: true, has: 'check-identifier, login, send-setup-otp, verify-setup-otp, complete-otp-setup, forgot (emails a web reset link).', gap: 'No in-app reset for an existing password: add POST /api/mobile/auth/reset {token,newPassword} or deep-link myqode.qodeinvest.com/reset-password into the app. Emails and password changes are blocked in test mode.' },
   { s: 'New-investor onboarding', ok: false, has: 'Nothing: the 8-step flow in the app is a static design demo.', gap: 'Needs a full onboarding backend (application record, OTP, document upload to S3, risk profile, nominees, e-sign/KYC). Keep disabled until then.' },
@@ -254,7 +254,7 @@ const REQS = [
 function Requirements() {
   return (
     <>
-      <P style={{ marginTop: 0 }}>Every /api/mobile route is wired. Rows marked with a dot still need data or native work. Nothing here contacts the client.</P>
+      <P style={{ marginTop: 0 }}>Every /api/mobile route is wired. Rows marked with a dot still need data or native work. Nothing here contacts the investor.</P>
       {REQS.map(r => (
         <Card key={r.s} style={{ padding: 16, marginTop: 12, borderLeftWidth: 3, borderLeftColor: r.ok ? C.green : C.gold }}>
           <Tx w={700} s={13.5}>{r.s}</Tx>
@@ -291,7 +291,7 @@ function AdminPage({ V }) {
         </Card>
       ) : (
         <>
-          <P style={{ marginTop: 0 }}>Open the app as any client with a 4-hour scoped token. Admin calls keep using your own token.</P>
+          <P style={{ marginTop: 0 }}>Open the app as any investor with a 4-hour scoped token. Admin calls keep using your own token.</P>
           <TextInput value={q} onChangeText={setQ} placeholder="Search name, email or code" placeholderTextColor={C.gray} autoCapitalize="none"
             style={{ marginTop: 12, backgroundColor: C.card, borderWidth: 1, borderColor: 'rgba(55,88,79,0.2)', borderRadius: 999, paddingHorizontal: 16, height: 44, fontFamily: 'Lato_400Regular', fontSize: 14, color: C.ink }} />
           {list.loading && <View style={{ marginTop: 14 }}><Loading /></View>}
@@ -319,7 +319,7 @@ export const PAGES = {
   family: { title: 'Account Mapping', body: () => <Family /> },
   nuvama: { title: 'Your Details on Nuvama', body: V => <NuvamaPage V={V} /> },
   insights: { title: 'Insights & Events', body: () => <Insights /> },
-  guide: { title: 'Investor Portal Guide', body: () => <PortalGuide /> },
+  guide: { title: 'Login To Nuvama', body: () => <PortalGuide /> },
   referral: { title: 'Referral Program', body: V => <Referral V={V} /> },
   cadence: { title: 'Service Cadence', body: () => <ReportsReviews /> },
   philosophy: { title: 'Qode Philosophy', body: () => <Article data={content.PHILOSOPHY} /> },

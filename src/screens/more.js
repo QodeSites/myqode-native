@@ -37,7 +37,7 @@ export function MoreCream({ V }) {
     <Fade>
       {/* Profile and settings */}
       <Card big style={{ marginTop: -34, paddingVertical: 6, paddingHorizontal: 18 }}>
-        {V.user && [['Name', V.user.name], ['Email', V.user.email], ['Client code', V.user.clientCode]].filter(r => r[1]).map(([k, v]) => (
+        {V.user && [['Name', V.user.name], ['Email', V.user.email], ['Account code', V.user.clientCode]].filter(r => r[1]).map(([k, v]) => (
           <View key={k} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderColor: C.hairline }}>
             <Tx s={12} c={C.muted}>{k}</Tx>
             <Tx w={700} s={12} numberOfLines={1} style={{ flexShrink: 1 }}>{v}</Tx>
@@ -83,7 +83,7 @@ export function MoreCream({ V }) {
         <>
           <SectionLabel>ADMIN</SectionLabel>
           <Card style={{ overflow: 'hidden' }}>
-            <MenuRow label={V.impersonated ? 'Admin · exit impersonation' : 'Admin · clients and impersonation'} onPress={() => V.openPage('admin')} last={!(monitoringOn && V.isSuperAdmin)} />
+            <MenuRow label={V.impersonated ? 'Admin · exit impersonation' : 'Admin · investors and impersonation'} onPress={() => V.openPage('admin')} last={!(monitoringOn && V.isSuperAdmin)} />
             {monitoringOn && V.isSuperAdmin && (
               <MenuRow label="Admin · send a test error report" last onPress={() => {
                 reportError(new Error(`Test report from the myQode app (${Platform.OS}), sent by an admin from More`));
@@ -100,7 +100,7 @@ export function MoreCream({ V }) {
       </Card>
       {V.viewing ? (
         <Pressable onPress={V.exitView} style={{ padding: 12, marginTop: 18 }}>
-          <Tx w={700} s={13} c={C.green} center>Back to distributor panel</Tx>
+          <Tx w={700} s={13} c={C.green} center>Back to partner panel</Tx>
         </Pressable>
       ) : (
         <SignOutButton onPress={V.doLogout} />

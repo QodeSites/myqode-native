@@ -38,7 +38,7 @@ export default function DesktopAccount({ V }) {
 
 function Profile({ V }) {
   const u = V.user || {};
-  const rows = [['Email', u.email], ['Client code', u.clientCode]].filter(r => r[1]);
+  const rows = [['Email', u.email], ['Account code', u.clientCode]].filter(r => r[1]);
   return (
     <Card>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 20 }}>
@@ -118,9 +118,9 @@ function Admin({ V }) {
     <Panel title="Admin">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
         <Tx s={13} c={C.ink2} lh={1.55} style={{ flex: 1 }}>
-          {V.impersonated ? 'You are signed in as this client through impersonation.' : 'Find a client and view the app as they see it.'}
+          {V.impersonated ? 'You are signed in as this investor through impersonation.' : 'Find an investor and view the app as they see it.'}
         </Tx>
-        <Btn small kind={V.impersonated ? 'outline' : 'primary'} label={V.impersonated ? 'Exit impersonation' : 'Clients and impersonation'}
+        <Btn small kind={V.impersonated ? 'outline' : 'primary'} label={V.impersonated ? 'Exit impersonation' : 'Investors and impersonation'}
           onPress={() => V.openPage('admin')} />
       </View>
     </Panel>
@@ -136,7 +136,7 @@ function Session({ V }) {
       </View>
       {/* A partner looking at an investor's account leaves the view instead of signing out (as on the phone). */}
       {V.viewing
-        ? <Btn kind="outline" label="Back to distributor panel" onPress={V.exitView} />
+        ? <Btn kind="outline" label="Back to partner panel" onPress={V.exitView} />
         : <Btn kind="danger" label="Sign out" onPress={V.doLogout} style={{ minWidth: 120 }} />}
     </Card>
   );

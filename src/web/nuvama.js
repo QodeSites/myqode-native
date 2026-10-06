@@ -20,7 +20,7 @@ const ACCOUNT_COLS = [
   { key: 'opened', label: 'Opened on', render: a => <Tx s={13}>{d(a.openedOn)}</Tx> },
   { key: 'inception', label: 'Inception', render: a => <Tx s={13}>{d(a.inceptionDate)}</Tx> },
   { key: 'rm', label: 'Relationship manager', flex: 1.2, render: a => <Tx s={13} numberOfLines={1}>{a.rm || '–'}</Tx> },
-  { key: 'dist', label: 'Distributor', flex: 1.2, render: a => <Tx s={13} numberOfLines={1}>{a.distributor ? title(a.distributor) : 'Direct'}</Tx> },
+  { key: 'dist', label: 'Partner', flex: 1.2, render: a => <Tx s={13} numberOfLines={1}>{a.distributor ? title(a.distributor) : 'Direct'}</Tx> },
   { key: 'status', label: 'Status', flex: 0.7, right: true, render: a => <Pill label={a.active ? 'Active' : 'Closed'} tone={a.active ? 'ok' : 'neutral'} /> },
 ];
 
@@ -73,20 +73,6 @@ export function NuvamaDetails({ compact, V }) {
               ]} />
             </View>
           ))}
-        </Panel>
-
-        {/* Registered bank */}
-        <Panel title="Bank account" sub="Where redemptions are paid" style={{ flex: 0.9 }}>
-          {(x.banks || []).length ? (x.banks || []).map((b, i) => (
-            <View key={i} style={{ marginTop: i ? 14 : 0 }}>
-              <KeyVals items={[
-                ['Account', b.code],
-                ['Number', b.account || '–'],
-                ['IFSC', b.ifsc || '–'],
-                ['Status', <Pill key="s" label={b.status ? String(b.status).replace(/^\w/, c => c.toUpperCase()) : 'On record'} tone={/verif|success|active/i.test(b.status || '') ? 'ok' : 'neutral'} />],
-              ]} />
-            </View>
-          )) : <Tx s={13} c={C.ink2} lh={1.5}>No bank account on record here yet. Investor Relations can help update it.</Tx>}
         </Panel>
       </Row>
 

@@ -15,7 +15,7 @@ import { DESKTOP_PAGES } from './pages';
 import { SwitchSheet, SettingsSheet, NotifsSheet } from '../screens/sheets';
 import { UccNotice } from '../screens/ucc';
 import { ddPct, pct, inr } from '../adapt';
-import { C, Tx, Amt, Card, Row, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, Btn, PageIntro, Chips, Tabs, Delta, BarList, KeyVals, sentence, FitAmt } from './kit';
+import { C, Tx, Amt, Card, Row, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, Btn, PageIntro, Chips, Tabs, Delta, BarList, KeyVals, sentence, FitAmt, AppLinks } from './kit';
 import { NuvamaDetails } from './nuvama';
 import DesktopHoldings from './holdings';
 import DesktopReports from './reports';
@@ -27,7 +27,7 @@ import { dayLabel } from '../screens/pay';
 
 // Tabs of state.tab and their web titles and addresses. Pages (PAGES / DESKTOP_PAGES keys) use their own key as the
 // address. The sidebar menu itself is NAV_GROUPS in src/nav.js, shared with the phone's More tab.
-const TITLES = { home: 'Overview', portfolio: 'Performance', holdings: 'Holdings', reports: 'Reports', docs: 'Client Document Vault', services: 'Account Services', more: 'Profile and Settings' };
+const TITLES = { home: 'Overview', portfolio: 'Performance', holdings: 'Holdings', reports: 'Reports', docs: 'Investor Document Vault', services: 'Account Services', more: 'Profile and Settings' };
 
 // Clean URLs for the web: /app/overview, /app/performance, /app/family … Each section and page has its own address,
 // so a link, a refresh or the browser's Back button lands where the client expects.
@@ -134,6 +134,7 @@ function Sidebar({ V, activeId, onNav }) {
           <Tx w={600} s={11.5} c={C.red}>Test mode</Tx>
         </View>
       )}
+      <AppLinks dark compact style={{ marginHorizontal: 22, marginBottom: 14 }} />
       <View style={{ marginHorizontal: 12, borderTopWidth: 1, borderColor: CREAM(0.12), paddingTop: 10 }}>
         <Pressable accessibilityRole="link" accessibilityLabel="Profile and settings" accessibilityState={{ selected: acctOn }}
           onPress={() => { onNav(); if (V.page) V.closePage(); V.goMore(); }} style={({ hovered }) => ({
@@ -616,7 +617,7 @@ export default function DesktopShell({ V }) {
         {!!V.viewing && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 32, backgroundColor: C.goldTint, borderBottomWidth: 1, borderColor: C.line }}>
             <Tx w={700} s={12} style={{ flex: 1 }}>Viewing {V.viewing} · read-only</Tx>
-            <TextLink label="Back to distributor panel" onPress={V.exitView} />
+            <TextLink label="Back to partner panel" onPress={V.exitView} />
           </View>
         )}
         <ScrollView key={active + (page || '')} style={{ flex: 1 }} contentContainerStyle={{ padding: 28, paddingBottom: 48 }}>
@@ -651,7 +652,7 @@ export function DesktopAuthFrame({ children }) {
           <View style={{ width: 44, height: 2, backgroundColor: C.gold, marginTop: 16 }} />
         </View>
         <View>
-          <Tx f="play" w={600} s={40} c={C.cream} lh={1.2} style={{ maxWidth: 560 }}>Every Qode account your family holds, in one sign-in.</Tx>
+          <Tx f="play" w={600} s={40} c={C.cream} lh={1.2} style={{ maxWidth: 560 }}>All your Qode accounts, in one sign{'‑'}in</Tx>
           {point('Performance at a glance', 'Portfolio value, returns, drawdown and trailing performance against the benchmark, for every account in your family.')}
           {point('Statements when you need them', 'Transactions, capital gains, expenses and your portfolio fact sheet, each ready to download as a PDF.')}
           {point('Act in a few clicks', 'Top up, set up a SIP, switch strategies or raise a request with our Investor Relations team.')}

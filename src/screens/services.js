@@ -538,7 +538,7 @@ export function RequestSheets({ V }) {
   if (!cfg) return null;
   if (k === 'r-account') {
     const r = accountRequest(V.user);
-    cfg = { ...cfg, title: r.title, sub: r.sub + ' It is emailed to Investor Relations with your client code and client ID.', cta: r.cta, fields: cfg.fields.map(f => ({ ...f, placeholder: r.placeholder })) };
+    cfg = { ...cfg, title: r.title, sub: r.sub + ' It is emailed to Investor Relations with your account code and investor ID.', cta: r.cta, fields: cfg.fields.map(f => ({ ...f, placeholder: r.placeholder })) };
   }
   // Preset values (e.g. Documents → Request for this account and section) fill the form when it opens.
   const preset = V.sheetPreset || {};

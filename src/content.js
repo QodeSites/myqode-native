@@ -5,8 +5,8 @@ export const PHILOSOPHY = {
   intro: [],
   sections: [
     { h: `Who We Are`, p: [`Qode is a SEBI-registered Portfolio Management Service (PMS) built on the principle that evidence, not opinion, should drive investment decisions. Founded by seasoned professionals with over a decade of experience in Indian markets, we exist to give investors a disciplined, transparent, and performance-oriented platform for long-term wealth creation.`] },
-    { h: `What We Do`, p: [`We design and manage differentiated investment strategies that combine the power of quantitative models with the insight of fundamental research. Our range spans ETF-only portfolios, systematic momentum strategies, diversified growth funds, and high-conviction stock picks, offering clients the flexibility to align with their goals and risk appetite.`] },
-    { h: `How We Work`, p: [`At Qode, every investment decision is guided by data, tested frameworks, and structured review processes. We believe in clarity over complexity: our clients receive concise updates that explain what we hold, why we hold it, and when we make changes. With bank-grade custody, strong operational controls, and a proactive investor support team, we ensure the experience is as robust as the strategy itself.`] },
+    { h: `What We Do`, p: [`We design and manage differentiated investment strategies that combine the power of quantitative models with the insight of fundamental research. Our range spans ETF-only portfolios, systematic momentum strategies, diversified growth funds, and high-conviction stock picks, offering investors the flexibility to align with their goals and risk appetite.`] },
+    { h: `How We Work`, p: [`At Qode, every investment decision is guided by data, tested frameworks, and structured review processes. We believe in clarity over complexity: our investors receive concise updates that explain what we hold, why we hold it, and when we make changes. With bank-grade custody, strong operational controls, and a proactive investor support team, we ensure the experience is as robust as the strategy itself.`] },
     { h: `Why It Matters`, p: [`Markets are noisy and narratives change quickly. Qode’s approach is designed to cut through that noise. By combining systematic rigor with long-term conviction, we aim to protect portfolios in challenging times while positioning them to capture opportunities that can compound meaningfully over years.`] },
   ],
 };
@@ -132,7 +132,7 @@ export const FAQ = [
     topic: `Minimums & Customization`,
     items: [
       { q: `Q13. What is the minimum investment required?`, a: `As per SEBI regulations, the minimum investment for Portfolio Management Services is ₹50 lakhs.` },
-      { q: `Q14. Can I customize my portfolio?`, a: `No. All clients within a strategy hold the same model portfolio to maintain fairness, transparency, and evidence-driven execution.` },
+      { q: `Q14. Can I customize my portfolio?`, a: `No. All investors within a strategy hold the same model portfolio to maintain fairness, transparency, and evidence-driven execution.` },
     ],
   },
   {
@@ -148,8 +148,8 @@ export const FAQ = [
       { q: `Q17. Can my portfolio lose value?`, a: `All investments carry risk, though Qode's strategies use discipline, diversification, and hedging to manage downside.` },
       { q: `Q18. How do you manage risk in extreme markets?`, a: `We follow defined risk controls: hedging policy, drawdown protocols, liquidity rules, and concentration discipline.` },
       { q: `Q19. Who holds custody of my assets?`, a: `Assets are held in your demat account with SEBI-registered custodians. Qode manages investments via POA only.` },
-      { q: `Q20. What happens if Qode's systems go down?`, a: `We follow Business Continuity & Disaster Recovery (BCP/DR) protocols to ensure uninterrupted operations and client access.` },
-      { q: `Q21. Can I switch between strategies?`, a: `Yes. Clients can request a strategy switch during the monthly rebalance cycle, subject to reallocation guidelines.` },
+      { q: `Q20. What happens if Qode's systems go down?`, a: `We follow Business Continuity & Disaster Recovery (BCP/DR) protocols to ensure uninterrupted operations and investor access.` },
+      { q: `Q21. Can I switch between strategies?`, a: `Yes. Investors can request a strategy switch during the monthly rebalance cycle, subject to reallocation guidelines.` },
     ],
   },
 ];
@@ -160,9 +160,9 @@ export const GLOSSARY = [
   { term: `Benchmark`, def: `A reference index used to measure portfolio performance.` },
   { term: `Drawdown`, def: `The peak-to-trough decline in portfolio value, usually expressed as a percentage.` },
   { term: `STP (Systematic Transfer Plan)`, def: `Allows phased transfer of funds from a liquid portfolio into equity strategies.` },
-  { term: `Custodian`, def: `A SEBI-registered entity that safeguards client funds and securities.` },
+  { term: `Custodian`, def: `A SEBI-registered entity that safeguards investor funds and securities.` },
   { term: `Protective Put`, def: `An options contract used to limit downside risk by providing insurance against large market declines.` },
-  { term: `Rebalancing`, def: `The process of aligning client portfolios back to the model portfolio to maintain uniformity and discipline.` },
+  { term: `Rebalancing`, def: `The process of aligning investor portfolios back to the model portfolio to maintain uniformity and discipline.` },
   { term: `SEBI`, def: `The Securities and Exchange Board of India, the regulator for securities markets.` },
 ];
 
@@ -210,10 +210,10 @@ export const RISK = {
   intro: [`Key operating policies that guide portfolio construction and risk management.`],
   policies: [
     { title: `Hedging Policy`, pdf: `https://myqode.qodeinvest.com/policies/hedging-policy.pdf`, body: [`We use derivatives prudently to manage downside risk, not for speculation. Protective put options & hedges are employed where appropriate to safeguard portfolios against significant market declines.`] },
-    { title: `Liquidity Rules`, pdf: `https://myqode.qodeinvest.com/policies/liquidity-rules.pdf`, body: [`We follow a defined liquidity policy to ensure capital is available for hedging and client needs.`] },
+    { title: `Liquidity Rules`, pdf: `https://myqode.qodeinvest.com/policies/liquidity-rules.pdf`, body: [`We follow a defined liquidity policy to ensure capital is available for hedging and investor needs.`] },
     { title: `Rebalance Policy`, pdf: `https://myqode.qodeinvest.com/policies/rebalance-policy.pdf`, body: [`All portfolios are rebalanced monthly, realigning holdings to strategy weights to control drift.`] },
     { title: `Concentration Limits`, pdf: `https://myqode.qodeinvest.com/policies/concentration-limits.pdf`, body: [`We impose no sector caps; portfolios are built bottom‑up, with structural gold allocations.`] },
-    { title: `Referral Policy`, pdf: `https://myqode.qodeinvest.com/policies/Referral%20Policy_Signed.pdf`, body: [`Our signed referral policy sets out how client referrals are handled, including eligibility, disclosures and the terms that apply to referred and referring parties.`] },
+    { title: `Referral Policy`, pdf: `https://myqode.qodeinvest.com/policies/Referral%20Policy_Signed.pdf`, body: [`Our signed referral policy sets out how investor referrals are handled, including eligibility, disclosures and the terms that apply to referred and referring parties.`] },
   ],
 };
 
@@ -313,7 +313,7 @@ export const LEGAL = {
   privacy: {
     title: `Privacy Policy`,
     sections: [
-      { h: ``, p: [`At Qode (Qode), we prioritize the privacy and security of our clients' personal, financial, and transactional information. Our commitment to safeguarding your privacy is integral to our relationship with you, and we employ advanced technology to ensure a secure online experience. This Privacy Policy outlines how we collect, use, protect, and share information obtained through our website qodeinvest.com, and it reflects our dedication to protecting your privacy.`] },
+      { h: ``, p: [`At Qode (Qode), we prioritize the privacy and security of our investors' personal, financial, and transactional information. Our commitment to safeguarding your privacy is integral to our relationship with you, and we employ advanced technology to ensure a secure online experience. This Privacy Policy outlines how we collect, use, protect, and share information obtained through our website qodeinvest.com, and it reflects our dedication to protecting your privacy.`] },
       { h: `Information Collection & Use`, p: [`Qode collects personal information such as your name, address, email address, phone number, birth date, PAN, Aadhaar, occupation, income, risk profile, nominee details, investment details, and bank details. This information is gathered through various means, including email, forms, and WhatsApp groups, and is used to facilitate account opening, KYC processes, and account management. We also use this information to keep you informed about our latest product announcements, special offers, and to provide you with better services.`] },
       { h: `Sharing and Disclosure of Information`, p: [`Qode may share your personal information with third parties, including custodians like ICICI Bank, KYC and KRA centers, CRM systems, auditors, and other service providers, to add value and improve the quality of services we provide. This sharing of information will be done in strict compliance with confidentiality standards and only when necessary for audits, account opening, or as required by law.`] },
       { h: `Protection of Information`, p: [`We are committed to protecting your information with the same degree of care that we apply to our own confidential information. This includes taking all reasonable steps to prevent unauthorized use, dissemination, or publication of your personal information. Access to your personal information on our website is secured through a unique login ID and password, which you are advised to handle carefully and change periodically.`] },

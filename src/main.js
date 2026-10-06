@@ -103,6 +103,9 @@ function cutRange(nav, dd, period) {
   return { nav: { ...nav, period, series }, dd: { ...(dd || {}), period, series: ddSeries } };
 }
 
+// Server codes meaning the setup code can no longer be used (lib/mobileOtpAttempts.ts): only a new code helps.
+const OTP_DEAD = ['OTP_LOCKED', 'OTP_EXPIRED'];
+
 // Sign-in fields never take spaces (typed or pasted): an email, a client code and a password contain none.
 const noSpace = t => String(t || '').replace(/\s+/g, '');
 
@@ -674,7 +677,7 @@ export default class MyQode extends React.Component {
     const { email, pw, busy } = this.state;
     const id = email.trim();
     if (busy) return;
-    if (!id || !pw) return this.setState({ authErr: 'Enter your email or client code and your password.' });
+    if (!id || !pw) return this.setState({ authErr: 'Enter your email or account code and your password.' });
     this.setState({ busy: true, authErr: '', authInfo: '' });
     try {
       { const r = await auth.login(id, pw, this.state.loginAs); await this.finishLogin(r.token, r.user); }
@@ -771,7 +774,7 @@ export default class MyQode extends React.Component {
       const email = id.includes('@') ? id : (await auth.checkIdentifier(id)).email;
       if (!email) throw new ApiError('There is no email on file for this account. Please contact investor relations.');
       await auth.sendSetupOtp(email);
-      this.setState({ busy: false, phase: 'otp', setupEmail: email, otp: ['', '', '', '', '', ''], authErr: '', authInfo: '' });
+      this.setState({ busy: false, phase: 'otp', setupEmail: email, otp: ['', '', '', '', '', ''], otpLocked: false, authErr: '', authInfo: '' });
     } catch (e) { this.authFail(e); }
   }
 
@@ -784,16 +787,20 @@ export default class MyQode extends React.Component {
       await auth.verifySetupOtp(setupEmail, code);
       this.setState({ busy: false, phase: 'setpw', authInfo: '' });
     } catch (e) {
-      this.setState({ otp: ['', '', '', '', '', ''] });
+      // Five wrong codes, or an expired one: this code is finished, so the screen offers a new code instead of Verify.
+      this.setState({ otp: ['', '', '', '', '', ''], otpLocked: OTP_DEAD.includes(e.code) });
       this.authFail(e);
-      if (this.otpRefs[0].current) this.otpRefs[0].current.focus();
+      if (!OTP_DEAD.includes(e.code) && this.otpRefs[0].current) this.otpRefs[0].current.focus();
     }
   };
 
   resendOtp = async () => {
+    if (this.state.busy) return;
+    this.setState({ busy: true });
     try {
       await auth.sendSetupOtp(this.state.setupEmail);
-      this.setState({ authErr: '', authInfo: 'A new code is on its way.' });
+      this.setState({ busy: false, otp: ['', '', '', '', '', ''], otpLocked: false, authErr: '', authInfo: 'A new code is on its way.' });
+      if (this.otpRefs[0].current) this.otpRefs[0].current.focus();
     } catch (e) { this.authFail(e); }
   };
 
@@ -806,7 +813,10 @@ export default class MyQode extends React.Component {
     try {
       await auth.completeOtpSetup(setupEmail, otp.join(''), np, np2);
       { const r = await auth.login(setupEmail, np); await this.finishLogin(r.token, r.user); }
-    } catch (e) { this.authFail(e); }
+    } catch (e) {
+      if (OTP_DEAD.includes(e.code)) this.setState({ phase: 'otp', otp: ['', '', '', '', '', ''], otpLocked: true });
+      this.authFail(e);
+    }
   };
 
   pwProblem(a, b) {
@@ -833,7 +843,7 @@ export default class MyQode extends React.Component {
   bypassLogin = async (id) => {
     const username = (id || this.state.email).trim();
     if (this.state.busy) return;
-    if (!username) return this.setState({ authErr: 'Enter an email or client code.' });
+    if (!username) return this.setState({ authErr: 'Enter an email or account code.' });
     this.setState({ busy: true, authErr: '', authInfo: '' });
     try {
       const r = await auth.loginBypass(username);
@@ -852,8 +862,8 @@ export default class MyQode extends React.Component {
   };
   loadDevClients = async () => {
     this.setState({ devClients: null, devErr: '' });
-    try { const r = await auth.devClients(); this.setState({ devClients: r.clients || [], devErr: (r.clients || []).length ? '' : 'The server returned no Discretionary clients.' }); }
-    catch (e) { this.setState({ devClients: [], devErr: (e.status === 404 ? 'Client list is only available when the server runs in development.' : userMessage(e)) + ' (' + BASE_URL + ')' }); }
+    try { const r = await auth.devClients(); this.setState({ devClients: r.clients || [], devErr: (r.clients || []).length ? '' : 'The server returned no Discretionary investors.' }); }
+    catch (e) { this.setState({ devClients: [], devErr: (e.status === 404 ? 'Investor list is only available when the server runs in development.' : userMessage(e)) + ' (' + BASE_URL + ')' }); }
   };
 
   startDemo = async () => {
@@ -1319,7 +1329,7 @@ export default class MyQode extends React.Component {
       carSkip: () => set({ phase: 'login' }), carDone: () => set({ phase: 'login' }),
       carProg: (S.car + 1) / 3, carHasPrev: S.car > 0, carLast: S.car === 2,
       // auth
-      email: S.email, pw: S.pw, onEmail: t => set({ email: noSpace(t), authErr: /\s/.test(t) ? 'Spaces aren’t allowed in your email or client code.' : '' }),
+      email: S.email, pw: S.pw, onEmail: t => set({ email: noSpace(t), authErr: /\s/.test(t) ? 'Spaces aren’t allowed in your email or account code.' : '' }),
       onPw: t => set({ pw: noSpace(t), authErr: /\s/.test(t) ? 'Spaces aren’t allowed in a password.' : '' }),
       doLogin: this.doLogin, doForgot: this.doForgot, startDemo: this.startDemo, isDemo: isDemo(),
       testMode: TEST_MODE && !isDemo(), devBypass: DEV_BYPASS,
@@ -1336,7 +1346,7 @@ export default class MyQode extends React.Component {
         change: t => this.setState({ otp: this.otpBoxSet(S.otp, this.otpRefs, i, t, this.verifyOtp), authErr: '' }),
         back: () => { if (!S.otp[i] && i > 0 && this.otpRefs[i - 1].current) this.otpRefs[i - 1].current.focus(); },
       })),
-      verifyOtp: this.verifyOtp, resendOtp: this.resendOtp,
+      verifyOtp: this.verifyOtp, resendOtp: this.resendOtp, otpLocked: !!S.otpLocked,
       backToLogin: () => set({ phase: 'login', authErr: '', authInfo: '', busy: false }),
       np: S.np, np2: S.np2, onNp: t => set({ np: noSpace(t), authErr: /\s/.test(t) ? 'Spaces aren’t allowed in a password.' : '' }), onNp2: t => set({ np2: noSpace(t), authErr: /\s/.test(t) ? 'Spaces aren’t allowed in a password.' : '' }),
       savePassword: this.savePassword,

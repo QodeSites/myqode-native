@@ -56,15 +56,15 @@ function DarkZone({ V }) {
             <Tx w={700} s={9.5} ls={0.14} c={C.gold}>VIEWING · READ-ONLY</Tx>
             <Tx w={700} s={12.5} c={C.cream} numberOfLines={1} style={{ marginTop: 2 }}>{V.viewing}</Tx>
           </View>
-          <Pressable onPress={V.exitView} accessibilityRole="button" accessibilityLabel="Back to the distributor panel" style={{ backgroundColor: C.gold, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
-            <Tx w={700} s={11} c={C.ink}>Back to distributor</Tx>
+          <Pressable onPress={V.exitView} accessibilityRole="button" accessibilityLabel="Back to the partner panel" style={{ backgroundColor: C.gold, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
+            <Tx w={700} s={11} c={C.ink}>Back to partner</Tx>
           </Pressable>
         </View>
       )}
       {V.testMode && (
         <View style={{ paddingTop: 10, paddingHorizontal: 22, flexDirection: 'row' }}>
           <View style={{ borderWidth: 1, borderColor: C.red, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 }}>
-            <Tx w={700} s={9.5} ls={0.18} c={C.red}>TEST MODE · CLIENT CONTACT BLOCKED{V.impersonated ? ' · IMPERSONATING' : ''}</Tx>
+            <Tx w={700} s={9.5} ls={0.18} c={C.red}>TEST MODE · INVESTOR CONTACT BLOCKED{V.impersonated ? ' · IMPERSONATING' : ''}</Tx>
           </View>
         </View>
       )}
@@ -145,7 +145,7 @@ function DarkZone({ V }) {
       {V.isDocs && (
         <Fade style={{ paddingTop: 22, paddingHorizontal: 22 }}>
           <Tx w={700} s={11} ls={0.14} c={C.gold}>DOCUMENTS</Tx>
-          <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>Client Document Vault</Tx>
+          <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 6 }}>Investor Document Vault</Tx>
           <Tx s={12} c={C.cream60} style={{ marginTop: 6 }}>Agreement, account opening documents and CML</Tx>
         </Fade>
       )}

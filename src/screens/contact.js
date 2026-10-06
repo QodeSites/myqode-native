@@ -16,8 +16,8 @@ export function irLinks(code) {
   return {
     phone, mail, wa,
     tel: phone ? 'tel:+' + digits(phone.number) : '',
-    email: subject => (mail ? 'mailto:' + mail.address + (subject ? '?subject=' + encodeURIComponent(subject + ' - ' + (code || 'Client')) : '') : ''),
-    whatsapp: wa ? 'https://wa.me/' + digits(wa.number) + '?text=' + encodeURIComponent('Hi! I am ' + (code || 'a client') + ' and would like to discuss my account') : '',
+    email: subject => (mail ? 'mailto:' + mail.address + (subject ? '?subject=' + encodeURIComponent(subject + ' - ' + (code || 'Investor')) : '') : ''),
+    whatsapp: wa ? 'https://wa.me/' + digits(wa.number) + '?text=' + encodeURIComponent('Hi! I am ' + (code || 'an investor') + ' and would like to discuss my account') : '',
   };
 }
 

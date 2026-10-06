@@ -12,6 +12,7 @@ import Onboarding, { ResumeScreen } from '../screens/onboarding';
 import { ActivityIndicator } from 'react-native';
 
 import { SHOW_ONBOARDING } from '../api/config';
+import { AppLinks } from './kit';
 // The sign-in screens keep the brand look (green and gold on cream, Lato) with their own small controls, so the
 // dashboard's design system can change without touching them.
 const Label = ({ children, style, c = C.muted }) => <Tx w={700} s={10.5} ls={0.12} c={c} style={style}>{children}</Tx>;
@@ -80,7 +81,7 @@ function Threads({ opacity = 1 }) {
 // Brand copy per context: sign-in talks about the portfolio, onboarding about opening an account.
 const COPY = {
   signin: {
-    head: 'Every Qode account your family holds, in one sign\u2011in.',
+    head: 'All your Qode accounts, in one sign\u2011in',
     points: [
       ['Performance at a glance', 'Portfolio value, returns, drawdown and trailing performance against the benchmark, for every account in your family.'],
       ['Statements when you need them', 'Transactions, capital gains, expenses and your portfolio fact sheet, ready to download as PDF.'],
@@ -145,10 +146,10 @@ function Split({ V, children, kind }) {
       <BrandPanel V={V} kind={kind} />
       <View style={{ flex: 1, minWidth: 540, maxWidth: 760, backgroundColor: C.cream }}>
         <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 48, paddingVertical: 56 }}>
+          contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 48, paddingVertical: 16 }}>
           <View style={{ width: 440, maxWidth: '100%' }}>{children}</View>
         </ScrollView>
-        <Tx s={10} ls={0.1} c={C.gray} center style={{ paddingBottom: 18 }}>PROTECTED BY 256-BIT ENCRYPTION</Tx>
+        <Tx s={10} ls={0.1} c={C.gray} center style={{ paddingBottom: 12 }}>PROTECTED BY 256-BIT ENCRYPTION</Tx>
       </View>
     </View>
   );
@@ -157,11 +158,11 @@ function Split({ V, children, kind }) {
 /* ── pieces ─────────────────────────────────────────────────────────────────────────────────────────────── */
 function Heading({ eyebrow, title, sub }) {
   return (
-    <View style={{ marginBottom: 28 }}>
+    <View style={{ marginBottom: 22 }}>
       {!!eyebrow && <Label style={{ marginBottom: 10 }}>{eyebrow}</Label>}
       <Tx f="play" w={600} s={34} lh={1.2}>{title}</Tx>
       <View style={{ width: 40, height: 2, backgroundColor: C.gold, marginTop: 14 }} />
-      {!!sub && <Tx s={13.5} c={C.muted} lh={1.55} style={{ marginTop: 14 }}>{sub}</Tx>}
+      {!!sub && <Tx s={13.5} c={C.muted} lh={1.55} style={{ marginTop: 10 }}>{sub}</Tx>}
     </View>
   );
 }
@@ -209,7 +210,7 @@ function PwInput({ label, value, onChangeText, onSubmitEditing, style, autoFocus
 function RoleSwitch({ V }) {
   return (
     <View accessibilityRole="tablist" style={{ flexDirection: 'row', borderWidth: 1, borderColor: C.mutedBorder35, borderRadius: 10, padding: 4, backgroundColor: C.card, marginBottom: 22 }}>
-      {[['client', 'Client'], ['distributor', 'Distributor']].map(([k, l]) => {
+      {[['client', 'Investor'], ['distributor', 'Partner']].map(([k, l]) => {
         const on = V.loginAs === k;
         return (
           <Pressable key={k} onPress={() => V.setLoginAs(k)} accessibilityRole="button" accessibilityState={{ selected: on }}
@@ -236,18 +237,18 @@ function DevCard({ V }) {
       </Pressable>
       {V.devOpen && (
         <View style={{ marginTop: 12 }}>
-          <Tx s={11.5} c={C.muted} lh={1.5}>Uses the email or client code typed above. The myQode server must be running in development (NODE_ENV=development).</Tx>
+          <Tx s={11.5} c={C.muted} lh={1.5}>Uses the email or account code typed above. The myQode server must be running in development (NODE_ENV=development).</Tx>
           <Btn label="Sign in as this user (no password)" kind="outline" busy={V.authBusy} onPress={() => V.bypassLogin()} style={{ marginTop: 12 }} />
-          <Input label={V.loginAs === 'distributor' ? 'FIND A DISTRIBUTOR' : 'FIND A CLIENT'} value={V.devQ} onChangeText={V.onDevQ} placeholder="name, email or code" style={{ marginTop: 14 }} />
+          <Input label={V.loginAs === 'distributor' ? 'FIND A PARTNER' : 'FIND AN INVESTOR'} value={V.devQ} onChangeText={V.onDevQ} placeholder="name, email or code" style={{ marginTop: 14 }} />
           <Tx s={10.5} c={C.gray} style={{ marginTop: 6 }}>Server: {V.apiBase}</Tx>
-          {!V.devLoaded && <Tx s={11.5} c={C.muted} style={{ marginTop: 8 }}>Loading clients…</Tx>}
+          {!V.devLoaded && <Tx s={11.5} c={C.muted} style={{ marginTop: 8 }}>Loading investors…</Tx>}
           {!!V.devErr && (
             <Pressable onPress={V.reloadDev} accessibilityRole="button" style={{ marginTop: 8 }}>
               <Tx s={11.5} c={C.red} lh={1.45}>{V.devErr}</Tx>
               <Tx w={700} s={11.5} c={C.green} style={{ marginTop: 4 }}>Click to retry</Tx>
             </Pressable>
           )}
-          {V.devLoaded && !V.devErr && V.devClients.length === 0 && <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 8 }}>{V.loginAs === 'distributor' ? 'No distributor login matches that search.' : 'No Discretionary client matches that search. Non-Discretionary accounts aren’t listed. Type the code above and use the button instead.'}</Tx>}
+          {V.devLoaded && !V.devErr && V.devClients.length === 0 && <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 8 }}>{V.loginAs === 'distributor' ? 'No partner login matches that search.' : 'No Discretionary investor matches that search. Non-Discretionary accounts aren’t listed. Type the code above and use the button instead.'}</Tx>}
           <View style={{ maxHeight: 280, marginTop: 6 }}>
             <ScrollView>
               {V.devClients.map((c, i) => (
@@ -307,11 +308,11 @@ function SignIn({ V }) {
   return (
     <View>
       {V.hasResume && <ResumeCard V={V} />}
-      <Heading eyebrow={partner ? 'DISTRIBUTOR SIGN IN' : 'CLIENT SIGN IN'} title="Welcome back"
-        sub={partner ? 'Sign in to your Qode distributor account.' : 'Sign in to see your Qode portfolio.'} />
+      <Heading title="Welcome back"
+        sub={partner ? 'Sign in to your Qode partner account.' : 'Sign in to see your Qode portfolio.'} />
       <RoleSwitch V={V} />
-      <Input label={partner ? 'DISTRIBUTOR EMAIL' : 'EMAIL OR CLIENT CODE'} value={V.email} onChangeText={V.onEmail}
-        placeholder={partner ? 'Enter your registered email' : 'Enter your client code or email'} autoFocus onSubmitEditing={V.doLogin} />
+      <Input label={partner ? 'PARTNER EMAIL' : 'EMAIL OR ACCOUNT CODE'} value={V.email} onChangeText={V.onEmail}
+        placeholder={partner ? 'Enter your registered email' : 'Enter your account code or email'} autoFocus onSubmitEditing={V.doLogin} />
       <PwInput label="PASSWORD" value={V.pw} onChangeText={V.onPw} onSubmitEditing={V.doLogin} style={{ marginTop: 18 }} />
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 }}>
         <Link label="Forgot password?" onPress={() => setForgot(true)} s={12} />
@@ -319,12 +320,13 @@ function SignIn({ V }) {
       <Msg V={V} />
       <Btn label="Sign in securely" onPress={V.doLogin} busy={V.authBusy} style={{ marginTop: 20, paddingVertical: 14 }} />
       {V.devBypass && <DevCard V={V} />}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 28 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 20 }}>
         <View style={{ flex: 1, height: 1, backgroundColor: C.hairline }} />
         <Tx w={700} s={10} ls={0.12} c={C.gray}>OR</Tx>
         <View style={{ flex: 1, height: 1, backgroundColor: C.hairline }} />
       </View>
-      <Btn label="Explore a demo with sample data" kind="outline" onPress={V.startDemo} style={{ marginTop: 20 }} />
+      <Btn label="Explore a demo with sample data" kind="outline" onPress={V.startDemo} style={{ marginTop: 16 }} />
+      <AppLinks center style={{ marginTop: 20 }} />
       {SHOW_ONBOARDING && (
         <Pressable onPress={V.startOb} accessibilityRole="button" style={({ hovered }) => ({ marginTop: 22, alignSelf: 'center', opacity: hovered ? 0.7 : 1 })}>
           <Tx s={13} c={C.muted} center>New to Qode? <Tx w={700} s={13} c={C.green}>Begin your journey</Tx></Tx>
@@ -359,11 +361,15 @@ function Otp({ V }) {
       <Heading eyebrow="FIRST-TIME SETUP · ONE-TIME PASSCODE" title="Verify it’s you" sub={`We’ve sent a 6-digit code to ${V.otpEmailMask}.`} />
       <OtpBoxes V={V} />
       <Msg V={V} />
-      <Btn label="Verify" onPress={V.verifyOtp} busy={V.authBusy} style={{ marginTop: 24, paddingVertical: 14 }} />
-      <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 20 }}>
-        <Tx s={12.5} c={C.muted}>Didn’t get it?</Tx>
-        <Link label="Resend code" onPress={V.resendOtp} />
-      </View>
+      {V.otpLocked
+        ? <Btn label="Request a new code" onPress={V.resendOtp} busy={V.authBusy} style={{ marginTop: 24, paddingVertical: 14 }} />
+        : (<>
+          <Btn label="Verify" onPress={V.verifyOtp} busy={V.authBusy} style={{ marginTop: 24, paddingVertical: 14 }} />
+          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 20 }}>
+            <Tx s={12.5} c={C.muted}>Didn’t get it?</Tx>
+            <Link label="Resend code" onPress={V.resendOtp} />
+          </View>
+        </>)}
     </View>
   );
 }

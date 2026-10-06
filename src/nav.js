@@ -17,7 +17,7 @@ export const NAV_GROUPS = [
     { id: 'team', label: 'Your Team at Qode', page: 'team' },
   ] },
   { key: 'experience', title: 'Your Qode Experience', icon: 'compass', items: [
-    { id: 'guide', label: 'Investor Portal Guide', page: 'guide' },
+    { id: 'guide', label: 'Login To Nuvama', page: 'guide' },
     { id: 'services', label: 'Account Services', tab: 'services' },
     { id: 'family', label: 'Account Mapping', page: 'family' },
     { id: 'cadence', label: 'Service Cadence', page: 'cadence' },
@@ -29,7 +29,7 @@ export const NAV_GROUPS = [
     { id: 'insights', label: 'Insights & Events', page: 'insights' },
   ] },
   { key: 'trust', title: 'Trust & Security', icon: 'shield', items: [
-    { id: 'docs', label: 'Client Document Vault', tab: 'docs' },
+    { id: 'docs', label: 'Investor Document Vault', tab: 'docs' },
     { id: 'risk', label: 'Risk Management & Controls', page: 'risk' },
     { id: 'grievance', label: 'Escalation and Grievance Redressal', page: 'grievance' },
     { id: 'faq', label: 'FAQs & Glossary', page: 'faq' },

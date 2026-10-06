@@ -49,9 +49,9 @@ export function pwProblem(a, b) {
   return '';
 }
 export const isEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || '').trim());
-export const TYPE_OPTS = [['all', 'All'], ['investor', 'Investors'], ['distributor', 'Distributors']];
+export const TYPE_OPTS = [['all', 'All'], ['investor', 'Investors'], ['distributor', 'Partners']];
 export const STATUS_OPTS = [['all', 'Any status'], ['needs-setup', 'Needs setup'], ['locked', 'Locked'], ['never', 'Never signed in']];
-export const ADMIN_TABS = [['overview', 'Overview'], ['users', 'Users'], ['distributors', 'Distributors'], ['notifications', 'Notifications'], ['audit', 'Audit log']];
+export const ADMIN_TABS = [['overview', 'Overview'], ['users', 'Users'], ['distributors', 'Partners'], ['notifications', 'Notifications'], ['audit', 'Audit log']];
 
 // Notifications composer (phone and desktop). Samples fill the form with one of each automated kind, to try them
 // on your own phone before PUSH_LIVE=1.
@@ -61,7 +61,7 @@ export const NOTE_SAMPLES = [
   { key: 'reading', label: 'Reading', category: 'reading', link: 'page:newsletters', title: 'New newsletter', body: 'Our latest newsletter is ready to read in the app.' },
 ];
 export const NOTE_LINKS = [['', 'Home'], ['tab:portfolio', 'Performance'], ['page:transactions', 'Transactions'], ['tab:reports', 'Reports'], ['page:newsletters', 'Newsletters'], ['tab:docs', 'Documents'], ['tab:services', 'Account services'], ['sheet:add', 'Add funds']];
-export const AUDIENCES = [['test', 'Only me (test)'], ['all', 'Everyone on the app'], ['strategy', 'One strategy'], ['emails', 'Chosen clients']];
+export const AUDIENCES = [['test', 'Only me (test)'], ['all', 'Everyone on the app'], ['strategy', 'One strategy'], ['emails', 'Chosen investors']];
 
 export function useNotifAdmin(tick) {
   const q = useLoad(() => backoffice.notifications(), [tick]);
@@ -97,12 +97,12 @@ export function useNotifAdmin(tick) {
   return { q, f, set, sample, problem, send, busy, msg };
 }
 export const campaignStats = st => st ? `${fmtN(st.delivered)} delivered · ${fmtN(st.read)} read${st.inFlight ? ` · ${fmtN(st.inFlight)} sending` : ''}${st.noDevice ? ` · ${fmtN(st.noDevice)} inbox only` : ''}${st.failed ? ` · ${fmtN(st.failed)} failed` : ''}` : '';
-export const audienceText = a => !a ? '' : a.type === 'test' ? 'Test' : a.type === 'all' ? 'Everyone' : a.type === 'strategy' ? String(a.value || '').replace(/^QODE ADVISORS LLP\s*-\s*/i, '') : `${(a.value || []).length} clients`;
+export const audienceText = a => !a ? '' : a.type === 'test' ? 'Test' : a.type === 'all' ? 'Everyone' : a.type === 'strategy' ? String(a.value || '').replace(/^QODE ADVISORS LLP\s*-\s*/i, '') : `${(a.value || []).length} investors`;
 
 // Status badges for a user: [label, tone] with tone ok | warn | bad | neutral.
 export function userBadges(u) {
   if (!u) return [];
-  const b = [[u.type === 'distributor' ? 'Distributor' : 'Investor', 'neutral']];
+  const b = [[u.type === 'distributor' ? 'Partner' : 'Investor', 'neutral']];
   if (u.locked) b.push(['Locked', 'bad']);
   if (u.needsSetup) b.push(['Needs setup', 'warn']);
   else if (u.passwordSet) b.push(['Password set', 'ok']);
@@ -254,7 +254,7 @@ function Overview({ tick }) {
       <SectionLabel style={{ marginTop: 4 }}>USERS</SectionLabel>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         <Tile label="Investors" value={fmtN(u.investors)} />
-        <Tile label="Distributors" value={fmtN(u.distributors)} />
+        <Tile label="Partners" value={fmtN(u.distributors)} />
         <Tile label="Password set" value={fmtN(u.passwordSet)} />
         <Tile label="Needs setup" value={fmtN(u.needsSetup)} tone={u.needsSetup ? 'warn' : ''} />
         <Tile label="Never signed in" value={fmtN(u.neverLoggedIn)} />
@@ -336,8 +336,8 @@ function UserList({ V, fixedType, endRef, tick }) {
   useEffect(() => () => { endRef.current = null; }, []);
   return (
     <>
-      {fixedType === 'distributor' && <CTA label="+ NEW DISTRIBUTOR" onPress={() => setNewOpen(true)} style={{ marginBottom: 14 }} />}
-      <SearchBox value={q} onChange={setQ} placeholder="Search name, email or client code" />
+      {fixedType === 'distributor' && <CTA label="+ NEW PARTNER" onPress={() => setNewOpen(true)} style={{ marginBottom: 14 }} />}
+      <SearchBox value={q} onChange={setQ} placeholder="Search name, email or account code" />
       {!fixedType && (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
           {TYPE_OPTS.map(([k, l]) => <Chip key={k} label={l} active={type === k} onPress={() => setType(k)} />)}
@@ -387,13 +387,13 @@ function NewDistributorSheet({ V, visible, onClose, onDone }) {
     if (busy) return;
     const name = f.name.trim(), email = f.email.trim().toLowerCase();
     const fee = f.fee.trim() === '' ? undefined : Number(f.fee.replace(',', '.'));
-    const bad = !name ? 'Enter the distributor name.' : !isEmail(email) ? 'Enter a valid email.' : pwProblem(f.pw)
+    const bad = !name ? 'Enter the partner name.' : !isEmail(email) ? 'Enter a valid email.' : pwProblem(f.pw)
       || (fee !== undefined && (!isFinite(fee) || fee < 0 || fee > 100) ? 'Fee must be a percentage between 0 and 100.' : '');
     if (bad) return setErr(bad);
     setBusy(true);
     try {
       await backoffice.createDistributor({ name, email, password: f.pw, ...(fee !== undefined ? { feePercentage: fee } : {}) });
-      V.toast('Distributor created');
+      V.toast('Partner created');
       onDone();
     } catch (e) { setErr(e.status === 409 ? 'A user with this email already exists.' : userMessage(e)); }
     finally { setBusy(false); }
@@ -401,13 +401,13 @@ function NewDistributorSheet({ V, visible, onClose, onDone }) {
   return (
     <Sheet visible={visible} onClose={onClose}>
       <View style={{ paddingHorizontal: 22, paddingTop: 8, gap: 16 }}>
-        <Tx f="play" w={600} s={19}>New distributor</Tx>
+        <Tx f="play" w={600} s={19}>New partner</Tx>
         <Field label="NAME" value={f.name} onChangeText={upd('name')} placeholder="Full name or firm" autoCapitalize="words" />
         <Field label="EMAIL" value={f.email} onChangeText={upd('email')} placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none" />
         <Field label="PASSWORD" value={f.pw} onChangeText={upd('pw')} secure autoCapitalize="none" hint="8+ characters, with a letter and a digit." />
         <Field label="FEE %" value={f.fee} onChangeText={upd('fee')} keyboardType="decimal-pad" placeholder="Optional" />
         {!!err && <Tx s={12} c={C.red}>{err}</Tx>}
-        <CTA label={busy ? 'CREATING…' : 'CREATE DISTRIBUTOR'} onPress={submit} />
+        <CTA label={busy ? 'CREATING…' : 'CREATE PARTNER'} onPress={submit} />
       </View>
     </Sheet>
   );
@@ -484,7 +484,7 @@ export function useUserActions({ V, email, name, reload, onDeleted }) {
     setPassword: pw => run('pw', () => backoffice.setPassword(email, pw), 'Password updated'),
     resetLink: () => run('reset', () => backoffice.resetLink(email), 'Reset link sent'),
     unlock: () => run('unlock', () => backoffice.unlock(email), 'Account unlocked'),
-    remove: () => run('delete', () => backoffice.deleteDistributor(email), 'Distributor deleted', onDeleted),
+    remove: () => run('delete', () => backoffice.deleteDistributor(email), 'Partner deleted', onDeleted),
   };
 }
 
@@ -521,7 +521,7 @@ function UserDetail({ V, email, onBack }) {
         <Tx s={12} c={C.muted} style={{ marginTop: 3 }}>{u.email}</Tx>
         <Badges u={u} style={{ marginTop: 10 }} />
         <View style={{ marginTop: 10, borderTopWidth: 1, borderColor: C.hairline, paddingTop: 4 }}>
-          {!isDist && !!(u.clientCodes || []).length && <KV k="Client codes" v={u.clientCodes.join(', ')} />}
+          {!isDist && !!(u.clientCodes || []).length && <KV k="Account codes" v={u.clientCodes.join(', ')} />}
           {isDist && <KV k="Investors" v={fmtN(u.clientCount)} />}
           {!!u.intermediary && <KV k="Intermediary" v={u.intermediary} />}
           {!!u.groupId && <KV k="Group" v={groupText(u.groupId)} />}
@@ -535,7 +535,7 @@ function UserDetail({ V, email, onBack }) {
         <ActionBtn label="Set password" onPress={() => A.open('pw')} />
         <ActionBtn label="Send reset link" onPress={() => A.open('reset')} />
         <ActionBtn label="Unlock" onPress={() => A.open('unlock')} />
-        {isDist && <ActionBtn danger label="Delete distributor" onPress={() => A.open('delete')} />}
+        {isDist && <ActionBtn danger label="Delete partner" onPress={() => A.open('delete')} />}
       </View>
       {!!A.err && !A.sheet && <Tx s={12} c={C.red} style={{ marginTop: 10 }}>{A.err}</Tx>}
 
@@ -564,7 +564,7 @@ function UserDetail({ V, email, onBack }) {
                   onPress={x.email ? () => V.setAdm({ email: x.email }) : undefined} />
               ))}
             </Card>
-          ) : <Empty>No investors under this distributor.</Empty>}
+          ) : <Empty>No investors under this partner.</Empty>}
         </>
       )}
 
@@ -606,8 +606,8 @@ function UserDetail({ V, email, onBack }) {
         label="SEND LINK" body={`Email ${u.email} the standard link to set a new password.`} />
       <ConfirmSheet visible={A.sheet === 'unlock'} onClose={A.close} title="Unlock account" busy={A.busy === 'unlock'} err={A.err} onConfirm={A.unlock}
         label="UNLOCK" body="Clears failed sign-in attempts and any lock, so the user can sign in again straight away." />
-      <ConfirmSheet visible={A.sheet === 'delete'} onClose={A.close} title="Delete distributor" danger busy={A.busy === 'delete'} err={A.err} onConfirm={A.remove}
-        label="DELETE" body={`Delete the distributor login for ${u.email}? This cannot be undone. Their investors are not changed.`} />
+      <ConfirmSheet visible={A.sheet === 'delete'} onClose={A.close} title="Delete partner" danger busy={A.busy === 'delete'} err={A.err} onConfirm={A.remove}
+        label="DELETE" body={`Delete the partner login for ${u.email}? This cannot be undone. Their investors are not changed.`} />
     </>
   );
 }
@@ -656,7 +656,7 @@ function NotifList({ tick }) {
         <Tx w={700} s={10.5} ls={0.12} c={C.muted}>SEND TO</Tx>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{AUDIENCES.map(([k, l]) => pill(k, l, f.type === k, () => set({ type: k, value: '' })))}</View>
         {f.type === 'strategy' && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{(d.strategies || []).map(x => pill(x, x.replace(/^QODE ADVISORS LLP\s*-\s*/i, ''), f.value === x, () => set({ value: x })))}</View>}
-        {f.type === 'emails' && <Field label="CLIENT EMAILS" value={f.value} onChangeText={t => set({ value: t })} multiline s={14} autoCapitalize="none" />}
+        {f.type === 'emails' && <Field label="INVESTOR EMAILS" value={f.value} onChangeText={t => set({ value: t })} multiline s={14} autoCapitalize="none" />}
         {!!msg && <Tx s={12.5} c={msg.ok ? C.pos : C.red}>{msg.text}</Tx>}
         <CTA label={busy ? 'SENDING…' : f.type === 'test' ? 'SEND TO MY PHONE' : 'SEND'} onPress={send} style={{ opacity: problem || busy ? 0.5 : 1 }} />
         {!!problem && <Tx s={11.5} c={C.muted} center>{problem}</Tx>}

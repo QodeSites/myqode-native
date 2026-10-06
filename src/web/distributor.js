@@ -29,7 +29,7 @@ import {
   STRATEGY_COLOR, shortStrategy, ACCOUNT_JOURNEY, num, inrCompact, displayDate, SCHEME, SCHEME_COLOR, code3, parseBillgroup,
   EMPTY_PROFILE, todayIst, validateProfile, DECKS, SEGMENTS, toSeries, VsiChart, RISK_OFF, RISK_ON, VSI, ddmmyyyy, TOPICS,
 } from '../screens/partner';
-import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, ErrorBlock, Empty, Btn, PageIntro, Chips, Input, KeyVals, Pill, Dialog, FitAmt, Dropdown } from './kit';
+import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, ErrorBlock, Empty, Btn, PageIntro, Chips, Input, KeyVals, Pill, Dialog, FitAmt, Dropdown, AppLinks } from './kit';
 import { ClientReportsDialog } from './clientReports';
 
 import { userMessage } from '../errors';
@@ -194,7 +194,7 @@ function Sidebar({ V, active, onNav }) {
   return (
     <LinearGradient colors={['#02422B', '#002017', '#000000']} locations={[0, 0.6, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.4, y: 1 }} style={{ width: 248, paddingTop: 22, paddingBottom: 16 }}>
       <View style={{ paddingHorizontal: 22 }}><Wordmark s={28} c={C.cream} /></View>
-      <Tx s={11.5} c="rgba(239,236,211,0.55)" style={{ paddingHorizontal: 22, marginTop: 2 }}>Qode Advisors LLP · Distributor</Tx>
+      <Tx s={11.5} c="rgba(239,236,211,0.55)" style={{ paddingHorizontal: 22, marginTop: 2 }}>Qode Advisors LLP · Partner</Tx>
       <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 12, marginLeft: 22 }} />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ marginTop: 18, paddingHorizontal: 12, gap: 14, paddingBottom: 12 }}>
         {GROUPS.map(([g, keys]) => (
@@ -221,6 +221,7 @@ function Sidebar({ V, active, onNav }) {
           <Tx w={600} s={11.5} c={C.red}>Test mode</Tx>
         </View>
       )}
+      <AppLinks dark compact style={{ marginHorizontal: 22, marginBottom: 14 }} />
       <View style={{ marginHorizontal: 12, borderTopWidth: 1, borderColor: 'rgba(239,236,211,0.12)', paddingTop: 14, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(218,189,56,0.16)', alignItems: 'center', justifyContent: 'center' }}>
           <Tx w={600} s={12} c={C.gold}>{initials || 'Q'}</Tx>
@@ -236,12 +237,13 @@ function Sidebar({ V, active, onNav }) {
   );
 }
 
+// asOf: the portfolio valuation date; null hides the line (Market indicators, whose card carries its own date).
 function TopBar({ V, title, asOf, busy, onRefresh }) {
   return (
     <View style={{ height: 64, paddingHorizontal: 28, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderColor: C.line, backgroundColor: C.card }}>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Tx w={600} s={19} role="heading" aria-level={1} numberOfLines={1}>{title}</Tx>
-        <Tx s={12} c={C.ink3} numberOfLines={1}>{asOf ? 'Values as of ' + asOf : 'Your distributor dashboard'}</Tx>
+        {asOf !== null && <Tx s={12} c={C.ink3} numberOfLines={1}>{asOf ? 'Values as of ' + asOf : 'Your partner dashboard'}</Tx>}
       </View>
       <Pressable accessibilityRole="button" onPress={onRefresh} accessibilityLabel="Refresh" style={s => [iconBtn(s), { opacity: busy ? 0.45 : 1 }]}><Refresh c={C.ink2} s={16} /></Pressable>
       <Btn label="Sign out" kind="outline" small onPress={V.doLogout} style={{ marginLeft: 4 }} />
@@ -262,7 +264,7 @@ export default function DesktopDistributor({ V }) {
   const split = useLoad(() => api.strategyAum(), [tick]);
   const periods = useLoad(() => api.feePeriods(), []);
   const period = picked || (periods.data ? defaultPeriod(periods.data) : null);   // the phone's default until one is picked
-  const name = (V.user && V.user.name) || 'Distributor';
+  const name = (V.user && V.user.name) || 'Partner';
   const valuedOn = split.data && split.data.valuedOn;
 
   const go = (k, f = null) => { setSection(k); setSub(null); setFilter(f); };
@@ -330,7 +332,7 @@ export default function DesktopDistributor({ V }) {
     <View style={{ flex: 1, flexDirection: 'row', backgroundColor: C.cream }}>
       <Sidebar V={V} active={PARENT[section] || section} onNav={k => go(k)} />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <TopBar V={V} title={section === 'investors' && sub ? (sub.c.name || 'Investor') : TITLES[section]} asOf={valuedOn ? fmtDate(valuedOn) : ''}
+        <TopBar V={V} title={section === 'investors' && sub ? (sub.c.name || 'Investor') : TITLES[section]} asOf={section === 'indicators' ? null : valuedOn ? fmtDate(valuedOn) : ''}
           busy={journey.loading || split.loading} onRefresh={() => setTick(t => t + 1)} />
         <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 28, paddingBottom: 48 }}>
           <View style={{ maxWidth: 1680, width: '100%' }}>{body}</View>
@@ -344,7 +346,7 @@ export default function DesktopDistributor({ V }) {
 function CrmNotice({ d, style }) {
   if (!d) return null;
   if (!d.zohoAvailable) return <Notice style={style}>We couldn’t load your investor data just now. Your links and account counts are still correct. Please refresh in a few minutes.</Notice>;
-  if (!d.crmLinked) return <Notice style={style}>{`Your login address is not yet linked to your distributor record, so your ${d.portalClientCount || ''} client accounts cannot be listed here. Email ${PARTNERSHIPS} and we will link it.`}</Notice>;
+  if (!d.crmLinked) return <Notice style={style}>{`Your login address is not yet linked to your partner record, so your ${d.portalClientCount || ''} investor accounts cannot be listed here. Email ${PARTNERSHIPS} and we will link it.`}</Notice>;
   return null;
 }
 
@@ -501,7 +503,7 @@ function StrategyPanel({ split, strat, onOpen, style }) {
           <View style={{ flex: 1, minWidth: 0 }}>
             {strat.rows.map(s => (
               <BarRow key={s.name} color={STRATEGY_COLOR[s.name] || C.ink3} label={s.name} value={money(s.value)}
-                count={s.pct != null ? s.pct.toFixed(1) + '%' : '–'} pct={s.pct} onPress={() => onOpen({ strategy: s.name })} />
+                count={s.pct != null ? s.pct.toFixed(2) + '%' : '–'} pct={s.pct} onPress={() => onOpen({ strategy: s.name })} />
             ))}
           </View>
         </View>
@@ -930,7 +932,7 @@ function Fees({ periods, period, setPeriod, go }) {
         {rows.loading && <Loading rows={4} />}
         {!rows.loading && !!rows.err && <ErrorBlock msg={`We couldn’t load your fees. ${rows.err}. Please refresh, or contact partnerships@qodeinvest.com.`} onRetry={rows.reload} />}
         {!rows.loading && !rows.err && list.length === 0 && !!period && (
-          <Empty title="No fees in this period">No fees were billed to your clients between {dday(period.startDate)} and {dday(period.endDate)}. Try an earlier period.</Empty>
+          <Empty title="No fees in this period">No fees were billed to your investors between {dday(period.startDate)} and {dday(period.endDate)}. Try an earlier period.</Empty>
         )}
         {!rows.loading && list.length > 0 && (<>
           <Row>
@@ -949,7 +951,7 @@ function Fees({ periods, period, setPeriod, go }) {
             </DarkCard>
             <View style={{ flex: 1, gap: 16 }}>
               <Row gap={16} style={{ flex: 1 }}>
-                <Stat label="Client AUM" value={inrCompact(t.aum)} note={plural(t.accountCount, 'account', 'accounts')} style={{ flex: 1 }} />
+                <Stat label="Investor AUM" value={inrCompact(t.aum)} note={plural(t.accountCount, 'account', 'accounts')} style={{ flex: 1 }} />
                 <Stat label="Total fees billed" value={inrCompact(t.totalFees)} note={'+ ' + inrCompact(t.gst) + ' GST'} style={{ flex: 1 }} />
               </Row>
               <Row gap={16} style={{ flex: 1 }}>
@@ -958,12 +960,12 @@ function Fees({ periods, period, setPeriod, go }) {
               </Row>
             </View>
           </Row>
-          {t.unmappedCount > 0 && <Notice>{`${plural(t.unmappedCount, 'client has', 'clients have')} no fee rate configured. Their share shows as ₹0 because no rate has been set, not because none is due. Contact partnerships@qodeinvest.com to have these confirmed.`}</Notice>}
+          {t.unmappedCount > 0 && <Notice>{`${plural(t.unmappedCount, 'investor has', 'investors have')} no fee rate configured. Their share shows as ₹0 because no rate has been set, not because none is due. Contact partnerships@qodeinvest.com to have these confirmed.`}</Notice>}
           <Row top>
-            <Panel title="By client" sub="Click a client for each account's fees" pad={0} style={{ flex: 2, minWidth: 0 }}
-              right={<Input value={search} onChangeText={setSearch} placeholder="Search by client or account code" style={{ width: 280 }} />}>
-              <Table rows={clients.map(g => ({ ...g, id: g.name }))} onRowPress={g => setOpenClient(g)} empty={`No client matches “${search}”.`} cols={[
-                { key: 'name', label: 'Client', flex: 2, render: g => (
+            <Panel title="By investor" sub="Click an investor for each account's fees" pad={0} style={{ flex: 2, minWidth: 0 }}
+              right={<Input value={search} onChangeText={setSearch} placeholder="Search by investor or account code" style={{ width: 280 }} />}>
+              <Table rows={clients.map(g => ({ ...g, id: g.name }))} onRowPress={g => setOpenClient(g)} empty={`No investor matches “${search}”.`} cols={[
+                { key: 'name', label: 'Investor', flex: 2, render: g => (
                   <View style={{ minWidth: 0 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <Tx w={600} s={13.5} numberOfLines={1} style={{ flexShrink: 1 }}>{g.name}</Tx>
@@ -973,7 +975,7 @@ function Fees({ periods, period, setPeriod, go }) {
                       {g.accounts.filter(a => code3(a) !== 'QFH').map((a, i) => <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Dot s={7} color={SCHEME_COLOR[code3(a)] || C.ink3} /><Tx s={11.5} c={C.ink3}>{code3(a)}</Tx></View>)}
                     </View>
                   </View>) },
-                { key: 'aum', label: 'Client AUM', right: true, render: g => <Amt s={13}>{inrCompact(g.aum)}</Amt> },
+                { key: 'aum', label: 'Investor AUM', right: true, render: g => <Amt s={13}>{inrCompact(g.aum)}</Amt> },
                 { key: 'fees', label: 'Fees billed', right: true, render: g => <Amt s={13}>{inr(g.totalFees)}</Amt> },
                 { key: 'share', label: 'Your share', right: true, render: g => <Amt s={13} c={C.ink2}>{inr(g.shareOfFee)}</Amt> },
                 { key: 'disc', label: 'Discount', right: true, render: g => <Amt s={13} c={g.shareDiscount > 0 ? C.red : C.ink3}>{g.shareDiscount > 0 ? '−' + inr(g.shareDiscount) : '–'}</Amt> },
@@ -984,7 +986,7 @@ function Fees({ periods, period, setPeriod, go }) {
               {!!t.sharePct && (
                 <Panel title="How your share was calculated">
                   <KeyVals items={[
-                    ...(t.perfFees > 0 ? [['Management fees charged', inr(t.fixedFees)], ['Performance fees charged', inr(t.perfFees)]] : [['Fees your clients were charged', inr(t.totalFees)]]),
+                    ...(t.perfFees > 0 ? [['Management fees charged', inr(t.fixedFees)], ['Performance fees charged', inr(t.perfFees)]] : [['Fees your investors were charged', inr(t.totalFees)]]),
                     ...(t.shareDiscount > 0
                       ? [[`Your share, ${t.sharePct} of those fees`, inr(t.shareOfFee)], ['Less the discount you gave', '−' + inr(t.shareDiscount), C.red], ['Your commission', inr(t.shareNet)]]
                       : [[`Your commission, ${t.sharePct} of those fees`, inr(t.shareNet)]]),
@@ -1022,7 +1024,7 @@ function ClientFeesDialog({ g, onClose }) {
             </View>
             {a.isZeroFee ? <Tx s={13} c={C.ink3} style={{ marginTop: 10 }}>No fee arrangement: no fees charged on this account.</Tx> : (
               <KeyVals style={{ marginTop: 8 }} items={[
-                ['Client assets', inr(num(a.averageAum))],
+                ['Investor assets', inr(num(a.averageAum))],
                 ['Management fee (before GST)', inr(num(a.fixedFees)) + (num(a.fixedFees) > 0 && a.actualFeeChargedPct != null ? ` (${a.actualFeeChargedPct}%)` : '') + (isDiscounted && a.rackFixedFeePct != null ? `, standard ${a.rackFixedFeePct}%` : '')],
                 ['Performance fee (before GST)', perf ? inr(num(a.performanceFees)) + (a.rackPerfFeePct != null && num(a.rackPerfFeePct) > 0 ? ` (${a.rackPerfFeePct}% over ${a.hurdlePct ?? 0}%)` : '') : 'Billed annually'],
                 ['Your share', unmapped ? '–' : inr(num(a.yourShareOfFee)) + ` (${a.distributorPercentage}%)`],
@@ -1035,7 +1037,7 @@ function ClientFeesDialog({ g, onClose }) {
       })}
       {g.accounts.length > 1 && (
         <Panel title="Total">
-          <KeyVals items={[['Client assets', inr(g.aum)], ['Management fee (before GST)', inr(g.fixedFees)], ['Performance fee (before GST)', inr(g.perfFees)], ['Your share', inr(g.shareOfFee)],
+          <KeyVals items={[['Investor assets', inr(g.aum)], ['Management fee (before GST)', inr(g.fixedFees)], ['Performance fee (before GST)', inr(g.perfFees)], ['Your share', inr(g.shareOfFee)],
             ['Discount', g.shareDiscount > 0 ? '−' + inr(g.shareDiscount) : '–', g.shareDiscount > 0 ? C.red : undefined], ['Your commission (before GST)', inr(g.commission), C.green]]} />
         </Panel>
       )}
@@ -1066,7 +1068,7 @@ function StatementBody({ period, name, go }) {
   if (!rows.length) return <Empty title="No fees in this period">There is nothing to put on a statement for {period.label}. Try an earlier period.</Empty>;
   const pdf = async () => { if (busy) return; setBusy(true); setPdfErr(''); try { await savePdf(doc.html(), 'Fee statement ' + ref); } catch (e) { setPdfErr(userMessage(e)); } setBusy(false); };
   const cols = [
-    { key: 'name', label: 'Client', flex: 1.8, render: c => <View><Tx w={600} s={13.5} numberOfLines={1}>{c.name}</Tx>{c.accounts > 1 && <Tx s={11.5} c={C.ink3}>{c.accounts} accounts</Tx>}</View> },
+    { key: 'name', label: 'Investor', flex: 1.8, render: c => <View><Tx w={600} s={13.5} numberOfLines={1}>{c.name}</Tx>{c.accounts > 1 && <Tx s={11.5} c={C.ink3}>{c.accounts} accounts</Tx>}</View> },
     { key: 'aum', label: 'Avg AUM', right: true, render: c => <Amt s={13}>{inr(c.aum)}</Amt> },
     { key: 'fixed', label: 'Fixed fees', right: true, render: c => <Amt s={13}>{inr(c.fixed)}</Amt> },
     { key: 'perf', label: 'Perf. fees', right: true, render: c => <Amt s={13}>{inr(c.perf)}</Amt> },
@@ -1079,7 +1081,7 @@ function StatementBody({ period, name, go }) {
   return (
     <>
       <Row>
-        <Panel title="Distributor fee statement" sub={`Ref ${ref} · Issued ${noSept(issued)}`} style={{ flex: 1.3 }}
+        <Panel title="Partner fee statement" sub={`Ref ${ref} · Issued ${noSept(issued)}`} style={{ flex: 1.3 }}
           right={<View style={{ flexDirection: 'row', gap: 8 }}>
             <Btn small label={busy ? 'Preparing…' : 'Download PDF'} icon={<Download s={14} c={C.gold} />} onPress={pdf} busy={busy} />
             <Btn small kind="outline" label="Raise invoice" onPress={() => go('invoice')} />
@@ -1097,14 +1099,14 @@ function StatementBody({ period, name, go }) {
           <KeyVals items={calc.map(([k, sub, v, kind]) => [sub ? `${k} (${sub})` : k, kind === 'total' ? <Amt key={k} w={700} s={15} c={C.green}>{money2(v)}</Amt> : money2(v), v < 0 ? C.red : undefined])} />
         </Panel>
       </Row>
-      <Panel title="Breakdown by client" sub={`You receive ${t.ratePct} of the standard fee${disc ? ', less your discount' : ''}, including GST`} pad={0}>
+      <Panel title="Breakdown by investor" sub={`You receive ${t.ratePct} of the standard fee${disc ? ', less your discount' : ''}, including GST`} pad={0}>
         <Table dense rows={[...clients.map((c, i) => ({ ...c, id: c.name + i })), totalRow]} cols={cols} />
       </Panel>
-      {t.unmapped && <Notice>Some clients are not included. One or more clients have no fee share configured, so no amount is shown against them. Contact partnerships@qodeinvest.com before invoicing.</Notice>}
+      {t.unmapped && <Notice>Some investors are not included. One or more investors have no fee share configured, so no amount is shown against them. Contact partnerships@qodeinvest.com before invoicing.</Notice>}
       {t.isLegacyRate && <Notice>Provisional rate. This statement uses a share rate held in our portal records rather than a confirmed CRM rate. Please confirm before invoicing.</Notice>}
       <Panel title="Notes">
         <Tx s={13} c={C.ink2} lh={1.6}><Tx w={600} s={13}>This is not a tax invoice.</Tx> It is a statement of fees earned, issued for your records. Please raise your own invoice on Qode Advisors LLP for the total shown above.</Tx>
-        <Tx s={13} c={C.ink2} lh={1.6} style={{ marginTop: 10 }}><Tx w={600} s={13}>The total payable to you is inclusive of GST at 18%.</Tx> Your revenue share of {t.ratePct} is calculated on the fees billed to your clients, and GST at 18% is added to your share. Do not add GST on top of the total: the amount payable to you is {inr(t.share)} in full. On your invoice this is {inr(t.shareNet)} plus GST of {inr(t.shareGst)}.</Tx>
+        <Tx s={13} c={C.ink2} lh={1.6} style={{ marginTop: 10 }}><Tx w={600} s={13}>The total payable to you is inclusive of GST at 18%.</Tx> Your revenue share of {t.ratePct} is calculated on the fees billed to your investors, and GST at 18% is added to your share. Do not add GST on top of the total: the amount payable to you is {inr(t.share)} in full. On your invoice this is {inr(t.shareNet)} plus GST of {inr(t.shareGst)}.</Tx>
         <Tx s={13} c={C.ink2} lh={1.6} style={{ marginTop: 10 }}>Fixed fees are billed quarterly and performance fees annually. Fee amounts are as recorded in our systems for the stated period. If any figure appears incorrect, contact partnerships@qodeinvest.com before invoicing.</Tx>
       </Panel>
     </>
@@ -1255,7 +1257,7 @@ function InvoiceBody({ period, name, onIssued }) {
           <View style={{ flexDirection: 'row', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderColor: C.line }}>
             <View style={{ flex: 1 }}>
               <Tx w={600} s={13}>Distribution fees: {period.label}</Tx>
-              <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 3 }}>{ratePct} share of fees on {plural(clientCount, 'client', 'clients')}{discount > 0 ? `, net of ${inr(discount)} in discounts given to clients` : ''}. {dday(period.startDate)} to {dday(period.endDate)}.</Tx>
+              <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 3 }}>{ratePct} share of fees on {plural(clientCount, 'client', 'clients')}{discount > 0 ? `, net of ${inr(discount)} in discounts given to investors` : ''}. {dday(period.startDate)} to {dday(period.endDate)}.</Tx>
             </View>
             <Amt s={13.5}>{inr(tax.taxableValue)}</Amt>
           </View>
@@ -1472,7 +1474,7 @@ function Support() {
         ]} />
       </Panel>
       <Panel title="What happens next">
-        <Tx s={13} c={C.ink2} lh={1.6}>Your ticket goes to our distributor support team, who reply to your sign-in email, usually the same working day. You don’t need to send it again.</Tx>
+        <Tx s={13} c={C.ink2} lh={1.6}>Your ticket goes to our partner support team, who reply to your sign-in email, usually the same working day. You don’t need to send it again.</Tx>
       </Panel>
     </View>
   );
@@ -1550,16 +1552,16 @@ function Profile({ V, journey }) {
   return (
     <Panel title="Your account">
       <KeyVals items={[
-        ['Name', u.name || dist.name || 'Distributor'],
+        ['Name', u.name || dist.name || 'Partner'],
         ['Email', u.email || dist.email || '–'],
-        ...(dist.name && dist.name !== u.name ? [['Distributor record', dist.name]] : []),
-        ...(d.portalClientCount != null ? [['Client accounts in the portal', String(d.portalClientCount)]] : []),
+        ...(dist.name && dist.name !== u.name ? [['Partner record', dist.name]] : []),
+        ...(d.portalClientCount != null ? [['Investor accounts in the portal', String(d.portalClientCount)]] : []),
         ...(d.totals ? [['Investors referred', String(d.totals.investors || 0)]] : []),
       ]} />
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
         <Btn kind="danger" label="Sign out" onPress={V.doLogout} />
       </View>
-      {V.testMode && <Notice tone="bad" style={{ marginTop: 14 }}>Test mode is on: actions that could reach a client are blocked.</Notice>}
+      {V.testMode && <Notice tone="bad" style={{ marginTop: 14 }}>Test mode is on: actions that could reach an investor are blocked.</Notice>}
     </Panel>
   );
 }
@@ -1611,7 +1613,7 @@ function GrowPage({ journey, focus }) {
   const linkRows = L ? [['ind', 'For an individual', 'A person investing in their own name', L.individual], ['non', 'For a company, LLP, HUF or trust', 'Anything that is not an individual', L.nonIndividual]] : [];
   return (
     <View style={{ gap: 20 }}>
-      <Panel title="Your onboarding links" sub="Anyone who signs up through these is recorded as your client automatically." pad={0}>
+      <Panel title="Your onboarding links" sub="Anyone who signs up through these is recorded as your investor automatically." pad={0}>
         {journey.loading && !d ? <View style={{ padding: 20 }}><Loading rows={2} /></View>
           : !L ? <View style={{ padding: 20 }}><Tx s={13} c={C.ink2}>Your links aren’t set up yet. Email {PARTNERSHIPS} and we’ll create them.</Tx></View>
           : linkRows.map(([k, t, sub, url], i) => (

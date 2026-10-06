@@ -32,7 +32,7 @@ function Overview({ tick }) {
     <View style={{ gap: 20 }}>
       <Grid min={180} gap={14}>
         <Stat label="Investors" value={fmtN(u.investors)} />
-        <Stat label="Distributors" value={fmtN(u.distributors)} />
+        <Stat label="Partners" value={fmtN(u.distributors)} />
         <Stat label="Password set" value={fmtN(u.passwordSet)} />
         <Stat label="Needs setup" value={fmtN(u.needsSetup)} color={u.needsSetup ? C.goldText : C.ink} />
         <Stat label="Never signed in" value={fmtN(u.neverLoggedIn)} />
@@ -89,19 +89,19 @@ function NewDistributorDialog({ V, visible, onClose, onDone }) {
     if (busy) return;
     const name = f.name.trim(), email = f.email.trim().toLowerCase();
     const fee = f.fee.trim() === '' ? undefined : Number(f.fee.replace(',', '.'));
-    const bad = !name ? 'Enter the distributor name.' : !isEmail(email) ? 'Enter a valid email.' : pwProblem(f.pw)
+    const bad = !name ? 'Enter the partner name.' : !isEmail(email) ? 'Enter a valid email.' : pwProblem(f.pw)
       || (fee !== undefined && (!isFinite(fee) || fee < 0 || fee > 100) ? 'Fee must be a percentage between 0 and 100.' : '');
     if (bad) return setErr(bad);
     setBusy(true);
     try {
       await backoffice.createDistributor({ name, email, password: f.pw, ...(fee !== undefined ? { feePercentage: fee } : {}) });
-      V.toast('Distributor created');
+      V.toast('Partner created');
       onDone();
     } catch (e) { setErr(e.status === 409 ? 'A user with this email already exists.' : userMessage(e)); }
     finally { setBusy(false); }
   };
   return (
-    <Dialog visible={visible} onClose={onClose} title="New distributor" width={480}>
+    <Dialog visible={visible} onClose={onClose} title="New partner" width={480}>
       <View style={{ gap: 14 }}>
         <Input label="Name" value={f.name} onChangeText={upd('name')} placeholder="Full name or firm" autoFocus />
         <Input label="Email" value={f.email} onChangeText={upd('email')} placeholder="name@example.com" keyboardType="email-address" />
@@ -110,7 +110,7 @@ function NewDistributorDialog({ V, visible, onClose, onDone }) {
         {!!err && <Tx s={12.5} c={C.red}>{err}</Tx>}
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10 }}>
           <Btn kind="outline" label="Cancel" onPress={onClose} />
-          <Btn label="Create distributor" busy={busy} onPress={submit} />
+          <Btn label="Create partner" busy={busy} onPress={submit} />
         </View>
       </View>
     </Dialog>
@@ -127,18 +127,18 @@ function UserList({ V, fixedType, tick }) {
   return (
     <View>
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap', marginBottom: 16 }}>
-        <Input value={q} onChangeText={setQ} placeholder="Search name, email or client code" style={{ width: 360 }} />
+        <Input value={q} onChangeText={setQ} placeholder="Search name, email or account code" style={{ width: 360 }} />
         {!fixedType && <Chips value={type} options={TYPE_OPTS} onChange={setType} />}
         <Chips value={status} options={STATUS_OPTS} onChange={setStatus} />
         <View style={{ flex: 1 }} />
-        {fixedType === 'distributor' && <Btn label="New distributor" onPress={() => setNewOpen(true)} />}
+        {fixedType === 'distributor' && <Btn label="New partner" onPress={() => setNewOpen(true)} />}
       </View>
       {!!list.err && <ErrorBlock msg={list.err} onRetry={list.reload} />}
       {!list.err && (list.loading && !list.items.length ? <Loading rows={6} /> : (
         <Panel pad={0} title={`${fmtN(list.total)} ${list.total === 1 ? 'user' : 'users'}`} style={{ opacity: list.loading ? 0.6 : 1 }}>
           <Table rows={list.items} empty="No users match." onRowPress={u => V.setAdm({ email: u.email })} cols={[
             { key: 'name', label: 'User', flex: 2.2, render: u => <View><Tx w={600} s={13.5} numberOfLines={1}>{u.name || u.email}</Tx>{small(u.email, C.ink3)}</View> },
-            { key: 'codes', label: fixedType === 'distributor' ? 'Investors' : 'Client codes', flex: 1.4, render: u => small(u.type === 'distributor' ? fmtN(u.clientCount) + ' investors' : (u.clientCodes || []).join(', ')) },
+            { key: 'codes', label: fixedType === 'distributor' ? 'Investors' : 'Account codes', flex: 1.4, render: u => small(u.type === 'distributor' ? fmtN(u.clientCount) + ' investors' : (u.clientCodes || []).join(', ')) },
             { key: 'status', label: 'Status', flex: 2, render: u => <Badges u={u} /> },
             { key: 'logins', label: 'Sign-ins', right: true, render: u => small(`${fmtN(u.webLogins)} web · ${fmtN(u.appLogins)} app`) },
             { key: 'last', label: 'Last sign-in', right: true, render: u => small(fmtAgo(u.lastLoginAt)) },
@@ -207,7 +207,7 @@ function UserDetail({ V, email, onBack }) {
           <Btn kind="outline" label="Set password" onPress={() => A.open('pw')} />
           <Btn kind="outline" label="Send reset link" onPress={() => A.open('reset')} />
           <Btn kind="outline" label="Unlock" onPress={() => A.open('unlock')} />
-          {isDist && <Btn kind="danger" label="Delete distributor" onPress={() => A.open('delete')} />}
+          {isDist && <Btn kind="danger" label="Delete partner" onPress={() => A.open('delete')} />}
         </View>
       } />
       <Badges u={u} />
@@ -215,7 +215,7 @@ function UserDetail({ V, email, onBack }) {
       <Row top style={{ marginTop: 20 }}>
         <Panel title="Summary" style={{ flex: 1 }}>
           <KeyVals items={[
-            ...(isDist ? [['Investors', fmtN(u.clientCount)]] : [['Client codes', (u.clientCodes || []).join(', ') || 'None']]),
+            ...(isDist ? [['Investors', fmtN(u.clientCount)]] : [['Account codes', (u.clientCodes || []).join(', ') || 'None']]),
             ...(u.intermediary ? [['Intermediary', String(u.intermediary)]] : []),
             ...(u.groupId ? [['Group', groupText(u.groupId)]] : []),
             ['Last sign-in', u.lastLoginAt ? fmtWhen(u.lastLoginAt) : 'Never'],
@@ -243,10 +243,10 @@ function UserDetail({ V, email, onBack }) {
       )}
       {isDist && (
         <Panel title="Investors" pad={0} style={{ marginTop: 20 }}>
-          <Table dense rows={d.investors || []} empty="No investors under this distributor." onRowPress={x => x.email && V.setAdm({ email: x.email })} cols={[
+          <Table dense rows={d.investors || []} empty="No investors under this partner." onRowPress={x => x.email && V.setAdm({ email: x.email })} cols={[
             { key: 'name', label: 'Investor', flex: 1.6 },
             { key: 'email', label: 'Email', flex: 1.6 },
-            { key: 'codes', label: 'Client codes', flex: 1.4, render: x => small((x.clientCodes || []).join(', ')) },
+            { key: 'codes', label: 'Account codes', flex: 1.4, render: x => small((x.clientCodes || []).join(', ')) },
           ]} />
         </Panel>
       )}
@@ -272,8 +272,8 @@ function UserDetail({ V, email, onBack }) {
         label="Send link" body={`Email ${u.email} the standard link to set a new password.`} />
       <ConfirmDialog visible={A.sheet === 'unlock'} onClose={A.close} title="Unlock account" busy={A.busy === 'unlock'} err={A.err} onConfirm={A.unlock}
         label="Unlock" body="Clears failed sign-in attempts and any lock, so the user can sign in again straight away." />
-      <ConfirmDialog visible={A.sheet === 'delete'} onClose={A.close} title="Delete distributor" danger busy={A.busy === 'delete'} err={A.err} onConfirm={A.remove}
-        label="Delete" body={`Delete the distributor login for ${u.email}? This cannot be undone. Their investors are not changed.`} />
+      <ConfirmDialog visible={A.sheet === 'delete'} onClose={A.close} title="Delete partner" danger busy={A.busy === 'delete'} err={A.err} onConfirm={A.remove}
+        label="Delete" body={`Delete the partner login for ${u.email}? This cannot be undone. Their investors are not changed.`} />
     </View>
   );
 }
@@ -317,9 +317,9 @@ function Notifications({ tick }) {
   const audienceOpts = AUDIENCES;
   return (
     <View style={{ gap: 20 }}>
-      <PageIntro title="Notifications" sub="Popups on clients’ phones and the inbox under the bell. Money, portfolio and reading notifications are sent automatically." />
+      <PageIntro title="Notifications" sub="Popups on investors’ phones and the inbox under the bell. Money, portfolio and reading notifications are sent automatically." />
       <Grid>
-        <Stat label="Automatic notifications" value={d.live ? 'On' : 'Off'} note={d.live ? 'Money, portfolio and reading go to clients' : 'Off until PUSH_LIVE=1. Your own notifications can be published any time.'} />
+        <Stat label="Automatic notifications" value={d.live ? 'On' : 'Off'} note={d.live ? 'Money, portfolio and reading go to investors' : 'Off until PUSH_LIVE=1. Your own notifications can be published any time.'} />
         <Stat label="Phones registered" value={fmtN(d.devices && d.devices.active)} note={`${fmtN(d.devices && d.devices.logins)} logins · ${fmtN(d.devices && d.devices.ios)} iOS · ${fmtN(d.devices && d.devices.android)} Android`} />
         <Stat label="Last 24 hours" value={fmtN(d.outbox && d.outbox.created24h)} note={`${fmtN(d.outbox && d.outbox.pending)} waiting · ${fmtN(d.outbox && d.outbox.failed24h)} failed`} />
       </Grid>
@@ -331,12 +331,12 @@ function Notifications({ tick }) {
               {NOTE_SAMPLES.map(x => <Btn key={x.key} small kind="outline" label={x.label} onPress={() => sample(x)} />)}
             </View>
             <Input label={`Title (${f.title.length}/90)`} value={f.title} onChangeText={t => set({ title: t })} placeholder="Your September update" />
-            <Input label={`Message (${f.body.length}/300)`} value={f.body} onChangeText={t => set({ body: t })} multiline placeholder="What should the client know?" />
+            <Input label={`Message (${f.body.length}/300)`} value={f.body} onChangeText={t => set({ body: t })} multiline placeholder="What should the investor know?" />
             <View style={{ gap: 6 }}><Tx s={12.5} w={600} c={C.ink2}>Opens</Tx><Chips small value={f.link} options={NOTE_LINKS} onChange={v => set({ link: v })} /></View>
             <View style={{ gap: 6 }}><Tx s={12.5} w={600} c={C.ink2}>Send to</Tx><Chips small value={f.type} options={audienceOpts} onChange={v => set({ type: v, value: '' })} /></View>
             
             {f.type === 'strategy' && <Chips small value={f.value} options={(d.strategies || []).map(x => [x, x.replace(/^QODE ADVISORS LLP\s*-\s*/i, '')])} onChange={v => set({ value: v })} />}
-            {f.type === 'emails' && <Input label="Client emails" value={f.value} onChangeText={t => set({ value: t })} multiline placeholder="one@example.com, two@example.com" />}
+            {f.type === 'emails' && <Input label="Investor emails" value={f.value} onChangeText={t => set({ value: t })} multiline placeholder="one@example.com, two@example.com" />}
             {!!msg && <Tx s={13} c={msg.ok ? C.pos : C.red}>{msg.text}</Tx>}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <Btn label={busy ? 'Sending…' : f.type === 'test' ? 'Send to my phone' : 'Send'} onPress={send} disabled={!!problem || busy} />
