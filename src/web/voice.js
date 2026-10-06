@@ -36,7 +36,7 @@ function Rating({ q, value, onPick, error, first }) {
 
 export function DesktopVoice({ V }) {
   const f = useVoiceForm(V);
-  const wrap = { width: '100%', maxWidth: 720, alignSelf: 'center' };
+  const wrap = { width: '100%' };   // full width of the page, like the other pages
   if (f.st.done) {
     return (
       <Panel style={wrap} pad={36}>
