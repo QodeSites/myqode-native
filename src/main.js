@@ -1259,12 +1259,14 @@ export default class MyQode extends React.Component {
 
     // Recent activity from cashflow
     const dateFmt = fmtDate;
+    const minorFlow = t => /^tax (deducted|withheld)/i.test(String(t.label || '')) || Math.abs(num(t.amount) || 0) < 1000;
     const cashTx = ((S.d && S.d.cash && S.d.cash.transactions) || []).slice()
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     const tx = t => {
       const out = t.type === 'outflow', amt = Math.abs(num(t.amount) || 0);
       return {
-        title: out ? 'Withdrawal' : 'Invested', sub: dateFmt(t.date),
+        // label / detail: what the flow was (top-up, switch, TDS…), from the server's matching with Nuvama's transactions
+        title: t.label || (out ? 'Withdrawal' : 'Invested'), sub: dateFmt(t.date) + (t.detail ? ' · ' + t.detail : ''),
         amt: this.sfmt(out ? -amt : amt), color: out ? red : green, status: 'COMPLETED', stColor: C.green,
       };
     };
@@ -1419,7 +1421,10 @@ export default class MyQode extends React.Component {
       ddLine: p3.line, ddArea: p3.area, ddBench: p3.bench, hasDd: ddPts.length > 1, ddNow: ddPts.length ? ddPts[ddPts.length - 1] : 0,
       perfLine: p2.line, perfBench: p2.bench, hasBench: !!bench,
       ranges: RANGE_IDS.map(id => { const off = !this.rangeOk(id, S); return { label: id, disabled: off, pick: () => { if (!off) this.pickRange(id); }, active: S.range === id, loading: rangeLoading && S.range === id }; }),
-      tx3: cashTx.slice(0, 3).map(tx), txAll: cashTx.map(tx), hasTx: cashTx.length > 0,
+      // Home's recent activity leaves out small movements: tax deducted (TDS) and anything under ₹1,000. They stay in
+      // the full transaction list (txAll) and in every calculation.
+      tx3: cashTx.filter(t => !minorFlow(t)).slice(0, 3).map(tx), txRecent: cashTx.filter(t => !minorFlow(t)).map(tx),
+      txAll: cashTx.map(tx), hasTx: cashTx.length > 0,
       holdings: holdRows, chartColor,
       // IRR (money-weighted) beside TWRR: [{ period, label, value, color }] for SI / 1Y / 3Y when available.
       irrRows: ['SI', '1Y', '3Y'].map(p => { const x = irrPeriod(S.irr, p); return x && x.irr != null && this.rangeOk(p, S) ? { period: p, label: irrLabel(x), value: fmtIrr(x), color: c(x.irr) } : null; }).filter(Boolean),

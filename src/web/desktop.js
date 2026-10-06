@@ -300,7 +300,7 @@ const HoldingsTable = ({ V, title = 'Holdings', sub, style, right, onRowPress, s
 
 function RecentTx({ V, n = 9, style }) {
   const pending = V.inFlight || [];
-  const list = V.txAll.slice(0, Math.max(0, n - pending.length));
+  const list = (V.txRecent || V.txAll).slice(0, Math.max(0, n - pending.length));   // small movements left out (vals)
   return (
     <Panel title="Recent activity" right={<TextLink label="View all" onPress={V.goServicesTx} />} pad={0} style={[{ flex: 1 }, style]}>
       {pending.map(it => (
