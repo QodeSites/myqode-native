@@ -452,7 +452,7 @@ function Foundation({ V }) {
       <DarkCard style={{ flexDirection: 'row', padding: 0 }}>
         {MV.map(([h, t], i) => (
           <View key={h} style={{ flex: 1, paddingVertical: 30, paddingHorizontal: 32, borderLeftWidth: i ? 1 : 0, borderColor: 'rgba(255,255,255,0.12)' }}>
-            <Tx w={600} s={12.5} c={C.gold}>Our {h.toLowerCase()}</Tx>
+            <Tx w={600} s={15} c={C.gold}>Our {h.toLowerCase()}</Tx>
             <Tx f="play" w={500} s={21} lh={1.45} c={C.cream} style={{ marginTop: 10 }}>{t}</Tx>
           </View>
         ))}
@@ -560,8 +560,10 @@ function Strategies() {
           </Card>
         ))}
       </Row>
-      <Row top gap={20} style={{ marginTop: 20 }}>
-        <Panel title="Core pillars" pad={0} style={{ flex: 1.8, minWidth: 0 }}>
+      {/* Lined up with the cards above: pillars span the first two columns (+ the gap between them), the glossary
+          the third; both stretch to the same height. */}
+      <Row gap={16} style={{ marginTop: 16 }}>
+        <Panel title="Core pillars" pad={0} style={{ flexGrow: 2, flexShrink: 1, flexBasis: 16, minWidth: 0 }}>
           <Table cols={[
             { key: 'code', label: 'Strategy', flex: 1.3, render: s => (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -571,7 +573,7 @@ function Strategies() {
             ...[0, 1, 2, 3].map(i => ({ key: 'p' + i, label: 'Pillar ' + (i + 1), flex: 1.2, render: s => <Tx s={13}>{s.pills[i]}</Tx> })),
           ]} rows={STRATS.map(s => ({ ...s, id: s.code }))} />
         </Panel>
-        <Panel title="Glossary" style={{ flex: 1, minWidth: 0 }}>
+        <Panel title="Glossary" style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 }}>
           {STRAT_GLOSSARY.map(([t, d], i) => (
             <View key={t} style={{ paddingTop: i ? 12 : 0, marginTop: i ? 12 : 0, borderTopWidth: i ? 1 : 0, borderColor: C.line }}>
               <Tx w={600} s={13.5}>{t}</Tx>
