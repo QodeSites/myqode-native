@@ -98,7 +98,7 @@ function Sidebar({ V, activeId, onNav }) {
       <ScrollView style={{ flex: 1, marginTop: 14 }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 12, gap: 4 }}>
         {NAV_GROUPS.map(g => {
           const open = openKey === g.key, has = !!cur && cur.key === g.key;
-          const items = visibleItems(g, V);
+          const items = visibleItems(g, V).filter(it => !it.phoneOnly);
           return (
             <View key={g.key} accessibilityRole="navigation" aria-label={g.title}>
               <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpenKey(open ? null : g.key)} style={({ hovered }) => ({

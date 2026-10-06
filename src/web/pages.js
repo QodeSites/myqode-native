@@ -485,9 +485,14 @@ function Foundation({ V }) {
 const PHILO_ICON = { 'Who We Are': 'user', 'What We Do': 'chart', 'How We Work': 'clipboard', 'Why It Matters': 'shield' };
 function Philosophy({ V }) {
   const secs = content.PHILOSOPHY.sections;
-  const [, ...rest] = secs;   // the first section was the dark intro card, removed (6 Oct 2026)
+  const [, ...rest] = secs;   // the first section's text is replaced by the intro below (6 Oct 2026)
   return (
     <View style={{ gap: 20 }}>
+      <DarkCard style={{ paddingVertical: 36, paddingHorizontal: 40 }}>
+        <Tx w={600} s={12.5} c={C.gold}>Qode philosophy</Tx>
+        <Tx f="play" w={600} s={32} lh={1.25} c={C.cream} style={{ marginTop: 12, maxWidth: 820 }}>Guided by evidence. Driven by data. Built for the long term.</Tx>
+        <Tx s={15} lh={1.7} c={C.cream60} style={{ marginTop: 16, maxWidth: 860 }}>Qode is a SEBI-registered PMS that puts evidence at the heart of every investment decision. Backed by over a decade of experience in Indian markets, we offer a disciplined, transparent and research-led approach to growing your wealth over the long term.</Tx>
+      </DarkCard>
       <Row gap={20}>
         {rest.map((sec, i) => (
           <Card key={sec.h} style={{ flex: 1, paddingVertical: 26, paddingHorizontal: 26 }}>
@@ -763,9 +768,10 @@ const L = content.LEGAL;
 export const DESKTOP_PAGES = {
   notifications: { title: 'Notifications', body: () => <NotificationSettings /> },
   family: { title: 'Account Mapping', body: () => <Family /> },
-  nuvama: { title: 'Your Details on Nuvama', body: V => <NuvamaDetails V={V} /> },
+  // One web page for Nuvama: the WealthSpectrum card, then the investor's own sign-in code and accounts.
+  nuvama: { title: 'Login To Nuvama', body: V => <View style={{ gap: 20 }}><PortalGuide /><NuvamaDetails V={V} /></View> },
   insights: { title: 'Insights & Events', body: () => <Insights /> },
-  guide: { title: 'Login To Nuvama', body: () => <PortalGuide /> },
+  guide: { title: 'Login To Nuvama', body: V => <View style={{ gap: 20 }}><PortalGuide /><NuvamaDetails V={V} /></View> },
   referral: { title: 'Referral Program', body: V => <Referral V={V} /> },
   cadence: { title: 'Service Cadence', body: V => <Cadence V={V} /> },
   philosophy: { title: 'Qode Philosophy', body: V => <Philosophy V={V} /> },

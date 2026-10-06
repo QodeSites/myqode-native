@@ -21,7 +21,7 @@ export const NAV_GROUPS = [
     { id: 'services', label: 'Account Services', tab: 'services' },
     { id: 'family', label: 'Account Mapping', page: 'family' },
     { id: 'cadence', label: 'Service Cadence', page: 'cadence' },
-    { id: 'nuvama', label: 'Your Details on Nuvama', page: 'nuvama' },
+    { id: 'nuvama', label: 'Your Details on Nuvama', page: 'nuvama', phoneOnly: true },   // web: merged into Login To Nuvama
   ] },
   { key: 'engagement', title: 'Engagement & Growth', icon: 'trend', items: [
     { id: 'voice', label: 'Your Voice Matters', page: 'voice' },
