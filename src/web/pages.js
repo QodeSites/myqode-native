@@ -330,15 +330,17 @@ function PortalGuide() {
 function Referral({ V }) {
   const pts = content.REFERRAL.points.map(t => { const i = t.indexOf(':'); return i > 0 ? [t.slice(0, i), t.slice(i + 1).trim()] : ['', t]; });
   return (
-    <Row top gap={24}>
+    // Both columns end on the same line: the rewards panel grows to the form's height.
+    <Row gap={24}>
       <View style={{ flex: 1.1, gap: 16, minWidth: 0 }}>
         <DarkCard style={{ padding: 28 }}>
           <Tx w={600} s={12.5} c={C.gold}>Refer an investor</Tx>
           <Tx f="play" w={600} s={24} c={C.cream} style={{ marginTop: 8 }}>Share the Qode experience.</Tx>
-          {content.REFERRAL.intro.map((t, i) => <Tx key={i} s={13.5} lh={1.65} c={C.cream60} style={{ marginTop: 10 }}>{t}</Tx>)}
+          {/* the intro opens with the headline itself; say it once */}
+          {content.REFERRAL.intro.map((t, i) => <Tx key={i} s={13.5} lh={1.65} c={C.cream60} style={{ marginTop: 10 }}>{t.replace(/^Share the Qode experience\.\s*/, '')}</Tx>)}
         </DarkCard>
         {pts.length > 0 && (
-          <Panel title="How rewards work" pad={0}>
+          <Panel title="How rewards work" pad={0} style={{ flex: 1 }}>
             <Table dense cols={[
               { key: 'k', label: 'Term', flex: 0.8, render: r => <Tx w={600} s={13}>{r.k ? sc(r.k) : '–'}</Tx> },
               { key: 'v', label: 'Detail', flex: 2.4, render: r => <Tx s={13} c={C.ink2} lh={1.5}>{r.v}</Tx> },
@@ -354,30 +356,90 @@ function Referral({ V }) {
 }
 
 /* ── Service cadence ───────────────────────────────────────────────────────────────────────────────────── */
-function Cadence({ V }) {
-  const toc = CADENCE.map(s => [slug(s.h), sc(s.h)]);
+// The rhythm of contact through a year: one strip across the financial year (Apr–Mar) showing when each report
+// lands, the three touchpoints side by side, then response times. Same facts as the phone page (about.js CADENCE).
+const FY_MONTHS = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+const QUARTERLY_IN = { Jul: 'Q1', Oct: 'Q2', Jan: 'Q3', Apr: 'Q4' };   // report for the quarter just ended, by the 15th
+const TOUCHPOINTS = [
+  { k: 'Monthly', h: 'Monthly report', icon: 'mail', when: 'By the 15th of the following month', how: 'Email to your registered address',
+    what: ['Performance summary across Qode strategies (QAW, QTF, QGF)'], note: 'Fund-level performance; your own returns may differ.' },
+  { k: 'Quarterly', h: 'Quarterly report', icon: 'shield', when: 'Within 15 days of quarter-end', how: 'Mandated by SEBI',
+    what: ['Portfolio holdings and transactions', 'Performance against the benchmark', 'Regulatory disclosures'] },
+  { k: 'Yearly', h: 'Annual review', icon: 'message', when: 'Once a year', how: 'One-on-one with your fund manager and Investor Relations',
+    what: ['Annual performance across strategies', 'Risk–return attribution and positioning', 'Outlook and any strategic changes'] },
+];
+const RESPONSE = [
+  ['1 business day', 'Standard queries', 'Email or WhatsApp'],
+  ['Next day', 'Operational requests', 'Top-ups, withdrawals and KYC are acknowledged the next day and carried out within regulatory timelines'],
+  ['24 hours', 'Escalations', 'Anything unresolved goes to Compliance within 24 hours'],
+];
+
+function YearStrip() {
+  const dot = (on, gold) => <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: on ? (gold ? C.gold : C.cream) : 'rgba(255,255,255,0.14)' }} />;
   return (
-    <WithRail rail={<Rail V={V} toc={toc} related={[['reports', 'Reports'], ['team', 'Your team at Qode'], ['grievance', 'Grievance redressal']]} />}>
-      <Lead style={{ marginBottom: 20 }}>Stay consistently informed with structured reports and timely reviews. From monthly updates to annual reviews, everything is designed to keep you aligned with your portfolio and goals.</Lead>
-      <View style={{ gap: 20 }}>
-        {CADENCE.map(sec => (
-          <View key={sec.h} nativeID={slug(sec.h)}>
-            <Panel title={sc(sec.h)} sub={sec.note} pad={0}>
-              <View style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: C.line }}>
-                {sec.cards.map((c, i) => (
-                  <View key={c.t} style={{ flex: 1, padding: 18, borderLeftWidth: i ? 1 : 0, borderColor: C.line }}>
-                    <IconChip name={c.icon} />
-                    <Tx w={600} s={13.5} style={{ marginTop: 12 }}>{sc(c.t)}</Tx>
-                    {(c.lines || []).map(([l, t]) => <Labelled key={l} label={l} style={{ marginTop: 8 }}>{t}</Labelled>)}
-                    {!!c.bullets && c.bullets.map((b, j) => <Bullet key={j}>{b}</Bullet>)}
-                  </View>
-                ))}
-              </View>
-            </Panel>
+    <DarkCard style={{ paddingVertical: 24, paddingHorizontal: 28 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
+        <View>
+          <Tx w={600} s={12} c={C.gold}>Your year with Qode</Tx>
+          <Tx f="play" w={600} s={22} c={C.cream} style={{ marginTop: 6 }}>12 monthly reports, 4 quarterly reports, 1 review</Tx>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 18 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>{dot(true)}<Tx s={12} c="rgba(239,236,211,0.7)">Monthly report</Tx></View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>{dot(true, true)}<Tx s={12} c="rgba(239,236,211,0.7)">Quarterly report</Tx></View>
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', marginTop: 22 }}>
+        {FY_MONTHS.map((m, i) => (
+          <View key={m} style={{ flex: 1, alignItems: 'center', gap: 8, borderLeftWidth: i ? 1 : 0, borderColor: 'rgba(255,255,255,0.08)', paddingVertical: 4 }}>
+            <Tx w={600} s={11.5} c="rgba(239,236,211,0.55)">{m}</Tx>
+            {dot(true)}
+            {QUARTERLY_IN[m] ? <View style={{ alignItems: 'center', gap: 4 }}>{dot(true, true)}<Tx w={700} s={10.5} c={C.gold}>{QUARTERLY_IN[m]}</Tx></View> : <View style={{ height: 25 }} />}
           </View>
         ))}
       </View>
-    </WithRail>
+      <Tx s={12} c="rgba(239,236,211,0.6)" style={{ marginTop: 14 }}>Each report arrives by the 15th of the month shown, for the month or quarter just ended. Your annual review is set up once a year with your fund manager.</Tx>
+    </DarkCard>
+  );
+}
+
+function Cadence({ V }) {
+  return (
+    <View style={{ gap: 24 }}>
+      <Lead>Structured reports and regular reviews, so you always know how your portfolio is doing and what comes next.</Lead>
+      <YearStrip />
+      <Row gap={16} style={{ alignItems: 'stretch' }}>
+        {TOUCHPOINTS.map(t => (
+          <Card key={t.k} style={{ flex: 1, padding: 22, gap: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <IconChip name={t.icon} />
+              <Pill label={t.k} />
+            </View>
+            <View>
+              <Tx f="play" w={600} s={19}>{t.h}</Tx>
+              <Tx w={600} s={13.5} c={C.green} style={{ marginTop: 6 }}>{t.when}</Tx>
+              <Tx s={13} c={C.ink3} style={{ marginTop: 2 }}>{t.how}</Tx>
+            </View>
+            <View style={{ borderTopWidth: 1, borderColor: C.line, paddingTop: 6 }}>
+              {t.what.map(w => <Bullet key={w}>{w}</Bullet>)}
+            </View>
+            {!!t.note && <Tx s={12} c={C.ink3} lh={1.5}>{t.note}</Tx>}
+          </Card>
+        ))}
+      </Row>
+      <View>
+        <SectionTitle sub="How quickly we come back to you" style={{ marginTop: 8 }}>Response times</SectionTitle>
+        <Card style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 0 }}>
+          {RESPONSE.map(([big, h, t], i) => (
+            <View key={h} style={{ flex: 1, minWidth: 220, paddingVertical: 20, paddingHorizontal: 22, borderLeftWidth: i ? 1 : 0, borderColor: C.line }}>
+              <Tx f="play" w={600} s={24} c={C.green}>{big}</Tx>
+              <Tx w={600} s={13.5} style={{ marginTop: 6 }}>{h}</Tx>
+              <Tx s={12.5} lh={1.55} c={C.ink2} style={{ marginTop: 3 }}>{t}</Tx>
+            </View>
+          ))}
+        </Card>
+      </View>
+      <RelatedRow V={V} keys={['reports', 'team', 'grievance']} />
+    </View>
   );
 }
 
@@ -423,14 +485,9 @@ function Foundation({ V }) {
 const PHILO_ICON = { 'Who We Are': 'user', 'What We Do': 'chart', 'How We Work': 'clipboard', 'Why It Matters': 'shield' };
 function Philosophy({ V }) {
   const secs = content.PHILOSOPHY.sections;
-  const [first, ...rest] = secs;
+  const [, ...rest] = secs;   // the first section was the dark intro card, removed (6 Oct 2026)
   return (
     <View style={{ gap: 20 }}>
-      <DarkCard style={{ paddingVertical: 36, paddingHorizontal: 40 }}>
-        <Tx w={600} s={12.5} c={C.gold}>Qode philosophy</Tx>
-        <Tx f="play" w={600} s={32} lh={1.25} c={C.cream} style={{ marginTop: 12, maxWidth: 820 }}>Evidence, not opinion, should drive investment decisions.</Tx>
-        <Tx s={15} lh={1.7} c={C.cream60} style={{ marginTop: 16, maxWidth: 860 }}>{first.p.join(' ')}</Tx>
-      </DarkCard>
       <Row gap={20}>
         {rest.map((sec, i) => (
           <Card key={sec.h} style={{ flex: 1, paddingVertical: 26, paddingHorizontal: 26 }}>
@@ -449,6 +506,7 @@ function Philosophy({ V }) {
 const RELATED_TEXT = {
   philosophy: ['Qode Philosophy', 'What we believe and why'], foundation: ['Foundation', 'Mission, vision and our fund managers'],
   strategies: ['Strategy Snapshot', 'Each strategy, its benchmark and pillars'], team: ['Your Team at Qode', 'Who to reach and how'],
+  reports: ['Reports', 'Statements and reports to download'], grievance: ['Grievance redressal', 'If something isn’t resolved'],
 };
 function RelatedRow({ V, keys }) {
   return (

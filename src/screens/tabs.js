@@ -340,7 +340,7 @@ export function PortfolioCream({ V }) {
               <Amt s={13.5} c={r.color}>{r.value}</Amt>
             </View>
           ))}
-          <Tx s={11} c={C.muted} lh={1.5} style={{ marginTop: 8 }}>The returns above are TWRR: they measure the strategy. IRR is money-weighted and reflects when you added or withdrew money.</Tx>
+          <Tx s={11} c={C.muted} lh={1.5} style={{ marginTop: 8 }}>IRR (since inception) is money-weighted and shows the return on your capital, taking into account the timing of your investments and withdrawals. TWRR measures how the strategy performed, regardless of those cash flows.</Tx>
         </Card>
       )}
       <DetailedMetrics V={V} />

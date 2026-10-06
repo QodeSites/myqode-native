@@ -495,14 +495,12 @@ function Performance({ V }) {
           {V.perfHead.map(([k, v, col]) => <Stat key={k} label={sentence(k).replace('(SI)', 'since inception').replace('DD', 'drawdown')} value={v} color={col} style={{ flex: 1 }} />)}
           {!!maxDd && <Stat label="Max drawdown" value={maxDd.v} color={maxDd.vc} note={maxDd.note} style={{ flex: 1 }} />}
         </Row>
-        <NavPanel V={V} height={300} />
-        <DrawdownPanel V={V} height={180} />
         <Row>
           <TrailingPanel V={V} style={{ flex: 1.4 }} />
           {!!(V.irrRows && V.irrRows.length) && (
             <Panel title="TWRR and IRR" sub="Two ways to measure the same portfolio" style={{ flex: 1 }}>
               <KeyVals items={V.irrRows.map(r => [r.period === 'SI' ? 'IRR since inception' : r.period + ' ' + r.label, r.value, r.color])} />
-              <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 12 }}>TWRR (the returns shown elsewhere) measures the strategy and ignores when money was added or withdrawn. IRR is money-weighted: it reflects the timing of your own top-ups and withdrawals, so it shows what your money actually earned.</Tx>
+              <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 12 }}>IRR (since inception) is money-weighted and shows the return on your capital, taking into account the timing of your investments and withdrawals. TWRR measures how the strategy performed, regardless of those cash flows.</Tx>
             </Panel>
           )}
           <Panel title="Capital and risk" style={{ flex: 1 }}>
