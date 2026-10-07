@@ -26,6 +26,12 @@ export function transactionsSummary(h, all) {
   out.push(mi || mo
     ? `${span(h.from, h.to)}, ${money(mi)} came into ${who(all)}${mo ? ` and ${money(mo)} was taken out` : ' and nothing was taken out'}.`
     : `${span(h.from, h.to)}, no money was added to or taken out of ${who(all)}.`);
+  // switches between strategies: within "all accounts" both legs are here and cancel; one account shows its side
+  const si = num(h.switchIn), so = num(h.switchOut);
+  if (si || so) {
+    if (all && Math.abs(si - so) < 1) out.push(`${money(si)} was moved between your strategies; it isn't counted as money in or out.`);
+    else out.push(`Switches between strategies${si ? ` brought in ${money(si)}` : ''}${si && so ? ' and' : ''}${so ? ` moved ${money(so)} out` : ''}.`);
+  }
   const t = g('trades'), inc = g('income'), ch = g('charges');
   const bits = [
     t && t.count ? `${t.count} ${t.count === 1 ? 'trade' : 'trades'} worth ${money(t.amount)}` : null,

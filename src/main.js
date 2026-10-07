@@ -490,7 +490,7 @@ export default class MyQode extends React.Component {
         }
         this.setState({ hist: fam, dv: 'nuvama' }, () => this.applyView('nuvama', true));
         this.lastLoad = Date.now();
-        this.loadHoldings(scope, seq); this.loadIrr(scope, seq);
+        this.loadHoldings(scope, seq); this.loadIrr(scope, seq); this.loadMetrics(scope, seq);
         return;
       }
       // Performance is required; every other part is optional so one failing endpoint can't blank the portfolio.
@@ -518,10 +518,10 @@ export default class MyQode extends React.Component {
         try { const h = await portfolio.history(legacyId); if (h && h.orbis && h.orbis.length) hist = h; } catch {}
         if (seq !== this.seq) return;
       }
-      if (hist) { this.setState({ hist }, () => this.applyView(this.state.dv, true)); this.lastLoad = Date.now(); this.loadHoldings(scope, seq); this.loadIrr(scope, seq); return; }
+      if (hist) { this.setState({ hist }, () => this.applyView(this.state.dv, true)); this.lastLoad = Date.now(); this.loadHoldings(scope, seq); this.loadIrr(scope, seq); this.loadMetrics(scope, seq); return; }
       this.setState({ hist: null, homeD: null, homeNavs: null, d: { id: scope.id, kind: k, perf, cash, fys: buildFys(monthly), fysQ: buildFysQ(quarterly) }, navs: { [period]: { nav, dd } }, dl: false, pnlFy: 0, pnlOpen: null });
       this.lastLoad = Date.now();
-      this.loadHoldings(scope, seq); this.loadIrr(scope, seq);
+      this.loadHoldings(scope, seq); this.loadIrr(scope, seq); this.loadMetrics(scope, seq);
     } catch (e) {
       if (seq !== this.seq) return;
       // Transient failure: keep the skeleton and try again (twice) before showing an error — a tunnel or
@@ -554,6 +554,14 @@ export default class MyQode extends React.Component {
     const codes = scope.kind === 'local-family' ? scope.members : [scope.id];
     this.setState({ irr: null });
     try { const r = await portfolio.irr(codes.map(String)); if (seq === this.seq) this.setState({ irr: r }); } catch {}
+  }
+
+  // Key metrics (CAGR, Sharpe, volatility, alpha, beta, best month…) from the server's full NAV history. Optional.
+  // The app-built Entire Family view has no single server id, so it has none.
+  async loadMetrics(scope, seq) {
+    this.setState({ metrics: null });
+    if (!scope || scope.kind === 'local-family') return;
+    try { const r = await portfolio.metrics(String(scope.id)); if (seq === this.seq) this.setState({ metrics: (r && r.metrics) || null }); } catch {}
   }
 
   async loadHoldings(scope, seq) {
@@ -1412,6 +1420,13 @@ export default class MyQode extends React.Component {
       viewChips: [['nuvama', 'Nuvama'], ['orbis', 'Orbis (Legacy)'], ['consolidated', 'Orbis + Nuvama']].map(([id, label]) => ({ label, active: (S.dvPending || S.dv) === id, pick: () => this.applyView(id) })),
       // Web note under the returns table: in the Orbis and Combined views the invested / current figures come from Orbis' latest records.
       orbisNote: !!(S.hist && !S.hist.family && S.hist.orbisMetrics && (S.dv === 'orbis' || S.dv === 'consolidated')),
+      // What the investor put in: gross (the round figure they remember, e.g. ₹1,00,00,000) and, when anything
+      // was withdrawn, the net. Dashboard / Performance show gross first, net under it.
+      invested: (() => {
+        const net = perf ? perf.amountInvested : flows.inflow - flows.outflow, adj = flows.inflow - flows.outflow - net;
+        const note = flows.outflow > 0 ? 'Net of withdrawals ' + this.fmt(net) : Math.abs(adj) >= 0.5 ? 'Net ' + this.fmt(net) + ' after tax deducted' : null;
+        return { gross: this.fmt(flows.inflow), net: this.fmt(net), note };
+      })(),
       tiles: [
         { label: 'TOTAL RETURNS', value: this.sfmt(totalReturns), color: c(totalReturns) },
         { label: 'RETURN (SI)', value: pct(perf && perf.returnsPercent), color: c(perf ? perf.returnsPercent : 0) },
@@ -1438,6 +1453,25 @@ export default class MyQode extends React.Component {
       txAll: cashTx.map(tx), hasTx: cashTx.length > 0,
       holdings: holdRows, chartColor,
       // IRR (money-weighted) beside TWRR: [{ period, label, value, color }] for SI / 1Y / 3Y when available.
+      // Key metrics grid (Performance): server figures + the money-weighted IRR since inception as XIRR
+      keyMetrics: (() => {
+        const m = S.metrics; if (!m) return [];
+        const pc = x => (x == null ? '–' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x * 100).toFixed(2) + '%');   // 2 decimals, like every % in the app
+        const plain = x => (x == null ? '–' : (x < 0 ? '−' : '') + Math.abs(x * 100).toFixed(2) + '%');
+        const si = irrPeriod(S.irr, 'SI');
+        const mon = ym => { const [y, mo] = String(ym || '').split('-'); return mo ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+mo - 1] + ' ' + y : ''; };
+        const under = m.cagr == null ? 'Shown after a full year' : null;
+        return [
+          { label: 'CAGR', value: pc(m.cagr), color: m.cagr == null ? C.muted : c(m.cagr), note: under || `${m.years} years since inception` },
+          { label: 'XIRR', value: si && si.irr != null ? fmtIrr(si) : '–', color: si && si.irr != null ? c(si.irr) : C.muted, note: 'Money-weighted, since inception' },
+          { label: 'Sharpe ratio', value: m.sharpe == null ? '–' : m.sharpe.toFixed(2), color: C.ink, note: m.sharpe == null ? under : `Risk-free rate ${(m.riskFree * 100).toFixed(1)}%` },
+          { label: 'Max drawdown', value: plain(m.maxDrawdown), color: m.maxDrawdown ? red : C.muted, note: 'Deepest fall from a peak' },
+          { label: 'Volatility (ann.)', value: plain(m.volatility), color: C.ink, note: 'Annualised, daily returns' },
+          { label: 'Alpha vs ' + titleCase(m.benchmark), value: pc(m.alpha), color: m.alpha == null ? C.muted : c(m.alpha), note: m.alpha == null ? under : 'CAGR above the benchmark' },
+          { label: 'Beta', value: m.beta == null ? '–' : m.beta.toFixed(2), color: C.ink, note: 'Against ' + titleCase(m.benchmark) },
+          { label: 'Best month', value: m.bestMonth ? pc(m.bestMonth.ret) : '–', color: m.bestMonth ? c(m.bestMonth.ret) : C.muted, note: m.bestMonth ? mon(m.bestMonth.month) : '' },
+        ];
+      })(),
       irrRows: ['SI', '1Y', '3Y'].map(p => { const x = irrPeriod(S.irr, p); return x && x.irr != null && this.rangeOk(p, S) ? { period: p, label: irrLabel(x), value: fmtIrr(x), color: c(x.irr) } : null; }).filter(Boolean),
       // One slice per strategy, as on the web (strategySlices in src/web/desktop.js): a family can hold the same strategy
       // in several accounts. The ring draws exact shares (pct): rounded shares can total 99 and leave a gap. The legend
@@ -1451,6 +1485,10 @@ export default class MyQode extends React.Component {
       flows: [
         { label: 'TOTAL CONTRIBUTIONS', value: this.fmt(flows.inflow), color: C.ink },
         { label: 'TOTAL WITHDRAWALS', value: this.fmt(flows.outflow), color: C.ink },
+        // The portfolio's net invested also deducts TDS on interest and other small debits that the movement list leaves
+        // out (under ₹1,000): shown as its own line so contributions − withdrawals − this = net invested.
+        ...(perf && Math.abs(flows.inflow - flows.outflow - perf.amountInvested) >= 0.5
+          ? [{ label: 'TAX DEDUCTED & SMALL ADJUSTMENTS', value: this.fmt(flows.inflow - flows.outflow - perf.amountInvested), color: C.ink }] : []),
         { label: 'NET INVESTED', value: this.fmt(perf ? perf.amountInvested : 0), color: C.ink },
         { label: 'TOTAL RETURNS', value: this.sfmt(totalReturns), color: c(totalReturns) },
       ],

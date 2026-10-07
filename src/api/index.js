@@ -100,6 +100,10 @@ export const portfolio = {
     const list = Array.isArray(accounts) ? accounts.join(',') : accounts || undefined;
     return call('/portfolio/irr', { query: { accounts: list } }, () => demoIrr(list));
   },
+  // Key metrics since inception for one strategy account or an owner / group id (myQode lib/portfolioMetrics.ts):
+  // { metrics: { cagr, benchCagr, alpha, volatility, sharpe, beta, maxDrawdown, bestMonth, worstMonth, years, benchmark,
+  // riskFree } } — fractions (0.226 = 22.6%); null where not meaningful (CAGR under a year).
+  metrics: accountId => call('/portfolio/metrics', { query: { accountId } }, () => ({ metrics: null })),
 };
 
 // Demo IRR: plausible figures a little under the demo's NAV returns (top-ups came in after the early gains).

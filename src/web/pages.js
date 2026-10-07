@@ -199,39 +199,51 @@ const INSIGHT_ABOUT = {
   newsletters: ['Monthly newsletters', 'Our regular letters to investors: markets, strategy updates and what changed in the portfolios.'],
   perspectives: ['Perspectives', 'Longer reads from the fund managers on the ideas behind how Qode invests.'],
 };
+// Newsletters and perspectives as preview cards: the PDF's first page (the browser's own viewer, no toolbar,
+// loaded lazily as cards scroll in), the issue and its size. The whole card opens the PDF.
+const MONTHS = { jan: 'January', feb: 'February', mar: 'March', apr: 'April', may: 'May', jun: 'June', jul: 'July', aug: 'August', sep: 'September', oct: 'October', nov: 'November', dec: 'December' };
+const issueTitle = t => { const m = String(t || '').match(/^([A-Za-z]{3})[-\s]?(\d{4})$/); return m && MONTHS[m[1].toLowerCase()] ? MONTHS[m[1].toLowerCase()] + ' ' + m[2] : t; };
+function PdfPreview({ url, title }) {
+  if (Platform.OS !== 'web' || !url) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><DocIconSm /></View>;
+  return React.createElement('iframe', {
+    src: url + '#page=1&toolbar=0&navpanes=0&scrollbar=0&view=FitH', title: title + ' preview', loading: 'lazy', tabIndex: -1,
+    style: { width: '100%', height: '100%', border: 0, pointerEvents: 'none', background: '#fff' },
+  });
+}
+const DocIconSm = () => <Tx s={12} c={C.ink3}>PDF</Tx>;
 function Insights() {
   const [tab, setTab] = useState('newsletters');
   const list = useLoad(() => engagement[tab](), [tab]);
   const items = (list.data && list.data.items) || [];
-  const cols = [
-    { key: 'title', label: 'Title', flex: 3, render: it => <Tx w={600} s={13.5} numberOfLines={2}>{it.title}</Tx> },
-    { key: 'type', label: 'Format', flex: 0.8, render: it => <Pill label={it.type === 'pdf' ? 'PDF' : 'File'} /> },
-    { key: 'size', label: 'Size', flex: 0.8, right: true, render: it => <Tx s={13} c={C.ink2}>{fmtSize(it.size) || '–'}</Tx> },
-    { key: 'open', label: '', flex: 0.7, right: true, render: () => <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Tx w={600} s={13} c={C.green}>Open</Tx><ChevronRight s={11} c={C.green} /></View> },
-  ];
-  const [aboutTitle, aboutText] = INSIGHT_ABOUT[tab];
   return (
-    <Row top gap={24}>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Tabs value={tab} options={[['newsletters', 'Newsletters'], ['perspectives', 'Perspectives']]} onChange={setTab} style={{ marginBottom: 18 }} />
-        {list.loading && <Loading rows={5} />}
-        {!!list.err && <ErrorBlock msg={list.err} onRetry={list.reload} />}
-        {!list.loading && !list.err && !items.length && <Empty>Nothing published here yet.</Empty>}
-        {!list.loading && !list.err && items.length > 0 && (
-          <Card style={{ overflow: 'clip' }}>
-            <Table cols={cols} rows={items.map(it => ({ ...it, id: it.key }))} onRowPress={it => openUrl(it.url)} />
-          </Card>
-        )}
-      </View>
-      <View style={[{ width: 300, gap: 16 }, sticky]}>
-        <Panel title={aboutTitle} sub="From the Qode desk">
-          <Body s={13}>{aboutText}</Body>
-          {!list.loading && !list.err && (
-            <KeyVals style={{ marginTop: 12, borderTopWidth: 1, borderColor: C.line }} items={[['Published', String(items.length)]]} />
-          )}
-        </Panel>
-      </View>
-    </Row>
+    <View>
+      <Tabs value={tab} options={[['newsletters', 'Newsletters'], ['perspectives', 'Perspectives']]} onChange={setTab} style={{ marginBottom: 18 }} />
+      {list.loading && <Loading rows={5} />}
+      {!!list.err && <ErrorBlock msg={list.err} onRetry={list.reload} />}
+      {!list.loading && !list.err && !items.length && <Empty>Nothing published here yet.</Empty>}
+      {!list.loading && !list.err && items.length > 0 && (
+        <Grid min={240} gap={18}>
+          {items.map(it => (
+            <Pressable key={it.key} accessibilityRole="link" accessibilityLabel={'Open ' + issueTitle(it.title)} onPress={() => openUrl(it.url)} style={{ flex: 1 }}>
+              {({ hovered }) => (
+                <Card style={{ overflow: 'clip', padding: 0, borderColor: hovered ? C.green : C.line, flex: 1 }}>
+                  <View style={{ height: 300, backgroundColor: C.subtle, borderBottomWidth: 1, borderColor: C.line }}>
+                    <PdfPreview url={it.url} title={issueTitle(it.title)} />
+                  </View>
+                  <View style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Tx w={600} s={14.5} numberOfLines={2}>{issueTitle(it.title)}</Tx>
+                      <Tx s={12} c={C.ink3} style={{ marginTop: 2 }}>PDF{fmtSize(it.size) ? ' · ' + fmtSize(it.size) : ''}</Tx>
+                    </View>
+                    <Tx w={600} s={13} c={C.green}>Open ›</Tx>
+                  </View>
+                </Card>
+              )}
+            </Pressable>
+          ))}
+        </Grid>
+      )}
+    </View>
   );
 }
 
@@ -291,7 +303,6 @@ function PortalGuide() {
           <Tx s={13.5} lh={1.65} c={C.cream60} style={{ marginTop: 12 }}>At Qode, transparency is central to our philosophy. That's why we provide 24x7 access to your portfolio through WealthSpectrum, our secure reporting partner. From performance snapshots to tax packs, everything you need is organized in one place.</Tx>
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 20, flexWrap: 'wrap' }}>
             <Btn kind="gold" label="Open WealthSpectrum portal" onPress={() => go(WEALTHSPECTRUM)} />
-            <Btn kind="outline" label="Password set-up guide (PDF)" onPress={() => openUrl(PASSWORD_PDF)} />
           </View>
           <Tx s={12} c={C.cream60} style={{ marginTop: 14 }}>Your WealthSpectrum login can be either your Account ID or your registered Email ID.</Tx>
         </DarkCard>
@@ -356,30 +367,64 @@ function Referral({ V }) {
 }
 
 /* ── Service cadence ───────────────────────────────────────────────────────────────────────────────────── */
+// Full width, two tables: the three reports side by side by when / how / what / why, then response times. Same
+// facts as the phone page (about.js CADENCE), without the icon cards and the side rail.
+const CADENCE_ROWS = [
+  { id: 'monthly', name: 'Monthly report', tag: 'Every month', when: 'Within the first 15 days of the following month',
+    how: 'Email to your registered email ID', what: ['Performance summary across Qode strategies (QAW, QTF, QGF)'],
+    why: 'Keeps you updated without waiting for quarterly or annual reviews.', note: 'Fund-level performance; individual returns may differ.' },
+  { id: 'quarterly', name: 'Quarterly report', tag: 'Every quarter', when: 'Within 15 days of quarter-end',
+    how: 'Mandated by SEBI', what: ['Portfolio holdings and transactions', 'Performance vs. benchmark', 'Regulatory disclosures'],
+    why: 'Full transparency, at the frequency the regulator sets.' },
+  { id: 'annual', name: 'Annual review', tag: 'Once a year', when: 'Once every year',
+    how: 'One-on-one session with your Fund Manager and Investor Relations',
+    what: ['Annual performance across strategies', 'Risk–return attribution and positioning', 'Forward outlook and strategic adjustments'],
+    why: 'Align long-term goals, review progress and set expectations for the year ahead.' },
+];
+const SLA_ROWS = [
+  { id: 'q', name: 'Standard queries', via: 'Email or WhatsApp', time: 'Within 1 business day' },
+  { id: 'o', name: 'Operational requests', via: 'Top-up, withdrawal, KYC', time: 'Acknowledged next day; carried out within regulatory timelines' },
+  { id: 'e', name: 'Escalations', via: 'If a request isn’t resolved', time: 'Escalated to Compliance within 24 hours' },
+];
+
 function Cadence({ V }) {
-  const toc = CADENCE.map(s => [slug(s.h), sc(s.h)]);
+  // One card per touchpoint: name, how often and when on the left; how / what / why beside it. Response times last.
+  const col = (label, body) => (
+    <View style={{ flex: 1, minWidth: 200, gap: 6 }}>
+      <Tx w={700} s={11} ls={0.08} c={C.ink3}>{label.toUpperCase()}</Tx>
+      {body}
+    </View>
+  );
+  const line = t => <Tx s={13.5} lh={1.6} c={C.ink2}>{t}</Tx>;
   return (
-    <WithRail rail={<Rail V={V} toc={toc} related={[['reports', 'Reports'], ['team', 'Your team at Qode'], ['grievance', 'Grievance redressal']]} />}>
-      <Lead style={{ marginBottom: 20 }}>Stay consistently informed with structured reports and timely reviews. From monthly updates to annual reviews, everything is designed to keep you aligned with your portfolio and goals.</Lead>
-      <View style={{ gap: 20 }}>
-        {CADENCE.map(sec => (
-          <View key={sec.h} nativeID={slug(sec.h)}>
-            <Panel title={sc(sec.h)} sub={sec.note} pad={0}>
-              <View style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: C.line }}>
-                {sec.cards.map((c, i) => (
-                  <View key={c.t} style={{ flex: 1, padding: 18, borderLeftWidth: i ? 1 : 0, borderColor: C.line }}>
-                    <IconChip name={c.icon} />
-                    <Tx w={600} s={13.5} style={{ marginTop: 12 }}>{sc(c.t)}</Tx>
-                    {(c.lines || []).map(([l, t]) => <Labelled key={l} label={l} style={{ marginTop: 8 }}>{t}</Labelled>)}
-                    {!!c.bullets && c.bullets.map((b, j) => <Bullet key={j}>{b}</Bullet>)}
-                  </View>
-                ))}
-              </View>
-            </Panel>
+    <View style={{ gap: 16 }}>
+      <Lead style={{ marginBottom: 4 }}>Stay consistently informed with structured reports and timely reviews. From monthly updates to annual reviews, everything is designed to keep you aligned with your portfolio and goals.</Lead>
+      {CADENCE_ROWS.map(r => (
+        <Card key={r.id} style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 0 }}>
+          <View style={{ width: 280, padding: 22, gap: 8, borderRightWidth: 1, borderColor: C.line, backgroundColor: C.subtle }}>
+            <View style={{ alignSelf: 'flex-start' }}><Pill label={r.tag} /></View>
+            <Tx f="play" w={600} s={20}>{r.name}</Tx>
+            <Tx w={600} s={13.5} c={C.green} lh={1.5}>{r.when}</Tx>
           </View>
-        ))}
-      </View>
-    </WithRail>
+          <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: 24, padding: 22 }}>
+            {col('How you get it', line(r.how))}
+            {col('What’s in it', <View>{r.what.map(w => <Bullet key={w}>{w}</Bullet>)}{!!r.note && <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 8 }}>{r.note}</Tx>}</View>)}
+            {col('Why it matters', line(r.why))}
+          </View>
+        </Card>
+      ))}
+      <Card style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 0 }}>
+        <View style={{ width: 280, padding: 22, gap: 8, borderRightWidth: 1, borderColor: C.line, backgroundColor: C.subtle }}>
+          <View style={{ alignSelf: 'flex-start' }}><Pill label="Always" /></View>
+          <Tx f="play" w={600} s={20}>Response times</Tx>
+          <Tx w={600} s={13.5} c={C.green} lh={1.5}>How quickly we come back to you</Tx>
+        </View>
+        <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: 24, padding: 22 }}>
+          {SLA_ROWS.map(x => <React.Fragment key={x.id}>{col(x.name, <View><Tx w={600} s={14} c={C.ink}>{x.time}</Tx><Tx s={12.5} c={C.ink3} style={{ marginTop: 2 }}>{x.via}</Tx></View>)}</React.Fragment>)}
+        </View>
+      </Card>
+      <RelatedRow V={V} keys={['reports', 'team', 'grievance']} />
+    </View>
   );
 }
 
@@ -559,7 +604,7 @@ function Team({ V }) {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
             <Btn label="Contact IR team" onPress={() => go(irLinks(code || 'Account').email('IR Support Request'))} />
             <Btn kind="outline" label="Raise any query" onPress={() => V.openReq('r-discussion')} />
-            <Tx s={12} c={C.ink3}>We will get back to you promptly.</Tx>
+            <Tx s={12} c={C.ink3}>We will get back to you in 24 hrs.</Tx>
           </View>
         </Channel>
       </Row>
@@ -581,7 +626,7 @@ function Team({ V }) {
 function Faq() {
   const topics = [...content.FAQ.map(g => g.topic), 'Glossary'];
   const [topic, setTopic] = useState(topics[0]);
-  const [open, setOpen] = useState(null);
+  const [closed, setClosed] = useState(() => new Set());   // answers start open, so a topic is readable at a glance
   const g = content.FAQ.find(x => x.topic === topic);
   return (
     <Row top gap={24}>
@@ -590,7 +635,7 @@ function Faq() {
           {topics.map(t => {
             const on = t === topic, count = t === 'Glossary' ? content.GLOSSARY.length : content.FAQ.find(x => x.topic === t).items.length;
             return (
-              <Pressable key={t} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => { setTopic(t); setOpen(null); }} style={({ hovered }) => ({
+              <Pressable key={t} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => { setTopic(t); setClosed(new Set()); }} style={({ hovered }) => ({
                 flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 12, borderRadius: 8, marginTop: 2,
                 backgroundColor: on ? C.greenTint : hovered ? C.hover : 'transparent',
               })}>
@@ -601,15 +646,15 @@ function Faq() {
           })}
         </Panel>
       </View>
-      <View style={{ flex: 1, minWidth: 0, maxWidth: 860 }}>
+      <View style={{ flex: 1, minWidth: 0 }}>
         <Tx w={600} s={18} role="heading" aria-level={2} style={{ marginBottom: 14 }}>{topic}</Tx>
         {g ? (
           <Card style={{ overflow: 'clip' }}>
             {g.items.map((it, i) => {
-              const on = open === i;
+              const on = !closed.has(i);
               return (
                 <View key={i} style={{ borderBottomWidth: i < g.items.length - 1 ? 1 : 0, borderColor: C.line }}>
-                  <Pressable accessibilityRole="button" accessibilityState={{ expanded: on }} onPress={() => setOpen(on ? null : i)} style={({ hovered }) => ({
+                  <Pressable accessibilityRole="button" accessibilityState={{ expanded: on }} onPress={() => setClosed(c => { const n = new Set(c); on ? n.add(i) : n.delete(i); return n; })} style={({ hovered }) => ({
                     flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16, paddingHorizontal: 20, backgroundColor: hovered ? C.hover : 'transparent',
                   })}>
                     <Tx w={600} s={14} lh={1.45} style={{ flex: 1 }}>{it.q}</Tx>
@@ -706,8 +751,95 @@ function Risk() {
   );
 }
 
+/* ── Hub pages (sidebar: About Qode, Support) ─────────────────────────────────────────────────────────────── */
+// A dark intro, then the pages that used to have their own menu items as icon cards, three a row
+// (src/web/webNav.js). About Qode also shows the three strategies and their benchmarks.
+const HUBS = {
+  about: {
+    eyebrow: 'About Qode', title: 'Guided by evidence. Driven by data. Built for the long term.',
+    text: 'Qode is a SEBI-registered PMS that puts evidence at the heart of every investment decision. Backed by over a decade of experience in Indian markets, we offer a disciplined, transparent and research-led approach to growing your wealth over the long term.',
+    items: [
+      ['philosophy', 'chart', 'Qode Philosophy', 'What we believe and why'],
+      ['foundation', 'trend', 'Foundation', 'Our mission, vision and a note from our fund managers'],
+      ['strategies', 'clipboard', 'Strategy Snapshot', 'Each strategy, its benchmark and core pillars'],
+      ['team', 'user', 'Your Team at Qode', 'Who to reach, and how'],
+      ['cadence', 'calendar', 'Service Cadence', 'Reports, reviews and response times'],
+      ['insights', 'mail', 'Insights & Events', 'Newsletters, perspectives and events'],
+    ] },
+  support: {
+    eyebrow: 'Support', title: 'We’re here to help.',
+    text: 'Raise a request, find an answer or reach Investor Relations. We will get back to you in 24 hrs.',
+    actions: [['services', 'Raise a request'], ['team', 'Contact Investor Relations']],
+    items: [
+      ['services', 'clipboard', 'Account Services', 'Top-ups, withdrawals, switches, SIPs and other requests'],
+      ['faq', 'message', 'FAQs & Glossary', 'Answers to common questions, and the terms we use'],
+      ['grievance', 'mail', 'Escalation and Grievance Redressal', 'If something isn’t resolved'],
+      ['risk', 'shield', 'Risk Management & Controls', 'Our hedging, liquidity, rebalancing and other policies'],
+      ['voice', 'user', 'Your Voice Matters', 'Tell us how we’re doing'],
+      ['referral', 'trend', 'Referral Program', 'Refer an investor and earn a reward'],
+    ] },
+};
+function Hub({ V, k }) {
+  const h = HUBS[k];
+  const go = key => (key === 'services' ? (V.closePage(), V.goServices()) : V.openPage(key));
+  const items = h.items.filter(([key]) => !(V.viewing && key === 'services'));
+  return (
+    <View style={{ gap: 20 }}>
+      <DarkCard style={{ paddingVertical: 32, paddingHorizontal: 36 }}>
+        <Tx w={600} s={12.5} c={C.gold}>{h.eyebrow}</Tx>
+        <Tx f="play" w={600} s={28} lh={1.25} c={C.cream} style={{ marginTop: 10, maxWidth: 820 }}>{h.title}</Tx>
+        <Tx s={14.5} lh={1.7} c={C.cream60} style={{ marginTop: 12, maxWidth: 860 }}>{h.text}</Tx>
+        {!!h.actions && !V.viewing && (
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 20, flexWrap: 'wrap' }}>
+            {h.actions.map(([key, label], i) => <Btn key={key} kind={i ? 'outline' : 'gold'} label={label} onPress={() => go(key)} />)}
+          </View>
+        )}
+      </DarkCard>
+      <Grid min={320} gap={16}>
+        {items.map(([key, icon, title, sub]) => (
+          <Pressable key={key} accessibilityRole="link" onPress={() => go(key)} style={{ flex: 1 }}>
+            {({ hovered }) => (
+              <Card style={{ padding: 22, gap: 14, borderColor: hovered ? C.green : C.line, flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <IconChip name={icon} />
+                  <ChevronRight s={14} c={hovered ? C.green : C.ink3} />
+                </View>
+                <View>
+                  <Tx w={600} s={16} c={C.green}>{title}</Tx>
+                  <Tx s={13} c={C.ink3} lh={1.5} style={{ marginTop: 4 }}>{sub}</Tx>
+                </View>
+              </Card>
+            )}
+          </Pressable>
+        ))}
+      </Grid>
+      {k === 'support' && <ContactCard code={V.user && V.user.clientCode} />}
+      {k === 'about' && (
+        <View>
+          <SectionTitle sub="Three strategies, each measured against its own benchmark" style={{ marginTop: 8 }}>Our strategies</SectionTitle>
+          <Row gap={16}>
+            {STRATS.map(st => (
+              <Pressable key={st.code} accessibilityRole="link" onPress={() => V.openPage('strategies')} style={{ flex: 1 }}>
+                {({ hovered }) => (
+                  <Card style={{ padding: 20, borderTopWidth: 3, borderTopColor: st.color, borderColor: hovered ? C.green : C.line, flex: 1 }}>
+                    <Tx w={700} s={12} c={st.color}>{st.code}</Tx>
+                    <Tx f="play" w={600} s={17} style={{ marginTop: 6 }}>{st.title}</Tx>
+                    <Tx s={12.5} c={C.ink3} style={{ marginTop: 8 }}>Benchmark <Tx w={600} s={12.5} c={C.ink}>{st.benchmark}</Tx></Tx>
+                  </Card>
+                )}
+              </Pressable>
+            ))}
+          </Row>
+        </View>
+      )}
+    </View>
+  );
+}
+
 const L = content.LEGAL;
 export const DESKTOP_PAGES = {
+  about: { title: 'About Qode', body: V => <Hub V={V} k="about" /> },
+  support: { title: 'Support', body: V => <Hub V={V} k="support" /> },
   notifications: { title: 'Notifications', body: () => <NotificationSettings /> },
   family: { title: 'Account Mapping', body: () => <Family /> },
   // One web page for Nuvama: the WealthSpectrum card, then the investor's own sign-in code and accounts.

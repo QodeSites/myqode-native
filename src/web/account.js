@@ -22,6 +22,12 @@ export default function DesktopAccount({ V }) {
           <Session V={V} />
         </View>
         <View style={{ flex: 1, minWidth: 0, gap: 20 }}>
+          {/* Pages that used to have their own sidebar items (src/web/webNav.js: Profile covers them) */}
+          <Panel title="Your accounts" pad={0}>
+            <View style={{ borderTopWidth: 1, borderColor: C.line }}>
+              {[['family', 'Account Mapping'], ['guide', 'Login To Nuvama']].map(([key, label], i) => <ListRow key={key} first={i === 0} label={label} onPress={() => V.openPage(key)} />)}
+            </View>
+          </Panel>
           <Panel title="Need help?" sub="Questions about your account, reports or a request">
             <ContactIRLink V={V} />
           </Panel>

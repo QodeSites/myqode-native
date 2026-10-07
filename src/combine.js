@@ -79,6 +79,7 @@ export function mergeTransactions({ ok, failed }, q = {}) {
     ...base(ok, failed), group: q.group || 'all', from: q.from || null, to: q.to || null,
     coverage: union(ok.map(o => o.data.coverage)),
     moneyIn: ok.reduce((s, o) => s + n(o.data.moneyIn), 0), moneyOut: ok.reduce((s, o) => s + n(o.data.moneyOut), 0),
+    switchIn: ok.reduce((s, o) => s + n(o.data.switchIn), 0), switchOut: ok.reduce((s, o) => s + n(o.data.switchOut), 0),
     summary, items: byDateDesc(tag(ok, d => d.items), 'date'),
   };
 }

@@ -146,20 +146,15 @@ export default function DesktopDocuments({ V }) {
                 )}
             </>
           )}
-        </View>
-        <View style={{ width: 320, flexShrink: 0, gap: 16 }}>
-          {!!accountId && (
-            <Panel title="Summary">
-              <KeyVals style={{ marginTop: -8 }} items={[
-                ...(acct ? [['Account', <Tx key="a" w={600} s={13} numberOfLines={1} style={{ flexShrink: 1, textAlign: 'right' }}>{acct.label}</Tx>]] : []),
-                ['Sections', String(SECTIONS.length)],
-                ['Files on record', counting ? '…' : String(total)],
-                ['Link validity', '5 minutes'],
-              ]} />
-              <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 8 }}>File links are signed for 5 minutes and refresh automatically while a section is open.</Tx>
-            </Panel>
-          )}
-          <Policies onOpen={open} />
+          {/* Policies live on their own page (Trust & Security → Risk Management & Controls); the summary panel was dropped. */}
+          <Pressable accessibilityRole="link" onPress={() => V.openPage('risk')} style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 18, borderRadius: 10, borderWidth: 1, borderColor: hovered ? C.green : C.line, backgroundColor: C.card })}>
+            <DocIcon s={16} c={C.green} />
+            <View style={{ flex: 1 }}>
+              <Tx w={600} s={13.5} c={C.green}>Qode policies</Tx>
+              <Tx s={12.5} c={C.ink3} style={{ marginTop: 2 }}>Hedging, liquidity, rebalancing, concentration and referral policies, on Risk Management & Controls</Tx>
+            </View>
+            <Tx w={600} s={13} c={C.green}>View policies ›</Tx>
+          </Pressable>
         </View>
       </Row>
     </View>

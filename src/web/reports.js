@@ -12,7 +12,7 @@ import Svg, { Rect, Line, Text as SvgText } from 'react-native-svg';
 import { C, Tx, Amt, FitAmt, Card, Row, PageIntro, Panel, Btn, Chips, Tabs, Table, KeyVals, Pill, Loading, Empty, ErrorBlock, DateField, Dropdown } from './kit';
 import { ChevronDown, Download } from '../icons';
 import { reports } from '../api';
-import { inr, sinr, pct, fmtDate } from '../adapt';
+import { inr, sinr, pct, fmtDate, num } from '../adapt';
 import { savePdf } from '../screens/partner';
 import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactionsAllPdf, capitalGainsAllPdf, expensesAllPdf, factsheetAllPdf, plbsPdf } from '../screens/reportPdf';
 import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE } from '../combine';
@@ -401,6 +401,9 @@ function Transactions({ accountId, ids, rk, account }) {
       stats={h && h.asOf ? [
         { label: 'Money in', value: sinr(h.moneyIn), color: gainColor(h.moneyIn) },
         { label: 'Money out', value: h.moneyOut ? '−' + inr(h.moneyOut) : inr(0) },
+        // switches: net (internal ones cancel across all accounts), with the gross moved as the note
+        ...((num(h.switchIn) || num(h.switchOut)) ? [{ label: 'Switches', value: Math.abs(num(h.switchIn) - num(h.switchOut)) < 1 ? inr(0) : sinr(num(h.switchIn) - num(h.switchOut)),
+          note: inr(Math.max(num(h.switchIn), num(h.switchOut))) + ' moved between strategies' }] : []),
         sumItem('trades', 'Trades'),
         sumItem('income', 'Income'),
         sumItem('charges', 'Charges'),
@@ -1037,6 +1040,20 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
 
 // ── page ──────────────────────────────────────────────────────────────────────────────────────────────────
 const KINDS = [['fs', 'Fact sheet'], ['pl', 'P&L and balance sheet'], ['cg', 'Capital gains'], ['txn', 'Transactions'], ['exp', 'Expenses']];
+// The Transactions page (/app/transactions): Nuvama's own ledger (buys, sells, dividends, fees, switches…) with the
+// same filters as Reports → Transactions, opening on "All accounts" when there are several.
+export function NuvamaTransactions({ V }) {
+  const opts = reportAccountOptions(V);
+  const singles = singleAccounts(opts);
+  const ids = [...singles.map(o => o.id), ...((V && V.reportHidden) || []).filter(id => !singles.some(o => String(o.id) === id))];
+  const [sel, setSel] = useState(null);
+  const accountId = sel && opts.some(o => o.id === sel) ? sel : opts[0] && opts[0].id;
+  const account = <AccountDropdown options={opts} value={accountId} onPick={setSel} count={singles.length} />;
+  return accountId
+    ? <Transactions key={accountId + (accountId === ALL_ID ? ids.join(',') : '')} accountId={accountId} ids={ids} rk={V.rk} account={account} />
+    : <Empty>No active account found.</Empty>;
+}
+
 export default function DesktopReports({ V }) {
   const opts = reportAccountOptions(V);
   const singles = singleAccounts(opts);

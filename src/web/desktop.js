@@ -15,18 +15,19 @@ import { DESKTOP_PAGES } from './pages';
 import { SwitchSheet, SettingsSheet, NotifsSheet } from '../screens/sheets';
 import { UccNotice } from '../screens/ucc';
 import { ddPct, pct, inr } from '../adapt';
-import { C, Tx, Amt, Card, Row, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, Btn, PageIntro, Chips, Tabs, Delta, BarList, KeyVals, sentence, FitAmt, AppLinks } from './kit';
-import { NuvamaDetails } from './nuvama';
+import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, Btn, PageIntro, Chips, Tabs, Delta, BarList, KeyVals, sentence, FitAmt, AppLinks } from './kit';
+// NuvamaDetails now lives only on the Login To Nuvama page (src/web/pages.js), not on Overview
 import DesktopHoldings from './holdings';
 import DesktopReports from './reports';
 import DesktopDocuments from './documents';
 import DesktopServices from './services';
 import DesktopAccount from './account';
-import { NAV_GROUPS, PAGE_ALIASES, groupOf, navItem, openItem, visibleItems } from '../nav';
+import { PAGE_ALIASES, navItem, openItem } from '../nav';
+import { WEB_NAV, NavIcon, webNavFor } from './webNav';
 import { dayLabel } from '../screens/pay';
 
 // Tabs of state.tab and their web titles and addresses. Pages (PAGES / DESKTOP_PAGES keys) use their own key as the
-// address. The sidebar menu itself is NAV_GROUPS in src/nav.js, shared with the phone's More tab.
+// address. The sidebar menu is WEB_NAV in src/web/webNav.js (the phone's More tab keeps NAV_GROUPS in src/nav.js).
 const TITLES = { home: 'Overview', portfolio: 'Performance', holdings: 'Holdings', reports: 'Reports', docs: 'Investor Document Vault', services: 'Account Services', more: 'Profile and Settings' };
 
 // Clean URLs for the web: /app/overview, /app/performance, /app/family … Each section and page has its own address,
@@ -79,14 +80,17 @@ function useUrlSync(V, active, page, title, setMissing) {
 const initials = n => String(n || '').replace(/^(mr|mrs|ms|dr)\.?\s+/i, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 const CREAM = a => 'rgba(239,236,211,' + a + ')';
 
-// The old myQode portal's menu: five groups with serif headings, opened one at a time (an accordion). The group
-// holding the current page opens by itself. Profile and settings sit behind the user card at the bottom.
+// The sidebar: three labelled sections, one icon per item, nothing collapsible (src/web/webNav.js). Pages that aren't
+// listed open from the About Qode / Support hubs or Profile, and keep that item highlighted. Profile and settings
+// also sit behind the user card at the bottom.
 function Sidebar({ V, activeId, onNav }) {
   const name = (V.user && V.user.name) || '';
-  const cur = groupOf(activeId);
-  const [openKey, setOpenKey] = useState(cur ? cur.key : NAV_GROUPS[0].key);
-  useEffect(() => { if (cur) setOpenKey(cur.key); }, [cur && cur.key]);
-  const pick = it => { onNav(); openItem(V, it); };
+  const cur = webNavFor(activeId);
+  const pick = it => {
+    onNav();
+    if (it.tab === 'more') { if (V.page) V.closePage(); V.goMore(); return; }
+    openItem(V, it);
+  };
   const acctOn = activeId === 'account';
   return (
     <LinearGradient colors={['#02422B', '#002017', '#000000']} locations={[0, 0.6, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.4, y: 1 }} style={{ width: 264, paddingTop: 22, paddingBottom: 16 }}>
@@ -95,39 +99,25 @@ function Sidebar({ V, activeId, onNav }) {
       </View>
       <Tx s={11.5} c={CREAM(0.55)} style={{ paddingHorizontal: 22, marginTop: 2 }}>Qode Advisors LLP · PMS</Tx>
       <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 12, marginLeft: 22 }} />
-      <ScrollView style={{ flex: 1, marginTop: 14 }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 12, gap: 4 }}>
-        {NAV_GROUPS.map(g => {
-          const open = openKey === g.key, has = !!cur && cur.key === g.key;
-          const items = visibleItems(g, V).filter(it => !it.phoneOnly);
-          return (
-            <View key={g.key} accessibilityRole="navigation" aria-label={g.title}>
-              <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpenKey(open ? null : g.key)} style={({ hovered }) => ({
-                flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 42, paddingHorizontal: 10, borderRadius: 8,
-                backgroundColor: hovered ? CREAM(0.06) : 'transparent',
-              })}>
-                <GroupIcon name={g.icon} s={18} c={has ? C.gold : CREAM(0.7)} />
-                <Tx f="play" w={600} s={15.5} c={has ? C.gold : C.cream} style={{ flex: 1 }} numberOfLines={1}>{g.title}</Tx>
-                <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}><ChevronDown s={10} c={CREAM(0.55)} /></View>
-              </Pressable>
-              {open && (
-                <View style={{ marginLeft: 19, paddingLeft: 10, borderLeftWidth: 1, borderColor: CREAM(0.14), marginBottom: 6 }}>
-                  {items.map(it => {
-                    const on = activeId === it.id;
-                    return (
-                      <Pressable key={it.id} accessibilityRole="link" accessibilityState={{ selected: on }} onPress={() => pick(it)} style={({ hovered }) => ({
-                        flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 34, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8,
-                        backgroundColor: on ? 'rgba(218,189,56,0.14)' : hovered ? CREAM(0.06) : 'transparent',
-                      })}>
-                        <Tx w={on ? 600 : 400} s={13.5} c={on ? C.gold : CREAM(0.82)} style={{ flex: 1 }}>{it.label}</Tx>
-                        {on && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.gold }} />}
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
-          );
-        })}
+      <ScrollView style={{ flex: 1, marginTop: 10 }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 12 }}>
+        {WEB_NAV.map(sec => (
+          <View key={sec.title} accessibilityRole="navigation" aria-label={sec.title} style={{ marginTop: 18 }}>
+            <Tx w={700} s={11} ls={0.14} c={CREAM(0.45)} style={{ paddingHorizontal: 12, marginBottom: 6 }}>{sec.title.toUpperCase()}</Tx>
+            {sec.items.filter(it => !(V.viewing && it.id === 'support')).map(it => {
+              const on = !!cur && cur.id === it.id;
+              return (
+                <Pressable key={it.id} accessibilityRole="link" accessibilityState={{ selected: on }} onPress={() => pick(it)} style={({ hovered }) => ({
+                  flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 42, paddingHorizontal: 12, borderRadius: 10, marginTop: 2,
+                  backgroundColor: on ? 'rgba(218,189,56,0.13)' : hovered ? CREAM(0.06) : 'transparent',
+                  borderLeftWidth: 3, borderLeftColor: on ? C.gold : 'transparent',
+                })}>
+                  <NavIcon name={it.icon} s={19} c={on ? C.gold : CREAM(0.72)} />
+                  <Tx w={on ? 600 : 500} s={14.5} c={on ? C.gold : CREAM(0.88)} style={{ flex: 1 }} numberOfLines={1}>{it.label}</Tx>
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
       </ScrollView>
       {V.testMode && (
         <View style={{ marginHorizontal: 22, marginBottom: 12, backgroundColor: C.redTint, borderRadius: 6, paddingVertical: 5, alignItems: 'center' }}>
@@ -150,6 +140,16 @@ function Sidebar({ V, activeId, onNav }) {
           </View>
           <ChevronRight s={11} c={acctOn ? C.gold : CREAM(0.5)} />
         </Pressable>
+        {/* Sign out (a partner viewing an investor leaves the view instead, from the banner) */}
+        {!V.viewing && (
+          <Pressable accessibilityRole="button" onPress={V.doLogout} style={({ hovered }) => ({
+            flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8,
+            backgroundColor: hovered ? CREAM(0.06) : 'transparent',
+          })}>
+            <NavIcon name="signout" s={17} c={CREAM(0.65)} />
+            <Tx w={500} s={13} c={CREAM(0.75)}>Sign out</Tx>
+          </Pressable>
+        )}
       </View>
     </LinearGradient>
   );
@@ -161,7 +161,14 @@ function TopBar({ V, title }) {
     <View style={{ height: 64, paddingHorizontal: 28, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderColor: C.line, backgroundColor: C.card }}>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Tx w={600} s={19} role="heading" aria-level={1} numberOfLines={1}>{title}</Tx>
-        {!!V.asOf && (!V.page || ['reports', 'transactions'].includes(V.page)) && <Tx s={12} c={C.ink3}>Data as of {V.asOf}</Tx>}
+        {/* whose figures these are, quietly under the title (portfolio pages): "Name · 4 accounts · Data as of …" */}
+        {(!V.page || ['reports', 'transactions'].includes(V.page)) && (!!V.asOf || !!V.acctName) && (
+          <Tx s={12} c={C.ink3} numberOfLines={1}>
+            {!!V.acctName && <Tx w={600} s={12} c={C.ink2}>{V.acctName}</Tx>}
+            {!!V.acctName && !!V.acctCode && '  ·  ' + V.acctCode}
+            {!!V.asOf && (V.acctName ? '  ·  ' : '') + 'Data as of ' + V.asOf}
+          </Tx>
+        )}
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel="Change account" onPress={V.openSwitch} style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, height: 36, borderWidth: 1, borderColor: C.line2, backgroundColor: hovered ? C.hover : C.card, borderRadius: 8, paddingLeft: 5, paddingRight: 10 })}>
         <View style={{ width: 26, height: 26, borderRadius: 6, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' }}>
@@ -211,38 +218,49 @@ function DarkBtn({ label, icon, onPress, gold }) {
 }
 
 // Headline strip: current value and the figures a client checks first, with the most used actions.
-function Summary({ V }) {
-  const f = V.flows || [];
-  const Div = () => <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(239,236,211,0.14)' }} />;
-  const cell = (label, value, color) => (
-    <View style={{ flex: 1, paddingHorizontal: 20, justifyContent: 'center' }}>
-      <Label c="rgba(239,236,211,0.75)">{label}</Label>
-      <FitAmt w={700} s={25} min={15} c={onDark(color)} style={{ marginTop: 8, letterSpacing: -0.4 }}>{value}</FitAmt>
+// "Showing …" on every portfolio page: whose figures these are (Entire Family / a person / one strategy account),
+// with Change. The account switcher in the top bar does the same, but is easy to miss.
+function AccountContext({ V }) {
+  if (!V.acctName) return null;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 18, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: C.greenTint, borderWidth: 1, borderColor: C.line }}>
+      <View style={{ width: 28, height: 28, borderRadius: 7, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' }}>
+        {V.isFamily ? <FamilyIcon s={14} c={C.gold} /> : <Tx w={600} s={10.5} c={C.gold}>{V.acctInitials}</Tx>}
+      </View>
+      <Tx s={13.5} c={C.ink2}>Showing <Tx w={700} s={13.5} c={C.ink}>{V.acctName}</Tx>{V.acctCode ? <Tx s={13.5} c={C.ink3}>{'  ·  ' + V.acctCode}</Tx> : null}</Tx>
+      {V.multiAcct && <TextLink label="Change" onPress={V.openSwitch} />}
     </View>
   );
-  const ret = V.tiles[0] || {}, si = V.tiles[1] || {}, y1 = V.tiles[2] || {};
+}
+
+// Dashboard headline: what an investor checks first. Current value, what they put in (gross, net under it when
+// anything was withdrawn or deducted), total returns and CAGR. TWRR / IRR / 1-year live on Performance.
+function Summary({ V }) {
+  const Div = () => <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(239,236,211,0.14)' }} />;
+  const cell = (label, value, color, note) => (
+    <View style={{ flex: 1, paddingHorizontal: 22, justifyContent: 'center' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}><Label c="rgba(239,236,211,0.75)">{label}</Label><InfoTip label={label} dark /></View>
+      <FitAmt w={700} s={25} min={15} c={onDark(color)} style={{ marginTop: 8, letterSpacing: -0.4 }}>{value}</FitAmt>
+      {!!note && <Tx s={12} c="rgba(239,236,211,0.6)" style={{ marginTop: 4 }}>{note}</Tx>}
+    </View>
+  );
+  const ret = V.tiles[0] || {}, si = V.tiles[1] || {};
+  const cagr = (V.keyMetrics || []).find(k => k.label === 'CAGR');
+  const inv = V.invested || {};
   return (
-    <DarkCard style={{ flexDirection: 'row', paddingVertical: 22, paddingHorizontal: 0 }}>
-      <View style={{ flex: 1.5, paddingHorizontal: 24, justifyContent: 'center' }}>
-        <Label c={C.gold}>Current value</Label>
-        <FitAmt w={700} s={36} min={20} c={C.cream} style={{ marginTop: 6, letterSpacing: -0.8 }}>{V.heroValue}</FitAmt>
+    <DarkCard style={{ flexDirection: 'row', flexWrap: 'wrap', paddingVertical: 24, paddingHorizontal: 0 }}>
+      <View style={{ flex: 1.4, minWidth: 260, paddingHorizontal: 24, justifyContent: 'center' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}><Label c={C.gold}>Current value</Label><InfoTip label="Current value" dark /></View>
+        <FitAmt w={700} s={38} min={20} c={C.cream} style={{ marginTop: 6, letterSpacing: -0.8 }}>{V.heroValue}</FitAmt>
         <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 10 }} />
-        {/* "Since 04-Apr-2025" wraps as one piece: never "Since 04-Apr-" on one line and "2025" on the next. */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', marginTop: 8 }}>
-          {!!V.acctName && <Tx s={12} c="rgba(239,236,211,0.6)">{V.acctName}{V.sinceLbl ? '  ·  ' : ''}</Tx>}
-          {!!V.sinceLbl && <Tx s={12} c="rgba(239,236,211,0.6)" style={{ whiteSpace: 'nowrap' }}>{V.sinceLbl}</Tx>}
-        </View>
+        {!!V.sinceLbl && <Tx s={12} c="rgba(239,236,211,0.6)" style={{ marginTop: 8, whiteSpace: 'nowrap' }}>{V.sinceLbl}</Tx>}
       </View>
       <Div />
-      {cell('Net invested', (f[2] || {}).value || '–')}
+      {cell('Invested', inv.gross || '–', undefined, inv.note)}
       <Div />
-      {cell('Total returns', ret.value, ret.color)}
+      {cell('Total returns', ret.value, ret.color, si.value && si.value !== '–' ? si.value + ' since inception' : null)}
       <Div />
-      {cell('TWRR since inception', si.value, si.color)}
-      {(V.irrRows || []).some(r => r.period === 'SI') && <Div />}
-      {(V.irrRows || []).filter(r => r.period === 'SI').map(r => <React.Fragment key="irr">{cell('IRR since inception', r.value, r.color)}</React.Fragment>)}
-      <Div />
-      {cell('1 year return', y1.value, y1.color)}
+      {cagr && cagr.value !== '–' ? cell('CAGR', cagr.value, cagr.color, 'Since inception') : cell('Return since inception', si.value, si.color, 'Shown as CAGR after a year')}
     </DarkCard>
   );
 }
@@ -355,7 +373,10 @@ function DrawdownPanel({ V, height = 170, style }) {
 
 // Profit and loss as a bar chart of period returns, with the year's figures beside it.
 function PnlBars({ rows, height = 150, useAmt }) {
-  const vals = rows.map(r => (useAmt ? numOf(r.v) : numOf(r.p) || numOf(r.v)));
+  // Bars follow the % return; a real 0.00% is zero, not missing (falling back to the rupee amount put a ₹-scale bar
+  // among %-scale ones: a −₹404 month at 0.00% towered over −6.28%). The amount is used only when there's no %.
+  const hasPct = r => r.p != null && String(r.p).trim() !== '' && String(r.p).trim() !== '–';
+  const vals = rows.map(r => (useAmt ? numOf(r.v) : hasPct(r) ? numOf(r.p) : numOf(r.v)));
   const maxP = Math.max(0, ...vals), maxN = Math.max(0, ...vals.map(v => -v));
   const hasNeg = maxN > 0, hasPos = maxP > 0;
   const LBL = 18;   // room for the figure above / below a bar
@@ -473,44 +494,145 @@ function Overview({ V }) {
         <DataSource V={V} />
         <Summary V={V} />
         <NavPanel V={V} height={300} />
-        <DrawdownPanel V={V} height={180} />
-        <PnlPanel V={V} wide />
         <Row><Allocation V={V} /><RecentTx V={V} /></Row>
         <HoldingsTable V={V} right={<TextLink label="All holdings" onPress={V.segHold} />} />
-        {!V.viewing && <NuvamaDetails compact V={V} />}
+        <View style={{ alignItems: 'flex-start' }}><TextLink label="See detailed performance" onPress={V.goPortfolio} /></View>
       </View>
     </DataState>
   );
 }
 
+// Performance: one headline band (return since inception, against the benchmark), then Return and Risk side by side,
+// trailing returns with TWRR/IRR and the capital figures, and the P&L. Each figure appears once.
+// ⓘ beside a metric's name: a one-line explanation in plain words, on hover (or tap). Looked up by the label.
+const METRIC_HELP = {
+  'current value': 'What your portfolio is worth today, from the custodian’s latest data.',
+  'invested': 'The money you put in (top-ups and securities transferred in). Net is after withdrawals and tax deducted.',
+  'net invested': 'Money put in, less withdrawals and tax deducted.',
+  'total returns': 'Your gain or loss in rupees: current value minus net invested.',
+  'cagr': 'Average yearly growth since inception, as if it had compounded at a steady rate.',
+  'cagr since inception': 'Average yearly growth since inception, as if it had compounded at a steady rate.',
+  'return since inception': 'Total growth of the portfolio since you started, not annualised.',
+  '1-year return': 'How much the portfolio grew over the last 12 months.',
+  '1 year return': 'How much the portfolio grew over the last 12 months.',
+  'xirr': 'Your own yearly return, taking into account when you added or withdrew money.',
+  'best month': 'The calendar month with the highest return.',
+  'volatility (ann.)': 'How much returns swing up and down in a year. Higher means a bumpier ride.',
+  'sharpe ratio': 'Return earned for each unit of risk, above a 6.5% risk-free rate. Higher is better.',
+  'beta': 'How much the portfolio moves with its benchmark: 1 moves the same, below 1 moves less.',
+  'max drawdown': 'The largest fall from a peak to a low since inception.',
+  'current drawdown': 'How far the portfolio is below its highest value right now.',
+  'total contributions': 'All the money you put in: top-ups and securities transferred in.',
+  'total withdrawals': 'All the money taken out.',
+  'tax deducted & small adjustments': 'Tax deducted at source on interest income, and other small debits under ₹1,000.',
+};
+const helpFor = label => METRIC_HELP[String(label || '').toLowerCase()] || (/^alpha/i.test(String(label)) ? 'How much more (or less) the portfolio earned per year than its benchmark index.' : null);
+function InfoTip({ label, dark }) {
+  const text = helpFor(label);
+  const [open, setOpen] = useState(false);
+  if (!text) return null;
+  const c = dark ? 'rgba(239,236,211,0.55)' : C.ink3;
+  return (
+    <View style={{ position: 'relative', zIndex: open ? 50 : 1 }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={'What ' + label + ' means'} onPress={() => setOpen(o => !o)} onHoverIn={() => setOpen(true)} onHoverOut={() => setOpen(false)}
+        style={{ width: 15, height: 15, borderRadius: 8, borderWidth: 1, borderColor: c, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}>
+        <Tx w={700} s={9.5} c={c} style={{ lineHeight: 11 }}>i</Tx>
+      </Pressable>
+      {open && (
+        <View pointerEvents="none" style={{ position: 'absolute', top: 20, left: -8, width: 240, padding: 10, borderRadius: 8, backgroundColor: '#0E1A15', zIndex: 50,
+          shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}>
+          <Tx s={12} lh={1.5} c="#EFECD3">{text}</Tx>
+        </View>
+      )}
+    </View>
+  );
+}
+const LabelInfo = ({ children, dark, style, w = 600, s = 14, c }) => (
+  <View style={[{ flexDirection: 'row', alignItems: 'center' }, style]}>
+    <Tx w={w} s={s} c={c}>{children}</Tx><InfoTip label={children} dark={dark} />
+  </View>
+);
+
+const ON_DARK = col => (col === C.red ? '#FF8F80' : col === C.pos ? '#8BD9AA' : C.cream);
+function MetricRow({ label, note, value, color, last }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 13, borderBottomWidth: last ? 0 : 1, borderColor: C.line }}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <LabelInfo>{label}</LabelInfo>
+        {!!note && <Tx s={12} c={C.ink3} style={{ marginTop: 2 }} numberOfLines={1}>{note}</Tx>}
+      </View>
+      <Amt w={600} s={20} c={color || C.ink}>{value}</Amt>
+    </View>
+  );
+}
 function Performance({ V }) {
-  const maxDd = V.riskRows.find(r => /MAX/i.test(r.k));
-  const cur = V.riskRows.find(r => /CURRENT/i.test(r.k));
-  const f = V.flows || [];
+  const head = Object.fromEntries((V.perfHead || []).map(([k, v, col]) => [k, { v, col }]));
+  const si = head['RETURN (SI)'] || {}, y1 = head['1Y RETURN'] || {}, curDd = head['CURRENT DD'] || {}, ex = head['EXCESS (SI)'] || {};
+  const km = Object.fromEntries((V.keyMetrics || []).map(k => [k.label, k]));
+  const alpha = (V.keyMetrics || []).find(k => /^Alpha/.test(k.label));
+  const f = V.flows || [], inv = V.invested || {}, ret = V.tiles[0] || {};
+  const RETURN = [km['CAGR'], km['XIRR'], alpha, km['Best month']].filter(Boolean);
+  const RISK = [km['Volatility (ann.)'], km['Sharpe ratio'], km['Beta'], km['Max drawdown']].filter(Boolean);
+  const cagr = km['CAGR'] && km['CAGR'].value !== '–' ? km['CAGR'] : null;
+  const side = (label, value, col, note) => (
+    <View style={{ flex: 1, minWidth: 140, paddingHorizontal: 22, borderLeftWidth: 1, borderColor: 'rgba(239,236,211,0.14)' }}>
+      <LabelInfo dark w={400} s={12} c="rgba(239,236,211,0.6)">{label}</LabelInfo>
+      <Amt w={600} s={24} c={ON_DARK(col)} style={{ marginTop: 6 }}>{value || '–'}</Amt>
+      {!!note && <Tx s={11.5} c="rgba(239,236,211,0.5)" style={{ marginTop: 3 }}>{note}</Tx>}
+    </View>
+  );
   return (
     <DataState V={V}>
       <View style={{ gap: 20 }}>
         <DataSource V={V} />
-        <Row>
-          {V.perfHead.map(([k, v, col]) => <Stat key={k} label={sentence(k).replace('(SI)', 'since inception').replace('DD', 'drawdown')} value={v} color={col} style={{ flex: 1 }} />)}
-          {!!maxDd && <Stat label="Max drawdown" value={maxDd.v} color={maxDd.vc} note={maxDd.note} style={{ flex: 1 }} />}
-        </Row>
-        <Row>
-          <TrailingPanel V={V} style={{ flex: 1.4 }} />
-          {!!(V.irrRows && V.irrRows.length) && (
-            <Panel title="TWRR and IRR" sub="Two ways to measure the same portfolio" style={{ flex: 1 }}>
-              <KeyVals items={V.irrRows.map(r => [r.period === 'SI' ? 'IRR since inception' : r.period + ' ' + r.label, r.value, r.color])} />
-              <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 12 }}>IRR (since inception) is money-weighted and shows the return on your capital, taking into account the timing of your investments and withdrawals. TWRR measures how the strategy performed, regardless of those cash flows.</Tx>
-            </Panel>
-          )}
-          <Panel title="Capital and risk" style={{ flex: 1 }}>
-            <KeyVals items={[
-              ...f.map(x => [String(x.label).charAt(0) + String(x.label).slice(1).toLowerCase(), x.value, x.color === C.ink ? undefined : x.color]),
-              ...(maxDd ? [['Max drawdown', maxDd.v, maxDd.vc]] : []),
-              ...(cur ? [['Current drawdown', cur.v, cur.vc]] : []),
-            ]} />
+        <DarkCard style={{ paddingVertical: 28, paddingHorizontal: 32, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 24 }}>
+          <View style={{ flex: 1.2, minWidth: 240 }}>
+            <LabelInfo dark s={12.5} c={C.gold}>{cagr ? 'CAGR since inception' : 'Return since inception'}</LabelInfo>
+            <Amt w={700} s={46} c={ON_DARK(cagr ? cagr.color : si.col)} style={{ marginTop: 6 }}>{cagr ? cagr.value : si.v || '–'}</Amt>
+            <Tx s={13} c="rgba(239,236,211,0.7)" style={{ marginTop: 6 }}>{alpha && alpha.value !== '–' ? `${alpha.label} ${alpha.value}` : ex.v ? `${ex.v} against ${V.benchName}` : `Against ${V.benchName}`}</Tx>
+          </View>
+          <View style={{ flex: 1.8, minWidth: 420, flexDirection: 'row' }}>
+            {side('Invested', inv.gross, undefined, inv.note)}
+            {side('Total returns', ret.value, ret.color)}
+            {side('1-year return', y1.v, y1.col)}
+          </View>
+        </DarkCard>
+        {/* Your capital as one strip across the page, then trailing returns full width */}
+        {f.length > 0 && (
+          <Panel title="Your capital" pad={0}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', borderTopWidth: 1, borderColor: C.line }}>
+              {f.map((x, i) => (
+                <View key={x.label} style={{ flex: 1, minWidth: 180, paddingVertical: 16, paddingHorizontal: 20, borderLeftWidth: i ? 1 : 0, borderColor: C.line }}>
+                  <LabelInfo w={400} s={12} c={C.ink3}>{String(x.label).charAt(0) + String(x.label).slice(1).toLowerCase()}</LabelInfo>
+                  <FitAmt w={600} s={18} min={13} c={x.color === C.ink ? C.ink : x.color} style={{ marginTop: 6 }}>{x.value}</FitAmt>
+                </View>
+              ))}
+            </View>
           </Panel>
-        </Row>
+        )}
+        {/* detailed metrics: always shown (decided 6 Oct 2026) */}
+        {(
+          <View style={{ gap: 20 }}>
+            {(RETURN.length > 0 || RISK.length > 0) && (
+              <Row gap={20}>
+                <Panel title="Return" sub="Since inception" style={{ flex: 1 }}>
+                  {RETURN.map((k, i) => <MetricRow key={k.label} label={k.label} note={k.note} value={k.value} color={k.color} last={i === RETURN.length - 1} />)}
+                </Panel>
+                <Panel title="Risk" sub="Sharpe uses a 6.5% risk-free rate" style={{ flex: 1 }}>
+                  {RISK.map(k => <MetricRow key={k.label} label={k.label} note={k.note} value={k.value} color={k.color} />)}
+                  <MetricRow label="Current drawdown" note="From the last peak" value={curDd.v || '–'} color={curDd.col} last />
+                </Panel>
+              </Row>
+            )}
+            {!!(V.irrRows && V.irrRows.length) && (
+              <Panel title="TWRR and IRR" sub="Two ways to measure the same portfolio">
+                <KeyVals items={[['Return since inception (TWRR)', si.v, si.col], ...V.irrRows.map(r => [r.period === 'SI' ? 'IRR since inception' : r.period + ' ' + r.label, r.value, r.color])]} />
+                <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 12 }}>IRR (since inception) is money-weighted and shows the return on your capital, taking into account the timing of your investments and withdrawals. TWRR measures how the strategy performed, regardless of those cash flows.</Tx>
+              </Panel>
+            )}
+          </View>
+        )}
+        <TrailingPanel V={V} />
         <PnlPanel V={V} wide />
       </View>
     </DataState>
@@ -557,18 +679,24 @@ function ContentPage({ V }) {
   const wide = DESKTOP_PAGES[V.page];
   const pg = wide || PAGES[V.page];
   if (!pg) return null;
-  const g = groupOf(V.page), it = navItem(V.page);
+  const it = navItem(V.page), hub = webNavFor(V.page);
+  const g = hub && hub.id !== V.page ? hub : null;   // the hub this page sits under (About Qode, Support, Profile)
+  const toHub = () => (g.tab === 'more' ? (V.closePage(), V.goMore()) : V.openPage(g.page));
   return (
     <View style={wide ? null : { maxWidth: 920 }}>
-      <View accessibilityRole="navigation" aria-label="Breadcrumb" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-        {g ? <Tx w={600} s={13} c={C.ink2}>{g.title}</Tx> : (
+      {!(hub && hub.id === V.page) && <View accessibilityRole="navigation" aria-label="Breadcrumb" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        {g ? (
+          <Pressable accessibilityRole="link" onPress={toHub} style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 4, opacity: hovered ? 0.75 : 1 })}>
+            <ChevronLeft s={14} c={C.ink2} /><Tx w={600} s={13} c={C.ink2}>{g.label}</Tx>
+          </Pressable>
+        ) : hub ? null : (
           <Pressable accessibilityRole="link" onPress={() => { V.closePage(); V.goMore(); }} style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 4, opacity: hovered ? 0.75 : 1 })}>
             <ChevronLeft s={14} c={C.ink2} /><Tx w={600} s={13} c={C.ink2}>Profile and settings</Tx>
           </Pressable>
         )}
-        <Tx s={13} c={C.ink3}>/</Tx>
+        {!(hub && !g) && <Tx s={13} c={C.ink3}>/</Tx>}
         <Tx s={13} c={C.ink} aria-current="page">{it ? it.label : pg.title}</Tx>
-      </View>
+      </View>}
       {!wide && <PageIntro title={pg.title} />}
       <View>{pg.body(V)}</View>
     </View>
@@ -619,7 +747,9 @@ export default function DesktopShell({ V }) {
           </View>
         )}
         <ScrollView key={active + (page || '')} style={{ flex: 1 }} contentContainerStyle={{ padding: 28, paddingBottom: 48 }}>
-          <View style={{ maxWidth: 1680, width: '100%' }}>{body}</View>
+          <View style={{ maxWidth: 1680, width: '100%' }}>
+            {body}
+          </View>
         </ScrollView>
       </View>
       <RequestSheets V={V} />

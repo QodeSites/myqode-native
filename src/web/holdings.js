@@ -4,7 +4,7 @@
 // changes. The scope's accounts come from V.holdings ({ id, name, value, alloc, w, color, ret, retColor, mdd }).
 // Built only from ./kit.
 import React, { useState, useEffect, useMemo } from 'react';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 import { C, Tx, Amt, Row, Panel, Stat, Chips, Table, BarList, Input, Btn, Loading, Empty, ErrorBlock } from './kit';
 import { portfolio } from '../api';
 import { inr, sinr, pct, fmtDate } from '../adapt';
@@ -17,7 +17,7 @@ const short = name => String(name || '');   // full strategy names ("Qode Growth
 // Sector colours: brand green first, then muted tones that stay apart from each other.
 const PALETTE = ['#02422B', '#DABD38', '#2F6F5E', '#8A700C', '#5B8A7A', '#B89A2E', '#4F5C56', '#86918B'];
 const CLASS_COLOR = { Stocks: '#02422B', ETFs: '#2F6F5E', 'Mutual funds': '#DABD38', Derivatives: '#8A700C', Cash: '#86918B' };
-const PAGE = 40;
+const PAGE = 12;   // the biggest holdings first; the rest one click away (keeps the page short beside the allocation panels)
 
 // Holdings of `codes` (combined), reloaded when the codes change; stale replies are dropped.
 function useSecurities(codes) {
@@ -145,7 +145,8 @@ export default function DesktopHoldings({ V }) {
                   </View>
                 )}
               </Panel>
-              <View style={{ flex: 1.1, gap: 20, minWidth: 280 }}>
+              {/* follows the scroll when the full list is open, so the column beside it isn't left empty */}
+              <View style={[{ flex: 1.1, gap: 20, minWidth: 280 }, Platform.OS === 'web' ? { position: 'sticky', top: 0 } : null]}>
                 <Panel title="Sector allocation" sub="Share of the current value">
                   {sectorBars.length ? <BarList items={sectorBars} dp={2} /> : <Tx s={13} c={C.ink3}>No sectors to show.</Tx>}
                 </Panel>

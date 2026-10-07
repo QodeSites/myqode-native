@@ -391,7 +391,7 @@ export function Team({ V }) {
           {/* web: "Raise Any Query" opens the discussion-topic form (inquiry_type 'discussion') */}
           <CTA label="RAISE ANY QUERY" outline onPress={() => V && V.openReq('r-discussion')} style={{ flex: 1, paddingVertical: 12 }} />
         </View>
-        <Tx s={11} c={C.gray} style={{ marginTop: 8 }}>We will get back to you promptly.</Tx>
+        <Tx s={11} c={C.gray} style={{ marginTop: 8 }}>We will get back to you in 24 hrs.</Tx>
       </ChannelCard>
 
       <ChannelCard icon="calendar" title="Book A Call">

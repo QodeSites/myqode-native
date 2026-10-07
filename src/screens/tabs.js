@@ -331,6 +331,21 @@ export function PortfolioCream({ V }) {
           <Tx s={11} c={C.muted} style={{ marginTop: 10 }}>Fall from the previous peak, {V.rangePhrase}. Dashed line: {V.benchName}.</Tx>
         </Card>
       )}
+      {!!(V.keyMetrics && V.keyMetrics.length) && (
+        <Card style={{ marginTop: 16, paddingTop: 14, paddingHorizontal: 16, paddingBottom: 14 }}>
+          <Tx w={700} s={11} ls={0.12} c={C.muted}>KEY METRICS · SINCE INCEPTION</Tx>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 }}>
+            {V.keyMetrics.map((k, i) => (
+              <View key={k.label} style={{ width: '50%', paddingVertical: 10, paddingRight: i % 2 ? 0 : 10, paddingLeft: i % 2 ? 10 : 0, borderTopWidth: i > 1 ? 1 : 0, borderColor: C.hairline }}>
+                <Tx s={11} c={C.muted}>{k.label}</Tx>
+                <Amt s={17} w={700} c={k.color} style={{ marginTop: 3 }}>{k.value}</Amt>
+                {!!k.note && <Tx s={10.5} c={C.gray} style={{ marginTop: 2 }} numberOfLines={1}>{k.note}</Tx>}
+              </View>
+            ))}
+          </View>
+          <Tx s={10.5} c={C.gray} lh={1.5} style={{ marginTop: 6 }}>Sharpe uses a 6.5% risk-free rate; alpha is CAGR above the benchmark.</Tx>
+        </Card>
+      )}
       {!!(V.irrRows && V.irrRows.length) && (
         <Card style={{ marginTop: 16, paddingTop: 14, paddingHorizontal: 16, paddingBottom: 12 }}>
           <Tx w={700} s={11} ls={0.12} c={C.muted}>TWRR AND IRR</Tx>
