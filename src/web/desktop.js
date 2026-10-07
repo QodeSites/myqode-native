@@ -632,6 +632,7 @@ function Performance({ V }) {
             )}
           </View>
         )}
+        <DrawdownPanel V={V} height={200} />
         <TrailingPanel V={V} />
         <PnlPanel V={V} wide />
       </View>
