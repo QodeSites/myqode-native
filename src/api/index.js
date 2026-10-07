@@ -61,6 +61,8 @@ export const meta = {
   appVersion: () => call('/app-version', { auth: false }, () => demo.appVersion()),
   // Nuvama primary-UCC notice (same data as the web's /api/primary-ucc)
   primaryUcc: () => call('/primary-ucc', {}, () => ({ success: true, dataAsOf: '2026-07-14', primaries: [{ uccCode: 'QAW0412', strategy: 'QODE ADVISORS LLP - QODE ALL WEATHER', groupName: 'MEHTA FAMILY' }] })),
+  // The investor's Relationship Manager (owner of their Zoho CRM record): { name, phone }, either may be null.
+  relationshipManager: () => call('/experience/relationship-manager', {}, () => ({ name: 'Aditya Mehta', phone: '+91 99200 23488', email: 'aditya@qodeinvest.com' })),
   // What Nuvama holds for the investor: primary UCC, accounts, registered contact and bank (masked).
   nuvamaDetails: () => call('/nuvama-details', {}, () => ({
     success: true, portalUrl: 'https://eclientreporting.nuvamaassetservices.com/wealthspectrum/app/', dataAsOf: '2026-07-14',
@@ -101,7 +103,7 @@ export const portfolio = {
     return call('/portfolio/irr', { query: { accounts: list } }, () => demoIrr(list));
   },
   // Key metrics since inception for one strategy account or an owner / group id (myQode lib/portfolioMetrics.ts):
-  // { metrics: { cagr, benchCagr, alpha, volatility, sharpe, beta, maxDrawdown, bestMonth, worstMonth, years, benchmark,
+  // { metrics: { cagr, benchCagr, alpha, volatility, sharpe, beta, maxDrawdown, bestMonth, worstMonth, positiveMonths, bench: { bestMonth, worstMonth, positiveMonths }, years, benchmark,
   // riskFree } } — fractions (0.226 = 22.6%); null where not meaningful (CAGR under a year).
   metrics: accountId => call('/portfolio/metrics', { query: { accountId } }, () => ({ metrics: null })),
 };

@@ -1,16 +1,20 @@
 // Chart pieces built with react-native-svg.
 import React, { useState, useRef, useEffect } from 'react';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 import Svg, { Path, Line, Circle, Defs, LinearGradient as SvgGrad, Stop, Text as SvgText } from 'react-native-svg';
 import { C, Tx } from '../ui';
 import { fmtD } from '../adapt';
 
 import { fmtDate, pct, ddPct } from '../adapt';
 
+// Portfolio growth (%) at point idx of a growth tip: vs the web's anchor (NAV 10 when the history doesn't start at 10),
+// else vs the first point in the window. The tooltip and the web's "Returns" figure both use it.
+export const growthAt = (tip, idx) => (tip.growthBase != null && tip.navs && tip.navs[idx] != null ? (tip.navs[idx] / tip.growthBase - 1) * 100 : (tip.pts[idx] / tip.pts[0] - 1) * 100);
+
 // Touch / hover tooltip over a chart, like the web's: date, portfolio and benchmark at that point,
 // plus the raw NAV / index level when the API sends them.
 // tip = { kind: 'growth' | 'dd', dates, pts, bench, navs, bvals, xy, bxy, benchName }; vw/vh = viewBox size.
-function ChartTip({ tip, vw, vh, height, lineColor, children }) {
+function ChartTip({ tip, vw, vh, height, lineColor, children, onIdx }) {
   const ref = useRef(null);
   const box = useRef({ left: 0, w: 0 });     // chart's window position, measured when a gesture starts
   const pending = useRef(null), raf = useRef(null), timer = useRef(null), cur = useRef(null);
@@ -18,11 +22,11 @@ function ChartTip({ tip, vw, vh, height, lineColor, children }) {
   const [idx, setIdx] = useState(null);
   const n = tip && tip.pts ? tip.pts.length : 0;
   const sig = n ? n + ':' + tip.dates[0] + ':' + tip.dates[n - 1] : '';
-  useEffect(() => { cur.current = null; setIdx(null); }, [sig]);
+  useEffect(() => { cur.current = null; setIdx(null); if (onIdx) onIdx(null); }, [sig]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { clearTimeout(timer.current); if (raf.current) cancelAnimationFrame(raf.current); }, []);
 
   const measure = () => { if (ref.current && ref.current.measureInWindow) ref.current.measureInWindow((x, y, ww) => { if (ww) box.current = { left: x, w: ww }; }); };
-  const show = i => { if (i !== cur.current) { cur.current = i; setIdx(i); } };
+  const show = i => { if (i !== cur.current) { cur.current = i; setIdx(i); if (onIdx) onIdx(i); } };   // onIdx: the point under the pointer (null: none)
   // pageX is reliable on every platform (locationX depends on which child got the touch)
   const at = pageX => {
     if (n < 2 || pageX == null || isNaN(pageX)) return;
@@ -42,7 +46,7 @@ function ChartTip({ tip, vw, vh, height, lineColor, children }) {
   if (n >= 2 && idx != null && tip.xy[idx] && w) {
     const growth = tip.kind === 'growth';
     // growth vs the web's anchor (NAV 10 when the history doesn't start at 10), else vs the first point in the window
-    const v = growth ? (tip.growthBase != null && tip.navs && tip.navs[idx] != null ? (tip.navs[idx] / tip.growthBase - 1) * 100 : (tip.pts[idx] / tip.pts[0] - 1) * 100) : tip.pts[idx];
+    const v = growth ? growthAt(tip, idx) : tip.pts[idx];
     const bv = tip.bench ? (growth ? (tip.bench[idx] / tip.bench[0] - 1) * 100 : tip.bench[idx]) : null;
     const nav = tip.navs && tip.navs[idx], bval = tip.bvals && tip.bvals[idx];
     const px = (tip.xy[idx][0] / vw) * w, py = (tip.xy[idx][1] / vh) * height;
@@ -121,10 +125,10 @@ function Axes({ yTicks, xDates, height, color, children }) {
 }
 
 // Home NAV chart: grid lines at the axis ticks, area fill, benchmark, main line. Same series and scale as the web chart.
-export function NavChart({ line, area, bench, tip, yTicks, xDates, height = 120, color = C.green }) {
+export function NavChart({ line, area, bench, tip, yTicks, xDates, height = 120, color = C.green, onIdx }) {
   return (
     <Axes yTicks={yTicks} xDates={xDates} height={height} color={C.gray}>
-    <ChartTip tip={tip} vw={330} vh={120} height={height} lineColor={color}>
+    <ChartTip tip={tip} vw={330} vh={120} height={height} lineColor={color} onIdx={onIdx}>
     <Svg width="100%" height={height} viewBox="0 0 330 120" preserveAspectRatio="none">
       <Defs>
         <SvgGrad id="cfill" x1="0" y1="0" x2="0" y2="1">
@@ -144,8 +148,25 @@ export function NavChart({ line, area, bench, tip, yTicks, xDates, height = 120,
   );
 }
 
+// Drawdown y axis, on the chart's own scale (buildPaths(dd, bench, 330, 100, 0)): 0% at the top (y 8), the deepest
+// fall at the bottom (y 92). ticks: [{ v, t: label, y: 0–100 in the viewBox }], a round step apart; grid: the
+// dashed lines under the ticks below 0%. The web Dashboard and the phone's Home both use it.
+export function ddScale(tip) {
+  const t = tip || {}, vals = [...(t.pts || []), ...(t.bench || [])].filter(v => v != null && isFinite(v));
+  const min = vals.length ? Math.min(0, ...vals) : 0, span = -min || 1;
+  const Yv = v => 8 + (1 - (v - min) / span) * 84;
+  const raw = -min / 4 || 1, mag = Math.pow(10, Math.floor(Math.log10(raw))), fr = raw / mag;
+  const step = (fr <= 1 ? 1 : fr <= 2 ? 2 : fr <= 5 ? 5 : 10) * mag;
+  const ticks = [];
+  for (let v = 0; v >= min - 1e-9 && ticks.length < 8; v -= step) {
+    const x = +v.toFixed(6);
+    ticks.push({ v: x, y: Yv(x), t: x === 0 ? '0%' : '−' + Math.abs(x).toFixed(step < 1 ? 1 : 0) + '%' });
+  }
+  return { ticks, grid: ticks.slice(1).map(k => k.y) };
+}
+
 // Drawdown chart: values ≤ 0, zero line at the top, red area below.
-export function DrawdownChart({ line, area, bench, tip, height = 100 }) {
+export function DrawdownChart({ line, area, bench, tip, height = 100, grid }) {
   return (
     <ChartTip tip={tip} vw={330} vh={100} height={height} lineColor={C.red}>
     <Svg width="100%" height={height} viewBox="0 0 330 100" preserveAspectRatio="none">
@@ -156,6 +177,7 @@ export function DrawdownChart({ line, area, bench, tip, height = 100 }) {
         </SvgGrad>
       </Defs>
       <Line x1={0} y1={8} x2={330} y2={8} stroke={C.gray} strokeOpacity={0.5} />
+      {(grid || []).map(y => <Line key={y} x1={0} y1={y} x2={330} y2={y} stroke={C.gray} strokeOpacity={0.3} strokeDasharray="3 3" />)}
       <Path d={area} fill="url(#ddfill)" />
       <Path d={bench} fill="none" vectorEffect="non-scaling-stroke" stroke={C.gray} strokeWidth={1.2} strokeDasharray="4 4" />
       <Path d={line} fill="none" vectorEffect="non-scaling-stroke" stroke={C.red} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />
@@ -182,6 +204,9 @@ export function PerfChart({ line, bench, tip, yTicks, xDates, height = 110 }) {
   );
 }
 
+// The app's typeface inside the donut (on the web an SVG label otherwise falls back to the browser's serif).
+const SVG_FONT = Platform.OS === 'web' ? 'Inter, system-ui, -apple-system, sans-serif' : undefined;
+
 // Holdings allocation donut. Slices as [{pct, color}]; drawn from 12 o'clock.
 export function Donut({ slices, count = slices.length, size = 108, label = 'ALLOC' }) {
   const CIRC = 2 * Math.PI * 50;
@@ -200,8 +225,8 @@ export function Donut({ slices, count = slices.length, size = 108, label = 'ALLO
           offset += s.pct;
           return el;
         })}
-        <SvgText x={60} y={57} textAnchor="middle" fill={C.muted} fontSize={10} fontWeight="700" letterSpacing={0.8}>{label}</SvgText>
-        <SvgText x={60} y={73} textAnchor="middle" fill={C.ink} fontSize={15} fontWeight="600">{count}</SvgText>
+        <SvgText x={60} y={57} textAnchor="middle" fill={C.muted} fontSize={10} fontWeight="700" letterSpacing={0.8} fontFamily={SVG_FONT}>{label}</SvgText>
+        <SvgText x={60} y={73} textAnchor="middle" fill={C.ink} fontSize={15} fontWeight="600" fontFamily={SVG_FONT}>{count}</SvgText>
       </Svg>
     </View>
   );

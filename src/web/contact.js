@@ -1,6 +1,7 @@
 // Investor Relations contact, web version. The one place the website shows IR's phone, WhatsApp, email and office,
 // all read from content.CONTACT. It sits on "Your Team at Qode"; everywhere else shows ContactIRLink, which opens
 // that page. Phone version: src/screens/contact.js (irLinks builds the same links for both).
+import { titleCase } from '../titleCase';
 import React from 'react';
 import { View, Pressable, Linking } from 'react-native';
 import { C, Tx, Panel, Btn } from './kit';
@@ -14,7 +15,7 @@ const open = url => Linking.openURL(url).catch(() => {});
 function Line({ title, sub, onPress }) {
   const body = (
     <>
-      <Tx w={600} s={13}>{title}</Tx>
+      <Tx w={600} s={13}>{titleCase(title)}</Tx>
       <Tx s={13} c={onPress ? C.green : C.ink2} style={{ flex: 1, minWidth: 0 }} numberOfLines={onPress ? 1 : undefined} lh={onPress ? undefined : 1.5}>{sub}</Tx>
       {!!onPress && <ChevronRight s={12} c={C.ink3} />}
     </>

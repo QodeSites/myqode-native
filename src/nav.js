@@ -5,15 +5,17 @@
 export const NAV_GROUPS = [
   { key: 'portfolio', title: 'Portfolio', icon: 'chart', items: [
     { id: 'home', label: 'Overview', tab: 'home' },
-    { id: 'portfolio', label: 'Performance', tab: 'portfolio' },
+    { id: 'portfolio', label: 'Returns & Risk', tab: 'portfolio' },
     { id: 'holdings', label: 'Holdings', tab: 'holdings' },
     { id: 'transactions', label: 'Transactions', page: 'transactions' },
     { id: 'reports', label: 'Reports', page: 'reports' },
   ] },
+  { key: 'strategy', title: 'Strategy', icon: 'trend', items: [
+    { id: 'strategies', label: 'Strategy Snapshot', page: 'strategies' },
+  ] },
   { key: 'about', title: 'About Qode', icon: 'info', items: [
     { id: 'philosophy', label: 'Qode Philosophy', page: 'philosophy' },
     { id: 'foundation', label: 'Foundation', page: 'foundation' },
-    { id: 'strategies', label: 'Strategy Snapshot', page: 'strategies' },
     { id: 'team', label: 'Your Team at Qode', page: 'team' },
   ] },
   { key: 'experience', title: 'Your Qode Experience', icon: 'compass', items: [

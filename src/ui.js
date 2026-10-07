@@ -50,9 +50,12 @@ const HC_MAP = { '#37584F': '#22423A', '#9CA3AF': '#6B7280' };
 export function Tx({ f = 'lato', w = 400, s = 13, c = C.ink, ls = 0, lh, center, right, style, children, ...rest }) {
   const { z, hc } = useUI();
   const size = s * z;
+  // Nothing is ever cut to "…": a line limit is kept only where the text shrinks to fit instead
+  // (adjustsFontSizeToFit); everywhere else the text wraps onto the next line.
+  const { numberOfLines, ...r } = rest;
   return (
     <Text
-      {...rest}
+      {...r} numberOfLines={r.adjustsFontSizeToFit ? numberOfLines : undefined}
       style={[{
         fontFamily: FAM[f][w],
         fontSize: size,
@@ -77,8 +80,12 @@ export function Wordmark({ s = 32, c = C.cream, style }) {
 
 export function Amt({ w = 600, s = 13, c = C.ink, center, style, children, ...rest }) {
   const { z } = useUI();
+  // A figure is never cut to "…": a one-line figure on the phone shrinks to fit; on the web a one-line figure keeps its
+  // line only where the caller shrinks it (FitAmt), else it wraps (table figure columns are sized to the figure anyway).
+  const { numberOfLines, ...r } = rest;
+  const fit = numberOfLines === 1 && r.adjustsFontSizeToFit == null && Platform.OS !== 'web' ? { adjustsFontSizeToFit: true, minimumFontScale: 0.7 } : null;
   return (
-    <Text {...rest} style={[{
+    <Text {...r} {...fit} numberOfLines={fit || r.adjustsFontSizeToFit ? numberOfLines : undefined} style={[{
       fontFamily: FAM.inter[w], fontSize: s * z, color: c,
       fontVariant: ['tabular-nums'], textAlign: center ? 'center' : undefined,
     }, style]}>{children}</Text>
@@ -112,20 +119,24 @@ export function CTA({ label, onPress, outline, style, ls = 0.08 }) {
 }
 
 // disabled: greyed out and not tappable (e.g. a period with no data behind it yet).
+// A chip is never shorter than 32pt (36 at the default padding) and its tap area reaches 44pt (hitSlop), the label
+// stays on one line (a flex chip shrinks it a little rather than wrapping), and a press dims it.
 export function Chip({ label, active, onPress, flex, py = 8, px = 14, s = 11, round = true, disabled }) {
+  const minH = py <= 6 ? 32 : 36;
   return (
     <Pressable
-      onPress={disabled ? undefined : onPress} disabled={!!disabled} accessibilityState={{ selected: !!active, disabled: !!disabled }}
-      style={{
-        opacity: disabled ? 0.35 : 1,
-        flex: flex ? 1 : undefined, alignItems: 'center', justifyContent: 'center',
-        paddingVertical: py, paddingHorizontal: flex ? 0 : px,
+      onPress={disabled ? undefined : onPress} disabled={!!disabled} accessibilityRole="button" accessibilityState={{ selected: !!active, disabled: !!disabled }}
+      hitSlop={{ top: Math.max(0, (44 - minH) / 2), bottom: Math.max(0, (44 - minH) / 2), left: 2, right: 2 }}
+      style={({ pressed }) => ({
+        opacity: disabled ? 0.35 : pressed ? 0.6 : 1,
+        flex: flex ? 1 : undefined, minWidth: 0, minHeight: minH, alignItems: 'center', justifyContent: 'center',
+        paddingVertical: py, paddingHorizontal: flex ? 4 : px,
         borderRadius: round ? 999 : 8, borderWidth: 1,
         borderColor: active ? C.green : C.mutedBorder35,
         backgroundColor: active ? C.green : 'transparent',
-      }}
+      })}
     >
-      <Tx w={700} s={s} c={active ? C.cream : C.muted}>{label}</Tx>
+      <Tx w={700} s={s} c={active ? C.cream : C.muted} numberOfLines={1} adjustsFontSizeToFit={!!flex} minimumFontScale={0.8}>{label}</Tx>
     </Pressable>
   );
 }
@@ -364,8 +375,9 @@ export function Sheet({ visible, onClose, children, maxH = 0.86, dark = false })
           maxHeight: Math.max(220, H * maxH - kb), transform: [{ translateY: y }],
           shadowColor: C.ink, shadowOpacity: 0.3, shadowRadius: 16, shadowOffset: { width: 0, height: -8 }, elevation: 16,
         }, wideWeb() && {
-          // Desktop web: a centred dialog instead of a bottom sheet.
-          left: '50%', right: undefined, bottom: undefined, top: '7%', width: 560, marginLeft: -280,
+          // Desktop web: a centred dialog instead of a bottom sheet. Pinned at the top only (bottom 'auto' clears the
+          // sheet's bottom: 0), so it is exactly as tall as its form, up to 86% of the window.
+          left: '50%', right: 'auto', bottom: 'auto', top: '7%', width: 560, marginLeft: -280,
           borderRadius: 14, maxHeight: H * 0.86, transform: [{ translateY: Animated.multiply(y, 0.15) }],
         }]}>
           {dark && <LinearGradient colors={C.darkGrad} locations={[0, 0.62, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.35, y: 1 }} style={StyleSheet.absoluteFill} />}

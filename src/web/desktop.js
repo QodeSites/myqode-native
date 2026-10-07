@@ -2,20 +2,22 @@
 // (src/main.js → vals()), so every figure, action and dialog is the phone app's; the layout is built for desktop:
 // fixed sidebar, top bar with the account switcher, and dashboard grids. Shared pieces: src/web/kit.js.
 // Signed-out phases: src/web/auth.js. Sections: reports.js, documents.js, services.js, account.js.
+import { titleCase } from '../titleCase';
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Pressable } from 'react-native';
+import { View, ScrollView, Pressable, Platform } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Wordmark } from '../ui';
 import { ClosedNote } from '../screens/tabs';
 import { Refresh, Bell, ChevronDown, ChevronLeft, ChevronRight, FamilyIcon, GroupIcon, Bars, Plus, Swap } from '../icons';
-import { NavChart, DrawdownChart, Donut, GUTTER } from '../screens/charts';
+import { NavChart, DrawdownChart, Donut, GUTTER, growthAt, ddScale } from '../screens/charts';
 import { RequestSheets } from '../screens/services';
 import { PAGES } from '../screens/pages';
 import { DESKTOP_PAGES } from './pages';
 import { SwitchSheet, SettingsSheet, NotifsSheet } from '../screens/sheets';
 import { UccNotice } from '../screens/ucc';
-import { ddPct, pct, inr } from '../adapt';
-import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, Btn, PageIntro, Chips, Tabs, Delta, BarList, KeyVals, sentence, FitAmt, AppLinks } from './kit';
+import { ddPct, pct, inr, fmtDate, initials } from '../adapt';
+import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, Btn, PageIntro, Chips, Tabs, Delta, BarList, KeyVals, sentence, FitAmt, AppLinks, Dropdown, ClosedAccountDialog, InfoTip as KitInfoTip } from './kit';
 // NuvamaDetails now lives only on the Login To Nuvama page (src/web/pages.js), not on Overview
 import DesktopHoldings from './holdings';
 import DesktopReports from './reports';
@@ -28,7 +30,7 @@ import { dayLabel } from '../screens/pay';
 
 // Tabs of state.tab and their web titles and addresses. Pages (PAGES / DESKTOP_PAGES keys) use their own key as the
 // address. The sidebar menu is WEB_NAV in src/web/webNav.js (the phone's More tab keeps NAV_GROUPS in src/nav.js).
-const TITLES = { home: 'Overview', portfolio: 'Performance', holdings: 'Holdings', reports: 'Reports', docs: 'Investor Document Vault', services: 'Account Services', more: 'Profile and Settings' };
+const TITLES = { home: 'Overview', portfolio: 'Returns & Risk', holdings: 'Portfolio', reports: 'Reports', docs: 'Investor Document Vault', services: 'Account Services', more: 'Profile and Settings' };
 
 // Clean URLs for the web: /app/overview, /app/performance, /app/family … Each section and page has its own address,
 // so a link, a refresh or the browser's Back button lands where the client expects.
@@ -77,12 +79,11 @@ function useUrlSync(V, active, page, title, setMissing) {
 }
 
 /* ── frame ──────────────────────────────────────────────────────────────────────────────────────────────── */
-const initials = n => String(n || '').replace(/^(mr|mrs|ms|dr)\.?\s+/i, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 const CREAM = a => 'rgba(239,236,211,' + a + ')';
 
-// The sidebar: three labelled sections, one icon per item, nothing collapsible (src/web/webNav.js). Pages that aren't
-// listed open from the About Qode / Support hubs or Profile, and keep that item highlighted. Profile and settings
-// also sit behind the user card at the bottom.
+// The sidebar (src/web/webNav.js): labelled sections grouped by purpose, one icon per item, nothing collapsible;
+// Support apart at the bottom, then the profile card and sign out. Pages that aren't listed open from the About Qode /
+// Support hubs or Profile, and keep that item highlighted.
 function Sidebar({ V, activeId, onNav }) {
   const name = (V.user && V.user.name) || '';
   const cur = webNavFor(activeId);
@@ -92,43 +93,52 @@ function Sidebar({ V, activeId, onNav }) {
     openItem(V, it);
   };
   const acctOn = activeId === 'account';
+  const item = it => {
+    const on = !!cur && cur.id === it.id;
+    return (
+      <Pressable key={it.id} accessibilityRole="link" accessibilityState={{ selected: on }} onPress={() => pick(it)} style={({ hovered }) => ({
+        flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 36, paddingHorizontal: 12, borderRadius: 9, marginTop: 1,
+        backgroundColor: on ? 'rgba(218,189,56,0.13)' : hovered ? CREAM(0.06) : 'transparent',
+        borderLeftWidth: 3, borderLeftColor: on ? C.gold : 'transparent',
+      })}>
+        <NavIcon name={it.icon} s={18} c={on ? C.gold : CREAM(0.72)} />
+        <Tx w={on ? 600 : 500} s={14} c={on ? C.gold : CREAM(0.88)} style={{ flex: 1 }} numberOfLines={1}>{it.label}</Tx>
+      </Pressable>
+    );
+  };
+  const shown = sec => sec.items.filter(it => !(V.viewing && it.id === 'support'));
   return (
-    <LinearGradient colors={['#02422B', '#002017', '#000000']} locations={[0, 0.6, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.4, y: 1 }} style={{ width: 264, paddingTop: 22, paddingBottom: 16 }}>
+    <LinearGradient colors={['#02422B', '#002017', '#000000']} locations={[0, 0.6, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.4, y: 1 }} style={{ width: 264, paddingTop: 20, paddingBottom: 12 }}>
       <View style={{ paddingHorizontal: 22, flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
         <Wordmark s={28} c={C.cream} />
       </View>
       <Tx s={11.5} c={CREAM(0.55)} style={{ paddingHorizontal: 22, marginTop: 2 }}>Qode Advisors LLP · PMS</Tx>
       <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 12, marginLeft: 22 }} />
-      <ScrollView style={{ flex: 1, marginTop: 10 }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 12 }}>
-        {WEB_NAV.map(sec => (
-          <View key={sec.title} accessibilityRole="navigation" aria-label={sec.title} style={{ marginTop: 18 }}>
-            <Tx w={700} s={11} ls={0.14} c={CREAM(0.45)} style={{ paddingHorizontal: 12, marginBottom: 6 }}>{sec.title.toUpperCase()}</Tx>
-            {sec.items.filter(it => !(V.viewing && it.id === 'support')).map(it => {
-              const on = !!cur && cur.id === it.id;
-              return (
-                <Pressable key={it.id} accessibilityRole="link" accessibilityState={{ selected: on }} onPress={() => pick(it)} style={({ hovered }) => ({
-                  flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 42, paddingHorizontal: 12, borderRadius: 10, marginTop: 2,
-                  backgroundColor: on ? 'rgba(218,189,56,0.13)' : hovered ? CREAM(0.06) : 'transparent',
-                  borderLeftWidth: 3, borderLeftColor: on ? C.gold : 'transparent',
-                })}>
-                  <NavIcon name={it.icon} s={19} c={on ? C.gold : CREAM(0.72)} />
-                  <Tx w={on ? 600 : 500} s={14.5} c={on ? C.gold : CREAM(0.88)} style={{ flex: 1 }} numberOfLines={1}>{it.label}</Tx>
-                </Pressable>
-              );
-            })}
+      {/* Sized to fit a laptop screen without scrolling; no scrollbar either way (a very short window still scrolls by wheel). */}
+      <ScrollView style={{ flex: 1, marginTop: 6 }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+        {WEB_NAV.filter(sec => !sec.hidden && !sec.bottom).map(sec => (
+          <View key={sec.title} accessibilityRole="navigation" aria-label={sec.title} style={{ marginTop: 12 }}>
+            <Tx w={700} s={11} ls={0.14} c={CREAM(0.45)} style={{ paddingHorizontal: 12, marginBottom: 3 }}>{sec.title.toUpperCase()}</Tx>
+            {shown(sec).map(item)}
           </View>
         ))}
       </ScrollView>
+      {/* Support, apart at the bottom */}
+      {WEB_NAV.filter(sec => sec.bottom && shown(sec).length).map(sec => (
+        <View key={sec.title} accessibilityRole="navigation" aria-label={sec.title} style={{ marginHorizontal: 12, marginBottom: 8, paddingTop: 6, borderTopWidth: 1, borderColor: CREAM(0.12) }}>
+          {shown(sec).map(item)}
+        </View>
+      ))}
       {V.testMode && (
         <View style={{ marginHorizontal: 22, marginBottom: 12, backgroundColor: C.redTint, borderRadius: 6, paddingVertical: 5, alignItems: 'center' }}>
           <Tx w={600} s={11.5} c={C.red}>Test mode</Tx>
         </View>
       )}
-      <AppLinks dark compact style={{ marginHorizontal: 22, marginBottom: 14 }} />
-      <View style={{ marginHorizontal: 12, borderTopWidth: 1, borderColor: CREAM(0.12), paddingTop: 10 }}>
+      <AppLinks dark compact style={{ marginHorizontal: 22, marginBottom: 10 }} />
+      <View style={{ marginHorizontal: 12, borderTopWidth: 1, borderColor: CREAM(0.12), paddingTop: 6 }}>
         <Pressable accessibilityRole="link" accessibilityLabel="Profile and settings" accessibilityState={{ selected: acctOn }}
           onPress={() => { onNav(); if (V.page) V.closePage(); V.goMore(); }} style={({ hovered }) => ({
-            flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8,
+            flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8,
             backgroundColor: acctOn ? 'rgba(218,189,56,0.14)' : hovered ? CREAM(0.06) : 'transparent',
           })}>
           <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(218,189,56,0.16)', alignItems: 'center', justifyContent: 'center' }}>
@@ -143,7 +153,7 @@ function Sidebar({ V, activeId, onNav }) {
         {/* Sign out (a partner viewing an investor leaves the view instead, from the banner) */}
         {!V.viewing && (
           <Pressable accessibilityRole="button" onPress={V.doLogout} style={({ hovered }) => ({
-            flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8,
+            flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8,
             backgroundColor: hovered ? CREAM(0.06) : 'transparent',
           })}>
             <NavIcon name="signout" s={17} c={CREAM(0.65)} />
@@ -160,7 +170,7 @@ function TopBar({ V, title }) {
   return (
     <View style={{ height: 64, paddingHorizontal: 28, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderColor: C.line, backgroundColor: C.card }}>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Tx w={600} s={19} role="heading" aria-level={1} numberOfLines={1}>{title}</Tx>
+        <Tx w={600} s={19} role="heading" aria-level={1} numberOfLines={1}>{titleCase(title)}</Tx>
         {/* whose figures these are, quietly under the title (portfolio pages): "Name · 4 accounts · Data as of …" */}
         {(!V.page || ['reports', 'transactions'].includes(V.page)) && (!!V.asOf || !!V.acctName) && (
           <Tx s={12} c={C.ink3} numberOfLines={1}>
@@ -233,57 +243,82 @@ function AccountContext({ V }) {
   );
 }
 
-// Dashboard headline: what an investor checks first. Current value, what they put in (gross, net under it when
-// anything was withdrawn or deducted), total returns and CAGR. TWRR / IRR / 1-year live on Performance.
-function Summary({ V }) {
+// The green headline banner (Dashboard and Performance): one large figure with a gold label on the left, then
+// divided columns. hero / cells: { label, value, color, note }.
+function HeadlineBanner({ hero, cells }) {
   const Div = () => <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(239,236,211,0.14)' }} />;
-  const cell = (label, value, color, note) => (
-    <View style={{ flex: 1, paddingHorizontal: 22, justifyContent: 'center' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}><Label c="rgba(239,236,211,0.75)">{label}</Label><InfoTip label={label} dark /></View>
-      <FitAmt w={700} s={25} min={15} c={onDark(color)} style={{ marginTop: 8, letterSpacing: -0.4 }}>{value}</FitAmt>
-      {!!note && <Tx s={12} c="rgba(239,236,211,0.6)" style={{ marginTop: 4 }}>{note}</Tx>}
-    </View>
-  );
-  const ret = V.tiles[0] || {}, si = V.tiles[1] || {};
-  const cagr = (V.keyMetrics || []).find(k => k.label === 'CAGR');
-  const inv = V.invested || {};
   return (
     <DarkCard style={{ flexDirection: 'row', flexWrap: 'wrap', paddingVertical: 24, paddingHorizontal: 0 }}>
       <View style={{ flex: 1.4, minWidth: 260, paddingHorizontal: 24, justifyContent: 'center' }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}><Label c={C.gold}>Current value</Label><InfoTip label="Current value" dark /></View>
-        <FitAmt w={700} s={38} min={20} c={C.cream} style={{ marginTop: 6, letterSpacing: -0.8 }}>{V.heroValue}</FitAmt>
+        <Label c={C.gold}>{hero.label}</Label>
+        <FitAmt w={700} s={38} min={20} c={hero.color ? onDark(hero.color) : C.cream} style={{ marginTop: 6, letterSpacing: -0.8 }}>{hero.value || '–'}</FitAmt>
         <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 10 }} />
-        {!!V.sinceLbl && <Tx s={12} c="rgba(239,236,211,0.6)" style={{ marginTop: 8, whiteSpace: 'nowrap' }}>{V.sinceLbl}</Tx>}
+        {!!hero.note && <Tx s={12} c="rgba(239,236,211,0.6)" style={{ marginTop: 8, whiteSpace: 'nowrap' }}>{hero.note}</Tx>}
       </View>
-      <Div />
-      {cell('Invested', inv.gross || '–', undefined, inv.note)}
-      <Div />
-      {cell('Total returns', ret.value, ret.color, si.value && si.value !== '–' ? si.value + ' since inception' : null)}
-      <Div />
-      {cagr && cagr.value !== '–' ? cell('CAGR', cagr.value, cagr.color, 'Since inception') : cell('Return since inception', si.value, si.color, 'Shown as CAGR after a year')}
+      {cells.map(c => (
+        <React.Fragment key={c.label}>
+          <Div />
+          <View style={{ flex: 1, paddingHorizontal: 22, justifyContent: 'center' }}>
+            <Label c="rgba(239,236,211,0.75)">{c.label}</Label>
+            <FitAmt w={700} s={25} min={15} c={onDark(c.color)} style={{ marginTop: 8, letterSpacing: -0.4 }}>{c.value || '–'}</FitAmt>
+            {!!c.note && <Tx s={12} c="rgba(239,236,211,0.6)" style={{ marginTop: 4 }}>{c.note}</Tx>}
+          </View>
+        </React.Fragment>
+      ))}
     </DarkCard>
   );
 }
 
-function NavPanel({ V, height = 250, style }) {
+// Dashboard headline: current value, invested, total returns and CAGR. TWRR / IRR / 1-year live on Performance.
+function Summary({ V }) {
+  const ret = V.tiles[0] || {}, si = V.tiles[1] || {};
+  const cagr = (V.keyMetrics || []).find(k => k.label === 'CAGR');
+  const inv = V.invested || {};
   return (
-    <Panel title="NAV performance" sub={'Growth of your portfolio' + (V.hasBench ? ' against ' + V.benchName : '') + ', rebased to 100'} style={style}
+    <HeadlineBanner hero={{ label: 'Current Value', value: V.heroValue, note: V.sinceLbl }} cells={[
+      // Net, not gross: current value − net invested = total returns, the figure beside it.
+      { label: 'Net Invested', value: inv.net },
+      { label: 'Total Returns', value: ret.value, color: ret.color, note: si.value && si.value !== '–' ? si.value + ' since inception' : null },
+      cagr && cagr.value !== '–' ? { label: 'CAGR', value: cagr.value, color: cagr.color, note: 'Since inception' }
+        : { label: 'Return Since Inception', value: si.value, color: si.color, note: 'Shown as CAGR after a year' },
+    ]} />
+  );
+}
+
+function NavPanel({ V, height = 250, style }) {
+  // Returns under the period buttons: the portfolio growth at the point under the pointer, else at the latest date —
+  // the tooltip's "Portfolio Growth", computed the same way (growthAt).
+  const [hover, setHover] = useState(null);
+  const tip = V.navTip, n = tip && tip.pts ? tip.pts.length : 0;
+  const at = hover != null && hover < n ? hover : n - 1;
+  const g = n >= 2 && tip.kind === 'growth' ? growthAt(tip, at) : null;
+  const gTxt = g == null || !isFinite(g) ? '–' : (g > 0 ? '+' : g < 0 ? '−' : '') + Math.abs(g).toFixed(2) + '%';
+  return (
+    <Panel title="NAV Performance" sub={'Growth of your portfolio' + (V.hasBench ? ' against ' + V.benchName : '') + ', rebased to 100'} style={style}
       right={<Chips value={(V.ranges.find(r => r.active) || {}).label} options={V.ranges.map(r => [r.label, r.label, r.disabled])} onChange={l => { const r = V.ranges.find(x => x.label === l); if (r) r.pick(); }} />}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 18, marginBottom: 10 }}>
+      {/* Current NAV and Returns: the same label-over-figure style, at opposite ends of one line */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, marginBottom: 10 }}>
         <View><Tx s={11.5} w={600} c={C.ink3}>Current NAV</Tx><Amt w={600} s={20}>{V.navNow}</Amt></View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><View style={{ width: 14, height: 2.5, borderRadius: 1, backgroundColor: V.chartColor || C.green }} /><Tx s={12} c={C.ink2}>Your portfolio</Tx></View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Tx s={11.5} w={600} c={C.ink3}>Returns{n >= 2 && tip.dates && tip.dates[at] ? ' · ' + (hover != null ? fmtDate(tip.dates[at]) : 'as of ' + fmtDate(tip.dates[at])) : ''}</Tx>
+          <Amt w={600} s={20} c={g == null ? C.ink3 : g < 0 ? C.red : C.pos}>{gTxt}</Amt>
+        </View>
+      </View>
+      <NavChart line={V.linePath} area={V.areaPath} bench={V.benchPath} tip={V.navTip} yTicks={V.yTicks} xDates={V.xDates} height={height} color={V.chartColor} onIdx={setHover} />
+      {/* Legend under the chart */}
+      <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 22, marginTop: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><View style={{ width: 14, height: 2.5, borderRadius: 1, backgroundColor: V.chartColor || C.green }} /><Tx s={12} c={C.ink2}>Your Portfolio</Tx></View>
         {V.hasBench && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><View style={{ width: 14, height: 1.5, backgroundColor: C.ink3 }} /><Tx s={12} c={C.ink2}>{V.benchName}</Tx></View>}
       </View>
-      <NavChart line={V.linePath} area={V.areaPath} bench={V.benchPath} tip={V.navTip} yTicks={V.yTicks} xDates={V.xDates} height={height} color={V.chartColor} />
     </Panel>
   );
 }
 
-function Allocation({ V, style }) {
+function Allocation({ V, style, right }) {
   const slices = strategySlices(V.holdings);
   const n = V.holdings.length;
   return (
-    <Panel title="Allocation" sub={n + (n === 1 ? ' account' : ' accounts') + ' across ' + slices.length + (slices.length === 1 ? ' strategy' : ' strategies')} style={[{ flex: 1 }, style]}>
+    <Panel title="Allocation" sub={n + (n === 1 ? ' account' : ' accounts') + ' across ' + slices.length + (slices.length === 1 ? ' strategy' : ' strategies')} right={right} style={[{ flex: 1 }, style]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 22 }}>
         <Donut slices={slices} count={''} label={''} size={128} />
         <BarList style={{ flex: 1 }} dp={2} items={slices.map(g => ({ key: g.id, label: String(g.name), sub: g.n > 1 ? g.n + ' accounts' : '', pct: g.w, color: g.color }))} />
@@ -309,7 +344,7 @@ const HOLD_COLS = [
       <View style={{ width: 56, height: 4, borderRadius: 2, backgroundColor: C.track }}><View style={{ width: Math.max(2, h.w || 0) + '%', height: 4, borderRadius: 2, backgroundColor: h.color }} /></View>
     </View>) },
   { key: 'ret', label: 'Return (SI)', right: true, flex: 0.9, render: h => <Amt s={13.5} c={h.retColor}>{h.ret || '–'}</Amt> },
-  { key: 'mdd', label: 'Max drawdown', right: true, flex: 1, render: h => <Amt s={13.5} c={h.mdd ? C.red : C.ink3}>{h.mdd || '–'}</Amt> },
+  { key: 'mdd', label: 'Max Drawdown', right: true, flex: 1, render: h => <Amt s={13.5} c={h.mdd ? C.red : C.ink3}>{h.mdd || '–'}</Amt> },
 ];
 const HoldingsTable = ({ V, title = 'Holdings', sub, style, right, onRowPress, selected }) => (
   <Panel title={title} sub={sub} right={right} pad={0} style={[{ flex: 2 }, style]}>
@@ -317,13 +352,21 @@ const HoldingsTable = ({ V, title = 'Holdings', sub, style, right, onRowPress, s
   </Panel>
 );
 
-function RecentTx({ V, n = 9, style }) {
+function RecentTx({ V, n = 9, style, height }) {
   const pending = V.inFlight || [];
   const list = (V.txRecent || V.txAll).slice(0, Math.max(0, n - pending.length));   // small movements left out (vals)
+  // With a fixed height, whole rows only: as many as fit, each padded equally to fill the card, never a row cut off.
+  const [vpH, setVpH] = useState(0), [rowH, setRowH] = useState(0);
+  const fitH = height && vpH && rowH ? vpH / Math.max(1, Math.floor(vpH / rowH)) : 0;
+  const fit = fitH ? { height: fitH, paddingVertical: 0 } : null;
+  const measure = i => (i === 0 && !rowH ? e => setRowH(e.nativeEvent.layout.height) : undefined);
   return (
-    <Panel title="Recent activity" right={<TextLink label="View all" onPress={V.goServicesTx} />} pad={0} style={[{ flex: 1 }, style]}>
-      {pending.map(it => (
-        <View key={it.orderId} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 20, borderTopWidth: 1, borderColor: C.line, backgroundColor: 'rgba(218,189,56,0.08)' }}>
+    <Panel title="Recent Activity" right={<TextLink label="View all" onPress={V.goServicesTx} />} pad={0} style={[{ flex: 1 }, height ? { height } : null, style]}
+      bodyStyle={height ? { flex: 1, minHeight: 0 } : null}>
+      {/* No visible scrollbar: it took ~15px inside the card, so the amounts sat closer to the edge than the icons. */}
+      <ScrollView style={height ? { flex: 1 } : null} scrollEnabled={!!height} showsVerticalScrollIndicator={false} onLayout={height ? e => setVpH(e.nativeEvent.layout.height) : undefined}>
+      {pending.map((it, pi) => (
+        <View key={it.orderId} onLayout={measure(pi)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 20, borderTopWidth: 1, borderColor: C.line, ...fit, backgroundColor: 'rgba(218,189,56,0.08)' }}>
           <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: C.posTint, alignItems: 'center', justifyContent: 'center' }}>
             <Tx w={600} s={14} c={C.pos}>↓</Tx>
           </View>
@@ -331,11 +374,11 @@ function RecentTx({ V, n = 9, style }) {
             <Tx w={600} s={13} numberOfLines={1}>Money received · Pending</Tx>
             <Tx s={12} c={C.ink3} numberOfLines={1}>Invested {dayLabel(it.deployOn)} · in your portfolio {dayLabel(it.visibleOn)}</Tx>
           </View>
-          <Amt s={13.5} c={C.pos}>+{inr(it.amount, 0)}</Amt>
+          <Amt s={13.5} c={C.pos}>+{inr(it.amount)}</Amt>
         </View>
       ))}
       {list.length ? list.map((t, i) => (
-        <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 20, borderTopWidth: 1, borderColor: C.line }}>
+        <View key={i} onLayout={measure(pending.length + i)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 20, borderTopWidth: 1, borderColor: C.line, ...fit }}>
           <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: numOf(t.amt) < 0 ? C.redTint : C.posTint, alignItems: 'center', justifyContent: 'center' }}>
             <Tx w={600} s={14} c={numOf(t.amt) < 0 ? C.red : C.pos}>{numOf(t.amt) < 0 ? '↑' : '↓'}</Tx>
           </View>
@@ -346,6 +389,7 @@ function RecentTx({ V, n = 9, style }) {
           <Amt s={13.5} c={t.color}>{t.amt}</Amt>
         </View>
       )) : <Tx s={13} c={C.ink3} style={{ padding: 20, borderTopWidth: 1, borderColor: C.line }}>No transactions recorded yet.</Tx>}
+      </ScrollView>
     </Panel>
   );
 }
@@ -354,19 +398,25 @@ function RecentTx({ V, n = 9, style }) {
 // y-label column (GUTTER) so both start at the same left edge, and it repeats the NAV chart's dates.
 function DrawdownPanel({ V, height = 170, style }) {
   if (!V.hasDd) return null;
-  const g = V.yTicks && V.yTicks.length ? GUTTER : 0;
+  const g = GUTTER;
+  const { ticks, grid } = ddScale(V.ddTip);   // y axis: 0% at the top, round steps down to the deepest fall
   return (
-    <Panel title="Drawdown" sub={'Fall from the previous peak, ' + V.rangePhrase + (V.hasBench ? '. Dashed: ' + V.benchName : '')} style={style}
+    <Panel title="Drawdown" sub={'Fall from the previous peak, ' + V.rangePhrase} style={style}
       right={<View style={{ alignItems: 'flex-end' }}><Amt w={600} s={18} c={Math.abs(V.ddNow) >= 0.005 ? C.red : C.ink2}>{ddPct(V.ddNow)}</Amt><Tx s={11.5} c={C.ink3}>current</Tx></View>}>
       <View style={{ paddingLeft: g }}>
-        <DrawdownChart line={V.ddLine} area={V.ddArea} bench={V.ddBench} tip={V.ddTip} height={height} />
-        {!!g && <Tx s={9} c={C.gray} style={{ position: 'absolute', left: 0, width: g - 3, top: Math.max(0, (8 / 100) * height - 6), pointerEvents: 'none' }}>0%</Tx>}
+        <DrawdownChart line={V.ddLine} area={V.ddArea} bench={V.ddBench} tip={V.ddTip} height={height} grid={grid} />
+        {ticks.map(k => <Tx key={k.v} s={9} c={C.gray} style={{ position: 'absolute', left: 0, width: g - 3, top: Math.max(0, Math.min(height - 12, (k.y / 100) * height - 6)), pointerEvents: 'none' }}>{k.t}</Tx>)}
       </View>
       {!!(V.xDates && V.xDates.length) && (
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, paddingLeft: g }}>
           {V.xDates.map((d, i) => <Tx key={i} s={9} c={C.gray}>{d}</Tx>)}
         </View>
       )}
+      {/* Legend under the chart */}
+      <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 22, marginTop: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><View style={{ width: 14, height: 2.5, borderRadius: 1, backgroundColor: C.red }} /><Tx s={12} c={C.ink2}>Your Portfolio</Tx></View>
+        {V.hasBench && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><View style={{ width: 14, height: 0, borderTopWidth: 1.5, borderStyle: 'dashed', borderColor: C.ink3 }} /><Tx s={12} c={C.ink2}>{V.benchName}</Tx></View>}
+      </View>
     </Panel>
   );
 }
@@ -392,12 +442,12 @@ function PnlBars({ rows, height = 150, useAmt }) {
           return (
             <View key={r.m || r.label} style={{ flex: 1, alignItems: 'center' }} accessibilityLabel={(r.m || r.label) + ' ' + r.v}>
               <View style={{ height: up, width: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
-                {v >= 0 && <Amt s={10.5} c={C.ink3} numberOfLines={1} style={{ marginBottom: 3 }}>{useAmt ? '' : r.p}</Amt>}
+                {v >= 0 && <Amt s={10.5} c={C.ink3} numberOfLines={1} style={{ marginBottom: 3 }}>{useAmt ? r.vc || '' : r.p}</Amt>}
                 {v >= 0 && <View style={{ width: '70%', maxWidth: 34, height: h, borderTopLeftRadius: 4, borderTopRightRadius: 4, backgroundColor: C.pos, opacity: 0.85 }} />}
               </View>
               <View style={{ height: down, width: '100%', alignItems: 'center', borderTopWidth: hasNeg && hasPos ? 1 : 0, borderColor: C.line2 }}>
                 {v < 0 && <View style={{ width: '70%', maxWidth: 34, height: h, borderBottomLeftRadius: 4, borderBottomRightRadius: 4, backgroundColor: C.red, opacity: 0.85 }} />}
-                {v < 0 && <Amt s={10.5} c={C.ink3} numberOfLines={1} style={{ marginTop: 3 }}>{useAmt ? '' : r.p}</Amt>}
+                {v < 0 && <Amt s={10.5} c={C.ink3} numberOfLines={1} style={{ marginTop: 3 }}>{useAmt ? r.vc || '' : r.p}</Amt>}
               </View>
             </View>
           );
@@ -410,49 +460,90 @@ function PnlBars({ rows, height = 150, useAmt }) {
   );
 }
 
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Chart / table switch as two icons, in the same pill as the other toggles.
+function ViewToggle({ value, onChange }) {
+  const icon = (k, on) => {
+    const c = on ? C.gold : C.ink2;
+    return k === 'chart'
+      ? <Svg width={16} height={16} viewBox="0 0 24 24" fill="none"><Path d="M3 20h18M6 20v-7M11 20V5M16 20v-10M21 20v-4" stroke={c} strokeWidth={2} strokeLinecap="round" /></Svg>
+      : <Svg width={16} height={16} viewBox="0 0 24 24" fill="none"><Path d="M3.5 5h17v14h-17zM3.5 10h17M3.5 14.5h17M9 5v14" stroke={c} strokeWidth={1.8} strokeLinejoin="round" /></Svg>;
+  };
+  return (
+    <View style={{ flexDirection: 'row', backgroundColor: 'rgba(55,88,79,0.09)', borderRadius: 9, padding: 3, gap: 2 }}>
+      {[['table', 'Table view'], ['chart', 'Chart view']].map(([k, a11y]) => {
+        const on = value === k;
+        return (
+          <Pressable key={k} accessibilityRole="button" accessibilityLabel={a11y} accessibilityState={{ selected: on }} onPress={() => onChange(k)}
+            style={({ hovered }) => ({ width: 36, height: 30, borderRadius: 7, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? C.green : hovered ? 'rgba(255,255,255,0.6)' : 'transparent' })}>
+            {icon(k, on)}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 function PnlPanel({ V, style, wide }) {
+  const [view, setView] = useState('table');   // 'chart' | 'table'
+  const [unit, setUnit] = useState('pct');      // 'pct' | 'inr': returns or profit in rupees
   if (!V.hasPnl) return null;
   const years = V.pnlPills;
   const yi = years.findIndex(y => y.active);
   const seg = V.pnlSegChips.findIndex(c => c.active);
-  const rows = V.pnlIsYear ? V.pnlRows : V.allYears.map(y => ({ m: y.label, v: y.total, color: y.color }));
-  const nums = rows.map(r => numOf(r.v));
-  const best = rows[nums.indexOf(Math.max(...nums))], worst = rows[nums.indexOf(Math.min(...nums))];
-  const upCount = nums.filter(n => n > 0).length;
-  const label = V.pnlIsYear ? (seg ? 'quarters' : 'months') : 'years';
-  const side = (
-    <KeyVals style={{ minWidth: 230 }} items={[
-      ...(V.pnlIsYear ? [[V.fyLabel + ' total', <View key="t" style={{ alignItems: 'flex-end' }}><Amt w={600} s={14} c={V.fyColor}>{V.fyTotal}</Amt>{!!V.fyTotalPct && <Amt s={12} c={V.fyColor}>{V.fyTotalPct}</Amt>}</View>]] : []),
-      ...(best ? [['Best ' + label.slice(0, -1), <View key="b" style={{ alignItems: 'flex-end' }}><Amt w={600} s={13.5} c={best.color}>{best.v}</Amt><Tx s={11.5} c={C.ink3}>{best.m}</Tx></View>]] : []),
-      ...(worst && worst !== best ? [['Weakest ' + label.slice(0, -1), <View key="w" style={{ alignItems: 'flex-end' }}><Amt w={600} s={13.5} c={worst.color}>{worst.v}</Amt><Tx s={11.5} c={C.ink3}>{worst.m}</Tx></View>]] : []),
-      ['Positive ' + label, upCount + ' of ' + rows.length],
-    ]} />
-  );
+  const rows = V.pnlIsYear ? V.pnlRows : V.allYears.map(y => ({ m: y.label, v: y.total, vc: y.totalC, p: y.pct, color: y.color, pcolor: y.pcolor }));
+  const inr = unit === 'inr';
   return (
-    <Panel title="Profit and loss" sub="Net of fees" style={style}
-      right={<View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-        {V.pnlIsYear && <Chips value={seg} options={V.pnlSegChips.map((c, i) => [i, i ? 'Quarterly' : 'Monthly'])} onChange={i => V.pnlSegChips[i].pick()} />}
-        <Chips value={yi} options={years.map((y, i) => [i, y.label === 'All Years' ? 'All years' : y.label])} onChange={i => years[i].pick()} />
+    <Panel title="Profit and Loss" sub="Net of fees" style={style}
+      right={<View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <ViewToggle value={view} onChange={setView} />
+        {(view === 'table' || V.pnlIsYear) && <Chips value={seg} options={V.pnlSegChips.map((c, i) => [i, i ? 'Quarterly' : 'Monthly'])} onChange={i => V.pnlSegChips[i].pick()} />}
+        <Chips value={unit} options={[['pct', '%'], ['inr', '₹']]} onChange={setUnit} />
+        {<Dropdown compact a11yLabel="Choose a year" text={years[yi] ? (years[yi].label === 'All Years' ? 'All years' : years[yi].label) : ''} value={yi} align="right" menuWidth={120}
+          options={years.map((y, i) => ({ id: i, label: y.label === 'All Years' ? 'All years' : y.label }))} onPick={i => years[i].pick()} />}
       </View>}>
-      <View style={{ flexDirection: wide ? 'row' : 'column', gap: wide ? 32 : 18 }}>
-        <View style={{ flex: wide ? 1 : undefined }}><PnlBars rows={rows} useAmt={!V.pnlIsYear} /></View>
-        {side}
-      </View>
+      {view === 'table' ? (
+        // Each column is as wide as its widest figure (centred under its month); the table scrolls sideways when they
+        // don't all fit, the Year column taking any spare width.
+        <View style={{ borderWidth: 1, borderColor: C.line, borderRadius: 10, overflow: 'clip' }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ flexGrow: 1 }}>
+          <View style={{ flex: 1 }}>
+          <Table key={unit + seg} dense sticky={false} padX={12} rows={(seg ? V.pnlGridQ : V.pnlGrid) || []} empty="No figures yet." cols={[
+            { key: 'year', label: 'Year', flex: 1, minW: 76, render: r => <Tx w={600} s={13}>{r.year}</Tx> },
+            ...(seg ? ['Q1', 'Q2', 'Q3', 'Q4'] : MONTH_SHORT).map((m, i) => ({ key: m, label: m, right: true, center: true, render: r => <Amt s={12.5} c={(inr ? r.rcolors : r.colors)[i]}>{(inr ? r.rcells : r.cells)[i]}</Amt> })),
+            { key: 'total', label: 'Total', right: true, center: true, render: r => <Amt w={700} s={13} c={inr ? r.rtcolor : r.tcolor}>{inr ? r.rtotal : r.total}</Amt> },
+          ]} />
+          </View>
+          </ScrollView>
+        </View>
+      ) : (
+        <PnlBars rows={rows} useAmt={inr} />
+      )}
     </Panel>
   );
 }
 
-const TRAIL_COLS = V => [
-  { key: 'p', label: 'Period', render: r => <Tx w={600} s={13}>{r.p}</Tx> },
-  { key: 'pf', label: 'Portfolio', right: true, render: r => <Amt w={600} s={13.5} c={r.neg ? C.red : C.pos}>{r.pf}</Amt> },
-  { key: 'n', label: V.benchName, right: true, render: r => <Amt s={13.5} c={C.ink2}>{r.n}</Amt> },
-  { key: 'x', label: 'Excess', right: true, render: r => <Delta text={r.x} neg={numOf(r.x) < 0} zero={numOf(r.x) === 0} s={12.5} style={{ alignSelf: 'flex-end' }} /> },
-];
-const TrailingPanel = ({ V, style }) => (
-  <Panel title="Trailing returns" sub={'Against ' + V.benchName} pad={0} style={[{ flex: 1 }, style]}>
-    <Table dense cols={TRAIL_COLS(V)} rows={V.trailing} empty="Not enough history yet." />
-  </Panel>
-);
+// Trailing returns and drawdown in one compact table: periods across, the portfolio and its benchmark down.
+const TRAIL_PERIODS = ['1W', '10D', '1M', '3M', '6M', '1Y', '3Y'];
+const trailCol = v => (!v || v === '–' ? C.ink3 : numOf(v) < 0 ? C.red : C.pos);
+function TrailingPanel({ V, style }) {
+  const at = p => (V.trailing || []).find(r => r.p === p) || {};
+  const cell = v => <Amt s={13} c={trailCol(v)}>{v || '–'}</Amt>;
+  // Excess row: a tinted pill (green ahead of the benchmark, red behind), as excess was shown before.
+  const pill = v => (!v || v === '–' ? cell(v) : <Delta text={v} neg={numOf(v) < 0} zero={numOf(v) === 0} s={12.5} style={{ alignSelf: 'center' }} />);
+  const cols = [
+    { key: 'name', label: 'Name', flex: 1.4, render: r => <Tx w={600} s={13} numberOfLines={1}>{r.name}</Tx> },
+    ...TRAIL_PERIODS.map(p => ({ key: p, label: p, right: true, grow: true, center: true, render: r => (r.id === 'ex' ? pill(r.vals[p]) : cell(r.vals[p])) })),
+    { key: 'si', label: 'Since Inception', right: true, grow: true, center: true, flex: 1.3, render: r => (r.id === 'ex' ? pill(r.si) : cell(r.si)) },
+  ];
+  const row = (id, name, k) => ({ id, name, vals: Object.fromEntries(TRAIL_PERIODS.map(p => [p, at(p)[k]])), si: at('SI')[k] });
+  // Excess (%) = portfolio minus benchmark for each period (adapt.js trailingRows: x).
+  const rows = (V.trailing || []).length ? [row('pf', 'Portfolio (%)', 'pf'), row('bm', V.benchName + ' (%)', 'n'), row('ex', 'Excess (%)', 'x')] : [];
+  return (
+    <Panel title="Trailing Returns" sub={'Against ' + V.benchName} pad={0} style={style}>
+      <Table dense cols={cols} rows={rows} empty="Not enough history yet." />
+    </Panel>
+  );
+}
 
 function DataState({ V, children }) {
   if (V.loading || V.skelOther) return <Loading rows={5} />;
@@ -486,6 +577,7 @@ function DataSource({ V }) {
 }
 
 function Overview({ V }) {
+  const [allocH, setAllocH] = useState(0);   // the Allocation card's own height: Recent activity is sized to it
   return (
     <DataState V={V}>
       <View style={{ gap: 20 }}>
@@ -494,9 +586,17 @@ function Overview({ V }) {
         <DataSource V={V} />
         <Summary V={V} />
         <NavPanel V={V} height={300} />
-        <Row><Allocation V={V} /><RecentTx V={V} /></Row>
-        <HoldingsTable V={V} right={<TextLink label="All holdings" onPress={V.segHold} />} />
-        <View style={{ alignItems: 'flex-start' }}><TextLink label="See detailed performance" onPress={V.goPortfolio} /></View>
+        <DrawdownPanel V={V} height={180} />
+        <PnlPanel V={V} wide />
+        <TrailingPanel V={V} />
+        {/* Allocation sets the row's height; Recent activity matches it and scrolls, so neither card has empty space. */}
+        <Row top>
+          <View style={{ flex: 1, minWidth: 0 }} onLayout={e => setAllocH(Math.round(e.nativeEvent.layout.height))}>
+            <Allocation V={V} right={<TextLink label="All holdings" onPress={V.segHold} />} style={{ flex: 0 }} />
+          </View>
+          <RecentTx V={V} n={20} height={allocH || undefined} />
+        </Row>
+        <View style={{ alignItems: 'flex-start' }}><TextLink label="See returns and risk" onPress={V.goPortfolio} /></View>
       </View>
     </DataState>
   );
@@ -506,7 +606,8 @@ function Overview({ V }) {
 // trailing returns with TWRR/IRR and the capital figures, and the P&L. Each figure appears once.
 // ⓘ beside a metric's name: a one-line explanation in plain words, on hover (or tap). Looked up by the label.
 const METRIC_HELP = {
-  'current value': 'What your portfolio is worth today, from the custodian’s latest data.',
+  'current value': 'The current market value of investments held in the portfolio as of the reporting date.',
+  'current portfolio value': 'The current market value of investments held in the portfolio as of the reporting date.',
   'invested': 'The money you put in (top-ups and securities transferred in). Net is after withdrawals and tax deducted.',
   'net invested': 'Money put in, less withdrawals and tax deducted.',
   'total returns': 'Your gain or loss in rupees: current value minus net invested.',
@@ -527,33 +628,22 @@ const METRIC_HELP = {
   'tax deducted & small adjustments': 'Tax deducted at source on interest income, and other small debits under ₹1,000.',
 };
 const helpFor = label => METRIC_HELP[String(label || '').toLowerCase()] || (/^alpha/i.test(String(label)) ? 'How much more (or less) the portfolio earned per year than its benchmark index.' : null);
-function InfoTip({ label, dark }) {
-  const text = helpFor(label);
-  const [open, setOpen] = useState(false);
-  if (!text) return null;
-  const c = dark ? 'rgba(239,236,211,0.55)' : C.ink3;
-  return (
-    <View style={{ position: 'relative', zIndex: open ? 50 : 1 }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={'What ' + label + ' means'} onPress={() => setOpen(o => !o)} onHoverIn={() => setOpen(true)} onHoverOut={() => setOpen(false)}
-        style={{ width: 15, height: 15, borderRadius: 8, borderWidth: 1, borderColor: c, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}>
-        <Tx w={700} s={9.5} c={c} style={{ lineHeight: 11 }}>i</Tx>
-      </Pressable>
-      {open && (
-        <View pointerEvents="none" style={{ position: 'absolute', top: 20, left: -8, width: 240, padding: 10, borderRadius: 8, backgroundColor: '#0E1A15', zIndex: 50,
-          shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}>
-          <Tx s={12} lh={1.5} c="#EFECD3">{text}</Tx>
-        </View>
-      )}
-    </View>
-  );
-}
-const LabelInfo = ({ children, dark, style, w = 600, s = 14, c }) => (
+// The kit's pop-up, with the explanation looked up by the measure's name when none is passed in.
+const InfoTip = ({ label, dark, text }) => <KitInfoTip label={label} dark={dark} text={text || helpFor(label)} />;
+const LabelInfo = ({ children, dark, style, w = 600, s = 14, c, info }) => (
   <View style={[{ flexDirection: 'row', alignItems: 'center' }, style]}>
-    <Tx w={w} s={s} c={c}>{children}</Tx><InfoTip label={children} dark={dark} />
+    <Tx w={w} s={s} c={c}>{children}</Tx><InfoTip label={children} dark={dark} text={info} />
   </View>
 );
 
 const ON_DARK = col => (col === C.red ? '#FF8F80' : col === C.pos ? '#8BD9AA' : C.cream);
+// A section heading in the app's ink with a short underline, so Return and Risk read as headings without any colour.
+const CardTitle = ({ children }) => (
+  <View style={{ alignSelf: 'flex-start', marginBottom: 4 }}>
+    <Tx w={600} s={16} c={C.ink} role="heading" aria-level={3}>{children}</Tx>
+    <View style={{ width: 28, height: 2, borderRadius: 2, backgroundColor: C.ink, marginTop: 6 }} />
+  </View>
+);
 function MetricRow({ label, note, value, color, last }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 13, borderBottomWidth: last ? 0 : 1, borderColor: C.line }}>
@@ -561,80 +651,99 @@ function MetricRow({ label, note, value, color, last }) {
         <LabelInfo>{label}</LabelInfo>
         {!!note && <Tx s={12} c={C.ink3} style={{ marginTop: 2 }} numberOfLines={1}>{note}</Tx>}
       </View>
-      <Amt w={600} s={20} c={color || C.ink}>{value}</Amt>
+      {/* Colour by sign, as everywhere else: + green, − red, unsigned figures (volatility, Sharpe, beta) in ink. */}
+      <Amt w={600} s={20} c={String(value).startsWith('+') ? C.pos : /^[−-]\d/.test(String(value)) ? C.red : C.ink}>{value}</Amt>
     </View>
   );
 }
+// Best / worst / positive months since inception: the portfolio (the account or view chosen at the top) beside its benchmark.
+function MonthlyPanel({ V }) {
+  const rows = V.monthRows || [];
+  const yrs = V.monthYears || [], on = yrs.find(y => y.active);
+  if (!rows.length) return null;
+  const fig = x => (
+    <View style={{ alignItems: 'flex-end' }}>
+      <Amt w={600} s={15} c={x.color}>{x.v}</Amt>
+      {!!x.note && <Tx s={11.5} c={C.ink3}>{x.note}</Tx>}
+    </View>
+  );
+  const cols = [
+    { key: 'k', label: 'Measure', flex: 1.6, render: r => <View><Tx w={600} s={13.5}>{r.k}</Tx><Tx s={12} c={C.ink3}>{r.note}</Tx></View> },
+    { key: 'pf', label: 'Your Portfolio', flex: 1, right: true, grow: true, render: r => fig(r.pf) },
+    { key: 'bm', label: V.benchName, flex: 1, right: true, grow: true, render: r => fig(r.bm) },
+  ];
+  return (
+    <Panel title={<CardTitle>Monthly Returns</CardTitle>} sub={(on && on.id ? 'In ' + on.id : 'Since inception') + ', against ' + V.benchName} pad={0}
+      right={yrs.length > 1 && <Dropdown compact a11yLabel="Choose a year" text={on ? on.label : ''} value={yrs.indexOf(on)} align="right" menuWidth={170}
+        options={yrs.map((y, i) => ({ id: i, label: y.label }))} onPick={i => yrs[i].pick()} />}>
+      <Table cols={cols} rows={rows.map(r => ({ ...r, id: r.k }))} sticky={false} />
+    </Panel>
+  );
+}
+
+// Metrics: ten measures (V.riskMetrics: return, then risk) in two columns of five, the portfolio beside its
+// benchmark, each with an ⓘ explanation.
+function MetricsPanel({ V, style }) {
+  const rows = V.riskMetrics || [];
+  if (!rows.length) return null;
+  // By unit: the % measures in one column, the ratios in the other.
+  const pct = rows.filter(r => r.u === '%'), ratios = rows.filter(r => r.u !== '%');
+  return (
+    <Panel title={<CardTitle>Metrics</CardTitle>} sub="Since inception · Sharpe and Sortino use a 6.5% risk-free rate" style={style}>
+      <Row gap={36}>
+        <MetricCol V={V} rows={pct} title="In %" />
+        <MetricCol V={V} rows={ratios} title="Ratios" />
+      </Row>
+    </Panel>
+  );
+}
+function MetricCol({ V, rows, title }) {
+  // Fixed value columns, wide enough for the longest figure (+22.07% p.a.) on one line, so every row lines up.
+  const col = { width: 112, alignItems: 'flex-end' }, bcol = { width: 84, alignItems: 'flex-end' };
+  return (
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <View style={{ flexDirection: 'row', gap: 12, paddingBottom: 8, borderBottomWidth: 1, borderColor: C.line }}>
+        <View style={{ flex: 1 }}>{!!title && <Tx w={600} s={12} c={C.ink3}>{title}</Tx>}</View>
+        <View style={col}><Tx w={600} s={12} c={C.ink3}>Your Portfolio</Tx></View>
+        <View style={bcol}><Tx w={600} s={12} c={C.ink3} numberOfLines={1}>{V.benchName}</Tx></View>
+      </View>
+      {rows.map((r, i) => (
+        <View key={r.k} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, minHeight: 62, borderBottomWidth: i === rows.length - 1 ? 0 : 1, borderColor: C.line }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <LabelInfo info={r.def} s={13}>{r.k}</LabelInfo>
+            <Tx s={11.5} c={C.ink3} style={{ marginTop: 2 }} numberOfLines={1}>{r.note}</Tx>
+          </View>
+          <View style={col}><Amt w={600} s={14.5} numberOfLines={1} c={r.pc || C.ink}>{r.pf}</Amt></View>
+          <View style={bcol}><Amt s={13.5} numberOfLines={1} c={r.bc || C.ink2}>{r.bm}</Amt></View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function Performance({ V }) {
   const head = Object.fromEntries((V.perfHead || []).map(([k, v, col]) => [k, { v, col }]));
   const si = head['RETURN (SI)'] || {}, y1 = head['1Y RETURN'] || {}, curDd = head['CURRENT DD'] || {}, ex = head['EXCESS (SI)'] || {};
   const km = Object.fromEntries((V.keyMetrics || []).map(k => [k.label, k]));
   const alpha = (V.keyMetrics || []).find(k => /^Alpha/.test(k.label));
   const f = V.flows || [], inv = V.invested || {}, ret = V.tiles[0] || {};
-  const RETURN = [km['CAGR'], km['XIRR'], alpha, km['Best month']].filter(Boolean);
-  const RISK = [km['Volatility (ann.)'], km['Sharpe ratio'], km['Beta'], km['Max drawdown']].filter(Boolean);
+  const RETURN = [km['XIRR'], alpha, km['Best Month']].filter(Boolean);
+  const RISK = [km['Volatility (ann.)'], km['Sharpe Ratio'], km['Beta']].filter(Boolean);
   const cagr = km['CAGR'] && km['CAGR'].value !== '–' ? km['CAGR'] : null;
-  const side = (label, value, col, note) => (
-    <View style={{ flex: 1, minWidth: 140, paddingHorizontal: 22, borderLeftWidth: 1, borderColor: 'rgba(239,236,211,0.14)' }}>
-      <LabelInfo dark w={400} s={12} c="rgba(239,236,211,0.6)">{label}</LabelInfo>
-      <Amt w={600} s={24} c={ON_DARK(col)} style={{ marginTop: 6 }}>{value || '–'}</Amt>
-      {!!note && <Tx s={11.5} c="rgba(239,236,211,0.5)" style={{ marginTop: 3 }}>{note}</Tx>}
-    </View>
-  );
   return (
     <DataState V={V}>
       <View style={{ gap: 20 }}>
         <DataSource V={V} />
-        <DarkCard style={{ paddingVertical: 28, paddingHorizontal: 32, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 24 }}>
-          <View style={{ flex: 1.2, minWidth: 240 }}>
-            <LabelInfo dark s={12.5} c={C.gold}>{cagr ? 'CAGR since inception' : 'Return since inception'}</LabelInfo>
-            <Amt w={700} s={46} c={ON_DARK(cagr ? cagr.color : si.col)} style={{ marginTop: 6 }}>{cagr ? cagr.value : si.v || '–'}</Amt>
-            <Tx s={13} c="rgba(239,236,211,0.7)" style={{ marginTop: 6 }}>{alpha && alpha.value !== '–' ? `${alpha.label} ${alpha.value}` : ex.v ? `${ex.v} against ${V.benchName}` : `Against ${V.benchName}`}</Tx>
-          </View>
-          <View style={{ flex: 1.8, minWidth: 420, flexDirection: 'row' }}>
-            {side('Invested', inv.gross, undefined, inv.note)}
-            {side('Total returns', ret.value, ret.color)}
-            {side('1-year return', y1.v, y1.col)}
-          </View>
-        </DarkCard>
-        {/* Your capital as one strip across the page, then trailing returns full width */}
-        {f.length > 0 && (
-          <Panel title="Your capital" pad={0}>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', borderTopWidth: 1, borderColor: C.line }}>
-              {f.map((x, i) => (
-                <View key={x.label} style={{ flex: 1, minWidth: 180, paddingVertical: 16, paddingHorizontal: 20, borderLeftWidth: i ? 1 : 0, borderColor: C.line }}>
-                  <LabelInfo w={400} s={12} c={C.ink3}>{String(x.label).charAt(0) + String(x.label).slice(1).toLowerCase()}</LabelInfo>
-                  <FitAmt w={600} s={18} min={13} c={x.color === C.ink ? C.ink : x.color} style={{ marginTop: 6 }}>{x.value}</FitAmt>
-                </View>
-              ))}
-            </View>
-          </Panel>
-        )}
-        {/* detailed metrics: always shown (decided 6 Oct 2026) */}
-        {(
-          <View style={{ gap: 20 }}>
-            {(RETURN.length > 0 || RISK.length > 0) && (
-              <Row gap={20}>
-                <Panel title="Return" sub="Since inception" style={{ flex: 1 }}>
-                  {RETURN.map((k, i) => <MetricRow key={k.label} label={k.label} note={k.note} value={k.value} color={k.color} last={i === RETURN.length - 1} />)}
-                </Panel>
-                <Panel title="Risk" sub="Sharpe uses a 6.5% risk-free rate" style={{ flex: 1 }}>
-                  {RISK.map(k => <MetricRow key={k.label} label={k.label} note={k.note} value={k.value} color={k.color} />)}
-                  <MetricRow label="Current drawdown" note="From the last peak" value={curDd.v || '–'} color={curDd.col} last />
-                </Panel>
-              </Row>
-            )}
-            {!!(V.irrRows && V.irrRows.length) && (
-              <Panel title="TWRR and IRR" sub="Two ways to measure the same portfolio">
-                <KeyVals items={[['Return since inception (TWRR)', si.v, si.col], ...V.irrRows.map(r => [r.period === 'SI' ? 'IRR since inception' : r.period + ' ' + r.label, r.value, r.color])]} />
-                <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 12 }}>IRR (since inception) is money-weighted and shows the return on your capital, taking into account the timing of your investments and withdrawals. TWRR measures how the strategy performed, regardless of those cash flows.</Tx>
-              </Panel>
-            )}
-          </View>
-        )}
-        <DrawdownPanel V={V} height={200} />
-        <TrailingPanel V={V} />
-        <PnlPanel V={V} wide />
+        {/* The Dashboard's banner: CAGR large, then 1-year return and the two drawdowns, each with the benchmark's. */}
+        <HeadlineBanner
+          hero={{ label: cagr ? 'CAGR Since Inception' : 'Return Since Inception', value: cagr ? cagr.value : si.v, color: cagr ? cagr.color : si.col }}
+          cells={[
+            { label: '1-Year Return', value: y1.v, color: y1.col, note: 'Last 12 months' },
+            ...(V.riskRows || []).map(r => ({ label: r.k === 'MAX DRAWDOWN' ? 'Max Drawdown' : 'Current Drawdown', value: r.v, color: r.vc, note: r.note })),
+          ]} />
+        {/* All ten measures in one panel, two columns of five */}
+        <MetricsPanel V={V} />
+        <MonthlyPanel V={V} />
       </View>
     </DataState>
   );
@@ -651,22 +760,22 @@ function Holdings({ V }) {
   const retCols = [
     { key: 'name', label: 'Account', flex: 1.8, render: h => <View><Tx w={600} s={13} numberOfLines={1}>{h.name}</Tx><Tx s={12} c={C.ink3}>{h.id}</Tx></View> },
     ...RET_KEYS.map(([k, l]) => ({ key: k, label: l, right: true, render: h => { const v = h.tr ? h.tr[k] : null; return <Amt s={13} c={v == null ? C.ink3 : signCol(v)}>{v == null ? '–' : pct(v)}</Amt>; } })),
-    { key: 'mdd', label: 'Max drawdown', right: true, flex: 1.1, render: h => <Amt s={13} c={h.mdd ? C.red : C.ink3}>{h.mdd || '–'}</Amt> },
+    { key: 'mdd', label: 'Max Drawdown', right: true, flex: 1.1, render: h => <Amt s={13} c={h.mdd ? C.red : C.ink3}>{h.mdd || '–'}</Amt> },
   ];
   return (
     <DataState V={V}>
       <View style={{ gap: 20 }}>
         <Row>
-          <Stat label="Total value" value={rows.length ? inr(total) : '–'} note={rows.length + (rows.length === 1 ? ' account' : ' accounts')} style={{ flex: 1.3 }} />
+          <Stat label="Total Value" value={rows.length ? inr(total) : '–'} note={rows.length + (rows.length === 1 ? ' account' : ' accounts')} style={{ flex: 1.3 }} />
           <Stat label="Strategies" value={String(slices.length)} note={slices.map(s => String(s.name)).join(', ')} style={{ flex: 1 }} />
-          <Stat label="Best return (SI)" value={best ? best.ret : '–'} color={best ? best.retColor : C.ink} note={best ? best.name + ' · ' + best.id : ''} style={{ flex: 1 }} />
-          <Stat label="Deepest drawdown" value={deepest ? deepest.mdd : '–'} color={deepest ? C.red : C.ink} note={deepest ? deepest.name + ' · ' + deepest.id : ''} style={{ flex: 1 }} />
+          <Stat label="Best Return (SI)" value={best ? best.ret : '–'} color={best ? best.retColor : C.ink} note={best ? best.name + ' · ' + best.id : ''} style={{ flex: 1 }} />
+          <Stat label="Deepest Drawdown" value={deepest ? deepest.mdd : '–'} color={deepest ? C.red : C.ink} note={deepest ? deepest.name + ' · ' + deepest.id : ''} style={{ flex: 1 }} />
         </Row>
         <Row>
-          <HoldingsTable V={V} title="Strategy accounts" sub="Value, weight and performance of each account in this view" />
+          <HoldingsTable V={V} title="Strategy Accounts" sub="Value, weight and performance of each account in this view" />
           <Allocation V={V} />
         </Row>
-        <Panel title="Returns by account" sub="Trailing returns for each account, as reported" pad={0}>
+        <Panel title="Returns by Account" sub="Trailing returns for each account, as reported" pad={0}>
           <Table cols={retCols} rows={rows} empty="No active strategies in this view." />
         </Panel>
       </View>
@@ -754,6 +863,7 @@ export default function DesktopShell({ V }) {
         </ScrollView>
       </View>
       <RequestSheets V={V} />
+      <ClosedAccountDialog p={V.closedPopup} onClose={V.dismissClosed} />
       <SwitchSheet V={V} />
       <SettingsSheet V={V} />
       <NotifsSheet V={V} />
@@ -768,7 +878,7 @@ export function DesktopAuthFrame({ children }) {
     <View style={{ flexDirection: 'row', gap: 14, marginTop: 22, maxWidth: 460 }}>
       <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.gold, marginTop: 6 }} />
       <View style={{ flex: 1 }}>
-        <Tx w={700} s={15} c={C.cream}>{title}</Tx>
+        <Tx w={700} s={15} c={C.cream}>{titleCase(title)}</Tx>
         <Tx s={13} c={C.cream60} lh={1.5} style={{ marginTop: 3 }}>{body}</Tx>
       </View>
     </View>

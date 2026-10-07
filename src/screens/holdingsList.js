@@ -7,6 +7,8 @@ import { C, Tx, Amt, Card } from '../ui';
 import { useLoad, Loading, ErrorBox, Empty, SectionLabel, AccountSelect } from './kit';
 import { portfolio } from '../api';
 import { inr, sinr, pct, fmtDate } from '../adapt';
+import { Donut } from './charts';
+import { titleCase } from '../titleCase';
 
 const signCol = v => (v == null || v === 0 ? C.muted : v < 0 ? C.red : C.pos);
 const BARS = ['#02422B', '#DABD38', '#2F6F5E', '#8A700C', '#5B8A7A', '#B89A2E'];
@@ -33,6 +35,42 @@ function GainBadge({ v }) {
   );
 }
 
+// As the web Portfolio page's picker: All accounts (combined value), then each account with its strategy colour, code,
+// value and share, grouped under the family member who holds it when there is more than one.
+function acctOptions(accts) {
+  const owners = [...new Set(accts.map(h => h.owner || ''))];
+  const grouped = owners.length > 1;
+  const total = accts.reduce((t, h) => t + (h.raw || 0), 0);
+  const one = h => ({ id: h.id, label: short(h.name), sub: h.id, dot: h.color, right: h.value, rightSub: h.alloc + '%', group: grouped ? h.owner || 'Other accounts' : undefined });
+  return [
+    { id: 'all', label: 'All accounts', sub: grouped ? 'Combined across the family' : accts.length + ' accounts combined', right: total ? inr(total) : undefined },
+    ...(grouped ? owners.flatMap(o => accts.filter(h => (h.owner || '') === o).map(one)) : accts.map(one)),
+  ];
+}
+
+// A donut of the shares, then its legend: colour, name (value under it) and share (the web's DonutLegend).
+function DonutCard({ items, count, label }) {
+  return (
+    <Card style={{ paddingVertical: 16, paddingHorizontal: 16 }}>
+      <View style={{ alignItems: 'center' }}>
+        <Donut slices={items.map(b => ({ pct: Number(b.w) || 0, color: b.color }))} count={count} label={label} size={132} />
+      </View>
+      <View style={{ gap: 10, marginTop: 14 }}>
+        {items.map((b, k) => (
+          <View key={b.label + ':' + k} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+            <View style={{ width: 9, height: 9, borderRadius: 2, backgroundColor: b.color, marginTop: 4 }} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Tx w={700} s={12.5} numberOfLines={1}>{b.label}{b.sub ? <Tx s={11} c={C.muted}>{'  ' + b.sub}</Tx> : null}</Tx>
+              {b.value != null && <Amt s={11} c={C.muted}>{inr(b.value)}</Amt>}
+            </View>
+            <Amt w={700} s={12.5}>{(Number(b.w) || 0).toFixed(2)}%</Amt>
+          </View>
+        ))}
+      </View>
+    </Card>
+  );
+}
+
 export function HoldingsList({ V }) {
   const accts = V.holdings || [];
   const scope = accts.map(h => h.id);
@@ -49,14 +87,16 @@ export function HoldingsList({ V }) {
   const items = (data && data.items) || [];
   const sectors = (data && data.sectors) || [];
   const top = sectors.slice(0, 6), rest = sectors.slice(6);
-  const bars = top.map((s, k) => ({ label: s.sector, w: s.weight, color: BARS[k % BARS.length] }))
-    .concat(rest.length ? [{ label: 'Other sectors', w: rest.reduce((a, s) => a + s.weight, 0), color: C.mutedBorder }] : []);
+  const bars = top.map((s, k) => ({ label: titleCase(s.sector), w: s.weight, value: s.value, color: BARS[k % BARS.length] }))
+    .concat(rest.length ? [{ label: 'Other Sectors', sub: rest.length + ' more', w: rest.reduce((a, s) => a + s.weight, 0), value: rest.reduce((a, s) => a + s.value, 0), color: C.mutedBorder }] : []);
+  const CLASS_COLOR = { Stocks: '#02422B', ETFs: '#2F6F5E', 'Mutual funds': '#DABD38', Derivatives: '#8A700C', Cash: '#86918B' };
+  const classes = ((data && data.assetClasses) || []).map(a => ({ label: titleCase(a.assetClass), w: a.weight, value: a.value, color: CLASS_COLOR[a.assetClass] || C.green }));
   const shown = all ? items : items.slice(0, PAGE);
 
   return (
     <View>
       <AccountSelect value={codes.length === 1 && scope.length > 1 ? codes[0] : 'all'} onPick={id => { setAcct(id); setAll(false); }}
-        options={scope.length > 1 ? [{ id: 'all', label: 'All accounts' }, ...accts.map(h => ({ id: h.id, label: short(h.name) + ' ' + h.id, dot: h.color }))] : []} />
+        options={scope.length > 1 ? acctOptions(accts) : []} />
 
       {err && !data ? <View style={{ marginTop: 14 }}><ErrorBox msg={err} onRetry={reload} /></View>
         : loading && !data ? <Loading rows={4} /> : !data ? null : (
@@ -67,10 +107,10 @@ export function HoldingsList({ V }) {
             {/* Three equal columns split by hairlines, each centred: label, figure, then the gain badge under the gain. */}
             <View style={{ flexDirection: 'row', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderColor: C.hairline }}>
               <SumCol label="INVESTED">
-                <Amt s={13} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{inr(tot.invested, 0)}</Amt>
+                <Amt s={13} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{inr(tot.invested)}</Amt>
               </SumCol>
               <SumCol label="UNREALISED GAIN" divider>
-                <Amt s={13} c={signCol(tot.gain)} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{sinr(tot.gain, 0)}</Amt>
+                <Amt s={13} c={signCol(tot.gain)} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{sinr(tot.gain)}</Amt>
                 {tot.gainPct != null && <GainBadge v={tot.gainPct} />}
               </SumCol>
               <SumCol label="HOLDINGS" divider>
@@ -81,20 +121,14 @@ export function HoldingsList({ V }) {
 
           {!!bars.length && (
             <>
-              <SectionLabel>BY SECTOR</SectionLabel>
-              <Card style={{ paddingVertical: 14, paddingHorizontal: 16, gap: 11 }}>
-                {bars.map((b, k) => (
-                  <View key={b.label + ':' + k}>
-                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-                      <Tx s={12} numberOfLines={1} style={{ flex: 1 }}>{b.label}</Tx>
-                      <Amt s={12}>{b.w.toFixed(2)}%</Amt>
-                    </View>
-                    <View style={{ height: 5, borderRadius: 3, backgroundColor: C.hairline, marginTop: 5, overflow: 'hidden' }}>
-                      <View style={{ width: Math.max(1.5, Math.min(100, b.w)) + '%', height: 5, borderRadius: 3, backgroundColor: b.color }} />
-                    </View>
-                  </View>
-                ))}
-              </Card>
+              <SectionLabel>SECTOR ALLOCATION</SectionLabel>
+              <DonutCard items={bars} count={sectors.length} label={sectors.length === 1 ? 'SECTOR' : 'SECTORS'} />
+            </>
+          )}
+          {!!classes.length && (
+            <>
+              <SectionLabel>ASSET CLASS</SectionLabel>
+              <DonutCard items={classes} count={classes.length} label={classes.length === 1 ? 'CLASS' : 'CLASSES'} />
             </>
           )}
 
@@ -110,7 +144,7 @@ export function HoldingsList({ V }) {
                     </Tx>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Amt s={13}>{inr(i.value, 0)}</Amt>
+                    <Amt s={13}>{inr(i.value)}</Amt>
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
                       {i.gainPct != null && <Amt s={11} c={signCol(i.gainPct)}>{pct(i.gainPct)}</Amt>}
                       <Amt s={11} c={C.muted}>{i.weight.toFixed(2)}%</Amt>

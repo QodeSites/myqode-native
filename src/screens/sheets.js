@@ -120,7 +120,7 @@ export function SwitchSheet({ V }) {
       <View style={{ paddingHorizontal: 22, paddingTop: 12, paddingBottom: 24 }}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Tx f="play" w={600} s={21}>Family accounts</Tx>
+            <Tx f="play" w={600} s={21}>Family Accounts</Tx>
             <Tx s={12} c={C.muted} style={{ marginTop: 3 }}>Switch between linked PMS accounts</Tx>
           </View>
           {/* Sign out icon, in the red of the Sign out button on More. A distributor viewing an investor leaves the view there

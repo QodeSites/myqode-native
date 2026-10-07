@@ -16,7 +16,7 @@
 import React, { useState } from 'react';
 import { View, Pressable } from 'react-native';
 import { C, Tx, Amt, Field, CTA, useBackHandler } from '../ui';
-import { inr } from '../adapt';
+import { inr, initials } from '../adapt';
 import { Check, ChevronDown } from '../icons';
 import { services } from '../api';
 import { useLoad, Loading, ErrorBox } from './kit';
@@ -30,7 +30,6 @@ const STEPS = [['Switch from', ''], ['Switch to', 'Where the money goes'], ['Rev
 const fmt = v => inr(Number(v || 0));
 const fmt0 = fmt;   // one money format app-wide (src/adapt.js)
 const digits = t => parseInt(String(t || '').replace(/\D/g, '') || '0', 10);
-const initials = n => String(n || '').replace(/^(mr|mrs|ms|dr)\.?\s+/i, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'Q';
 const Lbl = ({ children, style }) => <Tx w={700} s={10} ls={0.12} c={C.gray} style={[{ marginTop: 20, marginBottom: 8 }, style]}>{children}</Tx>;
 
 // One selectable row: white card, circle tick on the right.

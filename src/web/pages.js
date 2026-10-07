@@ -1,13 +1,15 @@
 // Desktop web versions of the content pages (src/screens/pages.js + about.js). Same data, calls and actions as the
 // phone pages, laid out with the web design system (./kit): articles in a reading column with a sticky
 // "On this page" rail, tables for tabular data, multi-column grids for everything else.
+import { titleCase } from '../titleCase';
 import React, { useState } from 'react';
 import { View, Pressable, Image, Linking, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { C, Tx, Amt, Card, Row, Grid, Label, Panel, Stat, DarkCard, Btn, Chips, Tabs, Table, KeyVals, TextLink, Pill, Loading, Empty, ErrorBlock, Dialog, sentence } from './kit';
 import { DesktopVoice } from './voice';
 import { DesktopTransactions } from './transactions';
 import { NuvamaDetails } from './nuvama';
-import { inr } from '../adapt';
+import { inr, initials } from '../adapt';
 import { ChevronRight, ChevronDown, Phone, MailIcon } from '../icons';
 import { experience, engagement } from '../api';
 import * as content from '../content';
@@ -18,7 +20,7 @@ import { irLinks } from '../screens/contact';
 import { ContactCard } from './contact';
 import { NotificationSettings } from '../screens/notifications';
 import {
-  WEB, MANAGERS, CADENCE, STRATS, STRAT_GLOSSARY, WEALTHSPECTRUM, PASSWORD_PDF, ACCESS, REPORT_GROUPS, norm,
+  WEB, MANAGERS, CADENCE, STRATS, PRESENTATIONS, STRAT_GLOSSARY, WEALTHSPECTRUM, PASSWORD_PDF, ACCESS, REPORT_GROUPS, norm,
   BOOKING, LEVELS, LineIcon,
 } from '../screens/about';
 
@@ -31,9 +33,7 @@ const scrollTo = id => {
 };
 const sticky = Platform.OS === 'web' ? { position: 'sticky', top: 0 } : null;
 
-// Title Case copy from the shared content ("Timeline & Purpose") reads as a sentence on the web.
-const KEEP_WORDS = new Set(['Qode', 'SEBI', 'IR', 'KYC', 'WhatsApp', 'QAW', 'QTF', 'QGF', 'PMS']);
-const sc = t => String(t || '').split(' ').map((w, i) => (i === 0 || KEEP_WORDS.has(w.replace(/[^A-Za-z]/g, '')) || w === w.toUpperCase() ? w : w.toLowerCase())).join(' ');
+const sc = titleCase;   // names and headings from the shared content, in Title Case (src/titleCase.js)
 
 /* ── Local pieces ──────────────────────────────────────────────────────────────────────────────────────── */
 const Body = ({ children, style, s = 14 }) => <Tx s={s} lh={1.7} c={C.ink2} style={style}>{children}</Tx>;
@@ -64,7 +64,7 @@ const Lead = ({ children, style }) => <Tx s={15} lh={1.65} c={C.ink2} style={[{ 
 
 /* ── Side rail: "On this page" + related pages ─────────────────────────────────────────────────────────── */
 const RELATED = {
-  about: [['philosophy', 'Qode Philosophy'], ['foundation', 'Foundation'], ['strategies', 'Strategy Snapshot'], ['team', 'Your Team at Qode']],
+  about: [['philosophy', 'Qode Philosophy'], ['foundation', 'Foundation'], ['team', 'Your Team at Qode']],
   legal: [['privacy', 'Privacy policy'], ['terms', 'Terms and conditions'], ['cancellation', 'Cancellation and refund'], ['risk', 'Risk Management & Controls'], ['grievance', 'Escalation and Grievance Redressal']],
 };
 function Rail({ V, toc, related, children }) {
@@ -128,7 +128,6 @@ function ArticlePage({ V, data, related }) {
 }
 
 /* ── Family accounts ───────────────────────────────────────────────────────────────────────────────────── */
-const initials = n => String(n || '?').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 const dash = v => v || '–';
 const FAMILY_COLS = [
   { key: 'clientcode', label: 'Account', flex: 1.1, render: a => <Tx w={600} s={13.5}>{a.clientcode}</Tx> },
@@ -416,7 +415,7 @@ function Cadence({ V }) {
       <Card style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 0 }}>
         <View style={{ width: 280, padding: 22, gap: 8, borderRightWidth: 1, borderColor: C.line, backgroundColor: C.subtle }}>
           <View style={{ alignSelf: 'flex-start' }}><Pill label="Always" /></View>
-          <Tx f="play" w={600} s={20}>Response times</Tx>
+          <Tx f="play" w={600} s={20}>Response Times</Tx>
           <Tx w={600} s={13.5} c={C.green} lh={1.5}>How quickly we come back to you</Tx>
         </View>
         <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: 24, padding: 22 }}>
@@ -461,7 +460,7 @@ function Foundation({ V }) {
           </Card>
         ))}
       </Row>
-      <RelatedRow V={V} keys={['philosophy', 'strategies', 'team']} />
+      <RelatedRow V={V} keys={['philosophy', 'team']} />
     </View>
   );
 }
@@ -487,7 +486,7 @@ function Philosophy({ V }) {
           </Card>
         ))}
       </Row>
-      <RelatedRow V={V} keys={['foundation', 'strategies', 'team']} />
+      <RelatedRow V={V} keys={['foundation', 'team']} />
     </View>
   );
 }
@@ -495,7 +494,7 @@ function Philosophy({ V }) {
 // "Continue reading": the neighbouring About Qode pages as link cards across the width.
 const RELATED_TEXT = {
   philosophy: ['Qode Philosophy', 'What we believe and why'], foundation: ['Foundation', 'Mission, vision and our fund managers'],
-  strategies: ['Strategy Snapshot', 'Each strategy, its benchmark and pillars'], team: ['Your Team at Qode', 'Who to reach and how'],
+  strategies: ['Strategy', 'Each strategy, its benchmark and pillars'], team: ['Your Team at Qode', 'Who to reach and how'],
   reports: ['Reports', 'Statements and reports to download'], grievance: ['Grievance redressal', 'If something isn’t resolved'],
 };
 function RelatedRow({ V, keys }) {
@@ -522,51 +521,60 @@ function RelatedRow({ V, keys }) {
 }
 
 /* ── Strategy snapshot ─────────────────────────────────────────────────────────────────────────────────── */
-function Strategies() {
+// Option D: a row per strategy. Left, on the strategy's colour: its code, name (one line) and benchmark. Middle: what it does. Right: the four pillars, numbered, and the presentation (view /
+// download). The glossary for the starred pillars is one line underneath.
+function Strategies({ V }) {
+  const pres = Object.fromEntries(PRESENTATIONS.map(p => [p.code, p]));
   return (
     <View>
       <Lead style={{ marginBottom: 20 }}>Discover Qode's investment strategies and their core pillars designed for different risk profiles and investment horizons.</Lead>
-      <Row gap={16}>
-        {STRATS.map(s => (
-          <Card key={s.code} style={{ flex: 1, overflow: 'clip' }}>
-            <View style={{ height: 4, backgroundColor: s.color }} />
-            <View style={{ padding: 22, flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: s.color }} />
-                <Tx w={600} s={12} c={C.ink3}>{s.code}</Tx>
+      <View style={{ gap: 16 }}>
+        {STRATS.map(s => {
+          const p = pres[s.code];
+          return (
+            <Card key={s.code} style={{ flexDirection: 'row', flexWrap: 'wrap', overflow: 'clip' }}>
+              <LinearGradient colors={[s.color, s.accent]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={{ flexGrow: 0, flexShrink: 0, flexBasis: 320, minWidth: 300, padding: 24, justifyContent: 'space-between', gap: 18 }}>
+                <View>
+                  <Tx w={700} s={11.5} ls={0.12} c="rgba(255,255,255,0.85)">{s.code}</Tx>
+                  {/* wide enough for the longest name ("Qode Tactical Fund (QTF)™") on one line */}
+                  <Tx f="play" w={600} s={19} c="#fff" numberOfLines={1} style={{ marginTop: 8 }}>{s.title}</Tx>
+                </View>
+                <View>
+                  <Tx s={12} c="rgba(255,255,255,0.8)">Benchmark</Tx>
+                  <Tx w={700} s={14} c="#fff" style={{ marginTop: 2 }}>{s.benchmark}</Tx>
+                </View>
+              </LinearGradient>
+              <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 320, minWidth: 0, padding: 24 }}>
+                <Body s={14}>{s.desc}</Body>
               </View>
-              <Tx f="play" w={600} s={20} style={{ marginTop: 8 }}>{s.title}</Tx>
-              <Body s={13} style={{ marginTop: 8, flex: 1 }}>{s.desc}</Body>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 22, paddingVertical: 12, borderTopWidth: 1, borderColor: C.line, backgroundColor: C.subtle }}>
-              <Tx s={12.5} c={C.ink3}>Benchmark</Tx>
-              <Tx w={600} s={13}>{s.benchmark}</Tx>
-            </View>
-          </Card>
+              <View style={{ flexGrow: 0, flexShrink: 0, flexBasis: 300, padding: 24, borderLeftWidth: 1, borderColor: C.line, gap: 9 }}>
+                <Tx w={600} s={12} c={C.ink3} style={{ marginBottom: 2 }}>Core Pillars</Tx>
+                {s.pills.map((t, i) => (
+                  <View key={t} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: s.color, alignItems: 'center', justifyContent: 'center' }}>
+                      <Tx w={700} s={11.5} c="#fff">{i + 1}</Tx>
+                    </View>
+                    <Tx w={600} s={13.5}>{titleCase(t)}</Tx>
+                  </View>
+                ))}
+                {!!p && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+                    <Btn small kind="outline" label="View Presentation" onPress={() => openUrl(p.view)} />
+                    <Btn small label="Download" onPress={() => openUrl(p.download)} />
+                  </View>
+                )}
+              </View>
+            </Card>
+          );
+        })}
+      </View>
+      {/* The starred pillars, explained in one line */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 26, rowGap: 8, marginTop: 18 }}>
+        {STRAT_GLOSSARY.map(([t, d]) => (
+          <Tx key={t} s={12.5} c={C.ink2} lh={1.5} style={{ flexShrink: 1 }}><Tx w={600} s={12.5}>{t}</Tx> {d}</Tx>
         ))}
-      </Row>
-      {/* Lined up with the cards above: pillars span the first two columns (+ the gap between them), the glossary
-          the third; both stretch to the same height. */}
-      <Row gap={16} style={{ marginTop: 16 }}>
-        <Panel title="Core pillars" pad={0} style={{ flexGrow: 2, flexShrink: 1, flexBasis: 16, minWidth: 0 }}>
-          <Table cols={[
-            { key: 'code', label: 'Strategy', flex: 1.3, render: s => (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <View style={{ width: 3, height: 24, borderRadius: 2, backgroundColor: s.color }} />
-                <Tx w={600} s={13.5}>{s.code}</Tx>
-              </View>) },
-            ...[0, 1, 2, 3].map(i => ({ key: 'p' + i, label: 'Pillar ' + (i + 1), flex: 1.2, render: s => <Tx s={13}>{s.pills[i]}</Tx> })),
-          ]} rows={STRATS.map(s => ({ ...s, id: s.code }))} />
-        </Panel>
-        <Panel title="Glossary" style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 }}>
-          {STRAT_GLOSSARY.map(([t, d], i) => (
-            <View key={t} style={{ paddingTop: i ? 12 : 0, marginTop: i ? 12 : 0, borderTopWidth: i ? 1 : 0, borderColor: C.line }}>
-              <Tx w={600} s={13.5}>{t}</Tx>
-              <Body s={13} style={{ marginTop: 4 }}>{d}</Body>
-            </View>
-          ))}
-        </Panel>
-      </Row>
+      </View>
     </View>
   );
 }
@@ -577,7 +585,7 @@ function Channel({ icon, title, children, dark }) {
     <>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <IconChip name={icon} dark={dark} />
-        <Tx w={600} s={16} c={dark ? C.cream : C.ink} style={{ flex: 1 }}>{title}</Tx>
+        <Tx w={600} s={16} c={dark ? C.cream : C.ink} style={{ flex: 1 }}>{titleCase(title)}</Tx>
       </View>
       <View style={{ flex: 1, marginTop: 14 }}>{children}</View>
     </>
@@ -612,7 +620,7 @@ function Team({ V }) {
       <DarkCard style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 16, paddingVertical: 18 }}>
         <IconChip name="calendar" dark />
         <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 280, minWidth: 0 }}>
-          <Tx w={600} s={16} c={C.cream}>Book a call</Tx>
+          <Tx w={600} s={16} c={C.cream}>Book a Call</Tx>
           <Labelled dark label="Purpose" style={{ marginTop: 4 }}>Quick, hassle‑free scheduling of calls with your IR team.</Labelled>
         </View>
         <Btn kind="gold" label="Book a call" onPress={() => go(BOOKING)} />
@@ -713,7 +721,7 @@ function Grievance({ V }) {
         <Card style={{ flex: 1, padding: 24 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <IconChip name="shield" />
-            <Tx w={600} s={15}>Investor protection</Tx>
+            <Tx w={600} s={15}>Investor Protection</Tx>
           </View>
           <Body style={{ marginTop: 12 }}>All complaints and resolutions are documented and reviewed periodically.</Body>
         </Card>
@@ -735,25 +743,26 @@ function Risk() {
   return (
     <View>
       {R.intro.map((t, i) => <Lead key={i} style={{ marginBottom: 20 }}>{t}</Lead>)}
-      <Grid min={250} gap={16}>
-        {R.policies.map(p => (
-          <Card key={p.title} style={{ padding: 22, flex: 1 }}>
+      {/* One list: each policy a row (icon, name and what it says, its PDF on the right), split by lines */}
+      <Card style={{ paddingHorizontal: 24 }}>
+        {R.policies.map((p, k) => (
+          <View key={p.title} style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 18, paddingVertical: 20, borderTopWidth: k ? 1 : 0, borderColor: C.line }}>
             <IconChip name="shield" />
-            <Tx w={600} s={15} style={{ marginTop: 14 }}>{sc(p.title)}</Tx>
-            <View style={{ flex: 1 }}>
-              {p.body.map((t, i) => <Body key={i} s={13} style={{ marginTop: 8 }}>{t}</Body>)}
+            <View style={{ flex: 1, minWidth: 260 }}>
+              <Tx w={600} s={15}>{sc(p.title)}</Tx>
+              {p.body.map((t, i) => <Body key={i} s={13} style={{ marginTop: 4 }}>{t}</Body>)}
             </View>
-            {!!p.pdf && <Btn kind="outline" small label="View policy (PDF)" onPress={() => openUrl(p.pdf)} style={{ marginTop: 18, alignSelf: 'flex-start' }} />}
-          </Card>
+            {!!p.pdf && <Btn kind="outline" small label="View policy (PDF)" onPress={() => openUrl(p.pdf)} />}
+          </View>
         ))}
-      </Grid>
+      </Card>
     </View>
   );
 }
 
 /* ── Hub pages (sidebar: About Qode, Support) ─────────────────────────────────────────────────────────────── */
 // A dark intro, then the pages that used to have their own menu items as icon cards, three a row
-// (src/web/webNav.js). About Qode also shows the three strategies and their benchmarks.
+// (src/web/webNav.js). The strategies have their own sidebar item, Strategy.
 const HUBS = {
   about: {
     eyebrow: 'About Qode', title: 'Guided by evidence. Driven by data. Built for the long term.',
@@ -761,7 +770,6 @@ const HUBS = {
     items: [
       ['philosophy', 'chart', 'Qode Philosophy', 'What we believe and why'],
       ['foundation', 'trend', 'Foundation', 'Our mission, vision and a note from our fund managers'],
-      ['strategies', 'clipboard', 'Strategy Snapshot', 'Each strategy, its benchmark and core pillars'],
       ['team', 'user', 'Your Team at Qode', 'Who to reach, and how'],
       ['cadence', 'calendar', 'Service Cadence', 'Reports, reviews and response times'],
       ['insights', 'mail', 'Insights & Events', 'Newsletters, perspectives and events'],
@@ -774,7 +782,6 @@ const HUBS = {
       ['services', 'clipboard', 'Account Services', 'Top-ups, withdrawals, switches, SIPs and other requests'],
       ['faq', 'message', 'FAQs & Glossary', 'Answers to common questions, and the terms we use'],
       ['grievance', 'mail', 'Escalation and Grievance Redressal', 'If something isn’t resolved'],
-      ['risk', 'shield', 'Risk Management & Controls', 'Our hedging, liquidity, rebalancing and other policies'],
       ['voice', 'user', 'Your Voice Matters', 'Tell us how we’re doing'],
       ['referral', 'trend', 'Referral Program', 'Refer an investor and earn a reward'],
     ] },
@@ -805,7 +812,7 @@ function Hub({ V, k }) {
                   <ChevronRight s={14} c={hovered ? C.green : C.ink3} />
                 </View>
                 <View>
-                  <Tx w={600} s={16} c={C.green}>{title}</Tx>
+                  <Tx w={600} s={16} c={C.green}>{titleCase(title)}</Tx>
                   <Tx s={13} c={C.ink3} lh={1.5} style={{ marginTop: 4 }}>{sub}</Tx>
                 </View>
               </Card>
@@ -814,24 +821,6 @@ function Hub({ V, k }) {
         ))}
       </Grid>
       {k === 'support' && <ContactCard code={V.user && V.user.clientCode} />}
-      {k === 'about' && (
-        <View>
-          <SectionTitle sub="Three strategies, each measured against its own benchmark" style={{ marginTop: 8 }}>Our strategies</SectionTitle>
-          <Row gap={16}>
-            {STRATS.map(st => (
-              <Pressable key={st.code} accessibilityRole="link" onPress={() => V.openPage('strategies')} style={{ flex: 1 }}>
-                {({ hovered }) => (
-                  <Card style={{ padding: 20, borderTopWidth: 3, borderTopColor: st.color, borderColor: hovered ? C.green : C.line, flex: 1 }}>
-                    <Tx w={700} s={12} c={st.color}>{st.code}</Tx>
-                    <Tx f="play" w={600} s={17} style={{ marginTop: 6 }}>{st.title}</Tx>
-                    <Tx s={12.5} c={C.ink3} style={{ marginTop: 8 }}>Benchmark <Tx w={600} s={12.5} c={C.ink}>{st.benchmark}</Tx></Tx>
-                  </Card>
-                )}
-              </Pressable>
-            ))}
-          </Row>
-        </View>
-      )}
     </View>
   );
 }
@@ -850,7 +839,7 @@ export const DESKTOP_PAGES = {
   cadence: { title: 'Service Cadence', body: V => <Cadence V={V} /> },
   philosophy: { title: 'Qode Philosophy', body: V => <Philosophy V={V} /> },
   foundation: { title: 'Foundation', body: V => <Foundation V={V} /> },
-  strategies: { title: 'Strategy Snapshot', body: () => <Strategies /> },
+  strategies: { title: 'Strategy', body: V => <Strategies V={V} /> },
   team: { title: 'Your Team at Qode', body: V => <Team V={V} /> },
   faq: { title: 'FAQs & Glossary', body: () => <Faq /> },
   grievance: { title: 'Escalation and Grievance Redressal', body: V => <Grievance V={V} /> },

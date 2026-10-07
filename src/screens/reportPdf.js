@@ -391,7 +391,7 @@ function factsheetParts(r, accountId) {
   // in which case the backend's note is printed in small type right under the title band.
   const head = header('Portfolio Fact Sheet', r.asOf, [...acctFields(accountId, r.holder, r.strategy), ['Inception', dl(r.inceptionDate)]])
     + (r.computed && r.note ? `<p class="note" style="margin:6px 0 10px">${esc(r.note)}</p>` : '');
-  const top = tiles([[`Portfolio value · ${dl(r.valueDate)}`, inr(r.portfolioValue, 0)], ['Profit / loss', inr(r.profitLoss, 0), cls(r.profitLoss)], ['Contribution', inr(r.contribution, 0)], ['Withdrawal', inr(r.withdrawal, 0)]]);
+  const top = tiles([[`Portfolio value · ${dl(r.valueDate)}`, inr(r.portfolioValue)], ['Profit / loss', inr(r.profitLoss), cls(r.profitLoss)], ['Contribution', inr(r.contribution)], ['Withdrawal', inr(r.withdrawal)]]);
   const sectors = r.sectors.length ? `<h3>Sector allocation</h3>${r.sectors.slice().sort((x, y) => (y.pct || 0) - (x.pct || 0)).map(x => `<div class="srow">${esc(x.sector)}<b>${pc(x.pct)}</b>
     <div class="bar"><i style="width:${Math.max(0.5, Math.min(100, x.pct || 0))}%"></i></div></div>`).join('')}` : '';
   const perf = periods.length ? `<h3>Performance (TWRR)</h3>
@@ -404,8 +404,8 @@ function factsheetParts(r, accountId) {
   const tot = r.holdings.reduce((a, x) => a + (x.value || 0), 0);
   const holdings = r.holdings.length ? `<h3>Portfolio holdings · ${r.holdings.length}</h3><table class="fixed"><colgroup><col style="width:5%"><col style="width:50%"><col style="width:19%"><col style="width:15%"><col style="width:11%"></colgroup>
     <thead><tr><th>#</th><th>Security</th><th>Sector</th><th class="r">Market value (₹)</th><th class="r">% of assets</th></tr></thead><tbody>
-    ${r.holdings.map((x, i) => `<tr class="z"><td>${i + 1}</td><td class="wrap">${esc(x.security)}</td><td class="wrap">${esc(x.sector)}</td><td class="r">${nf(x.value, 0)}</td><td class="r">${pc(x.pct)}</td></tr>`).join('')}
-    <tr class="tot"><td></td><td>Total</td><td></td><td class="r">${nf(tot, 0)}</td><td class="r">100.00%</td></tr></tbody></table>` : '';
+    ${r.holdings.map((x, i) => `<tr class="z"><td>${i + 1}</td><td class="wrap">${esc(x.security)}</td><td class="wrap">${esc(x.sector)}</td><td class="r">${nf(x.value)}</td><td class="r">${pc(x.pct)}</td></tr>`).join('')}
+    <tr class="tot"><td></td><td>Total</td><td></td><td class="r">${nf(tot)}</td><td class="r">100.00%</td></tr></tbody></table>` : '';
   return [head, `${top}<div class="two"><div>${sectors}</div><div>${perf}</div></div>${holdings}`];
 }
 
@@ -457,14 +457,14 @@ export function expensesAllPdf(r) {
 // Combined summary (values summed; returns are not additive), then each account's own fact sheet on a new page.
 export function factsheetAllPdf(r) {
   const head = header('Portfolio Fact Sheet', r.asOf, [...allFields(r), ['Requested', r.date ? dl(r.date) : 'Latest']]);
-  const top = tiles([['Portfolio value', inr(r.portfolioValue, 0)], ['Profit / loss', inr(r.profitLoss, 0), cls(r.profitLoss)], ['Contribution', inr(r.contribution, 0)], ['Withdrawal', inr(r.withdrawal, 0)]]);
+  const top = tiles([['Portfolio value', inr(r.portfolioValue)], ['Profit / loss', inr(r.profitLoss), cls(r.profitLoss)], ['Contribution', inr(r.contribution)], ['Withdrawal', inr(r.withdrawal)]]);
   const sheets = r.sheets || [];
   const table = `<h3>By account</h3><table class="fixed"><colgroup><col style="width:13%"><col><col style="width:11%"><col style="width:13%"><col style="width:13%"><col style="width:12%"><col style="width:11%"></colgroup>
     <thead><tr><th>Account</th><th>Strategy</th><th>As of</th><th class="r">Portfolio value (₹)</th><th class="r">Profit / loss (₹)</th><th class="r">Contribution (₹)</th><th class="r">Withdrawal (₹)</th></tr></thead><tbody>
     ${sheets.map(({ accountId, data: d }) => (d && d.asOf
-      ? `<tr class="z"><td>${esc(accountId)}</td><td class="wrap">${esc(strategyName(d.holder, d.strategy))}</td><td>${ds(d.asOf)}</td><td class="r">${nf(d.portfolioValue, 0)}</td><td class="r ${cls(d.profitLoss)}">${nf(d.profitLoss, 0)}</td><td class="r">${nf(d.contribution, 0)}</td><td class="r">${nf(d.withdrawal, 0)}</td></tr>`
+      ? `<tr class="z"><td>${esc(accountId)}</td><td class="wrap">${esc(strategyName(d.holder, d.strategy))}</td><td>${ds(d.asOf)}</td><td class="r">${nf(d.portfolioValue)}</td><td class="r ${cls(d.profitLoss)}">${nf(d.profitLoss)}</td><td class="r">${nf(d.contribution)}</td><td class="r">${nf(d.withdrawal)}</td></tr>`
       : `<tr class="z"><td>${esc(accountId)}</td><td colspan="6" class="note">No fact sheet for this date.</td></tr>`)).join('')}
-    <tr class="tot"><td>Total</td><td></td><td></td><td class="r">${nf(r.portfolioValue, 0)}</td><td class="r">${nf(r.profitLoss, 0)}</td><td class="r">${nf(r.contribution, 0)}</td><td class="r">${nf(r.withdrawal, 0)}</td></tr></tbody></table>
+    <tr class="tot"><td>Total</td><td></td><td></td><td class="r">${nf(r.portfolioValue)}</td><td class="r">${nf(r.profitLoss)}</td><td class="r">${nf(r.contribution)}</td><td class="r">${nf(r.withdrawal)}</td></tr></tbody></table>
     <p class="note">${esc(r.note || 'Returns are per account; values are summed.')}</p>`;
   const each = sheets.filter(s => s.data && s.data.asOf).map(({ accountId, data }) => `<div class="pb"></div>${factsheetParts(data, accountId).join('')}`).join('');
   return { html: page(false, head, failedNote(r) + top + table + each, factsheetSummary(r, true)), landscape: false };

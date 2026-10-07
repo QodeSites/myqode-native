@@ -34,15 +34,12 @@ function useOpener() {
 
 function SectionCard({ sec, count, countLoading, active, onPress }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={`${sec.title}, ${count || 0} files`} onPress={onPress} style={{ flex: 1 }}>
+    <Pressable accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={sec.title} onPress={onPress} style={{ flex: 1 }}>
       {({ hovered }) => (
         <Card style={{ flex: 1, padding: 18, minHeight: 168, borderColor: active ? C.green : hovered ? C.line2 : C.line, backgroundColor: active ? '#FBFCFA' : C.card,
           ...(active ? { outlineWidth: 1, outlineColor: C.green, outlineStyle: 'solid' } : null) }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: active ? C.green : C.greenTint, alignItems: 'center', justifyContent: 'center' }}>
-              <DocIcon s={17} c={active ? '#FFFFFF' : C.green} />
-            </View>
-            {countLoading ? <Tx s={12} c={C.ink3}>Counting files…</Tx> : <Pill label={`${count || 0} ${count === 1 ? 'file' : 'files'}`} tone={count ? 'ok' : 'neutral'} />}
+          <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: active ? C.green : C.greenTint, alignItems: 'center', justifyContent: 'center' }}>
+            <DocIcon s={17} c={active ? '#FFFFFF' : C.green} />
           </View>
           <Tx w={600} s={15} style={{ marginTop: 14 }} numberOfLines={2}>{sec.title}</Tx>
           <Tx s={12.5} c={C.ink2} lh={1.5} style={{ marginTop: 6, flex: 1 }}>{sec.description}</Tx>
@@ -73,7 +70,7 @@ function FilesPanel({ sec, accountId, reloadKey, onOpen }) {
     { key: 'open', label: '', flex: 0.7, right: true, render: f => <TextLink label="Open" onPress={() => { track('event', 'document_open', { category: sec.id, source: 'documents' }); onOpen(f.url); }} /> },
   ];
   return (
-    <Panel title={sec.title} sub={files.data ? `${list.length} ${list.length === 1 ? 'file' : 'files'}` : sec.description} pad={0}>
+    <Panel title={sec.title} sub={sec.description} pad={0}>
       {files.loading && !files.data ? <View style={{ padding: 20 }}><Loading rows={2} /></View>
         : files.err && !files.data ? <View style={{ padding: 20 }}><ErrorBlock msg={/server error|\(5\d\d\)/i.test(files.err) ? 'Documents are unavailable right now. Please try again later.' : files.err} onRetry={files.reload} /></View>
           : <Table cols={cols} rows={list} empty="No files found in this section." />}
@@ -140,7 +137,7 @@ export default function DesktopDocuments({ V }) {
                 : (
                   <Card style={{ paddingVertical: 40, paddingHorizontal: 28, alignItems: 'center', borderStyle: 'dashed', borderColor: C.line2, backgroundColor: 'transparent' }}>
                     <DocIcon s={22} c={C.ink3} />
-                    <Tx w={600} s={14.5} center style={{ marginTop: 10 }}>No section selected</Tx>
+                    <Tx w={600} s={14.5} center style={{ marginTop: 10 }}>No Section Selected</Tx>
                     <Tx s={13} c={C.ink2} center lh={1.55} style={{ marginTop: 4, maxWidth: 420 }}>Select a section above to list its files. Each file opens in a new tab.</Tx>
                   </Card>
                 )}

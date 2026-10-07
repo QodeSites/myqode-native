@@ -6,6 +6,7 @@
 //   Team              about/your-team-at-qode     — the four channels with their actions (forms, mail, booking, WhatsApp)
 //   Escalation        trust/escalation-and-grievance-redressal
 // Text is the web's, verbatim. Images are served by the live web app (public/).
+import { titleCase } from '../titleCase';
 import React, { useState } from 'react';
 import { View, Pressable, Image, Linking, ScrollView, Modal, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -34,7 +35,7 @@ const Bullets = ({ items, color = C.gold }) => items.map((t, i) => (
 ));
 const Heading = ({ children, style }) => (
   <View style={[{ marginTop: 26, marginBottom: 12, paddingBottom: 8, borderBottomWidth: 1, borderColor: 'rgba(55,88,79,0.2)' }, style]}>
-    <Tx f="play" w={600} s={19}>{children}</Tx>
+    <Tx f="play" w={600} s={19}>{titleCase(children)}</Tx>
   </View>
 );
 const Banner = ({ children }) => (
@@ -172,6 +173,13 @@ const STRATS = [
     desc: 'Qode Growth Fund (QGF) is a factor-based small-cap strategy designed to outperform over long periods. The strategy identifies fundamentally strong, high-growth businesses using a disciplined quantitative model.',
     pills: ['Quantitative Strategy', 'Small cap focused', 'Multifactor Model', 'Growth Investing'] },
 ];
+// Each strategy's presentation on the website's Resources page (https://qodeinvest.com/resources/, Aug 2026 editions):
+// `view` opens it in the browser, `download` saves the file.
+const RESOURCES = 'https://qodeinvest.com/resources';
+const PRESENTATIONS = STRATS.map(s => ({
+  code: s.code, title: s.title, color: s.color, edition: 'Aug 2026',
+  view: RESOURCES + '/' + s.code.toLowerCase(), download: RESOURCES + '/' + s.code.toLowerCase() + '/file?download=1',
+}));
 const GLOSSARY = [
   ['Highest Sharpe*', 'A measure of risk-adjusted returns - higher values indicate better performance per unit of risk taken.'],
   ['Hedge Overlay*', 'Risk management technique using derivatives to protect against adverse market movements while maintaining upside potential.'],
@@ -184,40 +192,52 @@ const Dots = () => (
   </Svg>
 );
 
-export function StrategySnapshot() {
-  const [open, setOpen] = useState(null);
+// Option D, stacked for the phone: each strategy one card. Its colour band carries the code, name and benchmark; under it, what it does, the four pillars numbered and the presentation.
+// The starred pillars are explained at the end.
+export function StrategySnapshot({ V }) {
+  const pres = Object.fromEntries(PRESENTATIONS.map(p => [p.code, p]));
   return (
     <>
       <Body>Discover Qode's investment strategies and their core pillars designed for different risk profiles and investment horizons.</Body>
-      {STRATS.map(s => (
-        <LinearGradient key={s.code} colors={[s.color, s.accent]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={{ borderRadius: 20, marginTop: 16, overflow: 'hidden', padding: 20 }}>
-          <Dots />
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={{ width: 28, height: 4, borderRadius: 2, backgroundColor: '#fff' }} />
-            <Tx w={700} s={11} ls={0.2} c="rgba(255,255,255,0.8)">{s.code}</Tx>
-          </View>
-          <Tx f="play" w={700} s={22} c="#fff" style={{ marginTop: 10 }}>{s.title}</Tx>
-          <Tx s={13} lh={1.6} c="rgba(255,255,255,0.9)" style={{ marginTop: 8 }}>{s.desc}</Tx>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
-            {s.pills.map(p => (
-              <View key={p} style={{ width: '48%', flexGrow: 1, backgroundColor: 'rgba(255,255,255,0.92)', borderRadius: 10, borderWidth: 2, borderColor: s.color, paddingVertical: 10, paddingHorizontal: 10 }}>
-                <Tx w={700} s={12} c="#1F2937" center>{p}</Tx>
+      {STRATS.map(s => {
+        const p = pres[s.code];
+        return (
+          <Card key={s.code} style={{ marginTop: 16, overflow: 'hidden' }}>
+            <LinearGradient colors={[s.color, s.accent]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 18 }}>
+              <Dots />
+              <Tx w={700} s={11} ls={0.2} c="rgba(255,255,255,0.85)">{s.code}</Tx>
+              {/* one line on any phone: the name shrinks a little rather than wrapping */}
+              <Tx f="play" w={700} s={20} c="#fff" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={{ marginTop: 6 }}>{s.title}</Tx>
+              <Tx s={11.5} c="rgba(255,255,255,0.8)" style={{ marginTop: 10 }}>Benchmark <Tx w={700} s={12} c="#fff">{s.benchmark}</Tx></Tx>
+            </LinearGradient>
+            <View style={{ padding: 16 }}>
+              <Tx s={13} lh={1.6} c={C.muted}>{s.desc}</Tx>
+              <Tx w={700} s={10} ls={0.12} c={C.muted} style={{ marginTop: 14 }}>CORE PILLARS</Tx>
+              <View style={{ gap: 8, marginTop: 8 }}>
+                {s.pills.map((t, i) => (
+                  <View key={t} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={{ width: 20, height: 20, borderRadius: 6, backgroundColor: s.color, alignItems: 'center', justifyContent: 'center' }}>
+                      <Tx w={700} s={10.5} c="#fff">{i + 1}</Tx>
+                    </View>
+                    <Tx w={700} s={13}>{titleCase(t)}</Tx>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-          <Tx s={11} c="rgba(255,255,255,0.75)" style={{ marginTop: 14 }}>Benchmark: {s.benchmark}</Tx>
-        </LinearGradient>
-      ))}
-      <Card style={{ padding: 16, marginTop: 20, backgroundColor: '#F9FAFB' }}>
-        <Tx f="play" w={600} s={18}>Glossary</Tx>
-        {GLOSSARY.map(([t, d], i) => (
-          <Pressable key={t} onPress={() => setOpen(open === t ? null : t)} style={{ marginTop: 12, paddingTop: i ? 12 : 0, borderTopWidth: i ? 1 : 0, borderColor: C.hairline }}>
-            <Tx w={700} s={13}>{t}</Tx>
-            <Tx s={12.5} c={C.muted} lh={1.55} style={{ marginTop: 3 }}>{d}</Tx>
-          </Pressable>
+              {!!p && (
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+                  <CTA label="VIEW PRESENTATION" outline onPress={() => openUrl(p.view)} style={{ flex: 1.4, paddingVertical: 11 }} />
+                  <CTA label="DOWNLOAD" onPress={() => openUrl(p.download)} style={{ flex: 1, paddingVertical: 11 }} />
+                </View>
+              )}
+            </View>
+          </Card>
+        );
+      })}
+      <View style={{ marginTop: 18, gap: 8 }}>
+        {GLOSSARY.map(([t, d]) => (
+          <Tx key={t} s={12} c={C.muted} lh={1.55}><Tx w={700} s={12} c={C.ink}>{t}</Tx> {d}</Tx>
         ))}
-      </Card>
+      </View>
     </>
   );
 }
@@ -454,4 +474,4 @@ export function Escalation() {
 }
 
 // Shared with the desktop web pages (src/web/pages.js), which lay the same content out for wide screens.
-export { WEB, MANAGERS, CADENCE, STRATS, GLOSSARY as STRAT_GLOSSARY, WEALTHSPECTRUM, PASSWORD_PDF, ACCESS, REPORT_GROUPS, norm, BOOKING, IR, LEVELS, LineIcon };
+export { WEB, MANAGERS, CADENCE, STRATS, PRESENTATIONS, GLOSSARY as STRAT_GLOSSARY, WEALTHSPECTRUM, PASSWORD_PDF, ACCESS, REPORT_GROUPS, norm, BOOKING, IR, LEVELS, LineIcon };

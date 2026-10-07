@@ -74,7 +74,7 @@ export default function DesktopServices({ V }) {
         <View style={{ width: 340, gap: 20 }}>
           <DarkCard style={{ padding: 22 }}>
             <Tx w={600} s={13} c={C.cream60}>Add funds</Tx>
-            <Tx f="play" w={600} s={21} c={C.cream} style={{ marginTop: 6 }}>Top up your investment</Tx>
+            <Tx f="play" w={600} s={21} c={C.cream} style={{ marginTop: 6 }}>Top Up Your Investment</Tx>
             <Tx s={13} c={C.cream60} lh={1.55} style={{ marginTop: 10 }}>
               Pay once online, set up a SIP that debits automatically on schedule, or transfer by NEFT, RTGS or IMPS from your registered bank account.
             </Tx>
@@ -103,7 +103,7 @@ function RequestRow({ it, onPress, last }) {
             {it.key === 'r-switch' ? <Swap s={16} c={C.green} /> : <Tx w={600} s={13} c={C.green}>{it.title.charAt(0)}</Tx>}
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Tx w={600} s={13.5} numberOfLines={1}>{it.title}</Tx>
+            <Tx w={600} s={13.5} numberOfLines={1}>{titleCase(it.title)}</Tx>
             {!!it.sub && <Tx s={12} c={C.ink3} numberOfLines={1} style={{ marginTop: 2 }}>{it.sub}</Tx>}
           </View>
           <ChevronRight c={hovered ? C.green : C.ink3} />
@@ -179,7 +179,7 @@ function Investments({ V, opts, accountId, onPickAccount, inv, all }) {
       {!inv.loading && !!inv.err && <View style={{ paddingHorizontal: 20, paddingBottom: 20 }}><ErrorBlock msg={inv.err} onRetry={inv.reload} /></View>}
       {!inv.loading && inv.data && all.length === 0 && (
         <View style={{ padding: 32, alignItems: 'center', borderTopWidth: 1, borderColor: C.line }}>
-          <Tx w={600} s={15} center>No online payments or SIPs yet</Tx>
+          <Tx w={600} s={15} center>No Online Payments or SIPs Yet</Tx>
           <Tx s={13} c={C.ink2} lh={1.6} center style={{ marginTop: 6, maxWidth: 480 }}>Bank transfers appear under Transactions. Use Add funds to pay online or set up a SIP.</Tx>
           <Btn label="Add funds" onPress={V.openAdd} style={{ marginTop: 14 }} />
         </View>

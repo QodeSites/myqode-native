@@ -1,4 +1,4 @@
-// The web sidebar (desktop only; the phone's More tab keeps NAV_GROUPS in src/nav.js): three labelled sections, one
+// The web sidebar (desktop only; the phone's More tab keeps NAV_GROUPS in src/nav.js): four labelled sections, one
 // icon per item, nothing collapsible. Everything else sits one click deeper, on the About Qode and Support hub pages
 // (src/web/pages.js) or Profile. `covers` lists the pages an item stands for, so it stays highlighted on them and
 // the breadcrumb leads back to it. Decided 6 Oct 2026.
@@ -19,26 +19,39 @@ const ICONS = {
   user: (c, s) => <L c={c} s={s}><Path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><Circle cx={12} cy={7} r={4} /></L>,
   signout: (c, s) => <L c={c} s={s}><Path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><Path d="m16 17 5-5-5-5M21 12H9" /></L>,
   news: (c, s) => <L c={c} s={s}><Path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2" /><Path d="M18 14h-8M15 18h-5M10 6h8v4h-8z" /></L>,
+  shield: (c, s) => <L c={c} s={s}><Path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /><Path d="m9 12 2 2 4-4" /></L>,
+  layers: (c, s) => <L c={c} s={s}><Path d="m12 2 9 5-9 5-9-5 9-5Z" /><Path d="m3 12 9 5 9-5" /><Path d="m3 17 9 5 9-5" /></L>,
   help: (c, s) => <L c={c} s={s}><Circle cx={12} cy={12} r={10} /><Path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01" /></L>,
 };
 export const NavIcon = ({ name, c, s }) => (ICONS[name] || ICONS.doc)(c, s);
 
+// Grouped by purpose (decided 7 Oct 2026): your investments, what happened, your papers, Qode itself. Support sits
+// apart at the bottom (`bottom`), above the profile card; Profile (`hidden`) is reached from that card and is listed
+// here only so the pages it covers keep it highlighted.
 export const WEB_NAV = [
-  { title: 'Overview', items: [
-    { id: 'home', label: 'Dashboard', tab: 'home', icon: 'dashboard' },
+  { title: 'Investments', items: [
+    { id: 'home', label: 'Overview', tab: 'home', icon: 'dashboard' },
+    { id: 'portfolio', label: 'Returns & Risk', tab: 'portfolio', icon: 'trend' },
     { id: 'holdings', label: 'Portfolio', tab: 'holdings', icon: 'pie' },
-    { id: 'portfolio', label: 'Performance', tab: 'portfolio', icon: 'trend' },
   ] },
   { title: 'Activity', items: [
     { id: 'transactions', label: 'Transactions', page: 'transactions', icon: 'list' },
     { id: 'reports', label: 'Reports', page: 'reports', icon: 'report' },
-    { id: 'docs', label: 'Documents', tab: 'docs', icon: 'doc' },
   ] },
-  { title: 'Account', items: [
-    { id: 'about', label: 'About Qode', page: 'about', icon: 'info', covers: ['philosophy', 'foundation', 'strategies', 'team', 'cadence'] },
+  { title: 'Documents', items: [
+    { id: 'docs', label: 'Documents', tab: 'docs', icon: 'doc' },
+    { id: 'risk', label: 'Risk Management & Controls', page: 'risk', icon: 'shield' },
+  ] },
+  { title: 'Qode', items: [
+    { id: 'strategies', label: 'Strategy', page: 'strategies', icon: 'layers' },
+    { id: 'about', label: 'About Qode', page: 'about', icon: 'info', covers: ['philosophy', 'foundation', 'team', 'cadence'] },
     { id: 'insights', label: 'Insights & Events', page: 'insights', icon: 'news' },
+  ] },
+  { title: 'Help', bottom: true, items: [
+    { id: 'support', label: 'Support', page: 'support', icon: 'help', covers: ['services', 'faq', 'grievance', 'voice', 'referral'] },
+  ] },
+  { title: 'Profile', hidden: true, items: [
     { id: 'account', label: 'Profile', tab: 'more', icon: 'user', covers: ['family', 'guide', 'nuvama', 'notifications', 'privacy', 'terms', 'cancellation', 'admin'] },
-    { id: 'support', label: 'Support', page: 'support', icon: 'help', covers: ['services', 'faq', 'grievance', 'risk', 'voice', 'referral'] },
   ] },
 ];
 

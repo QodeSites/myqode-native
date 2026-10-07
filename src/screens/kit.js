@@ -1,7 +1,7 @@
 // Small shared pieces for the data-driven screens (documents, services, pages).
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Pressable, Linking, Alert, Modal, ScrollView } from 'react-native';
-import { C, Tx, Card, Skel, CTA } from '../ui';
+import { C, Tx, Amt, Card, Skel, CTA, Chip } from '../ui';
 import { ChevronRight, ChevronDown } from '../icons';
 import { isDemo } from '../api';
 
@@ -85,12 +85,7 @@ export function AccountChips({ options, value, onPick }) {
       {options.map(o => {
         const on = o.id === value;
         return (
-          <Pressable key={o.id} onPress={() => onPick(o.id)} style={{
-            paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1,
-            borderColor: on ? C.green : C.mutedBorder35, backgroundColor: on ? C.green : 'transparent',
-          }}>
-            <Tx w={700} s={11} c={on ? C.cream : C.muted}>{o.label}</Tx>
-          </Pressable>
+          <Chip key={o.id} label={o.label} active={on} onPress={() => onPick(o.id)} px={13} />
         );
       })}
     </View>
@@ -122,16 +117,25 @@ export function AccountSelect({ options, value, onPick, label = 'Account', title
           <Card style={{ paddingVertical: 6, overflow: 'hidden', maxHeight: '80%' }}>
             <Tx w={700} s={10} ls={0.12} c={C.muted} style={{ paddingHorizontal: 18, paddingTop: 10, paddingBottom: 6 }}>{title}</Tx>
             <ScrollView>
-              {options.map(o => {
+              {options.map((o, oi) => {
                 const on = o.id === cur.id;
+                // group: a heading over the first option of each group (the family member who holds the accounts)
+                const heading = o.group && o.group !== (options[oi - 1] || {}).group;
                 return (
-                  <Pressable key={o.id} onPress={() => { setOpen(false); if (!on) onPick(o.id); }} accessibilityRole="button" accessibilityState={{ selected: on }}
+                  <React.Fragment key={o.id}>
+                  {heading && <Tx w={700} s={10} ls={0.1} c={C.muted} style={{ paddingHorizontal: 18, paddingTop: 12, paddingBottom: 6, borderTopWidth: 1, borderColor: C.hairline }}>{String(o.group).toUpperCase()}</Tx>}
+                  <Pressable onPress={() => { setOpen(false); if (!on) onPick(o.id); }} accessibilityRole="button" accessibilityState={{ selected: on }}
                     style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 18, borderTopWidth: 1, borderColor: C.hairline,
                       backgroundColor: on ? 'rgba(2,66,43,0.06)' : pressed ? 'rgba(2,66,43,0.03)' : 'transparent' })}>
                     {!!o.dot && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: o.dot }} />}
-                    <Tx w={on ? 700 : 400} s={13} c={on ? C.green : C.ink} numberOfLines={2} style={{ flex: 1 }}>{o.label}</Tx>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Tx w={on ? 700 : 400} s={13} c={on ? C.green : C.ink} numberOfLines={2}>{o.label}</Tx>
+                      {!!o.sub && <Tx s={11} c={C.muted} style={{ marginTop: 1 }}>{o.sub}</Tx>}
+                    </View>
+                    {!!o.right && <View style={{ alignItems: 'flex-end' }}><Amt s={12}>{o.right}</Amt>{!!o.rightSub && <Tx s={10.5} c={C.muted}>{o.rightSub}</Tx>}</View>}
                     {on && <Tx w={700} s={13} c={C.green}>✓</Tx>}
                   </Pressable>
+                  </React.Fragment>
                 );
               })}
             </ScrollView>
@@ -139,6 +143,28 @@ export function AccountSelect({ options, value, onPick, label = 'Account', title
         </Pressable>
       </Modal>
     </>
+  );
+}
+
+// A closed account (fully withdrawn): says so over the screen. p: { id, name, closedOn (formatted) } or null (hidden).
+// Shown on opening a closed account (V.closedPopup, src/screens/appshell.js) and on picking one in Reports.
+export function ClosedAccountPopup({ p, onClose }) {
+  if (!p) return null;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,32,23,0.55)', justifyContent: 'center', padding: 28 }}>
+        <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 22 }}>
+          <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: C.mutedBorder35, borderRadius: 4, paddingVertical: 2, paddingHorizontal: 6 }}>
+            <Tx w={700} s={9} ls={0.08} c={C.muted}>CLOSED</Tx>
+          </View>
+          <Tx f="play" w={600} s={20} style={{ marginTop: 12 }}>This Account Has Been Closed</Tx>
+          <Tx s={13} c={C.muted} lh={1.55} style={{ marginTop: 8 }}>{p.name ? p.name + ' · ' : ''}{p.id} was closed{p.closedOn ? ' on ' + p.closedOn : ''}. Its current value and invested amount are ₹0. Reports and transactions run to the day before it closed.</Tx>
+          <Pressable onPress={onClose} accessibilityRole="button" style={{ marginTop: 18, paddingVertical: 13, borderRadius: 10, backgroundColor: C.green, alignItems: 'center' }}>
+            <Tx w={700} s={13} ls={0.06} c={C.gold}>OK</Tx>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
   );
 }
 

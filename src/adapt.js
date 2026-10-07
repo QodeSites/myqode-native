@@ -4,8 +4,14 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
 
 export const num = v => (v == null || v === '' || isNaN(Number(v)) ? null : Number(v));
 
-export const initials = name =>
-  (String(name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('') || 'Q').toUpperCase();
+// A person's initials: first name and last name, the salutation left out ("Mr Chinthalapani Rakesh Reddy" → "CR").
+// The one rule for every avatar (sidebar, profile, account switcher).
+const SALUTATION = /^(mr|mrs|ms|miss|mstr|master|dr|prof|shri|smt|kumari|km|m\/s|messrs)\.?$/i;
+export const initials = name => {
+  const w = String(name || '').split(/\s+/).filter(Boolean).filter((x, i) => !(i === 0 && SALUTATION.test(x)))
+    .map(x => x.replace(/[^A-Za-z]/g, '')).filter(Boolean);
+  return ((w[0] ? w[0][0] : '') + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase() || 'Q';
+};
 
 // ── One set of formatters for the whole app (money, percentages, dates) ─────────────────────────────────────
 // Signs are decided on the ROUNDED value, so nothing ever reads "−0.00%" or "−₹0"; zero carries no sign.

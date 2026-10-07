@@ -1,12 +1,13 @@
 // More tab: profile and settings at the top, then the investor menu's five groups (NAV_GROUPS in src/nav.js, shared
 // with the desktop sidebar), admin, legal and the session. Investor Relations' contact lives on Your Team at Qode.
 import React from 'react';
-import { View, Pressable, Platform, Alert } from 'react-native';
-import { C, Tx, Card, Fade, Toggle } from '../ui';
-import { ChevronRight, FaceID, GroupIcon } from '../icons';
+import { View, Pressable, Platform, Alert, Linking } from 'react-native';
+import { C, Tx, Card, Fade, Toggle, Skel } from '../ui';
+import { ChevronRight, FaceID, GroupIcon, Phone, MailIcon } from '../icons';
 import { NAV_GROUPS, LEGAL_LINKS, openItem, visibleItems } from '../nav';
 import { SignOutButton, SectionLabel } from './kit';
 import { ContactIRLink } from './contact';
+import { useRmName } from '../rmName';
 
 import { monitoringOn, reportError } from '../monitoring';
 function MenuRow({ label, onPress, last }) {
@@ -32,15 +33,41 @@ function GroupTitle({ icon, children }) {
 
 export function MoreCream({ V }) {
   // Reports has its own tab on the phone; the menu item goes there instead of opening the page over it.
+  // The tab shows once the Relationship manager lookup has answered, so nothing appears or moves after.
+  const { name: rm, phone: rmPhone, email: rmEmail, done } = useRmName(V.user && V.user.email);
+  if (V.user && !done) {
+    return (
+      <View style={{ marginTop: -34 }}>
+        <Skel h={190} />
+        <Skel h={64} style={{ marginTop: 14 }} />
+        <Skel h={64} style={{ marginTop: 12 }} />
+      </View>
+    );
+  }
   const open = it => (it.id === 'reports' && V.goReports ? V.goReports() : openItem(V, it));
   return (
     <Fade>
       {/* Profile and settings */}
       <Card big style={{ marginTop: -34, paddingVertical: 6, paddingHorizontal: 18 }}>
-        {V.user && [['Name', V.user.name], ['Email', V.user.email], ['Account code', V.user.clientCode]].filter(r => r[1]).map(([k, v]) => (
+        {V.user && [['Name', V.user.name], ['Email', V.user.email], ['Account Code', V.user.clientCode], ['Relationship Manager', rm]].filter(r => r[1]).map(([k, v]) => (
           <View key={k} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderColor: C.hairline }}>
             <Tx s={12} c={C.muted}>{k}</Tx>
-            <Tx w={700} s={12} numberOfLines={1} style={{ flexShrink: 1 }}>{v}</Tx>
+            <View style={{ flexShrink: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', columnGap: 10, rowGap: 3 }}>
+              <Tx w={700} s={12} numberOfLines={1}>{v}</Tx>
+              {k === 'Relationship Manager' && !!rmPhone && <View style={{ width: 1, height: 14, backgroundColor: C.mutedBorder35 }} />}
+              {k === 'Relationship Manager' && !!rmPhone && (
+                <Pressable accessibilityRole="link" accessibilityLabel={'Call ' + v} onPress={() => Linking.openURL('tel:' + rmPhone.replace(/\s/g, '')).catch(() => {})} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Phone s={12} c={C.green} />
+                  <Tx s={12} c={C.green}>{rmPhone}</Tx>
+                </Pressable>
+              )}
+              {k === 'Relationship Manager' && !!rmEmail && (
+                <Pressable accessibilityRole="link" accessibilityLabel={'Email ' + v} onPress={() => Linking.openURL('mailto:' + rmEmail).catch(() => {})} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, width: '100%', justifyContent: 'flex-end' }}>
+                  <MailIcon s={12} c={C.green} />
+                  <Tx s={12} c={C.green}>{rmEmail}</Tx>
+                </Pressable>
+              )}
+            </View>
           </View>
         ))}
         <Pressable accessibilityRole="button" onPress={V.openSettings} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, minHeight: 46 }}>

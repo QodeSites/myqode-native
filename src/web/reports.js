@@ -6,20 +6,23 @@
 // "All accounts" (2+ accounts): every account's full list (export=1) fetched in parallel and merged in src/combine.js,
 // with an Account column, summed totals and one combined PDF per report. The P&L and balance sheet is the exception:
 // the server sums the accounts itself, so "All accounts" is one call with every code.
+import { titleCase } from '../titleCase';
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Pressable, Platform } from 'react-native';
 import Svg, { Rect, Line, Text as SvgText } from 'react-native-svg';
-import { C, Tx, Amt, FitAmt, Card, Row, PageIntro, Panel, Btn, Chips, Tabs, Table, KeyVals, Pill, Loading, Empty, ErrorBlock, DateField, Dropdown } from './kit';
-import { ChevronDown, Download } from '../icons';
+import { C, Tx, Amt, FitAmt, Card, Row, PageIntro, Panel, Btn, Chips, Tabs, Table, KeyVals, Pill, Loading, Empty, ErrorBlock, DateField, Dropdown, Input, ClosedAccountDialog, InfoTip } from './kit';
+import { PLBS_INFO, TXN_INFO, CG_INFO, EXP_INFO, FS_INFO } from '../plbsInfo';
+import { ChevronDown, Download, Search } from '../icons';
 import { reports } from '../api';
 import { inr, sinr, pct, fmtDate, num } from '../adapt';
 import { savePdf } from '../screens/partner';
+import { transactionsXlsx, capitalGainsXlsx, expensesXlsx, factsheetXlsx, plbsXlsx, saveXlsx } from '../reportXlsx';
 import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactionsAllPdf, capitalGainsAllPdf, expensesAllPdf, factsheetAllPdf, plbsPdf } from '../screens/reportPdf';
 import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE } from '../combine';
-import { transactionsSummary, capitalGainsSummary, expensesSummary, factsheetSummary, pnlSummary } from '../reportSummary';
 import { track } from '../api/track';
 
 import { userMessage } from '../errors';
+import { useUnrealised } from '../unrealised';
 import { latestDate, monthEnds, earliestDate, asOfHint } from '../reportDates';
 // ── formatting (the app-wide formatters; only quantity and period headers are local, as on the phone) ────────
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -78,7 +81,7 @@ const PDF_HINT = 'Opens your browser’s print dialog. Choose “Save as PDF” 
 const WebTitle = ({ title, children }) => (Platform.OS === 'web' ? React.createElement('div', { title, style: { display: 'flex' } }, children) : children);
 
 // status: { parts: [text | null], computed, note } (see StatusLine).
-function ReportLayout({ account, period, pdf, status, stats, summary, children }) {
+function ReportLayout({ account, period, pdf, status, stats, children }) {
   return (
     <View>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, zIndex: 30 }}>
@@ -88,43 +91,48 @@ function ReportLayout({ account, period, pdf, status, stats, summary, children }
         {pdf || <PdfBtn />}
       </View>
       <StatusLine {...(status || {})} />
-      {!!(summary && summary.length) && <SummaryText lines={summary} />}
       {!!stats && <SummaryStrip items={stats} style={{ marginBottom: 18 }} />}
       <View style={{ gap: 16 }}>{children}</View>
     </View>
   );
 }
 
-// The written summary above the figures (src/reportSummary.js): what the report says, before the raw data.
-function SummaryText({ lines }) {
-  return (
-    <Card style={{ padding: 16, paddingHorizontal: 18, marginBottom: 12, borderLeftWidth: 3, borderLeftColor: C.gold }}>
-      <Tx w={600} s={11.5} c={C.ink3} style={{ marginBottom: 6 }}>Summary</Tx>
-      <Tx s={14} c={C.ink} lh={1.6}>{lines.join(' ')}</Tx>
-    </Card>
-  );
-}
-
 // PDF: fetch the export (up to 5,000 rows), build the statement, hand it to savePdf (on the web: the print dialog,
 // where "Save as PDF" is offered). The print-dialog hint is the button's tooltip, and a short line after a click.
 // Errors show under the button because Alert does nothing in a browser. Without `make` the button is dimmed.
-function PdfBtn({ make, name, disabled }) {
-  const [busy, setBusy] = useState(false);
+// xlsx: the same statement as an Excel workbook (src/reportXlsx.js), a second button beside the PDF one.
+const SheetIcon = ({ c }) => (
+  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Rect x={3} y={4} width={18} height={16} rx={2} /><Line x1={3} y1={10} x2={21} y2={10} /><Line x1={3} y1={15} x2={21} y2={15} /><Line x1={9} y1={4} x2={9} y2={20} />
+  </Svg>
+);
+function PdfBtn({ make, xlsx, name, disabled }) {
+  const [busy, setBusy] = useState('');   // '' | 'pdf' | 'xlsx'
   const [err, setErr] = useState('');
   const [used, setUsed] = useState(false);
   const off = disabled || !make;
   const go = async () => {
     if (busy || off) return;
-    setBusy(true); setErr(''); setUsed(true);
+    setBusy('pdf'); setErr(''); setUsed(true);
     try { const doc = await make(); await savePdf(doc.html, name, { landscape: doc.landscape }); }
     catch (e) { setErr('Couldn’t create the PDF. ' + errMsg(e)); }
-    finally { setBusy(false); }
+    finally { setBusy(''); }
+  };
+  const goXlsx = async () => {
+    if (busy || off || !xlsx) return;
+    setBusy('xlsx'); setErr(''); setUsed(false);
+    try { await saveXlsx(await xlsx(), name); }
+    catch (e) { setErr('Couldn’t create the Excel file. ' + errMsg(e)); }
+    finally { setBusy(''); }
   };
   return (
-    <View style={{ alignItems: 'flex-end', maxWidth: 320, flexShrink: 0 }}>
-      <WebTitle title={PDF_HINT}>
-        <Btn kind="primary" small label={busy ? 'Preparing PDF…' : 'Download PDF'} icon={<Download s={14} c={C.gold} />} onPress={go} disabled={off} busy={busy} style={{ height: 36 }} />
-      </WebTitle>
+    <View style={{ alignItems: 'flex-end', maxWidth: 360, flexShrink: 0 }}>
+      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        {!!xlsx && <Btn kind="outline" small label={busy === 'xlsx' ? 'Preparing Excel…' : 'Download Excel'} icon={<SheetIcon c={C.green} />} onPress={goXlsx} disabled={off} busy={busy === 'xlsx'} style={{ height: 36 }} />}
+        <WebTitle title={PDF_HINT}>
+          <Btn kind="primary" small label={busy === 'pdf' ? 'Preparing PDF…' : 'Download PDF'} icon={<Download s={14} c={C.gold} />} onPress={go} disabled={off} busy={busy === 'pdf'} style={{ height: 36 }} />
+        </WebTitle>
+      </View>
       {!!err && <Tx s={12} c={C.red} lh={1.45} style={{ marginTop: 6, textAlign: 'right' }}>{err}</Tx>}
       {!err && used && <Tx s={11.5} c={C.ink3} lh={1.45} style={{ marginTop: 6, textAlign: 'right' }}>In the print dialog, choose “Save as PDF”.</Tx>}
     </View>
@@ -166,8 +174,10 @@ function SummaryStrip({ items, style }) {
     <Card style={[{ flexDirection: 'row', overflow: 'clip' }, style]}>
       {list.map((it, i) => (
         <View key={it.label} style={{ flex: 1, minWidth: 0, paddingVertical: 12, paddingHorizontal: 16, borderLeftWidth: i ? 1 : 0, borderColor: C.line }}>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
+          {/* centred, not on the baseline: the ⓘ has no baseline and sat above the label */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0, minHeight: 18 }}>
             <Tx w={600} s={11.5} c={C.ink3} numberOfLines={1} style={{ flexShrink: 0 }}>{it.label}</Tx>
+            {!!it.info && <InfoTip label={it.label} text={it.info} />}
             {!!it.note && <Tx s={11} c={C.ink3} numberOfLines={1} style={{ flexShrink: 1, opacity: 0.85 }}>{it.note}</Tx>}
           </View>
           <FitAmt w={600} s={16} min={11} c={it.color || C.ink} style={{ marginTop: 4 }}>{it.value}</FitAmt>
@@ -351,23 +361,34 @@ function AccountDropdown({ options, value, onPick, count }) {
   return <Dropdown label="Account" text={text(cur)} options={options.map(o => ({ id: o.id, label: text(o) }))} value={cur.id} onPick={onPick} menuWidth={380} a11yLabel="Choose account" />;
 }
 
+// Search text as typed, and the same text once typing pauses (what goes to the server as q).
+function useSearch(ms = 350) {
+  const [text, setText] = useState('');
+  const [q, setQ] = useState('');
+  useEffect(() => { const t = setTimeout(() => setQ(text.trim()), ms); return () => clearTimeout(t); }, [text, ms]);
+  return { text, setText, q };
+}
+
 // ── Transactions ──────────────────────────────────────────────────────────────────────────────────────────
-const TXN_GROUPS = [['all', 'All'], ['trades', 'Trades'], ['money', 'Money in/out'], ['income', 'Income'], ['charges', 'Charges'], ['other', 'Other']];
+const TXN_GROUPS = [['all', 'All'], ['trades', 'Trades'], ['money', 'Money in/out'], ['income', 'Dividend/Interest'], ['charges', 'Fees'], ['other', 'Other']];
 function Transactions({ accountId, ids, rk, account }) {
   const [group, setGroup] = useState('all');
+  const Q = useSearch();   // what to look for: transaction type, security or details
   const R = useRange('all');
   const { from, to } = R;
   const all = accountId === ALL_ID;
   const L = usePaged(offset => (all
-    ? loadTransactionsAll(ids, id => reports.transactions(id, { group, from, to, export: 1, limit: 5000 }), { group, from, to })
-    : reports.transactions(accountId, { group, from, to, limit: 50, offset })), [accountId, group, from, to, rk]);
+    ? loadTransactionsAll(ids, id => reports.transactions(id, { group, from, to, q: Q.q || undefined, export: 1, limit: 5000 }), { group, from, to })
+    : reports.transactions(accountId, { group, from, to, q: Q.q || undefined, limit: 50, offset })), [accountId, group, from, to, Q.q, rk]);
   const h = L.head;
   const cov = useCoverage(h);
   const groupLabel = (TXN_GROUPS.find(g => g[0] === group) || [])[1];
-  const makePdf = async () => (all ? transactionsAllPdf(h, groupLabel)
-    : transactionsPdf(await reports.transactions(accountId, { group, from, to, export: 1, limit: 5000 }), accountId, groupLabel));
+  // The statement's data for a download: the combined answer for all accounts, else the full export (up to 5,000 rows).
+  const exportData = async () => (all ? h : reports.transactions(accountId, { group, from, to, q: Q.q || undefined, export: 1, limit: 5000 }));
+  const makePdf = async () => (all ? transactionsAllPdf(h, groupLabel) : transactionsPdf(await exportData(), accountId, groupLabel));
+  const makeXlsx = async () => transactionsXlsx(await exportData(), all ? null : accountId, groupLabel);
   const sumOf = g => (h && h.summary.find(s => s.group === g)) || null;
-  const sumItem = (g, label) => { const s = sumOf(g); return { label, value: s ? inr(s.amount) : inr(0), note: s ? `${s.count} ${s.count === 1 ? 'entry' : 'entries'}` : null }; };
+  const sumItem = (g, label, info) => { const s = sumOf(g); return { label, value: s ? inr(s.amount) : inr(0), info }; };
 
   // Rows arrive newest first; the first row of each month carries the month label so the table reads grouped.
   const rows = L.items.map((t, i) => {
@@ -387,6 +408,7 @@ function Transactions({ accountId, ids, rk, account }) {
     { key: 'amt', label: 'Amount', flex: 1.1, right: true, render: t => cellAmt((t.direction === 'in' ? '+' : t.direction === 'out' ? '−' : '') + inr(t.amount), t.direction === 'in' ? C.pos : C.ink, 600) },
   ]);
   const empty = !L.loading && !L.err && !L.items.length ? (h && !h.asOf && !cov ? `No transactions are on record for ${all ? 'these accounts' : 'this account'} yet.`
+    : Q.q ? `No transactions match “${Q.q}”${group === 'all' ? '' : ' in this category'}${from || to ? ' for the selected period' : ''}.`
     : outsideCoverage(R.range, cov) ? outsideMsg(cov)
     : from || to ? (group === 'all' ? 'No transactions in the selected period.' : 'No transactions in this category for the selected period.')
     : 'No transactions in this category.') : null;
@@ -395,21 +417,18 @@ function Transactions({ accountId, ids, rk, account }) {
     <ReportLayout
       account={account}
       period={<PeriodDropdown R={R} cov={cov} note="By date of transaction. Applies to the table and the PDF." />}
-      pdf={<PdfBtn make={makePdf} name={`Transactions ${all ? 'All accounts' : accountId}${rangeSuffix(R.range)}`} disabled={!L.items.length} />}
+      pdf={<PdfBtn make={makePdf} xlsx={makeXlsx} name={`Transactions ${all ? 'All accounts' : accountId}${rangeSuffix(R.range)}`} disabled={!L.items.length} />}
       status={{ parts: [asOfPart(h && h.asOf, !!h), periodText(R.range), listCount(L), recordsPart(cov)] }}
-      summary={transactionsSummary(h && { ...h, from: h.from || from, to: h.to || to }, all)}
       stats={h && h.asOf ? [
-        { label: 'Money in', value: sinr(h.moneyIn), color: gainColor(h.moneyIn) },
-        { label: 'Money out', value: h.moneyOut ? '−' + inr(h.moneyOut) : inr(0) },
-        // switches: net (internal ones cancel across all accounts), with the gross moved as the note
-        ...((num(h.switchIn) || num(h.switchOut)) ? [{ label: 'Switches', value: Math.abs(num(h.switchIn) - num(h.switchOut)) < 1 ? inr(0) : sinr(num(h.switchIn) - num(h.switchOut)),
-          note: inr(Math.max(num(h.switchIn), num(h.switchOut))) + ' moved between strategies' }] : []),
-        sumItem('trades', 'Trades'),
-        sumItem('income', 'Income'),
-        sumItem('charges', 'Charges'),
+        { label: 'Money in', value: sinr(h.moneyIn), color: gainColor(h.moneyIn), info: TXN_INFO.moneyIn },
+        { label: 'Money out', value: h.moneyOut ? '−' + inr(h.moneyOut) : inr(0), info: TXN_INFO.moneyOut },
+        sumItem('income', 'Dividend/Interest', TXN_INFO.income),
+        sumItem('charges', 'Fees', TXN_INFO.fees),
       ] : null}>
       <CombinedNote h={h} />
-      <FilterRow left={<Chips small value={group} options={TXN_GROUPS} onChange={setGroup} />} />
+      <FilterRow left={<Chips small value={group} options={TXN_GROUPS} onChange={setGroup} />}
+        right={<Input value={Q.text} onChangeText={Q.setText} placeholder="Search transactions, e.g. Custody Charges" style={{ width: 340, maxWidth: '100%' }}
+          right={Q.text ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => Q.setText('')} style={{ paddingHorizontal: 4 }}><Tx s={16} c={C.ink3}>×</Tx></Pressable> : <Search s={15} c={C.ink3} />} />} />
       {Status({ L, empty }) || (
         <Panel pad={0} footer={moreFooter(L, L.items.length)}>
           <Table cols={cols} rows={rows} dense />
@@ -435,8 +454,9 @@ function CapitalGains({ accountId, ids, rk, account }) {
     : reports.capitalGains(accountId, { ...q, term: term || undefined, limit: 50, offset })), [accountId, q.fy, q.from, q.to, term, rk]);
   const h = L.head, s = h && h.summary;
   const cov = useCoverage(h);
-  const makePdf = async () => (all ? capitalGainsAllPdf(h)
-    : capitalGainsPdf(await reports.capitalGains(accountId, { ...(byFy ? { fy: h.fy } : q), term: term || undefined, export: 1, limit: 5000 }), accountId));
+  const exportData = async () => (all ? h : reports.capitalGains(accountId, { ...(byFy ? { fy: h.fy } : q), term: term || undefined, export: 1, limit: 5000 }));
+  const makePdf = async () => (all ? capitalGainsAllPdf(h) : capitalGainsPdf(await exportData(), accountId));
+  const makeXlsx = async () => capitalGainsXlsx(await exportData(), all ? null : accountId);
   // The years list only comes with FY answers; keep the last one so the FY options stay while a range is shown.
   const [years, setYears] = useState([]);
   useEffect(() => { if (h && h.years && h.years.length) setYears(h.years); }, [h]);
@@ -471,6 +491,8 @@ function CapitalGains({ accountId, ids, rk, account }) {
   const empty = !L.loading && !L.err && !L.items.length ? (h && !h.asOf && !cov ? `No capital gains report is available for ${all ? 'these accounts' : 'this account'} yet.`
     : !byFy && outsideCoverage(shownRange, cov) ? outsideMsg(cov)
     : !byFy ? 'No realised gains in the selected period.' : 'No realised gains in this selection.') : null;
+  // Unrealised: on what is held now (latest holdings date), whatever the period above; realised is the period's.
+  const U = useUnrealised(all ? ids : [accountId]);
   const termLabel = term === 'ST' ? 'Short-term lots' : term === 'LT' ? 'Long-term lots' : 'Realised lots';
 
   // Period: the financial years first, then the sale-date presets (and custom dates).
@@ -488,14 +510,14 @@ function CapitalGains({ accountId, ids, rk, account }) {
     <ReportLayout
       account={account}
       period={periodDd}
-      pdf={<PdfBtn make={makePdf} name={byFy ? `Capital gains FY ${(h && h.fy) || ''} ${all ? 'All accounts' : accountId}` : `Capital gains ${all ? 'All accounts' : accountId}${rangeSuffix(shownRange)}`} disabled={!s} />}
-      status={{ parts: [asOfPart(h && h.asOf, !!h), periodPart ? periodPart + ', by date of sale' : null, listCount(L), recordsPart(cov)] }}
-      summary={capitalGainsSummary(h && { ...h, fy: byFy ? h.fy : null, from: h.from || (shownRange && shownRange.from), to: h.to || (shownRange && shownRange.to) }, all)}
+      pdf={<PdfBtn make={makePdf} xlsx={makeXlsx} name={byFy ? `Capital gains FY ${(h && h.fy) || ''} ${all ? 'All accounts' : accountId}` : `Capital gains ${all ? 'All accounts' : accountId}${rangeSuffix(shownRange)}`} disabled={!s} />}
+      status={{ parts: [asOfPart(h && h.asOf, !!h), periodPart, recordsPart(cov)] }}
       stats={s ? [
-        { label: 'Short term', value: sinr(s.st), color: gainColor(s.st) },
-        { label: 'Long term', value: sinr(s.lt), color: gainColor(s.lt) },
-        { label: 'LT after grandfathering', value: sinr(s.ltTaxable != null ? s.ltTaxable : s.lt), color: gainColor(s.ltTaxable != null ? s.ltTaxable : s.lt) },
-        { label: 'Total realised', value: sinr(s.total), color: gainColor(s.total) },
+        { label: 'Short term', value: sinr(s.st), color: gainColor(s.st), info: CG_INFO.st },
+        { label: 'Long term', value: sinr(s.lt), color: gainColor(s.lt), info: CG_INFO.lt },
+        { label: 'Realised gains', value: sinr(s.total), color: gainColor(s.total), note: 'In this period', info: CG_INFO.realised },
+        { label: 'Unrealised gains', value: U.gain != null ? sinr(U.gain) : U.loading ? '…' : '–', color: U.gain != null ? gainColor(U.gain) : C.ink3, info: CG_INFO.unrealised,
+          note: U.asOf ? 'On holdings as of ' + fmtDate(U.asOf) : 'On current holdings' },
       ] : null}>
       <CombinedNote h={h} />
       {s && s.byCategory && s.byCategory.length > 0 && (
@@ -530,8 +552,9 @@ function Expenses({ accountId, ids, rk, account }) {
   useEffect(() => { if (L.head && L.head.byType) setByType(L.head.byType); }, [L.head]);
   const h = L.head;
   const cov = useCoverage(h);
-  const makePdf = async () => (all ? expensesAllPdf(h)
-    : expensesPdf(await reports.expenses(accountId, { type: type || undefined, from, to, export: 1, limit: 5000 }), accountId));
+  const exportData = async () => (all ? h : reports.expenses(accountId, { type: type || undefined, from, to, export: 1, limit: 5000 }));
+  const makePdf = async () => (all ? expensesAllPdf(h) : expensesPdf(await exportData(), accountId));
+  const makeXlsx = async () => expensesXlsx(await exportData(), all ? null : accountId);
   const noStatement = `No expense statement is available for ${all ? 'these accounts' : 'this account'} yet.`;
   const empty = !L.loading && !L.err && !L.items.length ? (h && !h.asOf && !cov ? noStatement
     : outsideCoverage(R.range, cov) ? outsideMsg(cov)
@@ -552,14 +575,13 @@ function Expenses({ accountId, ids, rk, account }) {
     <ReportLayout
       account={account}
       period={<PeriodDropdown R={R} cov={cov} note="By date of charge. Applies to the table and the PDF." />}
-      pdf={<PdfBtn make={makePdf} name={`Expenses ${all ? 'All accounts' : accountId}${rangeSuffix(R.range)}`} disabled={!L.items.length} />}
+      pdf={<PdfBtn make={makePdf} xlsx={makeXlsx} name={`Expenses ${all ? 'All accounts' : accountId}${rangeSuffix(R.range)}`} disabled={!L.items.length} />}
       status={{ parts: [asOfPart(h && h.asOf, !!h), periodText(R.range), listCount(L), recordsPart(cov),
         h && h.asOf && h.period ? `Statement covers ${fmtDate(h.period.from)} to ${fmtDate(h.period.to)}` : null] }}
-      summary={expensesSummary(h && { ...h, from: h.from || R.from, to: h.to || R.to }, all, byType)}
       stats={h && h.asOf ? [
-        { label: 'Paid', value: inr(h.paid) },
-        { label: 'Payable (accrued)', value: inr(h.payable) },
-        { label: 'Total', value: inr((h.paid || 0) + (h.payable || 0)) },
+        { label: 'Paid', value: inr(h.paid), info: EXP_INFO.paid },
+        { label: 'Payable (accrued)', value: inr(h.payable), info: EXP_INFO.payable },
+        { label: 'Total', value: inr((h.paid || 0) + (h.payable || 0)), info: EXP_INFO.total },
       ] : null}>
       <CombinedNote h={h} />
       {byType.length > 0 && (
@@ -782,10 +804,10 @@ function Factsheet({ accountId, ids, names, rk, account }) {
   );
 
   const stats = [
-    { label: 'Portfolio value', value: inr(d.portfolioValue), note: d.valueDate ? 'on ' + fmtDate(d.valueDate) : null },
-    { label: 'Profit or loss', value: sinr(d.profitLoss), color: gainColor(d.profitLoss), note: d.inceptionDate ? 'since ' + fmtDate(d.inceptionDate) : null },
-    { label: 'Contribution', value: inr(d.contribution) },
-    { label: 'Withdrawal', value: inr(d.withdrawal) },
+    { label: 'Portfolio value', value: inr(d.portfolioValue), note: d.valueDate ? 'on ' + fmtDate(d.valueDate) : null, info: FS_INFO.value },
+    { label: 'Profit or loss', value: sinr(d.profitLoss), color: gainColor(d.profitLoss), note: d.inceptionDate ? 'since ' + fmtDate(d.inceptionDate) : null, info: FS_INFO.pl },
+    { label: 'Contribution', value: inr(d.contribution), info: FS_INFO.contribution },
+    { label: 'Withdrawal', value: inr(d.withdrawal), info: FS_INFO.withdrawal },
   ];
 
   if (all) {
@@ -800,8 +822,8 @@ function Factsheet({ accountId, ids, names, rk, account }) {
       { key: 'out', label: 'Withdrawal', flex: 1.1, right: true, render: x => cellAmt(x.data.asOf ? inr(x.data.withdrawal) : '–') },
     ];
     return (
-      <ReportLayout {...head} stats={stats} summary={factsheetSummary(d, all)}
-        pdf={<PdfBtn make={async () => factsheetAllPdf(d)} name={`Fact sheet All accounts ${d.asOf}`} />}>
+      <ReportLayout {...head} stats={stats}
+        pdf={<PdfBtn make={async () => factsheetAllPdf(d)} xlsx={async () => factsheetXlsx(d, null)} name={`Fact sheet All accounts ${d.asOf}`} />}>
         <CombinedNote h={d} />
         <Panel title="By account" sub={FACTSHEET_NOTE} pad={0}>
           <Table cols={byCols} rows={sheets.map(x => ({ ...x, id: x.accountId }))} dense />
@@ -827,8 +849,9 @@ function Factsheet({ accountId, ids, names, rk, account }) {
   }
 
   return (
-    <ReportLayout {...head} stats={stats} summary={factsheetSummary(d, all)}
-      pdf={<PdfBtn make={async () => factsheetPdf(await reports.factsheet(accountId, { ...(date ? { date } : {}), export: 1 }), accountId)} name={`Fact sheet ${accountId} ${d.asOf}`} />}>
+    <ReportLayout {...head} stats={stats}
+      pdf={<PdfBtn make={async () => factsheetPdf(await reports.factsheet(accountId, { ...(date ? { date } : {}), export: 1 }), accountId)}
+        xlsx={async () => factsheetXlsx(await reports.factsheet(accountId, { ...(date ? { date } : {}), export: 1 }), accountId)} name={`Fact sheet ${accountId} ${d.asOf}`} />}>
       <PerfPanel d={d} />
       <Row top>
         <View style={{ flex: 1, minWidth: 0 }}><SectorsPanel d={d} /></View>
@@ -936,7 +959,7 @@ function Collapsible({ title, sub, children }) {
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen(o => !o)}
         style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 14, backgroundColor: hovered ? C.hover : 'transparent', outlineStyle: 'none' })}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Tx w={600} s={14.5} c={C.green} role="heading" aria-level={3}>{title}</Tx>
+          <Tx w={600} s={14.5} c={C.green} role="heading" aria-level={3}>{titleCase(title)}</Tx>
           {!!sub && <Tx s={12} c={C.ink3} style={{ marginTop: 2 }}>{sub}</Tx>}
         </View>
         <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}><ChevronDown s={11} c={C.ink2} /></View>
@@ -954,7 +977,7 @@ function PlbsStatements({ d }) {
   const side = (title, rows, total) => (
     <View style={{ flex: two ? undefined : 1, minWidth: 0, justifyContent: 'space-between' }}>
       <View>
-        <Tx w={600} s={13} c={C.green} style={{ marginBottom: 4 }}>{title}</Tx>
+        <Tx w={600} s={13} c={C.green} style={{ marginBottom: 4 }}>{titleCase(title)}</Tx>
         <Stmt rows={rows} />
       </View>
       <StmtRow kind="grand" label="Total" amount={total} />
@@ -1017,14 +1040,13 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
   const pdfName = `PnL and balance sheet ${all ? 'All accounts' : accountId} ${d.from} to ${d.to}`;
   return (
     <ReportLayout {...head}
-      pdf={<PdfBtn make={async () => plbsPdf(d, all ? null : accountId)} name={pdfName} />}
-      summary={pnlSummary(d, all)}
+      pdf={<PdfBtn make={async () => plbsPdf(d, all ? null : accountId)} xlsx={async () => plbsXlsx(d, all ? null : accountId)} name={pdfName} />}
       stats={[
-        { label: 'Total income', value: sinr(d.pnl.incomeTotal), color: gainColor(d.pnl.incomeTotal) },
-        { label: 'Total expenses', value: inr(d.pnl.expenseTotal) },
-        { label: 'Surplus', value: sinr(d.pnl.surplus), color: gainColor(d.pnl.surplus) },
-        { label: 'Unrealised, net', value: sinr(d.unrealised.net), color: gainColor(d.unrealised.net) },
-        ...(r.portfolioValue != null ? [{ label: 'Portfolio value', value: inr(r.portfolioValue), note: 'on ' + fmtDate(d.to) }] : []),
+        { label: 'Total income', value: sinr(d.pnl.incomeTotal), color: gainColor(d.pnl.incomeTotal), info: PLBS_INFO.income },
+        { label: 'Total expenses', value: inr(d.pnl.expenseTotal), info: PLBS_INFO.expenses },
+        { label: 'Surplus', value: sinr(d.pnl.surplus), color: gainColor(d.pnl.surplus), info: PLBS_INFO.surplus },
+        { label: 'Unrealised, net', value: sinr(d.unrealised.net), color: gainColor(d.unrealised.net), info: PLBS_INFO.unrealised },
+        ...(r.portfolioValue != null ? [{ label: 'Portfolio value', value: inr(r.portfolioValue), note: 'on ' + fmtDate(d.to), info: PLBS_INFO.value }] : []),
       ]}>
       {!!(d.omitted && d.omitted.length) && <Tx s={12.5} c={C.red} lh={1.5}>Not included (not available to this login): {d.omitted.join(', ')}.</Tx>}
       <PlbsStatements d={d} />
@@ -1039,7 +1061,7 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────────────────────────────────
-const KINDS = [['fs', 'Fact sheet'], ['pl', 'P&L and balance sheet'], ['cg', 'Capital gains'], ['txn', 'Transactions'], ['exp', 'Expenses']];
+const KINDS = [['fs', 'Fact Sheet'], ['pl', 'P&L and Balance Sheet'], ['cg', 'Capital Gains'], ['txn', 'Transactions'], ['exp', 'Expenses']];
 // The Transactions page (/app/transactions): Nuvama's own ledger (buys, sells, dividends, fees, switches…) with the
 // same filters as Reports → Transactions, opening on "All accounts" when there are several.
 export function NuvamaTransactions({ V }) {
@@ -1062,17 +1084,23 @@ export default function DesktopReports({ V }) {
   const names = Object.fromEntries(singles.map(o => [o.id, o.label]));
   const [sel, setSel] = useState(null);
   const [kind, setKind] = useState('fs');
+  const [closedPick, setClosedPick] = useState(null);   // a closed account just picked: the pop-up
+  const pick = id => {
+    setSel(id);
+    const o = opts.find(x => x.id === id);
+    setClosedPick(o && o.closed ? { id: o.id, name: o.name, closedOn: o.closedOn ? fmtDate(o.closedOn) : '' } : null);
+  };
   // "All accounts" is offered first, but the default stays the first single account.
   const accountId = sel && opts.some(o => o.id === sel) ? sel : singles[0] && singles[0].id;
   const Body = { txn: Transactions, cg: CapitalGains, exp: Expenses, fs: Factsheet, pl: PnlBalanceSheet }[kind];
-  const account = <AccountDropdown options={opts} value={accountId} onPick={setSel} count={singles.length} />;
+  const account = <AccountDropdown options={opts} value={accountId} onPick={pick} count={singles.length} />;
   // The page title ("Reports") is the top bar's heading; one short line here.
   return (
     <View>
-      <PageIntro sub="Custodian statements from Nuvama, each available as a PDF." />
       <Tabs value={kind} options={KINDS} onChange={k => { setKind(k); track('event', 'report_view', { tab: k }); }} style={{ marginBottom: 16 }} />
       {/* keyed so filters and paging reset when the account or report changes */}
       {accountId ? <Body key={kind + accountId + (accountId === ALL_ID ? ids.join(',') : '')} accountId={accountId} ids={ids} names={names} rk={V.rk} account={account} /> : <Empty>No active account found.</Empty>}
+      <ClosedAccountDialog p={closedPick} onClose={() => setClosedPick(null)} />
     </View>
   );
 }

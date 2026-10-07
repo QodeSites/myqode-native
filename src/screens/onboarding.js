@@ -698,7 +698,7 @@ export default function Onboarding({ V }) {
       <Sheet visible={V.obFundOpen} onClose={V.obCloseFund}>
         {V.obFundForm && (
           <View style={{ paddingHorizontal: 22, paddingTop: 12, paddingBottom: 24 }}>
-            <Tx f="play" w={600} s={21}>Fund your account</Tx>
+            <Tx f="play" w={600} s={21}>Fund Your Account</Tx>
             <Tx s={12} c={C.muted} style={{ marginTop: 3 }}>First contribution to PMS 00891</Tx>
             <Tx w={700} s={11} ls={0.12} c={C.muted} style={{ marginTop: 20, marginBottom: 8 }}>AMOUNT</Tx>
             <Field value={V.obAmtStr} onChangeText={V.onObAmt} numeric s={26} prefix="₹" />
@@ -727,7 +727,7 @@ export default function Onboarding({ V }) {
             <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center', marginTop: 8 }}>
               <Check s={28} c={C.gold} w={2.2} />
             </View>
-            <Tx f="play" w={600} s={20} style={{ marginTop: 16 }}>Transfer noted</Tx>
+            <Tx f="play" w={600} s={20} style={{ marginTop: 16 }}>Transfer Noted</Tx>
             <Amt s={26} c={C.green} style={{ marginTop: 6 }}>{V.obAmtFmt}</Amt>
             <Tx s={12} c={C.muted} lh={1.55} center style={{ marginTop: 12 }}>
               We'll confirm once funds clear and invest at the next NAV.{'\n'}A receipt follows to your registered email.

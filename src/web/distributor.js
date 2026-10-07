@@ -7,6 +7,7 @@
 // web. Only the layout is new. "View account" uses V.viewInvestor, as on the phone; the investor's desktop then
 // shows "Back to distributor panel", and V.partnerNav brings the distributor back to the page they left.
 // Address: /app/d/<section> (replaced as the section changes; Back is main.js's, via useBackHandler).
+import { titleCase } from '../titleCase';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, ScrollView, Pressable, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -77,7 +78,7 @@ const dday = x => {
   if (m && MON.includes(m[2])) return `${m[1].padStart(2, '0')} ${m[2]} ${m[3].length === 2 ? '20' + m[3] : m[3]}`;
   return noSept(displayDate(x));
 };
-const sc = t => String(t || '').split(' ').map((w, i) => (i === 0 || /^[A-Z0-9]{2,}$/.test(w) || /^(Nuvama|Qode|Zoho)$/.test(w) ? w : w.toLowerCase())).join(' ');
+const sc = titleCase;   // names and headings in Title Case (src/titleCase.js)
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const PARTNERSHIPS = 'partnerships@qodeinvest.com';
 const mail = to => Linking.openURL('mailto:' + to).catch(() => {});
@@ -242,7 +243,7 @@ function TopBar({ V, title, asOf, busy, onRefresh }) {
   return (
     <View style={{ height: 64, paddingHorizontal: 28, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderColor: C.line, backgroundColor: C.card }}>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Tx w={600} s={19} role="heading" aria-level={1} numberOfLines={1}>{title}</Tx>
+        <Tx w={600} s={19} role="heading" aria-level={1} numberOfLines={1}>{titleCase(title)}</Tx>
         {asOf !== null && <Tx s={12} c={C.ink3} numberOfLines={1}>{asOf ? 'Values as of ' + asOf : 'Your partner dashboard'}</Tx>}
       </View>
       <Pressable accessibilityRole="button" onPress={onRefresh} accessibilityLabel="Refresh" style={s => [iconBtn(s), { opacity: busy ? 0.45 : 1 }]}><Refresh c={C.ink2} s={16} /></Pressable>
@@ -399,7 +400,7 @@ function Overview({ journey, split, periods, onOpen, onDetail, go }) {
             <FitAmt w={600} s={30} min={18} c={C.cream} style={{ marginTop: 6, letterSpacing: -0.6 }}>{money(t.currentValue)}</FitAmt>
             <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 10 }} />
             {gain != null && gainPct != null
-              ? <Tx s={12} c="rgba(239,236,211,0.7)" style={{ marginTop: 8 }}><Tx w={600} s={12} c={onDark(gain >= 0 ? C.pos : C.red)}>{gain >= 0 ? '+' : '−'}{money(Math.abs(gain))} ({gain >= 0 ? '+' : '−'}{Math.abs(gainPct).toFixed(1)}%)</Tx> against {money(t.invested)} put in</Tx>
+              ? <Tx s={12} c="rgba(239,236,211,0.7)" style={{ marginTop: 8 }}><Tx w={600} s={12} c={onDark(gain >= 0 ? C.pos : C.red)}>{gain >= 0 ? '+' : '−'}{money(Math.abs(gain))} ({gain >= 0 ? '+' : '−'}{Math.abs(gainPct).toFixed(2)}%)</Tx> against {money(t.invested)} put in</Tx>
               : <Tx s={12} c="rgba(239,236,211,0.6)" style={{ marginTop: 8 }}>Across everyone who joined through your links</Tx>}
           </View>
           <Div />
@@ -808,7 +809,7 @@ function InvestorPage({ c, status, view, onBack }) {
           <Amt w={600} s={30} c={C.cream} style={{ marginTop: 6, letterSpacing: -0.6 }}>{money(c.currentValue)}</Amt>
           <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 10 }} />
           {delta != null && deltaPct != null
-            ? <Tx s={12.5} c="rgba(239,236,211,0.7)" style={{ marginTop: 10 }}><Tx w={600} s={12.5} c={onDark(delta >= 0 ? C.pos : C.red)}>{delta >= 0 ? '+' : '−'}{money(Math.abs(delta))} ({delta >= 0 ? '+' : '−'}{Math.abs(deltaPct).toFixed(1)}%)</Tx> against {money(c.investedAmount)} invested</Tx>
+            ? <Tx s={12.5} c="rgba(239,236,211,0.7)" style={{ marginTop: 10 }}><Tx w={600} s={12.5} c={onDark(delta >= 0 ? C.pos : C.red)}>{delta >= 0 ? '+' : '−'}{money(Math.abs(delta))} ({delta >= 0 ? '+' : '−'}{Math.abs(deltaPct).toFixed(2)}%)</Tx> against {money(c.investedAmount)} invested</Tx>
             : <Tx s={12.5} c="rgba(239,236,211,0.6)" style={{ marginTop: 10 }}>Holdings are not yet priced in our records.</Tx>}
           {(c.strategies || []).length > 0 && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 18 }}>

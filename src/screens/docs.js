@@ -31,11 +31,6 @@ function Section({ sec, accountId, count, reloadKey, onRequest }) {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}><ChevronRight /></View>
           <Tx f="play" w={600} s={17} style={{ flex: 1 }}>{sec.title}</Tx>
-          {count > 0 && (
-            <View style={{ borderWidth: 1, borderColor: C.mutedBorder35, borderRadius: 999, paddingVertical: 2, paddingHorizontal: 8 }}>
-              <Tx w={700} s={9.5} c={C.muted}>{count} {count === 1 ? 'file' : 'files'}</Tx>
-            </View>
-          )}
         </View>
         <Tx s={12} c={C.muted} lh={1.5} style={{ marginTop: 6, marginLeft: 24 }}>{sec.description}</Tx>
       </Pressable>
@@ -82,7 +77,7 @@ export function DocsCream({ V }) {
   return (
     <Fade>
       <Card big style={{ marginTop: -34, padding: 16 }}>
-        <Tx f="play" w={600} s={20}>Account documents</Tx>
+        <Tx f="play" w={600} s={20}>Account Documents</Tx>
         <Tx s={12} c={C.muted} lh={1.5} style={{ marginTop: 4 }}>Access important documents related to your Qode PMS account.</Tx>
         <AccountChips options={opts} value={accountId} onPick={setSel} />
       </Card>

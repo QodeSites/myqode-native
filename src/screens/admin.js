@@ -401,7 +401,7 @@ function NewDistributorSheet({ V, visible, onClose, onDone }) {
   return (
     <Sheet visible={visible} onClose={onClose}>
       <View style={{ paddingHorizontal: 22, paddingTop: 8, gap: 16 }}>
-        <Tx f="play" w={600} s={19}>New partner</Tx>
+        <Tx f="play" w={600} s={19}>New Partner</Tx>
         <Field label="NAME" value={f.name} onChangeText={upd('name')} placeholder="Full name or firm" autoCapitalize="words" />
         <Field label="EMAIL" value={f.email} onChangeText={upd('email')} placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none" />
         <Field label="PASSWORD" value={f.pw} onChangeText={upd('pw')} secure autoCapitalize="none" hint="8+ characters, with a letter and a digit." />
@@ -421,7 +421,7 @@ function PasswordSheet({ visible, onClose, onSave, busy, err: outerErr, name }) 
     <Sheet visible={visible} onClose={onClose}>
       <View style={{ paddingHorizontal: 22, paddingTop: 8, gap: 16 }}>
         <View>
-          <Tx f="play" w={600} s={19}>Set password</Tx>
+          <Tx f="play" w={600} s={19}>Set Password</Tx>
           <Tx s={12} c={C.muted} lh={1.5} style={{ marginTop: 4 }}>For {name}. Also clears failed attempts and any lock. The user is not notified.</Tx>
         </View>
         <Field label="NEW PASSWORD" value={a} onChangeText={t => { setA(t); setErr(''); }} secure autoCapitalize="none" hint="8+ characters, with a letter and a digit." />

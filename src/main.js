@@ -47,6 +47,7 @@ import Curtain from './screens/curtain';
 // Onboarding (account opening) — a separate, unauthenticated backend; see src/onboarding/config.js.
 import OnboardingStore from './onboarding/store';
 import * as obApiModule from './onboarding/api';
+import { prefetchRm } from './rmName';
 import { nativeFilePart } from './onboarding/file-native';
 // Uploads read the picked file with expo-file-system (see file-native.js); everything else is the module as is.
 const obApi = { ...obApiModule, uploadDocument: (id, fieldKey, file) => obApiModule.uploadDocument(id, fieldKey, file, nativeFilePart) };
@@ -432,6 +433,7 @@ export default class MyQode extends React.Component {
   codes() { return isDemo() ? null : (this.state.user && this.state.user.accountCodes) || null; }
 
   async loadSnapshot() {
+    if (this.state.user && this.state.user.email) prefetchRm(this.state.user.email);   // the profile's RM (Zoho, slow): ready before it is opened
     const snap = await portfolio.snapshot();
     const scopes = buildScopes(snap, this.codes());
     this.fellBack = {};
@@ -1046,7 +1048,7 @@ export default class MyQode extends React.Component {
 
   // Money formatting lives in src/adapt.js (inr / sinr) so every screen shows the same figures.
   fmt(v) { return inr(v); }
-  fmt0(v) { return inr(v, 0); }
+  fmt0(v) { return inr(v); }   // two decimals, like every figure
   sfmt(v) { return sinr(v); }
 
   // ── Notifications (server: myQode lib/appNotify.ts; device: src/push.js) ─────────────────────────────────────
@@ -1250,7 +1252,10 @@ export default class MyQode extends React.Component {
     const ddColor = v => (v != null && Math.abs(v) >= 0.005 ? red : C.muted);   // drawdown: red below the peak, neutral at a new high
     const asOf = perf && perf.dataAsOf ? fmtDate(perf.dataAsOf) : '';
     const benchName = titleCase(perf && perf.strategy && perf.strategy.benchmark) || 'Nifty 50';
-    const value = perf ? perf.currentValue : scope ? scope.value : 0;
+    // A closed account (fully withdrawn): nothing is held and nothing stays invested, so its current value and invested
+    // amount show ₹0 (a closing often leaves a few rupees behind in the custodian's value).
+    const closed = !!(scope && scope.kind === 'account' && scope.closed === true);
+    const value = closed ? 0 : perf ? perf.currentValue : scope ? scope.value : 0;
     const totalReturns = perf ? perf.totalReturns : 0;
 
     // NAV chart (the API series is rebased to 100; plotted below in real NAV terms)
@@ -1296,6 +1301,12 @@ export default class MyQode extends React.Component {
     const pnlIsYear = S.pnlFy < allIdx, pnlIsAll = S.pnlFy === allIdx && fys.length > 0;
     const fy = fys[Math.min(S.pnlFy, Math.max(allIdx - 1, 0))] || { label: '', m: [] };
     const spct = p => pct(p);
+    // Rupees for the P&L table and bars: the full amount, signed, two decimals (+₹21,55,123.40, −₹2,27,410.00).
+    const rs = v => {
+      if (v == null || !isFinite(v)) return '–';
+      const a = Math.abs(v), sg = v > 0 ? '+' : v < 0 ? '−' : '';
+      return sg + '₹' + a.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
     const fySum = f => (f.tv != null ? f.tv : f.m.reduce((s, x) => s + x[1], 0));
     const fyQ = ((S.d && S.d.fysQ) || []).find(f => f.label === fy.label);
     const qtr = (fyQ ? fyQ.q : []).map(a => ({ m: QUARTER_LABELS[a[4]][0] + ' ' + fy.label, note: QUARTER_LABELS[a[4]][1], v: a[1], p: a[2] }));
@@ -1306,10 +1317,12 @@ export default class MyQode extends React.Component {
     // Charts take the strategy's colour when the view holds one strategy; mixed views keep the brand green.
     const stratColors = [...new Set(accts.map(a => a.strategyColor).filter(Boolean))];
     const chartColor = stratColors.length === 1 ? stratColors[0] : C.green;
+    // Which family member holds an account: the web Portfolio page groups its account picker by member.
+    const ownerOf = id => { const o = ((S.scopes && S.scopes.owners) || []).find(x => (x.accounts || []).some(y => String(y.id) === String(id))); return o ? o.name : ''; };
     const holdRows = accts.map(a => {
-      const hp = S.hold[a.id], v = num(a.portfolioValue) || 0;
+      const hp = S.hold[a.id], v = a.isClosed ? 0 : num(a.portfolioValue) || 0;   // closed: ₹0
       return {
-        id: a.id, name: a.strategyName, tag: a.type || a.id, alloc: (holdTotal ? v / holdTotal * 100 : 0).toFixed(2), w: v / holdTotal * 100, color: a.strategyColor || C.gray,
+        id: a.id, name: a.strategyName, tag: a.type || a.id, owner: ownerOf(a.id), alloc: (holdTotal ? v / holdTotal * 100 : 0).toFixed(2), w: v / holdTotal * 100, color: a.strategyColor || C.gray,
         value: this.fmt(v),
         gain: hp ? pct(hp.returnsPercent) + ' SI' : '',
         ret: hp ? pct(hp.returnsPercent) : '', retColor: c(hp ? hp.returnsPercent : 0), mdd: hp ? ddPct(hp.trailingReturns.portfolio.maxDD) : '', hasM: !!hp,
@@ -1423,6 +1436,7 @@ export default class MyQode extends React.Component {
       // What the investor put in: gross (the round figure they remember, e.g. ₹1,00,00,000) and, when anything
       // was withdrawn, the net. Dashboard / Performance show gross first, net under it.
       invested: (() => {
+        if (closed) return { gross: this.fmt(0), net: this.fmt(0), note: null };   // closed: nothing stays invested
         const net = perf ? perf.amountInvested : flows.inflow - flows.outflow, adj = flows.inflow - flows.outflow - net;
         const note = flows.outflow > 0 ? 'Net of withdrawals ' + this.fmt(net) : Math.abs(adj) >= 0.5 ? 'Net ' + this.fmt(net) + ' after tax deducted' : null;
         return { gross: this.fmt(flows.inflow), net: this.fmt(net), note };
@@ -1464,13 +1478,82 @@ export default class MyQode extends React.Component {
         return [
           { label: 'CAGR', value: pc(m.cagr), color: m.cagr == null ? C.muted : c(m.cagr), note: under || `${m.years} years since inception` },
           { label: 'XIRR', value: si && si.irr != null ? fmtIrr(si) : '–', color: si && si.irr != null ? c(si.irr) : C.muted, note: 'Money-weighted, since inception' },
-          { label: 'Sharpe ratio', value: m.sharpe == null ? '–' : m.sharpe.toFixed(2), color: C.ink, note: m.sharpe == null ? under : `Risk-free rate ${(m.riskFree * 100).toFixed(1)}%` },
-          { label: 'Max drawdown', value: plain(m.maxDrawdown), color: m.maxDrawdown ? red : C.muted, note: 'Deepest fall from a peak' },
+          { label: 'Sharpe Ratio', value: m.sharpe == null ? '–' : m.sharpe.toFixed(2), color: C.ink, note: m.sharpe == null ? under : `Risk-free rate ${(m.riskFree * 100).toFixed(2)}%` },
+          { label: 'Max Drawdown', value: plain(m.maxDrawdown), color: m.maxDrawdown ? red : C.muted, note: 'Deepest fall from a peak' },
           { label: 'Volatility (ann.)', value: plain(m.volatility), color: C.ink, note: 'Annualised, daily returns' },
           { label: 'Alpha vs ' + titleCase(m.benchmark), value: pc(m.alpha), color: m.alpha == null ? C.muted : c(m.alpha), note: m.alpha == null ? under : 'CAGR above the benchmark' },
           { label: 'Beta', value: m.beta == null ? '–' : m.beta.toFixed(2), color: C.ink, note: 'Against ' + titleCase(m.benchmark) },
-          { label: 'Best month', value: m.bestMonth ? pc(m.bestMonth.ret) : '–', color: m.bestMonth ? c(m.bestMonth.ret) : C.muted, note: m.bestMonth ? mon(m.bestMonth.month) : '' },
+          { label: 'Best Month', value: m.bestMonth ? pc(m.bestMonth.ret) : '–', color: m.bestMonth ? c(m.bestMonth.ret) : C.muted, note: m.bestMonth ? mon(m.bestMonth.month) : '' },
         ];
+      })(),
+      // The Performance page's Metrics, since inception, the portfolio beside its benchmark (lib/portfolioMetrics.ts),
+      // each with its explanation (def: qodeinvest.com's strategy dashboard wording): three return measures (XIRR,
+      // alpha, best month), then seven risk measures. Ratios need a full year of history.
+      riskMetrics: (() => {
+        const m = S.metrics; if (!m) return [];
+        const b = m.bench || {}, bn = titleCase(m.benchmark || benchName);
+        const pc1 = x => (x == null ? '–' : (x * 100).toFixed(2) + '%');
+        const n2 = x => (x == null ? '–' : (x < 0 ? '−' : '') + Math.abs(x).toFixed(2));
+        const cap = x => (x == null ? '–' : x.toFixed(2) + '%');
+        const sg = x => (x == null ? C.muted : x < 0 ? red : green);
+        const young = m.years < 1 ? 'Shown after a full year' : null;
+        const spc = x => (x == null ? '–' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x * 100).toFixed(2) + '%');
+        const mon = ym => { const [y, mo] = String(ym || '').split('-'); return mo ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+mo - 1] + ' ' + y : ''; };
+        const xi = irrPeriod(S.irr, 'SI');
+        // u: the unit (% measures, then ratios): the Returns & Risk page's two columns. In each, the measures without
+        // a benchmark figure come first, those with one last.
+        return [
+          { u: '%', k: 'XIRR', note: 'Per year (p.a.), money-weighted, since inception', pf: xi && xi.irr != null ? fmtIrr(xi).replace(/\s*p\.a\.$/i, '') : '–', pc: xi && xi.irr != null ? sg(xi.irr) : C.muted, bm: '–',
+            def: 'XIRR is your own yearly return, taking into account when you added or withdrew money. Unlike the NAV-based figures, it reflects the timing and size of your investments. Example: money added just before a rally earns a higher XIRR than the same amount added just after it.' },
+          { u: '%', k: 'Alpha vs ' + bn, note: m.alpha == null && young ? young : 'CAGR above the benchmark', pf: spc(m.alpha), pc: sg(m.alpha), bm: '–',
+            def: `Alpha is how much more (or less) the portfolio earned a year than ${bn} over the same dates: its CAGR minus the benchmark's. Example: a portfolio compounding at 15% while the benchmark compounded at 11% has an alpha of +4%.` },
+          { u: '%', k: 'Upside Capture', note: `% of ${bn}'s gains on its up days`, pf: cap(m.upsideCapture), pc: m.upsideCapture == null ? C.muted : m.upsideCapture >= 100 ? green : C.ink, bm: '–',
+            def: `Upside Capture measures how much of ${bn}'s gains the portfolio captured on the days the benchmark rose. Above 100% means it did better than the benchmark in rising markets. Example: 110% means that when the benchmark gained 10% over its up days, the portfolio gained about 11%.` },
+          { u: '%', k: 'Downside Capture', note: `% of ${bn}'s losses on its down days`, pf: cap(m.downsideCapture), pc: m.downsideCapture == null ? C.muted : m.downsideCapture <= 100 ? green : red, bm: '–',
+            def: `Downside Capture measures how much of ${bn}'s losses the portfolio took on the days the benchmark fell. Below 100% means it lost less than the benchmark in falling markets, protecting capital better. Example: 80% means that when the benchmark fell 10% over its down days, the portfolio fell only about 8%.` },
+          { u: '%', k: 'Best Month', note: m.bestMonth ? mon(m.bestMonth.month) : 'Highest calendar-month return', pf: spc(m.bestMonth && m.bestMonth.ret), pc: sg(m.bestMonth && m.bestMonth.ret),
+            bm: spc(b.bestMonth && b.bestMonth.ret), bc: sg(b.bestMonth && b.bestMonth.ret),
+            def: 'The calendar month with the highest return since inception, from the last value of one month to the last value of the next. The benchmark column shows its own best month over the same dates.' },
+          { u: '%', k: 'Volatility', note: 'Annualised, from daily returns', pf: pc1(m.volatility), bm: pc1(b.volatility),
+            def: 'Volatility measures how widely returns move around their average, expressed on an annualised basis (standard deviation). Lower volatility means a smoother, more consistent ride. Example: an annualised volatility of 12% means returns have typically varied by about ±12% around the average in a year; a portfolio at 18% has seen larger swings than one at 12%.' },
+          { k: 'Information Ratio', note: m.informationRatio == null ? 'Shown after 12 months' : 'Alpha generated per unit of tracking error', pf: n2(m.informationRatio), pc: sg(m.informationRatio), bm: '–',
+            def: 'The Information Ratio measures how consistently the portfolio beats its benchmark: the alpha (return above the benchmark) divided by the tracking error (how much its returns differ from the benchmark\'s). Higher signals reliable, repeatable outperformance rather than one-off luck. Example: 4% a year of alpha with 5% tracking error gives 0.8; above 0.5 is generally regarded as good.' },
+          { k: 'Sharpe Ratio', note: m.sharpe == null && young ? young : 'Excess return per unit of total risk (6.5% RF)', pf: n2(m.sharpe), pc: sg(m.sharpe), bm: n2(b.sharpe), bc: sg(b.sharpe),
+            def: 'The Sharpe Ratio measures the return earned above the risk-free rate (6.5% a year) for each unit of total risk, where risk is the volatility of returns. Higher means more reward for the risk taken. Example: a portfolio returning 16% with 12% volatility has a Sharpe of about (16 − 6.5) ÷ 12 ≈ 0.79; above 1.0 is generally considered strong.' },
+          { k: 'Sortino Ratio', note: m.sortino == null && young ? young : 'Excess return per unit of downside risk', pf: n2(m.sortino), pc: sg(m.sortino), bm: n2(b.sortino), bc: sg(b.sortino),
+            def: 'The Sortino Ratio refines the Sharpe Ratio by counting only downside volatility (losses) and ignoring upside swings, which benefit investors. Higher means stronger returns relative to the risk of losing money. Example: two portfolios with the same Sharpe can have very different Sortino values; the one whose swings come mostly from up days scores higher.' },
+          { k: 'Beta', note: `Sensitivity to ${bn}'s daily moves`, pf: m.beta == null ? '–' : m.beta.toFixed(2), bm: '1.00',
+            def: `Beta measures how much the portfolio tends to move for a given move in ${bn}, from their daily returns. 1.0 moves in line with the benchmark; above 1.0 swings more; below 1.0 swings less. Example: a Beta of 0.6 means that when the benchmark moved 1% in a day, the portfolio has on average moved about 0.6% the same way.` },
+        ];
+      })(),
+      // Monthly figures since inception, the portfolio beside its benchmark (lib/portfolioMetrics.ts): best and worst
+      // calendar month (with the month) and how many months were positive.
+      monthRows: (() => {
+        const m = S.metrics; if (!m || !m.bestMonth) return [];
+        // A year picked (S.monthYr): that calendar year's months only, from the monthly series; else since inception.
+        const yr = S.monthYr && (m.months || []).some(x => x.month.startsWith(S.monthYr + '-')) ? S.monthYr : null;
+        const stats = list => {
+          const xs = (list || []).filter(x => !yr || x.month.startsWith(yr + '-'));
+          if (!xs.length) return { bestMonth: null, worstMonth: null, positiveMonths: null };
+          return { bestMonth: xs.reduce((a, x) => (x.ret > a.ret ? x : a)), worstMonth: xs.reduce((a, x) => (x.ret < a.ret ? x : a)), positiveMonths: { up: xs.filter(x => x.ret > 0).length, total: xs.length } };
+        };
+        const pc = x => (x == null ? '–' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x * 100).toFixed(2) + '%');
+        const mon = ym => { const [y, mo] = String(ym || '').split('-'); return mo ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+mo - 1] + ' ' + y : ''; };
+        const P = yr ? stats(m.months) : m, b = yr ? stats((m.bench || {}).months) : (m.bench || {});
+        const ret = x => ({ v: x ? pc(x.ret) : '–', note: x ? mon(x.month) : '', color: x ? c(x.ret) : C.muted });
+        const pos = x => ({ v: x ? x.up + '/' + x.total : '–', note: x && x.total ? Math.round(x.up / x.total * 100) + '% of months' : '', color: C.ink });
+        return [
+          { k: 'Best Month', note: 'Best single calendar month return', pf: ret(P.bestMonth), bm: ret(b.bestMonth) },
+          { k: 'Worst Month', note: 'Worst single calendar month return', pf: ret(P.worstMonth), bm: ret(b.worstMonth) },
+          { k: 'Positive Months', note: 'Months with a positive return', pf: pos(P.positiveMonths), bm: pos(b.positiveMonths) },
+        ];
+      })(),
+      // Year picker for Monthly returns: Since inception, then each calendar year with months, latest first.
+      monthYears: (() => {
+        const ys = [...new Set(((S.metrics && S.metrics.months) || []).map(x => x.month.slice(0, 4)))].sort().reverse();
+        const cur = S.monthYr && ys.includes(S.monthYr) ? S.monthYr : null;
+        return ys.length ? [{ id: null, label: 'Since inception', active: !cur, pick: () => set({ monthYr: null }) }]
+          .concat(ys.map(y => ({ id: y, label: y, active: cur === y, pick: () => set({ monthYr: y }) }))) : [];
       })(),
       irrRows: ['SI', '1Y', '3Y'].map(p => { const x = irrPeriod(S.irr, p); return x && x.irr != null && this.rangeOk(p, S) ? { period: p, label: irrLabel(x), value: fmtIrr(x), color: c(x.irr) } : null; }).filter(Boolean),
       // One slice per strategy, as on the web (strategySlices in src/web/desktop.js): a family can hold the same strategy
@@ -1482,6 +1565,14 @@ export default class MyQode extends React.Component {
         return by;
       }, new Map()).values()].sort((a, b) => b.pct - a.pct).map(g => ({ ...g, alloc: g.pct.toFixed(2) })),
       holdCount: holdRows.length,
+      // "Your capital" tiles (web Performance): withdrawals and the tax / small debits left out of the movement list together,
+      // so the four figures still add up: contributions − withdrawals & tax = net invested.
+      capitalTiles: perf ? [
+        { label: 'Contributions', value: this.fmt(flows.inflow), color: C.ink },
+        { label: 'Withdrawals & Tax', value: this.fmt(flows.inflow - perf.amountInvested), color: C.ink },
+        { label: 'Net Invested', value: this.fmt(closed ? 0 : perf.amountInvested), color: C.ink },
+        { label: 'Total Returns', value: this.sfmt(totalReturns), color: c(totalReturns) },
+      ] : [],
       flows: [
         { label: 'TOTAL CONTRIBUTIONS', value: this.fmt(flows.inflow), color: C.ink },
         { label: 'TOTAL WITHDRAWALS', value: this.fmt(flows.outflow), color: C.ink },
@@ -1489,7 +1580,7 @@ export default class MyQode extends React.Component {
         // out (under ₹1,000): shown as its own line so contributions − withdrawals − this = net invested.
         ...(perf && Math.abs(flows.inflow - flows.outflow - perf.amountInvested) >= 0.5
           ? [{ label: 'TAX DEDUCTED & SMALL ADJUSTMENTS', value: this.fmt(flows.inflow - flows.outflow - perf.amountInvested), color: C.ink }] : []),
-        { label: 'NET INVESTED', value: this.fmt(perf ? perf.amountInvested : 0), color: C.ink },
+        { label: 'NET INVESTED', value: this.fmt(perf && !closed ? perf.amountInvested : 0), color: C.ink },
         { label: 'TOTAL RETURNS', value: this.sfmt(totalReturns), color: c(totalReturns) },
       ],
       // Detailed metrics (Portfolio)
@@ -1503,16 +1594,39 @@ export default class MyQode extends React.Component {
       credItems: [],
       // Profit & Loss (Portfolio)
       pnlRows: S.pnlSeg === 0
-        ? fy.m.map(a => ({ m: a[0], note: a[3] || 'Net of fees', v: this.sfmt(a[1]), p: spct(a[2]), color: c(a[1]), pcolor: c(a[2]) }))
-        : qtr.map(q => ({ m: q.m, note: q.note, v: this.sfmt(q.v), p: spct(q.p), color: c(q.v), pcolor: c(q.p) })),
+        ? fy.m.map(a => ({ m: a[0], note: a[3] || 'Net of fees', v: this.sfmt(a[1]), vc: rs(a[1]), p: spct(a[2]), color: c(a[1]), pcolor: c(a[2]) }))
+        : qtr.map(q => ({ m: q.m, note: q.note, v: this.sfmt(q.v), vc: rs(q.v), p: spct(q.p), color: c(q.v), pcolor: c(q.p) })),
       pnlSegChips: ['MONTHLY', 'QUARTERLY'].map((l, i) => ({ label: l, pick: () => set({ pnlSeg: i }), active: S.pnlSeg === i })),
       fyLabel: fy.label.toUpperCase(), fyTotal: this.sfmt(fySum(fy)), fyColor: c(fySum(fy)), fyTotalPct: fy.tp != null ? spct(fy.tp) : '',
       pnlPills: fys.slice(0, 3).map(f => f.label).concat(fys.length > 3 ? ['All Years'] : []).map((lbl, i) => ({
         label: lbl, pick: () => set({ pnlFy: i, pnlOpen: null }), active: S.pnlFy === i,
       })),
+      // One P&L dropdown: each of the last three years by month or by quarter, then every year's total (Yearly).
+      pnlOptions: fys.slice(0, 3).flatMap((f, i) => ['Monthly', 'Quarterly'].map((p, seg) => ({
+        label: f.label + ' - ' + p, active: pnlIsYear && S.pnlFy === i && S.pnlSeg === seg, pick: () => set({ pnlFy: i, pnlSeg: seg, pnlOpen: null }),
+      }))).concat(fys.length ? [{ label: 'All years - Yearly', active: !pnlIsYear, pick: () => set({ pnlFy: allIdx, pnlOpen: null }) }] : []),
       pnlFy: S.pnlFy, pnlIsYear, pnlIsAll: pnlIsAll && fys.length > 3, hasPnl: fys.length > 0,
+      // P&L as a table: one row per year (latest first), the twelve months' returns % and the year's total.
+      // In rupees too (rcells / rtotal: the profit, net of fees), for the % | ₹ switch.
+      pnlGrid: fys.map(f => {
+        const cells = Array(12).fill(null), amts = Array(12).fill(null);
+        f.m.forEach(a => { cells[a[4]] = a[2]; amts[a[4]] = a[1]; });
+        const tv = fySum(f);
+        return { id: f.label, year: f.label, cells: cells.map(p => (p == null ? '–' : spct(p))), colors: cells.map(p => (p == null ? C.muted : c(p))),
+          total: f.tp != null ? spct(f.tp) : '–', tcolor: f.tp != null ? c(f.tp) : C.muted,
+          rcells: amts.map(rs), rcolors: amts.map(v => (v == null ? C.muted : c(v))), rtotal: rs(tv), rtcolor: c(tv) };
+      }),
+      // …and by quarter: Q1–Q4 and the year's total.
+      pnlGridQ: ((S.d && S.d.fysQ) || []).map(f => {
+        const cells = Array(4).fill(null), amts = Array(4).fill(null);
+        f.q.forEach(a => { cells[a[4]] = a[2]; amts[a[4]] = a[1]; });
+        const tv = f.tv != null ? f.tv : f.q.reduce((t, a) => t + (a[1] || 0), 0);
+        return { id: f.label, year: f.label, cells: cells.map(p => (p == null ? '–' : spct(p))), colors: cells.map(p => (p == null ? C.muted : c(p))),
+          total: f.tp != null ? spct(f.tp) : '–', tcolor: f.tp != null ? c(f.tp) : C.muted,
+          rcells: amts.map(rs), rcolors: amts.map(v => (v == null ? C.muted : c(v))), rtotal: rs(tv), rtcolor: c(tv) };
+      }),
       allYears: fys.map((f, i) => ({
-        label: f.label, total: this.sfmt(fySum(f)), color: c(fySum(f)),
+        label: f.label, total: this.sfmt(fySum(f)), totalC: rs(fySum(f)), color: c(fySum(f)), pct: f.tp != null ? spct(f.tp) : '', pcolor: c(f.tp || 0),
         open: S.pnlOpen === i, pick: () => set({ pnlOpen: S.pnlOpen === i ? null : i }),
         rows: f.m.map(a => ({ m: a[0], v: this.sfmt(a[1]), color: c(a[1]) })),
       })),
@@ -1524,6 +1638,8 @@ export default class MyQode extends React.Component {
       viewing: S.viewing, viewInvestor: this.viewInvestor, exitView: () => this.exitView(), partnerNav: this.partnerNav || null,
       user: S.user, isSuperAdmin: !!(S.user && S.user.isSuperAdmin), impersonated: !!(S.user && S.user.isImpersonated),
       page: S.page, openPage: k => { k = PAGE_ALIASES[k] || k; screen('page:' + k); set({ page: k }); }, closePage: () => set({ page: null }),
+      // The strategies the investor holds (open accounts, any family member): the Strategy page marks them.
+      myStrategies: [...new Set(((S.scopes && S.scopes.owners) || []).flatMap(o => (o.accounts || []).filter(a => !a.isClosed).map(a => a.strategyPrefix)).filter(Boolean))],
       acctOptions: (scope ? scope.accounts : []).map(a => ({ id: a.id, label: a.strategyPrefix ? a.strategyPrefix + ' · ' + a.id : a.id })),
       // closed accounts of the scope's people, for Reports only (Nuvama's statements include them)
       reportClosed: !scope || scope.kind === 'account' ? []
@@ -1568,6 +1684,9 @@ export default class MyQode extends React.Component {
         subs: o.closedAccounts.map(x => this.closedSubOf(x)),
       }))),
       // A closed account on screen: one line at the top of the dashboard.
+      // The pop-up on opening a closed account (web and phone), once per account per session.
+      closedPopup: closed && !(S.closedSeen || {})[scope.id] ? { id: scope.id, name: scope.tag || scope.id, closedOn: scope.closedOn ? fmtDate(scope.closedOn) : '' } : null,
+      dismissClosed: () => { const sc = this.curScope(); if (sc) set({ closedSeen: { ...(this.state.closedSeen || {}), [sc.id]: true } }); },
       closedNote: scope && scope.kind === 'account' && scope.closed === true ? `This account was closed${scope.closedOn ? ' on ' + fmtDate(scope.closedOn) : ''} after a full withdrawal. Figures are as of closing.` : '',
       hasFamily: !!family,
       pickFamily: () => this.pickScope(-1),

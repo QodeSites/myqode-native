@@ -392,7 +392,7 @@ function Overview({ journey, split, onOpen, onDetail, onLinks }) {
         {gain != null && gainPct != null && (
           <View style={{ marginTop: 8 }}>
             <Tx s={12.5} lh={1.5}>
-              <Tx w={700} s={12.5} c={gain >= 0 ? QAW_GREEN : C.red}>{gain >= 0 ? '▲' : '▼'} {inr(Math.abs(gain))} ({gain >= 0 ? '+' : '−'}{Math.abs(gainPct).toFixed(1)}%)</Tx>
+              <Tx w={700} s={12.5} c={gain >= 0 ? QAW_GREEN : C.red}>{gain >= 0 ? '▲' : '▼'} {inr(Math.abs(gain))} ({gain >= 0 ? '+' : '−'}{Math.abs(gainPct).toFixed(2)}%)</Tx>
               <Tx s={12.5} c={C.muted}> against {inr(invested)} put in</Tx>
             </Tx>
           </View>

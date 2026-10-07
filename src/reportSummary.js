@@ -11,9 +11,9 @@ export const money = v => {
   const a = Math.abs(num(v));
   if (a >= 1e7) return `₹${(a / 1e7).toFixed(2).replace(/\.?0+$/, '')} Cr`;
   if (a >= 1e5) return `₹${(a / 1e5).toFixed(2).replace(/\.?0+$/, '')} L`;
-  return '₹' + Math.round(a).toLocaleString('en-IN');
+  return '₹' + a.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
-const pctTxt = v => `${Math.abs(num(v)).toFixed(1)}%`;
+const pctTxt = v => `${Math.abs(num(v)).toFixed(2)}%`;
 const span = (from, to) => (from && to ? `Between ${day(from)} and ${day(to)}` : from ? `Since ${day(from)}` : to ? `Up to ${day(to)}` : 'Across all records');
 const gainWord = v => (num(v) >= 0 ? 'gain' : 'loss');
 const who = all => (all ? 'these accounts' : 'this account');

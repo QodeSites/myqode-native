@@ -2,21 +2,26 @@
 // from src/screens/more.js as a page. Left column: profile, security and display preferences, admin tools and the
 // session. Right column: help (a link to Investor Relations on Your Team at Qode) and the legal pages. The investor
 // menu itself is in the sidebar (NAV_GROUPS, src/nav.js). Same V and the same handlers as the phone.
+import { titleCase } from '../titleCase';
 import React from 'react';
-import { View, Pressable } from 'react-native';
-import { C, Tx, Card, Row, PageIntro, Panel, Btn, Chips, Pill } from './kit';
-import { ChevronRight } from '../icons';
+import { View, Pressable, Linking } from 'react-native';
+import { C, Tx, Card, Row, PageIntro, Panel, Btn, Chips, Pill, Loading } from './kit';
+import { ChevronRight, Phone, MailIcon } from '../icons';
 import { initials } from '../adapt';
 import { LEGAL_LINKS } from '../nav';
 import { ContactIRLink } from './contact';
+import { useRmName } from '../rmName';
 
 export default function DesktopAccount({ V }) {
+  // The page shows once the Relationship manager lookup has answered, so nothing appears or moves after.
+  const rm = useRmName(V.user && V.user.email);
+  if (!rm.done) return <Loading rows={4} />;
   return (
     <View style={{ gap: 20 }}>
       <PageIntro sub="Your profile, security and display preferences." />
       <Row top>
         <View style={{ flex: 1.35, minWidth: 0, gap: 20 }}>
-          <Profile V={V} />
+          <Profile V={V} rm={rm} />
           <Preferences V={V} />
           {(V.isSuperAdmin || V.impersonated) && <Admin V={V} />}
           <Session V={V} />
@@ -42,9 +47,18 @@ export default function DesktopAccount({ V }) {
   );
 }
 
-function Profile({ V }) {
+function Profile({ V, rm }) {
   const u = V.user || {};
-  const rows = [['Email', u.email], ['Account code', u.clientCode]].filter(r => r[1]);
+  const rmCell = rm && rm.name ? (
+    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 16, rowGap: 4 }}>
+      <Tx w={600} s={13.5} numberOfLines={1}>{rm.name}</Tx>
+      {!!rm.phone && <View style={{ width: 1, height: 16, backgroundColor: C.line2 }} />}
+      {!!rm.phone && <Pressable accessibilityRole="link" accessibilityLabel={'Call ' + rm.name} onPress={() => Linking.openURL('tel:' + rm.phone.replace(/\s/g, '')).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Phone s={13} c={C.green} /><Tx s={13} c={C.green}>{rm.phone}</Tx></Pressable>}
+      {!!rm.email && <View style={{ width: 1, height: 16, backgroundColor: C.line2 }} />}
+      {!!rm.email && <Pressable accessibilityRole="link" accessibilityLabel={'Email ' + rm.name} onPress={() => Linking.openURL('mailto:' + rm.email).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><MailIcon s={13} c={C.green} /><Tx s={13} c={C.green}>{rm.email}</Tx></Pressable>}
+    </View>
+  ) : null;
+  const rows = [['Email', u.email], ['Account Code', u.clientCode], ['Relationship Manager', rmCell]].filter(r => r[1]);
   return (
     <Card>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 20 }}>
@@ -59,8 +73,8 @@ function Profile({ V }) {
       </View>
       {rows.map(([k, v]) => (
         <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 12, paddingHorizontal: 20, borderTopWidth: 1, borderColor: C.line }}>
-          <Tx s={13} c={C.ink2} style={{ width: 110 }}>{k}</Tx>
-          <Tx w={600} s={13.5} numberOfLines={1} style={{ flex: 1 }}>{v}</Tx>
+          <Tx s={13} c={C.ink2} style={{ width: 160 }}>{k}</Tx>
+          {typeof v === 'string' ? <Tx w={600} s={13.5} numberOfLines={1} style={{ flex: 1 }}>{v}</Tx> : v}
         </View>
       ))}
     </Card>
@@ -83,7 +97,7 @@ function SettingRow({ title, sub, note, on, onPress }) {
       style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 20,
         borderTopWidth: 1, borderColor: C.line, backgroundColor: hovered ? C.hover : 'transparent' })}>
       <View style={{ flex: 1 }}>
-        <Tx w={600} s={13.5}>{title}</Tx>
+        <Tx w={600} s={13.5}>{titleCase(title)}</Tx>
         {!!sub && <Tx s={12} c={C.ink3} style={{ marginTop: 2 }}>{sub}</Tx>}
         {!!note && <Tx s={12} c={C.ink3} lh={1.4} style={{ marginTop: 4 }}>{note}</Tx>}
       </View>

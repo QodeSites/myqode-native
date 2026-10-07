@@ -1,7 +1,7 @@
 // Main app frame: scrolling dark-curtain header + cream zone per tab,
 // fixed bottom nav with sliding gold thread, sheets, and success overlay.
 import React, { useRef, useEffect } from 'react';
-import { View, Pressable, Animated, Dimensions, Easing, RefreshControl } from 'react-native';
+import { View, Pressable, Animated, Dimensions, Easing, RefreshControl, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, Tx, Amt, Chip, CurveCap, Fade, GoldThreads, useUI } from '../ui';
@@ -10,6 +10,7 @@ import { PerfChart } from './charts';
 import { HomeCream, PortfolioCream, HoldingsCream, HomeSkeleton, OtherSkeleton } from './tabs';
 import { DocsCream } from './docs';
 import { ServicesCream, RequestSheets } from './services';
+import { ClosedAccountPopup } from './kit';
 import { MoreCream } from './more';
 import { PageHost } from './pages';
 import { ReportsPage } from './reports';
@@ -96,7 +97,7 @@ function DarkZone({ V }) {
       {V.isPfGroup && (
         <View style={{ marginTop: 20, marginHorizontal: 22, flexDirection: 'row', borderWidth: 1, borderColor: 'rgba(239,236,211,0.25)', borderRadius: 999, padding: 3 }}>
           <Pressable onPress={V.segPerf} style={{ flex: 1, paddingVertical: 8, borderRadius: 999, alignItems: 'center', backgroundColor: V.isPortfolio ? C.gold : 'transparent' }}>
-            <Tx w={700} s={11} ls={0.08} c={V.isPortfolio ? C.ink : C.cream60}>PERFORMANCE</Tx>
+            <Tx w={700} s={11} ls={0.08} c={V.isPortfolio ? C.ink : C.cream60}>RETURNS & RISK</Tx>
           </Pressable>
           <Pressable onPress={V.segHold} style={{ flex: 1, paddingVertical: 8, borderRadius: 999, alignItems: 'center', backgroundColor: V.isHoldings ? C.gold : 'transparent' }}>
             <Tx w={700} s={11} ls={0.08} c={V.isHoldings ? C.ink : C.cream60}>HOLDINGS</Tx>
@@ -105,7 +106,7 @@ function DarkZone({ V }) {
       )}
       {V.isPortfolio && (
         <Fade style={{ paddingTop: 16, paddingHorizontal: 22 }}>
-          <Tx w={700} s={11} ls={0.14} c={C.gold}>PERFORMANCE</Tx>
+          <Tx w={700} s={11} ls={0.14} c={C.gold}>RETURNS & RISK</Tx>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 6 }}>
             <Tx f="play" w={600} s={24} c={C.cream}>NAV Performance</Tx>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 5 }}>
@@ -292,6 +293,7 @@ export default function AppShell({ V }) {
         style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top + 14, pointerEvents: 'none' }} />
       <BottomNav V={V} insets={insets} />
       <RequestSheets V={V} />
+      <ClosedAccountPopup p={V.closedPopup} onClose={V.dismissClosed} />
       <SwitchSheet V={V} />
       <SettingsSheet V={V} />
       <NotifsSheet V={V} />

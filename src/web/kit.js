@@ -1,12 +1,13 @@
 // myQode web design system. The phone app and the website share data and brand colours, but not their look:
 // the website is a desktop dashboard — white surfaces with hairline borders on a warm grey canvas, Inter for all
-// interface text and figures (Playfair only for the brand and page titles), sentence-case section titles, light
+// interface text and figures (Playfair only for the brand and page titles), Title Case names and headings, light
 // data tables, segmented controls, and the brand green / gold used as accents rather than as surfaces.
 // Every screen in src/web/ builds from these pieces. `C` here is the web palette: it keeps the app's key names so
 // shared code keeps working, with web values.
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { View, Pressable, TextInput, ActivityIndicator, Modal, ScrollView, Platform, Linking } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Circle } from 'react-native-svg';
+import { titleCase } from '../titleCase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { C as APP, Tx as AppTx, Amt, useUI } from '../ui';
 import { ChevronRight, ChevronDown } from '../icons';
@@ -78,22 +79,14 @@ export function FitAmt({ children, s = 22, min = 12, style, ...rest }) {
   });
   return (
     <View ref={ref} onLayout={e => setBox(e.nativeEvent.layout.width)} style={{ alignSelf: 'stretch', minWidth: 0 }}>
-      <Amt s={Math.round(size * k * 10) / 10} numberOfLines={wrap ? undefined : 1} style={style} {...rest}>{text}</Amt>
+      <Amt s={Math.round(size * k * 10) / 10} numberOfLines={wrap ? undefined : 1} adjustsFontSizeToFit={!wrap} style={style} {...rest}>{text}</Amt>
     </View>
   );
 }
 
-// Section titles read as sentences on the web ("Strategy accounts"), whatever case the caller passes.
-const KEEP = new Set(['NAV', 'SIP', 'STP', 'PMS', 'SI', 'DD', 'IR', 'PDF', 'FAQ', 'CAGR', 'P&L', 'UCC', 'GST', 'PAN', 'KYC', 'TDS', 'ID', 'XIRR', 'AUM', 'GSTIN', 'IFSC', 'SOA', 'CSV']);
-export function sentence(t) {
-  if (typeof t !== 'string' || t !== t.toUpperCase() || !/[A-Z]/.test(t)) return t;
-  return t.split(' ').map((w, i) => {
-    const bare = w.replace(/[^A-Z&0-9]/g, '');
-    if (KEEP.has(bare) || /^\d/.test(w) || /\d[A-Z]$/.test(w)) return w;
-    const lw = w.toLowerCase();
-    return i === 0 ? lw.charAt(0).toUpperCase() + lw.slice(1) : lw;
-  }).join(' ');
-}
+// Names, headings and labels in Title Case on the web ("Your Accounts", "Net Invested"), whatever case the caller
+// passes (src/titleCase.js; the phone uses the same rule). Kept as `sentence`, the name its callers use.
+export const sentence = titleCase;
 
 const web = Platform.OS === 'web';
 // Clips like overflow hidden, but is not a scroll container, so a sticky table header inside still pins to the page.
@@ -132,11 +125,11 @@ export function PageIntro({ title, sub, right }) {
 export const Label = ({ children, style, c = C.ink3 }) => <Tx w={600} s={12} c={c} style={style}>{sentence(children)}</Tx>;
 
 /** Card with a header (title, optional subtitle and actions). pad=0 for edge-to-edge tables. */
-export function Panel({ title, sub, right, children, style, pad = 20, footer }) {
+export function Panel({ title, sub, right, children, style, pad = 20, footer, bodyStyle }) {
   return (
     <Card style={[{ overflow: CLIP }, style]}>
       {(!!title || !!right) && (
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 16, paddingBottom: pad === 0 ? 14 : 0 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 16, paddingBottom: pad === 0 ? 14 : 0, zIndex: 5 }}>
           <View style={{ flexShrink: 1 }}>
             {typeof title === 'string' ? <Tx w={600} s={14.5} c={C.green} role="heading" aria-level={3}>{sentence(title)}</Tx> : title || null}
             {!!sub && <Tx s={12} c={C.ink3} style={{ marginTop: 2 }}>{sub}</Tx>}
@@ -144,7 +137,7 @@ export function Panel({ title, sub, right, children, style, pad = 20, footer }) 
           {right}
         </View>
       )}
-      <View style={pad ? { padding: pad, paddingTop: title || right ? 14 : pad } : null}>{children}</View>
+      <View style={[pad ? { padding: pad, paddingTop: title || right ? 14 : pad } : null, bodyStyle]}>{children}</View>
       {!!footer && <View style={{ borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 20, paddingVertical: 12, backgroundColor: C.subtle }}>{footer}</View>}
     </Card>
   );
@@ -205,7 +198,7 @@ export function Btn({ label, onPress, kind = 'primary', icon, disabled, busy, st
       backgroundColor: hovered && !disabled ? pal.hov : pal.bg, borderColor: pal.bd, opacity: disabled ? 0.45 : 1,
     }, style]}>
       {busy ? <ActivityIndicator size="small" color={pal.fg} /> : icon}
-      <Tx w={600} s={small ? 12.5 : 13.5} c={pal.fg}>{label}</Tx>
+      <Tx w={600} s={small ? 12.5 : 13.5} c={pal.fg}>{titleCase(label)}</Tx>
     </Pressable>
   );
 }
@@ -223,7 +216,7 @@ export function Chips({ value, options, onChange, style, small }) {
             backgroundColor: on ? C.green : hovered && !off ? 'rgba(255,255,255,0.6)' : 'transparent', opacity: off ? 0.35 : 1,
             cursor: off ? 'not-allowed' : undefined,
           })}>
-            <Tx w={600} s={small ? 12 : 12.5} c={on ? C.gold : C.ink2}>{l}</Tx>
+            <Tx w={600} s={small ? 12 : 12.5} c={on ? C.gold : C.ink2}>{titleCase(l)}</Tx>
           </Pressable>
         );
       })}
@@ -236,7 +229,7 @@ export function Chips({ value, options, onChange, style, small }) {
  *  unless the id is in keepOpen (e.g. 'custom', to show extra fields). children: extra content under the options,
  *  or a function (close) => node. Clicking outside or pressing Escape closes it. Give the row it sits in a zIndex
  *  so the menu floats over what follows. */
-export function Dropdown({ label, text, options = [], value, onPick, keepOpen = [], children, width, maxWidth = 380, menuWidth = 300, align = 'left', disabled, a11yLabel }) {
+export function Dropdown({ label, text, options = [], value, onPick, keepOpen = [], children, width, maxWidth = 380, menuWidth = 300, align = 'left', disabled, a11yLabel, compact }) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
   useEffect(() => {
@@ -250,9 +243,9 @@ export function Dropdown({ label, text, options = [], value, onPick, keepOpen = 
     <View style={{ zIndex: open ? 60 : 1, width, maxWidth, flexShrink: 1 }}>
       <Pressable accessibilityRole="button" accessibilityLabel={a11yLabel || label || text} accessibilityState={{ expanded: open, disabled: !!disabled }}
         onPress={disabled ? undefined : () => setOpen(o => !o)}
-        style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, height: 36, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1,
+        style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: compact ? 5 : 8, height: compact ? 34 : 36, paddingHorizontal: compact ? 9 : 12, borderRadius: 8, borderWidth: 1,
           backgroundColor: C.card, borderColor: open || (hovered && !disabled) ? C.green : C.line2, opacity: disabled ? 0.5 : 1, outlineStyle: 'none' })}>
-        {!!label && <Tx w={600} s={12} c={C.ink3}>{label}</Tx>}
+        {!!label && <Tx w={600} s={12} c={C.ink3}>{titleCase(label)}</Tx>}
         <Tx w={600} s={13} numberOfLines={1} style={{ flexShrink: 1 }}>{text}</Tx>
         <ChevronDown s={10} c={C.ink2} />
       </Pressable>
@@ -294,7 +287,7 @@ export function Tabs({ value, options, onChange, style }) {
         const on = value === k;
         return (
           <Pressable key={String(k)} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onChange(k)} style={({ hovered }) => ({ paddingVertical: 11, opacity: hovered && !on ? 0.75 : 1, outlineStyle: 'none' })}>
-            <Tx w={600} s={13.5} c={on ? C.green : C.ink3}>{l}</Tx>
+            <Tx w={600} s={13.5} c={on ? C.green : C.ink3}>{titleCase(l)}</Tx>
             <View style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, borderRadius: 1, backgroundColor: on ? C.gold : 'transparent' }} />
           </Pressable>
         );
@@ -348,13 +341,14 @@ export function DateField({ label, value, onChangeText, min, max, error, hint, p
   );
 }
 
-/** Data table. cols: [{ key, label, flex?, w?, right?, render?(row) }]; rows: array; onRowPress?(row); selected?(row).
+/** Data table. cols: [{ key, label, flex?, w?, right?, center?, render?(row) }] (center: a figure column centred); rows: array; onRowPress?(row); selected?(row).
  *  Right-aligned (figure) columns are as wide as their widest value, header included, and never shrink, so an amount
  *  or a date is never cut to "…" however narrow the window or large the zoom. Left-aligned columns share what is left
  *  (by `flex`) and keep their text inside the cell: one-line text ends in "…", other text wraps. `w` fixes a width.
- *  The header sticks to the top of the page while the rows scroll; sticky={false} turns that off. */
-export function Table({ cols, rows, onRowPress, empty = 'Nothing to show yet.', dense, selected, sticky = true }) {
-  const cell = { paddingVertical: dense ? 9 : 12, paddingHorizontal: 16 };
+ *  The header sticks to the top of the page while the rows scroll; sticky={false} turns that off. padX sets the
+ *  cells' side padding (16 by default) for a table with many narrow columns. */
+export function Table({ cols, rows, onRowPress, empty = 'Nothing to show yet.', dense, selected, sticky = true, padX = 16 }) {
+  const cell = { paddingVertical: dense ? 9 : 12, paddingHorizontal: padX };
   const root = useRef(null);
   const [fit, setFit] = useState({});   // measured content width of each right-aligned column, by key
   const measure = useCallback(() => {
@@ -372,27 +366,34 @@ export function Table({ cols, rows, onRowPress, empty = 'Nothing to show yet.', 
     return () => window.removeEventListener('resize', measure);
   }, [measure]);
 
+  // grow: a figure column that shares the width with its neighbours instead of being sized to its widest value.
   const size = c => (c.w ? { width: c.w, flexGrow: 0, flexShrink: 0 }
-    : c.right && fit[c.key] ? { width: fit[c.key] + cell.paddingHorizontal * 2, flexGrow: 0, flexShrink: 0 }
-    : { flexGrow: c.flex || 1, flexShrink: 1, flexBasis: 0, minWidth: 0 });
+    : c.right && !c.grow && fit[c.key] ? { width: fit[c.key] + cell.paddingHorizontal * 2, flexGrow: 0, flexShrink: 0 }
+    : { flexGrow: c.flex || 1, flexShrink: 1, flexBasis: 0, minWidth: c.minW || 0 });   // minW: a flexible column's narrowest
   // A figure column's content is laid out at its natural width (max-content) and measured; the column then takes it.
-  const fitBox = (c, child) => (c.right && !c.w && web
-    ? <View dataSet={{ fit: c.key }} style={{ width: 'max-content', alignItems: 'flex-end' }}>{child}</View>
+  const fitBox = (c, child) => (c.right && !c.w && !c.grow && web
+    ? <View dataSet={{ fit: c.key }} style={{ width: 'max-content', alignItems: c.center ? 'center' : 'flex-end' }}>{child}</View>
     : child);
   const head = [{ flexDirection: 'row', backgroundColor: C.green }, sticky && web && { position: 'sticky', top: 0, zIndex: 2 }];
-  return (
-    <View ref={root}>
+  // The width the columns need (fixed widths, measured figure columns, a floor for flexible ones). When the card is
+  // narrower, the table keeps that width and scrolls sideways, so no figure is ever clipped or cut to "…" (the header
+  // then scrolls with it rather than sticking to the page).
+  const [boxW, setBoxW] = useState(0);
+  const need = cols.reduce((t, c) => t + (c.w ? c.w : c.right && !c.grow && fit[c.key] ? fit[c.key] + cell.paddingHorizontal * 2 : (c.minW || (c.right ? 96 : 120))), 0);
+  const wide = web && boxW > 0 && need > boxW + 1;
+  const table = (
+    <View ref={root} style={wide ? { width: need } : null}>
       <View style={head}>
         {cols.map(c => (
-          <View key={c.key} style={[cell, size(c), { paddingVertical: 9, overflow: CLIP, alignItems: c.right ? 'flex-end' : 'stretch', justifyContent: 'center' }]}>
-            {fitBox(c, <Tx w={600} s={11.5} c={C.cream} numberOfLines={c.right ? undefined : 1} style={{ textAlign: c.right ? 'right' : 'left' }}>{sentence(c.label)}</Tx>)}
+          <View key={c.key} style={[cell, size(c), { paddingVertical: 9, overflow: CLIP, alignItems: c.center ? 'center' : c.right ? 'flex-end' : 'stretch', justifyContent: 'center' }]}>
+            {fitBox(c, <Tx w={600} s={11.5} c={C.cream} numberOfLines={c.right ? undefined : 1} style={{ textAlign: c.center ? 'center' : c.right ? 'right' : 'left' }}>{sentence(c.label)}</Tx>)}
           </View>
         ))}
       </View>
       {rows.length === 0 && <Tx s={13} c={C.ink3} style={{ padding: 20 }}>{empty}</Tx>}
       {rows.map((r, i) => {
         const inner = cols.map(c => (
-          <View key={c.key} style={[cell, size(c), { overflow: CLIP, alignItems: c.right ? 'flex-end' : 'stretch', justifyContent: 'center' }]}>
+          <View key={c.key} style={[cell, size(c), { overflow: CLIP, alignItems: c.center ? 'center' : c.right ? 'flex-end' : 'stretch', justifyContent: 'center' }]}>
             {fitBox(c, c.render ? c.render(r) : <Tx s={13.5} numberOfLines={c.right ? undefined : 2}>{r[c.key] == null ? '' : String(r[c.key])}</Tx>)}
           </View>
         ));
@@ -404,11 +405,16 @@ export function Table({ cols, rows, onRowPress, empty = 'Nothing to show yet.', 
       })}
     </View>
   );
+  return (
+    <View onLayout={e => setBoxW(Math.round(e.nativeEvent.layout.width))}>
+      {wide ? <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: '100%' }}>{table}</ScrollView> : table}
+    </View>
+  );
 }
 
 /** Horizontal bar list (allocation, breakdowns). items: [{ key, label, sub?, value (text), pct (0-100), color }].
  *  dp: decimals on the percentage (holdings show 2). */
-export function BarList({ items, style, dp = 0 }) {
+export function BarList({ items, style, dp = 2 }) {
   return (
     <View style={[{ gap: 14 }, style]}>
       {items.map(it => (
@@ -434,7 +440,7 @@ export function KeyVals({ items, style }) {
     <View style={style}>
       {items.map(([k, v, col], i) => (
         <View key={k} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderColor: C.line }}>
-          <Tx s={13} c={C.ink2}>{k}</Tx>
+          <Tx s={13} c={C.ink2}>{titleCase(k)}</Tx>
           {typeof v === 'string' || typeof v === 'number' ? <Amt s={13.5} w={600} c={col || C.ink}>{v}</Amt> : v}
         </View>
       ))}
@@ -445,7 +451,7 @@ export function KeyVals({ items, style }) {
 /** "View all ›" style text link. */
 export const TextLink = ({ label, onPress, c = C.green }) => (
   <Pressable accessibilityRole="link" onPress={onPress} style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 4, opacity: hovered ? 0.7 : 1 })}>
-    <Tx w={600} s={13} c={c}>{label}</Tx><ChevronRight s={11} c={c} />
+    <Tx w={600} s={13} c={c}>{titleCase(label)}</Tx><ChevronRight s={11} c={c} />
   </Pressable>
 );
 
@@ -465,7 +471,7 @@ export const Loading = ({ rows = 4 }) => (
 );
 export const Empty = ({ children, title }) => (
   <Card style={{ paddingVertical: 36, paddingHorizontal: 28, alignItems: 'center' }}>
-    {!!title && <Tx w={600} s={15} center style={{ marginBottom: 6 }}>{title}</Tx>}
+    {!!title && <Tx w={600} s={15} center style={{ marginBottom: 6 }}>{titleCase(title)}</Tx>}
     <Tx s={13.5} c={C.ink2} center lh={1.6} style={{ maxWidth: 520 }}>{children}</Tx>
   </Card>
 );
@@ -488,7 +494,7 @@ export function Dialog({ visible, onClose, title, children, width = 560 }) {
         <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={onClose} />
         <Card style={{ width, maxWidth: '100%', maxHeight: '88%', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: 12 } }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 22, paddingVertical: 16, borderBottomWidth: 1, borderColor: C.line }}>
-            <Tx w={600} s={16} style={{ flex: 1 }}>{title}</Tx>
+            <Tx w={600} s={16} style={{ flex: 1 }}>{titleCase(title)}</Tx>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={10} style={({ hovered }) => ({ width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: hovered ? C.hover : 'transparent' })}>
               <Tx w={600} s={15} c={C.ink3}>✕</Tx>
             </Pressable>
@@ -497,6 +503,67 @@ export function Dialog({ visible, onClose, title, children, width = 560 }) {
         </Card>
       </View>
     </Modal>
+  );
+}
+
+// A closed account (fully withdrawn): says so in a dialog. p: { id, name, closedOn (formatted) } or null (hidden).
+// Shown on opening a closed account (V.closedPopup, src/web/desktop.js) and on picking one in Reports.
+export function ClosedAccountDialog({ p, onClose }) {
+  if (!p) return null;
+  return (
+    <Dialog visible title="This Account Has Been Closed" onClose={onClose} width={460}>
+      <Tx s={14} c={C.ink2} lh={1.6}>{p.name ? p.name + ' · ' : ''}{p.id} was closed{p.closedOn ? ' on ' + p.closedOn : ''}. Its current value and invested amount are ₹0. Reports and transactions run to the day before it closed.</Tx>
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 20 }}>
+        <Btn label="OK" onPress={onClose} />
+      </View>
+    </Dialog>
+  );
+}
+
+/** ⓘ beside a figure's name: `text` (its explanation) in a pop-up on hover or tap, drawn on <body> so a card's
+ *  edge never cuts it off. dark: on a dark surface. */
+export function InfoTip({ label, dark, text }) {
+  const timer = useRef(null);   // the pop-up closes a moment after the mouse leaves, unless it moved onto the pop-up
+  const ref = useRef(null);
+  const [pos, setPos] = useState(null);   // where the pop-up sits on screen while open (null: closed)
+  if (!text) return null;
+  const c = dark ? 'rgba(239,236,211,0.55)' : C.ink3;
+  const W = 290;
+  // Placed on the screen itself (position fixed), not inside the card: a card's own edge used to cut the pop-up off.
+  // It opens below the icon and moves left when it would run past the right edge of the window.
+  const show = () => {
+    const el = ref.current;
+    if (!el || !el.getBoundingClientRect || typeof window === 'undefined') { setPos({ fallback: true }); return; }
+    const r = el.getBoundingClientRect();
+    const left = Math.max(8, Math.min(r.left - 14, window.innerWidth - W - 8));
+    setPos({ top: r.bottom + 10, left, arrow: r.left + r.width / 2 - left - 6 });
+  };
+  const hide = () => { clearTimeout(timer.current); setPos(null); };
+  const hideSoon = () => { clearTimeout(timer.current); timer.current = setTimeout(() => setPos(null), 220); };
+  const stay = () => clearTimeout(timer.current);
+  const box = pos && (pos.fallback ? { position: 'absolute', top: 24, left: -14 } : { position: 'fixed', top: pos.top, left: pos.left });
+  // On the web the pop-up is rendered on <body>: inside the app's scrolling layout a fixed position was offset and landed off screen.
+  const onTop = node => (Platform.OS === 'web' && typeof document !== 'undefined' && !pos.fallback ? require('react-dom').createPortal(node, document.body) : node);
+  return (
+    <View style={{ position: 'relative', zIndex: pos ? 50 : 1 }}>
+      <Pressable ref={ref} accessibilityRole="button" accessibilityLabel={'What ' + label + ' means'} onPress={() => (pos ? hide() : show())} onHoverIn={() => { stay(); show(); }} onHoverOut={hideSoon}
+        style={{ width: 16, height: 16, marginLeft: 4, alignItems: 'center', justifyContent: 'center', cursor: 'help' }}>
+        <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
+          <Circle cx={12} cy={12} r={9.25} stroke={pos ? (dark ? C.cream : C.green) : c} strokeWidth={1.6} />
+          <Path d="M12 11v5.5" stroke={pos ? (dark ? C.cream : C.green) : c} strokeWidth={1.8} strokeLinecap="round" />
+          <Circle cx={12} cy={7.75} r={1.15} fill={pos ? (dark ? C.cream : C.green) : c} />
+        </Svg>
+      </Pressable>
+      {!!pos && onTop(
+        <Pressable onHoverIn={stay} onHoverOut={hideSoon} style={[box, { width: W, cursor: 'default', paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, backgroundColor: C.card, borderWidth: 1, borderColor: C.line2,
+          zIndex: 1000, shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } }]}>
+          <View style={{ position: 'absolute', top: -6, left: pos.arrow != null ? pos.arrow : 18, width: 11, height: 11, backgroundColor: C.card,
+            borderLeftWidth: 1, borderTopWidth: 1, borderColor: C.line2, transform: [{ rotate: '45deg' }] }} />
+          <Tx w={600} s={12.5} c={C.green}>{label}</Tx>
+          <Tx s={12.5} lh={1.55} c={C.ink2} style={{ marginTop: 4 }}>{text}</Tx>
+        </Pressable>
+      )}
+    </View>
   );
 }
 

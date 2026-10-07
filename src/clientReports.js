@@ -12,9 +12,9 @@ import {
 export { ALL_ID, ALL_LABEL };
 
 export const REPORT_KINDS = [
-  ['factsheet', 'Fact sheet'],
-  ['pnl', 'P&L and balance sheet'],
-  ['capitalGains', 'Capital gains'],
+  ['factsheet', 'Fact Sheet'],
+  ['pnl', 'P&L and Balance Sheet'],
+  ['capitalGains', 'Capital Gains'],
   ['transactions', 'Transactions'],
   ['expenses', 'Expenses'],
 ];

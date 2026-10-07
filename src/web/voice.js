@@ -44,7 +44,7 @@ export function DesktopVoice({ V }) {
           <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: C.greenTint, alignItems: 'center', justifyContent: 'center' }}>
             <Check s={24} w={2.4} />
           </View>
-          <Tx f="play" w={600} s={24} c={C.green} center style={{ marginTop: 16 }}>Thank you for your feedback</Tx>
+          <Tx f="play" w={600} s={24} c={C.green} center style={{ marginTop: 16 }}>Thank You for Your Feedback</Tx>
           <Tx s={14} c={C.ink2} lh={1.6} center style={{ marginTop: 8, maxWidth: 480 }}>
             It has reached our Investor Relations team. We read every response and use it to improve how we serve you.
           </Tx>

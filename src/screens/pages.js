@@ -223,13 +223,22 @@ function Risk() {
   return (
     <>
       {R.intro.map((t, i) => <P key={i} style={i ? null : { marginTop: 0 }}>{t}</P>)}
-      {R.policies.map(p => (
-        <Card key={p.title} style={{ padding: 16, marginTop: 14 }}>
-          <Tx f="play" w={600} s={17}>{p.title}</Tx>
-          {p.body.map((t, i) => <Tx key={i} s={12.5} c={C.muted} lh={1.6} style={{ marginTop: 8 }}>{t}</Tx>)}
-          {!!p.pdf && <CTA label="VIEW POLICY (PDF)" outline onPress={() => openUrl(p.pdf)} style={{ marginTop: 12, paddingVertical: 11 }} />}
-        </Card>
-      ))}
+      {/* One list, as on the web: each policy a row split by lines, its PDF a link under it */}
+      <Card style={{ marginTop: 14, paddingHorizontal: 16 }}>
+        {R.policies.map((p, k) => (
+          <View key={p.title} style={{ paddingVertical: 15, borderTopWidth: k ? 1 : 0, borderColor: C.hairline }}>
+            <Tx w={700} s={14}>{p.title}</Tx>
+            {p.body.map((t, i) => <Tx key={i} s={12.5} c={C.muted} lh={1.6} style={{ marginTop: 4 }}>{t}</Tx>)}
+            {!!p.pdf && (
+              <Pressable onPress={() => openUrl(p.pdf)} accessibilityRole="button" accessibilityLabel={'View the ' + p.title + ' (PDF)'} hitSlop={4}
+                style={({ pressed }) => ({ marginTop: 10, alignSelf: 'flex-end', minHeight: 34, paddingVertical: 7, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: C.green,
+                  backgroundColor: pressed ? 'rgba(2,66,43,0.08)' : 'transparent' })}>
+                <Tx w={700} s={11.5} ls={0.04} c={C.green}>View Policy (PDF)</Tx>
+              </Pressable>
+            )}
+          </View>
+        ))}
+      </Card>
     </>
   );
 }
@@ -324,7 +333,7 @@ export const PAGES = {
   cadence: { title: 'Service Cadence', body: () => <ReportsReviews /> },
   philosophy: { title: 'Qode Philosophy', body: () => <Article data={content.PHILOSOPHY} /> },
   foundation: { title: 'Foundation', body: () => <Foundation /> },
-  strategies: { title: 'Strategy Snapshot', body: () => <StrategySnapshot /> },
+  strategies: { title: 'Strategy', body: V => <StrategySnapshot V={V} /> },
   team: { title: 'Your Team at Qode', body: V => <TeamPage V={V} /> },
   faq: { title: 'FAQs & Glossary', body: () => <Faq /> },
   grievance: { title: 'Escalation and Grievance Redressal', body: () => <Escalation /> },

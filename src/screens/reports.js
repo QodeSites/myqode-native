@@ -8,19 +8,23 @@
 // rows tagged with their account, totals summed, one combined PDF per report. The P&L and balance sheet is summed on
 // the server instead: "All accounts" is one call with every code.
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Pressable, ScrollView, Alert, Platform, ActivityIndicator } from 'react-native';
+import { View, Pressable, ScrollView, Alert, Platform, ActivityIndicator, TextInput } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { C, Tx, Amt, Card, CTA, Chip, Sheet, Field } from '../ui';
 import { reports } from '../api';
-import { useLoad, ErrorBox, Empty, SectionLabel, Loading } from './kit';
+import { useLoad, ErrorBox, Empty, SectionLabel, Loading, ClosedAccountPopup } from './kit';
 import { inr, sinr, pct, fmtDate } from '../adapt';
-import { Download, ChevronDown, Check } from '../icons';
+import { Download, ChevronDown, Check, Search, InfoCircle } from '../icons';
+import { PLBS_INFO, TXN_INFO, CG_INFO, EXP_INFO, FS_INFO } from '../plbsInfo';
 import { savePdf } from './partner';
 import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactionsAllPdf, capitalGainsAllPdf, expensesAllPdf, factsheetAllPdf, plbsPdf } from './reportPdf';
+import { transactionsXlsx, capitalGainsXlsx, expensesXlsx, factsheetXlsx, plbsXlsx, saveXlsx } from '../reportXlsx';
+import Svg, { Rect, Line } from 'react-native-svg';
 import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE } from '../combine';
 import { track } from '../api/track';
 
 import { userMessage } from '../errors';
+import { useUnrealised } from '../unrealised';
 import { latestDate, monthEnds, earliestDate, asOfHint } from '../reportDates';
 // ── formatting ────────────────────────────────────────────────────────────────────────────────────────────
 // Money, percentages and dates use the app-wide formatters (src/adapt.js) so Reports matches every other screen.
@@ -136,9 +140,9 @@ function DateRow({ label, value, placeholder, min, max, open, onToggle, onPick, 
 function SelectChip({ label, onPress, a11y }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={a11y ? `${a11y}: ${label}` : label} hitSlop={4}
-      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, borderWidth: 1, borderColor: C.mutedBorder35,
-        borderRadius: 999, paddingVertical: 8, paddingHorizontal: 12, opacity: pressed ? 0.7 : 1 })}>
-      <Tx w={700} s={11.5} c={C.green} numberOfLines={1} style={{ flexShrink: 1 }}>{label}</Tx>
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minHeight: 36, borderWidth: 1, borderColor: C.mutedBorder35,
+        borderRadius: 999, paddingVertical: 8, paddingHorizontal: 13, backgroundColor: pressed ? 'rgba(2,66,43,0.06)' : 'transparent' })}>
+      <Tx w={700} s={11.5} c={C.green} style={{ flexShrink: 1 }}>{label}</Tx>
       <ChevronDown s={9} c={C.muted} />
     </Pressable>
   );
@@ -244,28 +248,51 @@ function AccountChip({ options, value, onPick, count }) {
 
 // ── PDF ───────────────────────────────────────────────────────────────────────────────────────────────────
 // A round download button at the right of the controls row. Dimmed until there is something to save.
-function PdfButton({ make, name, disabled }) {
-  const [busy, setBusy] = useState(false);
+// xlsx: the same statement as an Excel workbook (src/reportXlsx.js), a second round button beside the PDF one.
+const SheetIcon = ({ s = 16, c = C.green }) => (
+  <Svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Rect x={3} y={4} width={18} height={16} rx={2} /><Line x1={3} y1={10} x2={21} y2={10} /><Line x1={3} y1={15} x2={21} y2={15} /><Line x1={9} y1={4} x2={9} y2={20} />
+  </Svg>
+);
+function RoundBtn({ onPress, off, busy, label, children }) {
+  return (
+    <Pressable onPress={onPress} disabled={off} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: off, busy }} hitSlop={6}
+      style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(2,66,43,0.35)',
+        backgroundColor: off ? 'transparent' : 'rgba(2,66,43,0.06)', opacity: off ? 0.45 : pressed ? 0.7 : 1 })}>
+      {busy ? <ActivityIndicator size="small" color={C.green} /> : children}
+    </Pressable>
+  );
+}
+function PdfButton({ make, xlsx, name, disabled }) {
+  const [busy, setBusy] = useState('');   // '' | 'pdf' | 'xlsx'
   const off = disabled || !make;
   const go = async () => {
     if (busy || off) return;
-    setBusy(true);
+    setBusy('pdf');
     try { const out = await make(); const doc = typeof out === 'string' ? { html: out, landscape: false } : out; await savePdf(doc.html, name, { share: true, landscape: doc.landscape }); }
     catch (e) { Alert.alert('Couldn’t create the PDF', userMessage(e, 'Please try again.')); }
-    finally { setBusy(false); }
+    finally { setBusy(''); }
+  };
+  const goXlsx = async () => {
+    if (busy || off || !xlsx) return;
+    setBusy('xlsx');
+    try { await saveXlsx(await xlsx(), name); }
+    catch (e) { Alert.alert('Couldn’t create the Excel file', userMessage(e, 'Please try again.')); }
+    finally { setBusy(''); }
   };
   return (
-    <Pressable onPress={go} disabled={off} accessibilityRole="button" accessibilityLabel={busy ? 'Preparing PDF' : 'Download PDF'} accessibilityState={{ disabled: off, busy }} hitSlop={6}
-      style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(2,66,43,0.35)',
-        backgroundColor: off ? 'transparent' : 'rgba(2,66,43,0.06)', opacity: off ? 0.45 : pressed ? 0.7 : 1 })}>
-      {busy ? <ActivityIndicator size="small" color={C.green} /> : <Download s={16} c={C.green} />}
-    </Pressable>
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      {!!xlsx && <RoundBtn onPress={goXlsx} off={off} busy={busy === 'xlsx'} label={busy === 'xlsx' ? 'Preparing Excel file' : 'Download Excel'}><SheetIcon /></RoundBtn>}
+      <RoundBtn onPress={go} off={off} busy={busy === 'pdf'} label={busy === 'pdf' ? 'Preparing PDF' : 'Download PDF'}><Download s={16} c={C.green} /></RoundBtn>
+    </View>
   );
 }
 
 // The row under the report tabs: account and period chips on the left, the download button on the right.
+// The chips show their whole text: when a long account name and the period don't fit beside the download buttons,
+// the row wraps and the buttons move to the next line.
 const Controls = ({ account, period, pdf }) => (
-  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 }}>
+  <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 12 }}>
     {account}
     {period}
     <View style={{ flex: 1, minWidth: 4 }} />
@@ -297,8 +324,8 @@ const recordsPart = c => (c && c.from ? `Records from ${dt(c.from)}` : null);
 const countPart = L => (!L.loading && !L.err && L.items.length ? `${L.items.length}${L.more ? '+' : ''} ${L.items.length === 1 && !L.more ? 'entry' : 'entries'}` : null);
 // A horizontally scrolling row of small filter chips above a list.
 const FilterChips = ({ options, value, onPick }) => (
-  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16, flexGrow: 0 }} contentContainerStyle={{ gap: 8 }}>
-    {options.map(([k, l]) => <Chip key={String(k)} label={l} active={value === k} onPress={() => onPick(k)} py={6} px={12} />)}
+  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16, flexGrow: 0, marginHorizontal: -20 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 20 }}>
+    {options.map(([k, l]) => <Chip key={String(k)} label={l} active={value === k} onPress={() => onPick(k)} py={8} px={13} s={11.5} />)}
   </ScrollView>
 );
 
@@ -311,6 +338,8 @@ const RULE = 'rgba(55,88,79,0.22)';
 function Strip({ items, caption, footer, style }) {
   const list = (items || []).filter(Boolean);
   const odd = list.length % 2 === 1;
+  const [open, setOpen] = useState(null);   // the tile whose explanation (info) is showing
+  const shown = list.find(it => it.label === open && it.info);
   return (
     <Card style={[{ marginTop: 14, overflow: 'hidden' }, style]}>
       {!!caption && <Tx w={700} s={10} ls={0.1} c={C.muted} center numberOfLines={2} style={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, borderBottomWidth: 1, borderColor: RULE }}>{caption}</Tx>}
@@ -318,17 +347,26 @@ function Strip({ items, caption, footer, style }) {
         {list.map((it, i) => {
           const full = odd && i === list.length - 1;
           return (
-            <View key={it.label} style={{ width: full ? '100%' : '50%', alignItems: 'center', justifyContent: 'center', paddingVertical: 11, paddingHorizontal: 12,
-              borderLeftWidth: !full && i % 2 ? 1 : 0, borderTopWidth: i >= 2 ? 1 : 0, borderColor: RULE }}>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 4, maxWidth: '100%' }}>
-                <Tx w={700} s={9.5} ls={0.1} c={C.muted} center numberOfLines={1} style={{ flexShrink: 1 }}>{it.label}</Tx>
-                {!!it.note && <Tx s={9.5} c={C.gray} numberOfLines={1}>{it.note}</Tx>}
+            <Pressable key={it.label} disabled={!it.info} onPress={() => setOpen(open === it.label ? null : it.label)} accessibilityRole={it.info ? 'button' : undefined}
+              accessibilityLabel={it.info ? it.label + ', how this is worked out' : undefined} accessibilityState={it.info ? { expanded: open === it.label } : undefined}
+              style={{ width: full ? '100%' : '50%', alignItems: 'center', justifyContent: 'center', paddingVertical: 11, paddingHorizontal: 12,
+                borderLeftWidth: !full && i % 2 ? 1 : 0, borderTopWidth: i >= 2 ? 1 : 0, borderColor: RULE, backgroundColor: open === it.label ? 'rgba(2,66,43,0.05)' : 'transparent' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, maxWidth: '100%' }}>
+                <Tx w={700} s={9.5} ls={0.1} c={C.muted} center numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ flexShrink: 1 }}>{it.label}</Tx>
+                {!!it.note && <Tx s={9.5} c={C.gray}>{it.note}</Tx>}
+                {!!it.info && <InfoCircle />}
               </View>
               <Amt s={14} c={it.color || C.ink} center numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ marginTop: 4, maxWidth: '100%' }}>{it.value}</Amt>
-            </View>
+            </Pressable>
           );
         })}
       </View>
+      {!!shown && (
+        <View style={{ paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderColor: RULE, backgroundColor: 'rgba(2,66,43,0.04)' }}>
+          <Tx w={700} s={10} ls={0.1} c={C.green}>{shown.label}</Tx>
+          <Tx s={11.5} c={C.muted} lh={1.55} style={{ marginTop: 3 }}>{shown.info}</Tx>
+        </View>
+      )}
       {footer}
     </Card>
   );
@@ -378,8 +416,16 @@ function Status({ L, empty }) {
   return null;
 }
 
+// Search text as typed, and the same text once typing pauses (what goes to the server as q).
+function useSearch(ms = 350) {
+  const [text, setText] = useState('');
+  const [q, setQ] = useState('');
+  useEffect(() => { const t = setTimeout(() => setQ(text.trim()), ms); return () => clearTimeout(t); }, [text, ms]);
+  return { text, setText, q };
+}
+
 // ── Transactions ──────────────────────────────────────────────────────────────────────────────────────────
-const TXN_GROUPS = [['all', 'All'], ['trades', 'Trades'], ['money', 'Money in/out'], ['income', 'Income'], ['charges', 'Charges'], ['other', 'Other']];
+const TXN_GROUPS = [['all', 'All'], ['trades', 'Trades'], ['money', 'Money in/out'], ['income', 'Dividend/Interest'], ['charges', 'Fees'], ['other', 'Other']];
 function TxnRow({ t, last }) {
   const sign = t.direction === 'in' ? '+' : t.direction === 'out' ? '−' : '';
   const detail = [t.account || null, t.security ? t.type : null, t.qty != null && t.rate != null ? `${qtyFmt(t.qty)} @ ${inr2(t.rate)}` : null, t.notes && !t.security ? t.notes : null].filter(Boolean).join(' · ');
@@ -396,36 +442,45 @@ function TxnRow({ t, last }) {
 }
 function Transactions({ accountId, ids, rk, account }) {
   const [group, setGroup] = useState('all');
+  const Q = useSearch();   // what to look for: transaction type, security or details
   const [period, setPeriod] = useState(ALL_TIME);
   const all = accountId === ALL_ID;
   const L = usePaged(offset => (all
-    ? loadTransactionsAll(ids, id => reports.transactions(id, { group, ...rangeQuery(period), export: 1, limit: 5000 }), { group, ...rangeQuery(period) })
-    : reports.transactions(accountId, { group, ...rangeQuery(period), limit: 50, offset })), [accountId, group, period.from, period.to, rk]);
+    ? loadTransactionsAll(ids, id => reports.transactions(id, { group, ...rangeQuery(period), q: Q.q || undefined, export: 1, limit: 5000 }), { group, ...rangeQuery(period) })
+    : reports.transactions(accountId, { group, ...rangeQuery(period), q: Q.q || undefined, limit: 50, offset })), [accountId, group, period.from, period.to, Q.q, rk]);
   const h = L.head;
   const ranged = !!(period.from || period.to);
-  const makePdf = async () => {
-    if (all) return transactionsAllPdf(withRange(h, period), (TXN_GROUPS.find(g => g[0] === group) || [])[1]);
-    const d = await reports.transactions(accountId, { group, ...rangeQuery(period), export: 1, limit: 5000 });
-    return transactionsPdf(withRange(d, period), accountId, (TXN_GROUPS.find(g => g[0] === group) || [])[1]);
-  };
+  // The statement's data for a download: the combined answer for all accounts, else the full export (up to 5,000 rows).
+  const exportData = async () => withRange(all ? h : await reports.transactions(accountId, { group, ...rangeQuery(period), q: Q.q || undefined, export: 1, limit: 5000 }), period);
+  const groupLabel = (TXN_GROUPS.find(g => g[0] === group) || [])[1];
+  const makePdf = async () => (all ? transactionsAllPdf(await exportData(), groupLabel) : transactionsPdf(await exportData(), accountId, groupLabel));
+  const makeXlsx = async () => transactionsXlsx(await exportData(), all ? null : accountId, groupLabel);
   const empty = h && !h.asOf ? `No transactions are on record for ${all ? 'these accounts' : 'this account'} yet.`
+    : Q.q ? `No transactions match “${Q.q}”${group === 'all' ? '' : ' in this category'}${ranged ? ' for this period' : ''}.`
     : ranged ? (group === 'all' ? 'No transactions in this period.' : 'No transactions in this category for this period.')
       : 'No transactions in this category.';
 
   return (
     <>
       <Controls account={account} period={<PeriodChip value={period} onChange={setPeriod} sub="By date of transaction. Applies to the list and the PDF." since={h && h.coverage && h.coverage.from} />}
-        pdf={<PdfButton make={makePdf} name={`Transactions ${all ? 'All accounts' : accountId}${rangeFile(period)}`} disabled={!L.items.length} />} />
+        pdf={<PdfButton make={makePdf} xlsx={makeXlsx} name={`Transactions ${all ? 'All accounts' : accountId}${rangeFile(period)}`} disabled={!L.items.length} />} />
       <StatusLine parts={[asOfPart(h && h.asOf), rangeText(period.from, period.to) || 'All time', countPart(L), recordsPart(h && h.coverage)]} />
       {h && h.asOf && (
         <Strip items={[
-          { label: 'MONEY IN', value: signed(h.moneyIn), color: gainColor(h.moneyIn) },
-          { label: 'MONEY OUT', value: h.moneyOut ? '−' + inr(h.moneyOut) : inr(0) },
-          ...h.summary.filter(s => s.group !== 'money').map(s => ({ label: s.label.toUpperCase(), note: `· ${s.count}`, value: inr(s.amount) })),
+          { label: 'MONEY IN', value: signed(h.moneyIn), color: gainColor(h.moneyIn), info: TXN_INFO.moneyIn },
+          { label: 'MONEY OUT', value: h.moneyOut ? '−' + inr(h.moneyOut) : inr(0), info: TXN_INFO.moneyOut },
+          // trades left out of the totals; income and charges under the names on the filter chips (TXN_GROUPS)
+          ...h.summary.filter(s => s.group !== 'money' && s.group !== 'trades').map(s => ({ label: (((TXN_GROUPS.find(g => g[0] === s.group) || [])[1]) || s.label).toUpperCase(), value: inr(s.amount), info: s.group === 'income' ? TXN_INFO.income : TXN_INFO.fees })),
         ]} />
       )}
       <CombinedNote h={h} />
       <FilterChips options={TXN_GROUPS} value={group} onPick={setGroup} />
+      <View style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8, height: 42, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: C.mutedBorder35, backgroundColor: '#fff' }}>
+        <Search s={15} c={C.muted} />
+        <TextInput value={Q.text} onChangeText={Q.setText} placeholder="Search, e.g. Custody Charges" placeholderTextColor={C.muted} autoCapitalize="none" autoCorrect={false} returnKeyType="search"
+          style={{ flex: 1, fontSize: 13, color: C.ink, paddingVertical: 0, fontFamily: 'Inter_400Regular' }} />
+        {!!Q.text && <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => Q.setText('')} hitSlop={8}><Tx s={18} c={C.muted}>×</Tx></Pressable>}
+      </View>
       <View style={{ marginTop: 4 }}><Status L={L} empty={!L.loading && !L.err && !L.items.length ? empty : null} /></View>
       {!L.loading && !L.err && byMonth(L.items, t => t.date).map(m => (
         <View key={m.key}>
@@ -453,11 +508,10 @@ function CapitalGains({ accountId, ids, rk, account }) {
     ? loadCapitalGainsAll(ids, (id, o) => reports.capitalGains(id, { ...(range ? q : o), term: term || undefined, export: 1, limit: 5000 }), { ...q, term: term || undefined })
     : reports.capitalGains(accountId, { ...q, term: term || undefined, limit: 50, offset })), [accountId, fy, range && range.from, range && range.to, term, rk]);
   const h = L.head, s = h && h.summary;
-  const makePdf = async () => {
-    if (all) return capitalGainsAllPdf(range ? withRange(h, range) : h);
-    const d = await reports.capitalGains(accountId, { ...(range ? rangeQuery(range) : { fy: h.fy }), term: term || undefined, export: 1, limit: 5000 });
-    return capitalGainsPdf(range ? withRange(d, range) : d, accountId);
-  };
+  const U = useUnrealised(all ? ids : [accountId]);   // unrealised: on what is held now, whatever the period
+  const exportData = async () => { const d = all ? h : await reports.capitalGains(accountId, { ...(range ? rangeQuery(range) : { fy: h.fy }), term: term || undefined, export: 1, limit: 5000 }); return range ? withRange(d, range) : d; };
+  const makePdf = async () => (all ? capitalGainsAllPdf(await exportData()) : capitalGainsPdf(await exportData(), accountId));
+  const makeXlsx = async () => capitalGainsXlsx(await exportData(), all ? null : accountId);
   // The years list only comes with FY answers; keep the last one so the FY choices stay while a range is shown.
   const [years, setYears] = useState([]);
   useEffect(() => { if (h && h.years && h.years.length) setYears(h.years); }, [h]);
@@ -475,14 +529,14 @@ function CapitalGains({ accountId, ids, rk, account }) {
   return (
     <>
       <Controls account={account} period={period}
-        pdf={<PdfButton make={makePdf} name={range ? `Capital gains ${all ? 'All accounts' : accountId}${rangeFile(range)}` : `Capital gains FY ${h && h.fy} ${all ? 'All accounts' : accountId}`} disabled={!(h && h.summary)} />} />
-      <StatusLine parts={[asOfPart(h && h.asOf), range ? (range.key === 'all' ? 'All time' : rangeText(range.from, range.to)) : h && h.fy ? `FY ${h.fy}` : null, 'by date of sale', countPart(L), recordsPart(h && h.coverage)]} />
+        pdf={<PdfButton make={makePdf} xlsx={makeXlsx} name={range ? `Capital gains ${all ? 'All accounts' : accountId}${rangeFile(range)}` : `Capital gains FY ${h && h.fy} ${all ? 'All accounts' : accountId}`} disabled={!(h && h.summary)} />} />
+      <StatusLine parts={[asOfPart(h && h.asOf), range ? (range.key === 'all' ? 'All time' : rangeText(range.from, range.to)) : h && h.fy ? `FY ${h.fy}` : null, recordsPart(h && h.coverage)]} />
       {s && (
-        <Strip caption={range || !h.fy ? 'SELECTED PERIOD' : `FINANCIAL YEAR ${h.fy}`} items={[
-          { label: 'SHORT TERM', value: signed(s.st), color: gainColor(s.st) },
-          { label: 'LONG TERM', value: signed(s.lt), color: gainColor(s.lt) },
-          { label: 'TOTAL REALISED', value: signed(s.total), color: gainColor(s.total) },
-          s.ltTaxable != null && Math.round(s.ltTaxable) !== Math.round(s.lt) ? { label: 'LT AFTER GRANDFATHERING', value: signed(s.ltTaxable), color: gainColor(s.ltTaxable) } : null,
+        <Strip items={[
+          { label: 'SHORT TERM', value: signed(s.st), color: gainColor(s.st), info: CG_INFO.st },
+          { label: 'LONG TERM', value: signed(s.lt), color: gainColor(s.lt), info: CG_INFO.lt },
+          { label: 'REALISED GAINS', value: signed(s.total), color: gainColor(s.total), info: CG_INFO.realised },
+          { label: 'UNREALISED GAINS', value: U.gain != null ? signed(U.gain) : U.loading ? '…' : '–', color: U.gain != null ? gainColor(U.gain) : C.muted, info: CG_INFO.unrealised },
         ]} footer={s.byCategory.length > 1 && (
             <View style={{ paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderColor: C.hairline, gap: 8 }}>
               {s.byCategory.map(c => (
@@ -548,7 +602,9 @@ function Expenses({ accountId, ids, rk, account }) {
     : reports.expenses(accountId, { type: type || undefined, ...rangeQuery(period), limit: 50, offset })), [accountId, type, period.from, period.to, rk]);
   const h = L.head;
   const ranged = !!(period.from || period.to);
-  const makePdf = async () => (all ? expensesAllPdf(withRange(h, period)) : expensesPdf(withRange(await reports.expenses(accountId, { type: type || undefined, ...rangeQuery(period), export: 1, limit: 5000 }), period), accountId));
+  const exportData = async () => withRange(all ? h : await reports.expenses(accountId, { type: type || undefined, ...rangeQuery(period), export: 1, limit: 5000 }), period);
+  const makePdf = async () => (all ? expensesAllPdf(await exportData()) : expensesPdf(await exportData(), accountId));
+  const makeXlsx = async () => expensesXlsx(await exportData(), all ? null : accountId);
   // byType comes with each first page; keep the last one so the charge chip stays while a filter loads.
   const [byType, setByType] = useState([]);
   useEffect(() => { if (h && h.byType) setByType(h.byType); }, [h]);
@@ -556,13 +612,13 @@ function Expenses({ accountId, ids, rk, account }) {
   return (
     <>
       <Controls account={account} period={<PeriodChip value={period} onChange={setPeriod} sub="By date of charge. Applies to the list and the PDF." since={h && h.coverage && h.coverage.from} />}
-        pdf={<PdfButton make={makePdf} name={`Expenses ${all ? 'All accounts' : accountId}${rangeFile(period)}`} disabled={!L.items.length} />} />
+        pdf={<PdfButton make={makePdf} xlsx={makeXlsx} name={`Expenses ${all ? 'All accounts' : accountId}${rangeFile(period)}`} disabled={!L.items.length} />} />
       <StatusLine parts={[asOfPart(h && h.asOf), rangeText(period.from, period.to) || 'All time', countPart(L),
         h && h.period && (h.period.from || h.period.to) ? `Statement covers ${rangeText(h.period.from, h.period.to)}` : null]} />
       {h && h.asOf && (
         <Strip items={[
-          { label: 'PAID', value: inr(h.paid) },
-          { label: 'PAYABLE (ACCRUED)', value: inr(h.payable) },
+          { label: 'PAID', value: inr(h.paid), info: EXP_INFO.paid },
+          { label: 'PAYABLE (ACCRUED)', value: inr(h.payable), info: EXP_INFO.payable },
         ]} />
       )}
       <CombinedNote h={h} />
@@ -599,7 +655,7 @@ function AsOfBody({ init, min, max, hint, onApply, onBack }) {
   const [open, setOpen] = useState(Platform.OS === 'ios');
   return (
     <>
-      <SheetTitle title="Fact sheet as of" sub={hint} />
+      <SheetTitle title="Fact Sheet as of" sub={hint} />
       <DateRow label="AS OF" value={v} placeholder="Pick a date" min={min} max={max || new Date()} open={open} onToggle={() => setOpen(o => !o)} onPick={setV} />
       <CTA label="APPLY" onPress={() => { if (v) onApply(v); }} style={{ marginTop: 18 }} />
       <CTA outline label="BACK" onPress={onBack} style={{ marginTop: 10 }} />
@@ -636,7 +692,7 @@ function AsOfChip({ dates, date, coverage, onPick }) {
             ? <AsOfBody init={date} min={dateOf(first)} max={hi} hint={hint} onBack={() => setMode('list')}
                 onApply={x => { close(); onPick(x === latest ? null : x); }} />
             : <>
-                <SheetTitle title="Fact sheet as of" sub={hint} />
+                <SheetTitle title="Fact Sheet as of" sub={hint} />
                 <OptionList options={options} value={value} onPick={pick} />
               </>}
         </View>
@@ -716,10 +772,10 @@ function SheetSections({ d }) {
   );
 }
 const sheetStrip = d => [
-  { label: 'PORTFOLIO VALUE', value: inr(d.portfolioValue) },
-  { label: 'PROFIT / LOSS', value: signed(d.profitLoss), color: gainColor(d.profitLoss) },
-  { label: 'CONTRIBUTION', value: inr(d.contribution) },
-  { label: 'WITHDRAWAL', value: inr(d.withdrawal) },
+  { label: 'PORTFOLIO VALUE', value: inr(d.portfolioValue), info: FS_INFO.value },
+  { label: 'PROFIT / LOSS', value: signed(d.profitLoss), color: gainColor(d.profitLoss), info: FS_INFO.pl },
+  { label: 'CONTRIBUTION', value: inr(d.contribution), info: FS_INFO.contribution },
+  { label: 'WITHDRAWAL', value: inr(d.withdrawal), info: FS_INFO.withdrawal },
 ];
 function Factsheet({ accountId, ids, names, rk, account }) {
   const [date, setDate] = useState(null);
@@ -733,10 +789,11 @@ function Factsheet({ accountId, ids, names, rk, account }) {
   useEffect(() => { if (d && Array.isArray(d.dates)) setDates(d.dates); if (d && d.coverage && (d.coverage.from || d.coverage.to)) setCoverage(d.coverage); }, [d]);
   const has = !!(d && d.asOf);
   const makePdf = has ? (all ? async () => factsheetAllPdf(d) : async () => factsheetPdf(d, accountId)) : null;
+  const makeXlsx = has ? async () => factsheetXlsx(d, all ? null : accountId) : null;
   // The download button stays in place (dimmed) while the fact sheet loads or when there is none.
   const controls = (
     <Controls account={account} period={<AsOfChip dates={dates} date={date} coverage={coverage} onPick={setDate} />}
-      pdf={<PdfButton make={L.loading || L.err ? null : makePdf} name={has ? `Fact sheet ${all ? 'All accounts' : accountId} ${d.asOf}` : ''} disabled={L.loading || !!L.err || !has} />} />
+      pdf={<PdfButton make={L.loading || L.err ? null : makePdf} xlsx={L.loading || L.err ? null : makeXlsx} name={has ? `Fact sheet ${all ? 'All accounts' : accountId} ${d.asOf}` : ''} disabled={L.loading || !!L.err || !has} />} />
   );
   if (L.loading) return <>{controls}<View style={{ marginTop: 16 }}><Loading rows={3} h={90} /></View></>;
   if (L.err) return <>{controls}<View style={{ marginTop: 16 }}><ErrorBox msg={L.err} onRetry={L.reload} /></View></>;
@@ -816,7 +873,7 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
   // QFH accounts count in the totals but are never named (the server sums every account of the owner).
   const d = L.data && L.data.accounts ? { ...L.data, accounts: L.data.accounts.filter(c => !/^QFH/i.test(String(c))) } : L.data;
   const has = !!(d && d.asOf);
-  const pdf = <PdfButton make={has ? async () => plbsPdf(d, all ? null : accountId) : null} name={has ? `PnL and balance sheet ${all ? 'All accounts' : accountId} ${d.from} to ${d.to}` : ''} disabled={!has} />;
+  const pdf = <PdfButton make={has ? async () => plbsPdf(d, all ? null : accountId) : null} xlsx={has ? async () => plbsXlsx(d, all ? null : accountId) : null} name={has ? `PnL and balance sheet ${all ? 'All accounts' : accountId} ${d.from} to ${d.to}` : ''} disabled={!has} />;
   const controls = <Controls account={account} period={<PeriodChip value={period} onChange={setPeriod} sub="The P&L covers the period; the balance sheet is as of its last day." since={d && d.coverage && d.coverage.from} />} pdf={pdf} />;
   if (L.loading) return <>{controls}<View style={{ marginTop: 16 }}><Loading rows={4} h={90} /></View></>;
   if (L.err) return <>{controls}<View style={{ marginTop: 16 }}><ErrorBox msg={L.err} onRetry={L.reload} /></View></>;
@@ -835,10 +892,10 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
       <StatusLine parts={[asOfPart(d.to), rangeText(d.from, d.to), recordsPart(d.coverage), all ? `${(d.accounts || ids).length} accounts summed` : null, d.computed ? null : 'Nuvama report']}
         computed={!!d.computed} note={d.computed ? d.note : ''} />
       <Strip items={[
-        { label: 'SURPLUS', value: signed(d.pnl.surplus), color: gainColor(d.pnl.surplus) },
-        { label: 'UNREALISED, NET', value: signed(u.net), color: gainColor(u.net) },
-        { label: 'TOTAL INCOME', value: signed(d.pnl.incomeTotal), color: gainColor(d.pnl.incomeTotal) },
-        { label: 'TOTAL EXPENSES', value: inr(d.pnl.expenseTotal) },
+        { label: 'SURPLUS', value: signed(d.pnl.surplus), color: gainColor(d.pnl.surplus), info: PLBS_INFO.surplus },
+        { label: 'UNREALISED, NET', value: signed(u.net), color: gainColor(u.net), info: PLBS_INFO.unrealised },
+        { label: 'TOTAL INCOME', value: signed(d.pnl.incomeTotal), color: gainColor(d.pnl.incomeTotal), info: PLBS_INFO.income },
+        { label: 'TOTAL EXPENSES', value: inr(d.pnl.expenseTotal), info: PLBS_INFO.expenses },
       ]} />
       {!!(d.omitted && d.omitted.length) && <Tx s={11.5} c={C.red} lh={1.5} style={{ marginTop: 6, marginLeft: 2 }}>Not included (not available to this login): {d.omitted.join(', ')}.</Tx>}
       <SectionLabel>PROFIT AND LOSS ACCOUNT</SectionLabel>
@@ -907,7 +964,7 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────────────────────────────────
-const KINDS = [['fs', 'Fact sheet'], ['pl', 'P&L and balance sheet'], ['cg', 'Capital gains'], ['txn', 'Transactions'], ['exp', 'Expenses']];
+const KINDS = [['fs', 'Fact Sheet'], ['pl', 'P&L and Balance Sheet'], ['cg', 'Capital Gains'], ['txn', 'Transactions'], ['exp', 'Expenses']];
 export function ReportsPage({ V }) {
   const opts = reportAccountOptions(V);
   const singles = singleAccounts(opts);
@@ -916,14 +973,20 @@ export function ReportsPage({ V }) {
   const names = Object.fromEntries(singles.map(o => [o.id, o.label]));
   const [sel, setSel] = useState(null);
   const [kind, setKind] = useState('fs');
+  const [closedPick, setClosedPick] = useState(null);   // a closed account just picked: the pop-up
+  const pick = id => {
+    setSel(id);
+    const o = opts.find(x => x.id === id);
+    setClosedPick(o && o.closed ? { id: o.id, name: o.name, closedOn: o.closedOn ? fmtDate(o.closedOn) : '' } : null);
+  };
   // "All accounts" is offered first, but the default stays the first single account.
   const accountId = sel && opts.some(o => o.id === sel) ? sel : singles[0] && singles[0].id;
   const Body = { txn: Transactions, cg: CapitalGains, exp: Expenses, fs: Factsheet, pl: PnlBalanceSheet }[kind];
-  const account = <AccountChip options={opts} value={accountId} onPick={setSel} count={singles.length} />;
+  const account = <AccountChip options={opts} value={accountId} onPick={pick} count={singles.length} />;
   return (
     <>
       {/* report tabs: one scrollable row */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 18, paddingHorizontal: 2 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginHorizontal: -20 }} contentContainerStyle={{ gap: 18, paddingHorizontal: 20 }}>
         {KINDS.map(([k, l]) => {
           const on = kind === k;
           return (
@@ -937,6 +1000,7 @@ export function ReportsPage({ V }) {
       <View style={{ height: 1, backgroundColor: C.hairline, marginTop: -1 }} />
       {/* keyed so filters and paging reset when the account or report changes */}
       {accountId ? <Body key={kind + accountId + (accountId === ALL_ID ? ids.join(',') : '')} accountId={accountId} ids={ids} names={names} rk={V.rk} account={account} /> : <View style={{ marginTop: 16 }}><Empty>No active account found.</Empty></View>}
+      <ClosedAccountPopup p={closedPick} onClose={() => setClosedPick(null)} />
     </>
   );
 }

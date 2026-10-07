@@ -74,7 +74,7 @@ export function ClientReportsDialog({ c, visible, onClose }) {
   const periodBlock = kind === 'factsheet' ? (
     <Field label="As of">
       <Chips value={asOf} options={AS_OF} onChange={setAsOf} />
-      {asOf === 'date' && <DateField label="Fact sheet on or before" value={date} max={today} onChangeText={setDate} style={{ maxWidth: 240 }} />}
+      {asOf === 'date' && <DateField label="Fact Sheet on or before" value={date} max={today} onChangeText={setDate} style={{ maxWidth: 240 }} />}
     </Field>
   ) : (
     <Field label={kind === 'capitalGains' ? 'Financial year or period' : 'Period'}>

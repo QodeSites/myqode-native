@@ -118,7 +118,7 @@ export function PendingRows({ V }) {
             </View>
             <Tx s={11} c={C.muted} style={{ marginTop: 2 }} numberOfLines={2}>Invested {dayLabel(it.deployOn)} · in your portfolio {dayLabel(it.visibleOn)}{it.strategy ? ' · ' + it.strategy : ''}</Tx>
           </View>
-          <Amt s={13} c={C.green}>+{inr(it.amount, 0)}</Amt>
+          <Amt s={13} c={C.green}>+{inr(it.amount)}</Amt>
         </View>
       ))}
     </Card>

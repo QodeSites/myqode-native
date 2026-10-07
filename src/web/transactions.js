@@ -24,7 +24,7 @@ export function DesktopTransactions({ V }) {
             { key: 'recv', label: 'Received', flex: 1, render: it => <Tx s={13.5} c={C.ink2}>{dayLabel(String(it.paidAt).slice(0, 10))}</Tx> },
             { key: 'into', label: 'Into', flex: 1.6, render: it => <Tx s={13.5} numberOfLines={2}>{it.strategy || 'Your Qode portfolio'}</Tx> },
             { key: 'when', label: 'Invested / in portfolio', flex: 1.4, render: it => <Tx s={13.5} c={C.ink2}>{dayLabel(it.deployOn)} / {dayLabel(it.visibleOn)}</Tx> },
-            { key: 'amt', label: 'Amount', flex: 1, right: true, render: it => <Amt s={13.5} c={C.pos}>+{inr(it.amount, 0)}</Amt> },
+            { key: 'amt', label: 'Amount', flex: 1, right: true, render: it => <Amt s={13.5} c={C.pos}>+{inr(it.amount)}</Amt> },
           ]} />
         </Panel>
       )}

@@ -133,7 +133,7 @@ export function InvestorDetail({ c, status, onBack, onboardingSequence, view }) 
         <Tx w={700} s={10.5} ls={0.12} c={C.muted}>CURRENT VALUE</Tx>
         <Amt w={700} s={28} style={{ marginTop: 4 }}>{money(c.currentValue)}</Amt>
         {delta != null && deltaPct != null
-          ? <Tx s={12.5} style={{ marginTop: 6 }}><Tx w={700} s={12.5} c={delta >= 0 ? QAW : C.red}>{delta >= 0 ? '▲' : '▼'} {money(Math.abs(delta))} ({delta >= 0 ? '+' : '−'}{Math.abs(deltaPct).toFixed(1)}%)</Tx><Tx s={12.5} c={C.muted}> against {money(c.investedAmount)} invested</Tx></Tx>
+          ? <Tx s={12.5} style={{ marginTop: 6 }}><Tx w={700} s={12.5} c={delta >= 0 ? QAW : C.red}>{delta >= 0 ? '▲' : '▼'} {money(Math.abs(delta))} ({delta >= 0 ? '+' : '−'}{Math.abs(deltaPct).toFixed(2)}%)</Tx><Tx s={12.5} c={C.muted}> against {money(c.investedAmount)} invested</Tx></Tx>
           : <Tx s={12} c={C.muted} style={{ marginTop: 6 }}>Holdings are not yet priced in our records.</Tx>}
         {(c.strategies || []).length > 0 && (
           <View style={{ marginTop: 14 }}>
@@ -607,7 +607,7 @@ export function statementDoc(period, distributorName, rows) {
   const calc = [
     ['Standard fees for your investors', null, t.rack],
     [`Your share at ${t.ratePct}`, null, t.grossShare],
-    ...(disc ? [['Less: the discount you agreed with your investors', `${t.discountPctOfRack.toFixed(1)}% of the standard fee, funded from your share`, -t.discount]] : []),
+    ...(disc ? [['Less: the discount you agreed with your investors', `${t.discountPctOfRack.toFixed(2)}% of the standard fee, funded from your share`, -t.discount]] : []),
     ['Your share for the period', null, t.shareNet, 'sub'],
     [`Add: GST at ${GST_RATE}%`, null, t.shareGst],
     ['Payable to you', null, t.share, 'total'],

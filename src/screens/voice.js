@@ -83,7 +83,7 @@ export function VoicePage({ V }) {
         <View style={{ width: 56, height: 56, borderRadius: 28, borderWidth: 1.5, borderColor: C.green, alignItems: 'center', justifyContent: 'center' }}>
           <Check s={24} w={2.4} />
         </View>
-        <Tx f="play" w={600} s={20} center style={{ marginTop: 16 }}>Thank you</Tx>
+        <Tx f="play" w={600} s={20} center style={{ marginTop: 16 }}>Thank You</Tx>
         <Tx s={12.5} c={C.muted} lh={1.6} center style={{ marginTop: 8 }}>
           Your feedback has reached our Investor Relations team. We read every response and use it to improve how we serve you.
         </Tx>
