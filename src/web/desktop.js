@@ -271,17 +271,19 @@ function HeadlineBanner({ hero, cells }) {
 
 // Dashboard headline: current value, invested, total returns and CAGR. TWRR / IRR / 1-year live on Performance.
 // The earlier portal's four tiles, with the same figures: amount invested (net, the gross under it), current value,
-// total returns and the return since inception: "Returns %" (absolute) under a year, "CAGR" from a year (8 Oct 2026).
+// total returns and the return since inception as "Returns %", noted "CAGR" from a year, "Absolute returns" before
+// (app/(protected)/portfolio/performance/page.tsx in myQode: same figures, same labels).
 function Summary({ V }) {
   const ret = V.tiles[0] || {}, si = V.tiles[1] || {};
   const inv = V.invested || {};
   // Four separate cards (the earlier portal's layout), not one dark banner.
   const tiles = [
-    { label: 'Amount Invested', value: inv.net, note: inv.gross && inv.gross !== inv.net ? 'Gross ' + inv.gross : null },
+    { label: 'Amount Invested', value: inv.net, note: inv.gross ? 'Gross: ' + inv.gross : null },   // gross always, as the old portal
     { label: 'Current Value', value: V.heroValue, note: V.asOf ? 'As of ' + V.asOf : null },
     { label: 'Total Returns', value: ret.value, color: ret.color, note: 'Absolute returns' },
-    // a CAGR once the account is a year old (the server annualises it then), else the absolute return since inception
-    si.annualised ? { label: 'CAGR', value: si.value, color: si.color, note: 'Since inception, a year' } : { label: 'Returns %', value: si.value, color: si.color, note: 'Absolute returns' },
+    // as the old portal: titled Returns %, its note says CAGR once the account is a year old (the figure is then
+    // annualised by the server), else Absolute returns
+    { label: 'Returns %', value: si.value, color: si.color, note: si.annualised ? 'CAGR' : 'Absolute returns' },
   ];
   return (
     <Grid min={220} gap={16}>
