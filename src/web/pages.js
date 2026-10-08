@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { C, Tx, Amt, Card, Row, Grid, Label, Panel, Stat, DarkCard, Btn, Chips, Tabs, Table, KeyVals, TextLink, Pill, Loading, Empty, ErrorBlock, Dialog, sentence } from './kit';
 import { DesktopVoice } from './voice';
 import { DesktopTransactions } from './transactions';
+import { RequestPicker } from './services';
 import { NuvamaDetails } from './nuvama';
 import { inr, initials } from '../adapt';
 import { ChevronRight, ChevronDown, Phone, MailIcon } from '../icons';
@@ -782,7 +783,7 @@ const HUBS = {
   support: {
     eyebrow: 'Support', title: 'We’re here to help.',
     text: 'Raise a request, find an answer or reach Investor Relations. We will get back to you in 24 hrs.',
-    actions: [['services', 'Raise a request'], ['team', 'Contact Investor Relations']],
+    actions: [['request', 'Raise a request'], ['team', 'Contact Investor Relations']],   // request: the pop-up of request types
     items: [
       ['services', 'clipboard', 'Account Services', 'Top-ups, withdrawals, switches, SIPs and other requests'],
       ['faq', 'message', 'FAQs & Glossary', 'Answers to common questions, and the terms we use'],
@@ -793,10 +794,12 @@ const HUBS = {
 };
 function Hub({ V, k }) {
   const h = HUBS[k];
-  const go = key => (key === 'services' ? (V.closePage(), V.goServices()) : V.openPage(key));
+  const [pick, setPick] = useState(false);
+  const go = key => (key === 'request' ? setPick(true) : key === 'services' ? (V.closePage(), V.goServices()) : V.openPage(key));
   const items = h.items.filter(([key]) => !(V.viewing && key === 'services'));
   return (
     <View style={{ gap: 20 }}>
+      {!!h.actions && <RequestPicker V={V} visible={pick} onClose={() => setPick(false)} />}
       <DarkCard style={{ paddingVertical: 32, paddingHorizontal: 36 }}>
         <Tx w={600} s={12.5} c={C.gold}>{h.eyebrow}</Tx>
         <Tx f="play" w={600} s={28} lh={1.25} c={C.cream} style={{ marginTop: 10, maxWidth: 820 }}>{h.title}</Tx>
