@@ -286,9 +286,12 @@ function Summary({ V }) {
     { label: 'Returns %', value: si.value, color: si.color, note: si.annualised ? 'CAGR' : 'Absolute returns' },
   ];
   return (
-    <Grid min={220} gap={16}>
-      {tiles.map(t => <Stat key={t.label} label={t.label} value={t.value || '–'} color={t.color} note={t.note} accent={C.green} />)}
-    </Grid>
+    <View style={{ gap: 8 }}>
+      <Grid min={220} gap={16}>
+        {tiles.map(t => <Stat key={t.label} label={t.label} value={t.value || '–'} color={t.color} note={t.note} accent={C.green} />)}
+      </Grid>
+      {!!V.ownerClosedNote && <Tx s={12.5} c={C.ink3} lh={1.5}>{V.ownerClosedNote}</Tx>}
+    </View>
   );
 }
 function NavPanel({ V, height = 250, style }) {

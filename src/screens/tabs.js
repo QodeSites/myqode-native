@@ -399,6 +399,7 @@ export function HomeCream({ V }) {
         {tiles.map(t => <Tile key={t.label} t={t} />)}
       </Grid2>
       <Tx s={11} c={C.gray} style={{ marginTop: 10, marginLeft: 2 }}>As of {V.asOf}</Tx>
+      {!!V.ownerClosedNote && <Tx s={11} c={C.gray} lh={1.5} style={{ marginTop: 4, marginLeft: 2 }}>{V.ownerClosedNote}</Tx>}
       <NavCard V={V} style={{ marginTop: 16 }} />
       <UccNotice visible={V.showUcc} onClose={V.dismissUcc} />
       <PushOfferCard V={V} />

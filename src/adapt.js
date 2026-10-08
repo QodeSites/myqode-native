@@ -77,7 +77,10 @@ export function buildScopes(snap, codes) {
     const accounts = (o.accounts || []).filter(a => !a.isClosed && can(a.id) && !/^QFH/i.test(String(a.id)));
     return {
       id: String(o.id), name: o.name, initials: initials(o.name),
-      code: accounts.length + (accounts.length === 1 ? ' account' : ' accounts'),
+      // "1 open account · 2 closed" when the owner has closed accounts: the owner figures include them (8 Oct 2026)
+      code: closedOf(o).length
+        ? `${accounts.length} open account${accounts.length === 1 ? '' : 's'} · ${closedOf(o).length} closed`
+        : accounts.length + (accounts.length === 1 ? ' account' : ' accounts'),
       role: o.isHeadOfFamily ? 'HEAD OF FAMILY' : 'MEMBER', crown: !!o.isHeadOfFamily,
       // Owner view always uses the owner-level aggregate (like the web's "All Strategies"): it carries the
       // owner's full history, including accounts that have since closed — a single account does not.

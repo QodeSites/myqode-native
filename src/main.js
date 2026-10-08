@@ -1727,6 +1727,16 @@ export default class MyQode extends React.Component {
       // The pop-up on opening a closed account (web and phone), once per account per session.
       closedPopup: closed && !(S.closedSeen || {})[scope.id] ? { id: scope.id, name: scope.tag || scope.id, closedOn: scope.closedOn ? fmtDate(scope.closedOn) : '' } : null,
       dismissClosed: () => { const sc = this.curScope(); if (sc) set({ closedSeen: { ...(this.state.closedSeen || {}), [sc.id]: true } }); },
+      // An owner view with closed accounts: its figures are the owner total, closed accounts included (as the
+      // accounts' fact sheets add up and the old portal shows), so it says so under the headline cards.
+      ownerClosedNote: (() => {
+        const cl = scope && scope.kind === 'owner' ? scope.closedAccounts || [] : [];
+        if (!cl.length) return '';
+        const names = [...new Set(cl.map(a => a.strategyName || a.id))];
+        const list = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0];
+        const days = [...new Set(cl.map(a => a.closedOn).filter(Boolean))];
+        return `Includes your closed ${list} account${cl.length > 1 ? 's' : ''}${days.length === 1 ? ' (closed ' + fmtDate(days[0]) + ')' : ''}: their money in and out, and what they earned, count here.`;
+      })(),
       closedNote: scope && scope.kind === 'account' && scope.closed === true ? `This account was closed${scope.closedOn ? ' on ' + fmtDate(scope.closedOn) : ''} after a full withdrawal. Figures are as of closing.` : '',
       hasFamily: !!family,
       pickFamily: () => this.pickScope(-1),
