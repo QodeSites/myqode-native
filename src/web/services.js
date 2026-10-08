@@ -92,6 +92,19 @@ export default function DesktopServices({ V }) {
   );
 }
 
+// Support > "Raise a Request": the same list in a pop-up; picking a type opens its form (V.openReq).
+export function RequestPicker({ V, visible, onClose }) {
+  const items = ITEMS.map(it => (it.key === 'r-account' ? { ...it, ...accountRequest(V.user) } : it));
+  return (
+    <Dialog visible={visible} onClose={onClose} title="Raise a Request" width={520}>
+      <Tx s={13.5} c={C.ink3} lh={1.6} style={{ marginBottom: 12 }}>What would you like to do? Investor Relations replies within 24 hours.</Tx>
+      <View style={{ borderWidth: 1, borderColor: C.line, borderRadius: 12, overflow: 'hidden' }}>
+        {items.map((it, i) => <RequestRow key={it.key} it={it} last={i === items.length - 1} onPress={() => { onClose(); V.openReq(it.key); }} />)}
+      </View>
+    </Dialog>
+  );
+}
+
 function RequestRow({ it, onPress, last }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={it.title} onPress={onPress}
