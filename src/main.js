@@ -479,7 +479,7 @@ export default class MyQode extends React.Component {
     this.setState({ dl: true, dErr: '' });
     try {
       const k = scope.kind;
-      if (k === 'local-family') {
+      if (k === 'local-family' || k === 'local-owner') {   // local-owner: an owner's open accounts (adapt.js)
         // one raw-history call per member, combined locally
         const got = await Promise.allSettled(scope.members.map(id => portfolio.history(id)));
         if (seq !== this.seq) return;
@@ -492,7 +492,7 @@ export default class MyQode extends React.Component {
         }
         this.setState({ hist: fam, dv: 'nuvama', led: null }, () => this.applyView('nuvama', true));
         this.lastLoad = Date.now();
-        this.loadLedger(scope.members.map(id => portfolio.cashflow(String(id), 'owner')), seq);
+        this.loadLedger(scope.members.map(id => portfolio.cashflow(String(id), k === 'local-owner' ? 'account' : 'owner')), seq);
         this.loadHoldings(scope, seq); this.loadIrr(scope, seq); this.loadMetrics(scope, seq);
         return;
       }
@@ -544,7 +544,7 @@ export default class MyQode extends React.Component {
     if (scope.kind === 'family' || scope.kind === 'local-family') {
       this.setState({ scopes: { ...sc, family: null } });   // unusable for this login: stop offering it
       next = 0;
-    } else if (scope.kind === 'owner' && scope.accounts && scope.accounts[0]) {
+    } else if ((scope.kind === 'owner' || scope.kind === 'local-owner') && scope.accounts && scope.accounts[0]) {
       next = 'a:' + scope.accounts[0].id;
     }
     if (next == null) return false;
@@ -554,7 +554,7 @@ export default class MyQode extends React.Component {
 
   // Money-weighted return (IRR) for the scope, next to the NAV-based TWRR. Optional: failures leave it blank.
   async loadIrr(scope, seq) {
-    const codes = scope.kind === 'local-family' ? scope.members : [scope.id];
+    const codes = scope.kind === 'local-family' || scope.kind === 'local-owner' ? scope.members : [scope.id];
     this.setState({ irr: null });
     try { const r = await portfolio.irr(codes.map(String)); if (seq === this.seq) this.setState({ irr: r }); } catch {}
   }
@@ -572,7 +572,7 @@ export default class MyQode extends React.Component {
 
   async loadMetrics(scope, seq) {
     this.setState({ metrics: null });
-    if (!scope || scope.kind === 'local-family') return;
+    if (!scope || scope.kind === 'local-family' || scope.kind === 'local-owner') return;
     try { const r = await portfolio.metrics(String(scope.id)); if (seq === this.seq) this.setState({ metrics: (r && r.metrics) || null }); } catch {}
   }
 
@@ -1678,12 +1678,12 @@ export default class MyQode extends React.Component {
       myStrategies: [...new Set(((S.scopes && S.scopes.owners) || []).flatMap(o => (o.accounts || []).filter(a => !a.isClosed).map(a => a.strategyPrefix)).filter(Boolean))],
       acctOptions: (scope ? scope.accounts : []).map(a => ({ id: a.id, label: a.strategyPrefix ? a.strategyPrefix + ' · ' + a.id : a.id })),
       // closed accounts of the scope's people, for Reports only (Nuvama's statements include them)
-      reportClosed: !scope || scope.kind === 'account' ? []
-        : (scope.kind === 'owner' ? scope.closedAccounts || [] : ((S.scopes && S.scopes.owners) || []).flatMap(o => o.closedAccounts || []))
+      reportClosed: !scope || (scope.kind === 'account' && !scope.ownerView) ? []
+        : (scope.kind === 'owner' || scope.ownerView ? scope.closedAccounts || [] : ((S.scopes && S.scopes.owners) || []).flatMap(o => o.closedAccounts || []))
           .map(a => ({ id: String(a.id), name: a.strategyName || '' })),
       // QFH accounts: never listed, but part of "All accounts" in Reports
-      reportHidden: !scope || scope.kind === 'account' ? []
-        : scope.kind === 'owner' ? scope.hiddenAccounts || [] : ((S.scopes && S.scopes.owners) || []).flatMap(o => o.hiddenAccounts || []),
+      reportHidden: !scope || (scope.kind === 'account' && !scope.ownerView) ? []
+        : scope.kind === 'owner' || scope.ownerView ? scope.hiddenAccounts || [] : ((S.scopes && S.scopes.owners) || []).flatMap(o => o.hiddenAccounts || []),
       openReq: (k, preset) => { if (!S.viewing) set({ sheet: k, sheetPreset: preset || null }); }, sheetPreset: S.sheetPreset || null,   // no requests in a client's name while a distributor views the account
       bumpRefresh: () => set(s => ({ rk: s.rk + 1 })),
       openAdd: () => { if (!S.viewing) set({ sheet: 'r-add' }); },

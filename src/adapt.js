@@ -82,8 +82,15 @@ export function buildScopes(snap, codes) {
       // Owner view always uses the owner-level aggregate (like the web's "All Strategies"): it carries the
       // owner's full history, including accounts that have since closed — a single account does not.
       value: num(o.totalValue) || 0, accounts, closedAccounts: closedOf(o), hiddenAccounts: hiddenOf(o),
-      // not authorised for the owner aggregate → fall back to the owner's first strategy account
-      ...(can(o.id) ? { kind: 'owner' } : { kind: 'account', id: accounts[0] ? String(accounts[0].id) : String(o.id) }),
+      // not authorised for the owner aggregate → fall back to the owner's first strategy account.
+      // An owner with a closed account (not QFH) is shown as his OPEN accounts only (decided 8 Oct 2026): the owner
+      // aggregate still carries the closed accounts' history, and a switch from them counts as outside money there,
+      // so it disagreed with the open account (QGF00133: ₹1.28 Cr in the account, ₹1.25 Cr for the owner). One open
+      // account: the owner view is that account; several: combined on the device from their histories (local-owner).
+      ...(!can(o.id) ? { kind: 'account', id: accounts[0] ? String(accounts[0].id) : String(o.id) }
+        : !closedOf(o).length ? { kind: 'owner' }
+        : accounts.length === 1 ? { kind: 'account', id: String(accounts[0].id), ownerView: true }
+        : { kind: 'local-owner', id: 'o:' + o.id, members: accounts.map(a => String(a.id)), ownerView: true }),
       groupId: o.groupId,
     };
   }).filter(o => o.accounts.length > 0);
