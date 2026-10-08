@@ -1512,8 +1512,11 @@ export default class MyQode extends React.Component {
         // u: the unit (% measures, then ratios): the Returns & Risk page's two columns. In each, the measures without
         // a benchmark figure come first, those with one last.
         return [
-          { u: '%', k: 'XIRR', note: 'Per year (p.a.), money-weighted, since inception', pf: xi && xi.irr != null ? fmtIrr(xi).replace(/\s*p\.a\.$/i, '') : '–', pc: xi && xi.irr != null ? sg(xi.irr) : C.muted, bm: '–',
-            def: 'XIRR is your own yearly return, taking into account when you added or withdrew money. Unlike the NAV-based figures, it reflects the timing and size of your investments. Example: money added just before a rally earns a higher XIRR than the same amount added just after it.' },
+          // Benchmark column: the same money, on the same dates, in the benchmark instead (server: lib/irr.ts benchmarkWindowIrr).
+          { u: '%', k: 'XIRR', note: xi && xi.irr != null && !xi.annualised ? 'Over the period, money-weighted, since inception' : 'Per year (p.a.), money-weighted, since inception',
+            pf: xi && xi.irr != null ? fmtIrr(xi).replace(/\s*p\.a\.$/i, '') : '–', pc: xi && xi.irr != null ? sg(xi.irr) : C.muted,
+            bm: xi && xi.benchIrr != null ? spc(xi.benchIrr / 100) : '–', bc: xi && xi.benchIrr != null ? sg(xi.benchIrr) : C.muted,
+            def: `XIRR is your own yearly return, taking into account when you added or withdrew money. Unlike the NAV-based figures, it reflects the timing and size of your investments. Example: money added just before a rally earns a higher XIRR than the same amount added just after it. The ${bn} figure is what the same money would have earned in ${bn}: each amount you invested bought the index on that day, each withdrawal sold it, and what is left is valued today.` },
           { u: '%', k: 'Alpha vs ' + bn, note: m.alpha == null && young ? young : ann ? ann + ', above the benchmark' : 'CAGR above the benchmark', pf: spc(m.alpha), pc: sg(m.alpha), bm: '–',
             def: `Alpha is how much more (or less) the portfolio earned a year than ${bn} over the same dates: its CAGR minus the benchmark's. Example: a portfolio compounding at 15% while the benchmark compounded at 11% has an alpha of +4%. For an account under a year old, both returns since inception are annualised the same way first.` },
           { u: '%', k: 'Upside Capture', note: `% of ${bn}'s gains on its up days`, pf: cap(m.upsideCapture), pc: m.upsideCapture == null ? C.muted : m.upsideCapture >= 100 ? green : C.ink, bm: '–',
