@@ -42,6 +42,7 @@ export function Tile({ t }) {
       {/* one line always: crores with paise (−₹1,30,48,459.27) wrapped in a half-width tile; long figures start smaller
           and shrink to fit on the phone (the web has no shrink-to-fit, so the smaller start covers it there) */}
       <Amt s={String(t.value || '').length > 13 ? 14 : 16} c={t.color} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={{ marginTop: 6 }}>{t.value}</Amt>
+      {!!t.note && <Tx s={10.5} c={C.muted} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ marginTop: 3 }}>{t.note}</Tx>}
     </Card>
   );
 }
@@ -383,11 +384,13 @@ export function HomeCream({ V }) {
   // return since inception and CAGR (the 1-year return until there is a full year of history).
   const ret = V.tiles[0] || {}, si = V.tiles[1] || {}, y1 = V.tiles[2] || {};
   const cagr = (V.keyMetrics || []).find(k => k.label === 'CAGR');
+  // The earlier portal's four tiles, with the same figures: amount invested (net, the gross under it), current value,
+  // total returns and the return since inception as "Returns %" (absolute, not annualised).
   const tiles = [
-    { label: 'NET INVESTED', value: (V.invested || {}).net, color: C.ink },
-    { label: 'TOTAL RETURNS', value: ret.value, color: ret.color },
-    { label: 'RETURN (SI)', value: si.value, color: si.color },
-    cagr && cagr.value !== '–' ? { label: 'CAGR', value: cagr.value, color: cagr.color } : { label: '1Y RETURN', value: y1.value, color: y1.color },
+    { label: 'AMOUNT INVESTED', value: (V.invested || {}).net, color: C.ink, note: V.invested && V.invested.gross !== V.invested.net ? 'Gross ' + V.invested.gross : '' },
+    { label: 'CURRENT VALUE', value: V.heroValue, color: C.ink, note: V.asOf ? 'As of ' + V.asOf : '' },
+    { label: 'TOTAL RETURNS', value: ret.value, color: ret.color, note: 'Absolute returns' },
+    { label: 'RETURNS %', value: si.value, color: si.color, note: 'Absolute returns' },
   ];
   return (
     <Fade>
@@ -474,7 +477,10 @@ function RiskCard({ V }) {
               <Tx s={10.5} c={C.muted} lh={1.4} style={{ marginTop: 2 }}>{r.note}</Tx>
             </View>
             <Amt s={14} c={r.pc || C.ink} style={{ flex: 1, textAlign: 'right' }}>{r.pf}</Amt>
-            <Amt s={13} c={r.bc || C.muted} style={{ flex: 1, textAlign: 'right' }}>{r.bm}</Amt>
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              <Amt s={13} c={r.bc || C.muted}>{r.bm}</Amt>
+              {!!r.bnote && <Tx s={9.5} c={C.gray} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{r.bnote}</Tx>}
+            </View>
           </View>
           {open === r.k && <Fade duration={200}><Tx s={11.5} c={C.muted} lh={1.55} style={{ marginTop: 8 }}>{r.def}</Tx></Fade>}
         </Pressable>

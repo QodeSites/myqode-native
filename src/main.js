@@ -1283,13 +1283,15 @@ export default class MyQode extends React.Component {
 
     // Recent activity from cashflow
     const dateFmt = fmtDate;
-    const minorFlow = t => /^tax (deducted|withheld)/i.test(String(t.label || '')) || Math.abs(num(t.amount) || 0) < 1000;
+    // The server sends only the custodian's intentional entries (myQode lib/ledgerFlows: corpus deposits / withdrawals,
+    // securities in / out, full switches; no TDS, fees or partial switches — decided 8 Oct 2026). Nothing is dropped here.
+    const minorFlow = () => false;
     const cashTx = ((S.d && S.d.cash && S.d.cash.transactions) || []).slice()
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     const tx = t => {
       const out = t.type === 'outflow', amt = Math.abs(num(t.amount) || 0);
       return {
-        // label / detail: what the flow was (top-up, switch, TDS…), from the server's matching with Nuvama's transactions
+        // label / detail: the custodian's entry type and the strategy (myQode lib/ledgerFlows)
         title: t.label || (out ? 'Withdrawal' : 'Invested'), sub: dateFmt(t.date) + (t.detail ? ' · ' + t.detail : ''),
         amt: this.sfmt(out ? -amt : amt), color: out ? red : green, status: 'COMPLETED', stColor: C.green,
       };
@@ -1433,13 +1435,14 @@ export default class MyQode extends React.Component {
       viewChips: [['nuvama', 'Nuvama'], ['orbis', 'Orbis (Legacy)'], ['consolidated', 'Orbis + Nuvama']].map(([id, label]) => ({ label, active: (S.dvPending || S.dv) === id, pick: () => this.applyView(id) })),
       // Web note under the returns table: in the Orbis and Combined views the invested / current figures come from Orbis' latest records.
       orbisNote: !!(S.hist && !S.hist.family && S.hist.orbisMetrics && (S.dv === 'orbis' || S.dv === 'consolidated')),
-      // What the investor put in: gross (the round figure they remember, e.g. ₹1,00,00,000) and, when anything
-      // was withdrawn, the net. Dashboard / Performance show gross first, net under it.
+      // What the investor put in: gross (the round figure they remember, e.g. ₹1,00,00,000; the server's grossInvested —
+      // every day's money in, before withdrawals and tax) and the net. Dashboard / Performance show net, gross under it.
       invested: (() => {
         if (closed) return { gross: this.fmt(0), net: this.fmt(0), note: null };   // closed: nothing stays invested
-        const net = perf ? perf.amountInvested : flows.inflow - flows.outflow, adj = flows.inflow - flows.outflow - net;
-        const note = flows.outflow > 0 ? 'Net of withdrawals ' + this.fmt(net) : Math.abs(adj) >= 0.5 ? 'Net ' + this.fmt(net) + ' after tax deducted' : null;
-        return { gross: this.fmt(flows.inflow), net: this.fmt(net), note };
+        const gross = perf && perf.grossInvested != null ? perf.grossInvested : flows.inflow;
+        const net = perf ? perf.amountInvested : flows.inflow - flows.outflow;
+        const note = gross - net >= 0.5 ? 'Net of withdrawals ' + this.fmt(net) : null;
+        return { gross: this.fmt(gross), net: this.fmt(net), note };
       })(),
       tiles: [
         { label: 'TOTAL RETURNS', value: this.sfmt(totalReturns), color: c(totalReturns) },
@@ -1461,8 +1464,7 @@ export default class MyQode extends React.Component {
       ddLine: p3.line, ddArea: p3.area, ddBench: p3.bench, hasDd: ddPts.length > 1, ddNow: ddPts.length ? ddPts[ddPts.length - 1] : 0,
       perfLine: p2.line, perfBench: p2.bench, hasBench: !!bench,
       ranges: RANGE_IDS.map(id => { const off = !this.rangeOk(id, S); return { label: id, disabled: off, pick: () => { if (!off) this.pickRange(id); }, active: S.range === id, loading: rangeLoading && S.range === id }; }),
-      // Home's recent activity leaves out small movements: tax deducted (TDS) and anything under ₹1,000. They stay in
-      // the full transaction list (txAll) and in every calculation.
+      // Home's recent activity and the Transactions page: the server's list as is (minorFlow drops nothing now).
       tx3: cashTx.filter(t => !minorFlow(t)).slice(0, 3).map(tx), txRecent: cashTx.filter(t => !minorFlow(t)).map(tx),
       txAll: cashTx.map(tx), hasTx: cashTx.length > 0,
       holdings: holdRows, chartColor,
@@ -1515,24 +1517,24 @@ export default class MyQode extends React.Component {
           // Benchmark column: the same money, on the same dates, in the benchmark instead (server: lib/irr.ts benchmarkWindowIrr).
           { u: '%', k: 'XIRR', note: xi && xi.irr != null && !xi.annualised ? 'Over the period, money-weighted, since inception' : 'Per year (p.a.), money-weighted, since inception',
             pf: xi && xi.irr != null ? fmtIrr(xi).replace(/\s*p\.a\.$/i, '') : '–', pc: xi && xi.irr != null ? sg(xi.irr) : C.muted,
-            bm: xi && xi.benchIrr != null ? spc(xi.benchIrr / 100) : '–', bc: xi && xi.benchIrr != null ? sg(xi.benchIrr) : C.muted,
+            bm: xi && xi.benchIrr != null ? spc(xi.benchIrr / 100) : 'n/a', bc: xi && xi.benchIrr != null ? sg(xi.benchIrr) : C.muted, bnote: xi && xi.benchIrr != null ? null : 'Not available',
             def: `XIRR is your own yearly return, taking into account when you added or withdrew money. Unlike the NAV-based figures, it reflects the timing and size of your investments. Example: money added just before a rally earns a higher XIRR than the same amount added just after it. The ${bn} figure is what the same money would have earned in ${bn}: each amount you invested bought the index on that day, each withdrawal sold it, and what is left is valued today.` },
-          { u: '%', k: 'Alpha vs ' + bn, note: m.alpha == null && young ? young : ann ? ann + ', above the benchmark' : 'CAGR above the benchmark', pf: spc(m.alpha), pc: sg(m.alpha), bm: '–',
-            def: `Alpha is how much more (or less) the portfolio earned a year than ${bn} over the same dates: its CAGR minus the benchmark's. Example: a portfolio compounding at 15% while the benchmark compounded at 11% has an alpha of +4%. For an account under a year old, both returns since inception are annualised the same way first.` },
-          { u: '%', k: 'Upside Capture', note: `% of ${bn}'s gains on its up days`, pf: cap(m.upsideCapture), pc: m.upsideCapture == null ? C.muted : m.upsideCapture >= 100 ? green : C.ink, bm: '–',
-            def: `Upside Capture measures how much of ${bn}'s gains the portfolio captured on the days the benchmark rose. Above 100% means it did better than the benchmark in rising markets. Example: 110% means that when the benchmark gained 10% over its up days, the portfolio gained about 11%.` },
-          { u: '%', k: 'Downside Capture', note: `% of ${bn}'s losses on its down days`, pf: cap(m.downsideCapture), pc: m.downsideCapture == null ? C.muted : m.downsideCapture <= 100 ? green : red, bm: '–',
-            def: `Downside Capture measures how much of ${bn}'s losses the portfolio took on the days the benchmark fell. Below 100% means it lost less than the benchmark in falling markets, protecting capital better. Example: 80% means that when the benchmark fell 10% over its down days, the portfolio fell only about 8%.` },
+          { u: '%', k: 'Alpha vs ' + bn, note: m.alpha == null && young ? young : ann ? ann + ', above the benchmark' : 'CAGR above the benchmark', pf: spc(m.alpha), pc: sg(m.alpha), bm: '0.00%', bc: C.muted, bnote: 'By definition',
+            def: `Alpha is how much more (or less) the portfolio earned a year than ${bn} over the same dates: its CAGR minus the benchmark's. Example: a portfolio compounding at 15% while the benchmark compounded at 11% has an alpha of +4%. For an account under a year old, both returns since inception are annualised the same way first. ${bn}\'s own alpha is 0% by definition.` },
+          { u: '%', k: 'Upside Capture', note: `% of ${bn}'s gains on its up days`, pf: cap(m.upsideCapture), pc: m.upsideCapture == null ? C.muted : m.upsideCapture >= 100 ? green : C.ink, bm: '100.00%', bc: C.muted, bnote: 'By definition',
+            def: `Upside Capture measures how much of ${bn}'s gains the portfolio captured on the days the benchmark rose. Above 100% means it did better than the benchmark in rising markets. Example: 110% means that when the benchmark gained 10% over its up days, the portfolio gained about 11%. ${bn}\'s own capture is 100% by definition.` },
+          { u: '%', k: 'Downside Capture', note: `% of ${bn}'s losses on its down days`, pf: cap(m.downsideCapture), pc: m.downsideCapture == null ? C.muted : m.downsideCapture <= 100 ? green : red, bm: '100.00%', bc: C.muted, bnote: 'By definition',
+            def: `Downside Capture measures how much of ${bn}'s losses the portfolio took on the days the benchmark fell. Below 100% means it lost less than the benchmark in falling markets, protecting capital better. Example: 80% means that when the benchmark fell 10% over its down days, the portfolio fell only about 8%. ${bn}\'s own capture is 100% by definition.` },
           // Best Month is only in Monthly Returns (monthRows), not here: removed 8 Oct 2026.
           { u: '%', k: 'Volatility', note: 'Annualised, from daily returns', pf: pc1(m.volatility), bm: pc1(b.volatility),
             def: 'Volatility measures how widely returns move around their average, expressed on an annualised basis (standard deviation). Lower volatility means a smoother, more consistent ride. Example: an annualised volatility of 12% means returns have typically varied by about ±12% around the average in a year; a portfolio at 18% has seen larger swings than one at 12%.' },
-          { k: 'Information Ratio', note: m.informationRatio == null ? 'Shown after 3 months' : 'Alpha generated per unit of tracking error', pf: n2(m.informationRatio), pc: sg(m.informationRatio), bm: '–',
-            def: 'The Information Ratio measures how consistently the portfolio beats its benchmark: the alpha (return above the benchmark) divided by the tracking error (how much its returns differ from the benchmark\'s). Higher signals reliable, repeatable outperformance rather than one-off luck. Example: 4% a year of alpha with 5% tracking error gives 0.8; above 0.5 is generally regarded as good.' },
+          { k: 'Information Ratio', note: m.informationRatio == null ? 'Shown after 3 months' : 'Alpha generated per unit of tracking error', pf: n2(m.informationRatio), pc: sg(m.informationRatio), bm: 'n/a', bc: C.muted, bnote: 'Against itself',
+            def: 'The Information Ratio measures how consistently the portfolio beats its benchmark: the alpha (return above the benchmark) divided by the tracking error (how much its returns differ from the benchmark\'s). Higher signals reliable, repeatable outperformance rather than one-off luck. Example: 4% a year of alpha with 5% tracking error gives 0.8; above 0.5 is generally regarded as good. It is measured against ' + bn + ' itself, so there is no benchmark figure.' },
           { k: 'Sharpe Ratio', note: m.sharpe == null && young ? young : ann ? ann + ' · 6.5% RF' : 'Excess return per unit of total risk (6.5% RF)', pf: n2(m.sharpe), pc: sg(m.sharpe), bm: n2(b.sharpe), bc: sg(b.sharpe),
             def: 'The Sharpe Ratio measures the return earned above the risk-free rate (6.5% a year) for each unit of total risk, where risk is the volatility of returns. Higher means more reward for the risk taken. Example: a portfolio returning 16% with 12% volatility has a Sharpe of about (16 − 6.5) ÷ 12 ≈ 0.79; above 1.0 is generally considered strong.' },
           { k: 'Sortino Ratio', note: m.sortino == null && young ? young : ann || 'Excess return per unit of downside risk', pf: n2(m.sortino), pc: sg(m.sortino), bm: n2(b.sortino), bc: sg(b.sortino),
             def: 'The Sortino Ratio refines the Sharpe Ratio by counting only downside volatility (losses) and ignoring upside swings, which benefit investors. Higher means stronger returns relative to the risk of losing money. Example: two portfolios with the same Sharpe can have very different Sortino values; the one whose swings come mostly from up days scores higher.' },
-          { k: 'Beta', note: `Sensitivity to ${bn}'s daily moves`, pf: m.beta == null ? '–' : m.beta.toFixed(2), bm: '1.00',
+          { k: 'Beta', note: `Sensitivity to ${bn}'s daily moves`, pf: m.beta == null ? '–' : m.beta.toFixed(2), bm: '1.00', bc: C.muted, bnote: 'By definition',
             def: `Beta measures how much the portfolio tends to move for a given move in ${bn}, from their daily returns. 1.0 moves in line with the benchmark; above 1.0 swings more; below 1.0 swings less. Example: a Beta of 0.6 means that when the benchmark moved 1% in a day, the portfolio has on average moved about 0.6% the same way.` },
         ];
       })(),

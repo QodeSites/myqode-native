@@ -211,7 +211,7 @@ export function trailingRows(perf) {
   const P = t.portfolio || {}, B = t.benchmark || {};
   // Same rule as the period buttons: a window longer than the account's history is not shown.
   const days = historyDays(perf.inceptionDate, perf.dataAsOf || perf.asOf || null);
-  return [['1W', 'w1'], ['10D', 'd10'], ['1M', 'm1'], ['3M', 'm3'], ['6M', 'm6'], ['1Y', 'y1'], ['3Y', 'y3'], ['SI', 'sinceInception']]
+  return [['1D', 'd1'], ['1W', 'w1'], ['10D', 'd10'], ['1M', 'm1'], ['3M', 'm3'], ['6M', 'm6'], ['1Y', 'y1'], ['3Y', 'y3'], ['SI', 'sinceInception']]
     .filter(([p, k]) => P[k] != null && rangeHasData(p, days))
     .map(([p, k]) => ({
       p, pf: pct(P[k]), n: pct(B[k]),
@@ -252,7 +252,7 @@ export const fmtDM = v => { const s = fmtD(v); return /^\d{2} [A-Z][a-z]{2} \d{4
 
 // ── Period buttons: offer a window only when the account has that much history ──────────────────────────────
 // Day count of each window, less a few days' grace (weekends / holidays at the edges). SI is always available.
-const RANGE_MIN_DAYS = { '1W': 5, '10D': 10, '1M': 27, '3M': 85, '6M': 175, '1Y': 358, '3Y': 1088, '5Y': 1820 };
+const RANGE_MIN_DAYS = { '1D': 2, '1W': 5, '10D': 10, '1M': 27, '3M': 85, '6M': 175, '1Y': 358, '3Y': 1088, '5Y': 1820 };
 /** A date from ISO ("2026-09-25…"), "25-Sep-2026" / "25 Sep 2026", or a Date → ms (UTC midnight), else null. */
 export function dayMs(v) {
   if (v == null || v === '') return null;

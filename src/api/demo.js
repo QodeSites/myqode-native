@@ -122,7 +122,7 @@ export const demo = {
     return {
       accountId: id, isClosed: false, closedAt: null,
       strategy: { prefix: m.prefix, name: m.single ? m.S.name : 'Combined', benchmark: m.benchName, color: m.S.color },
-      amountInvested: r2(invested), currentValue: r2(m.value[last]), totalReturns: r2(m.value[last] - invested),
+      amountInvested: r2(invested), grossInvested: r2(invested), currentValue: r2(m.value[last]), totalReturns: r2(m.value[last] - invested),
       returnsPercent: P.sinceInception, isNegative: m.value[last] < invested,
       inceptionDate: fmtDate(START), dataAsOf: fmtDate(END), grossValue: r2(m.value[last]),
       trailingReturns: { portfolio: P, benchmark: B, benchmarkUnavailable: false },

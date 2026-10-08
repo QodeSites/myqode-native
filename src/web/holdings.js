@@ -220,12 +220,12 @@ export default function DesktopHoldings({ V }) {
       {err && !data ? <ErrorBlock msg={err} onRetry={reload} /> : !data && loading ? <Loading rows={5} /> : (
         <View style={{ gap: 20, opacity: loading ? 0.55 : 1 }}>
           <Row>
-            <Stat label="Current Value" value={tot ? inr(tot.value) : '–'} note={data.asOf ? 'Holdings as of ' + fmtDate(data.asOf) : ''} style={{ flex: 1.3 }} />
+            <Stat label="Current Value" value={tot ? inr(tot.value) : '–'} note={data.asOf ? 'Holdings as of ' + fmtDate(data.asOf) : ''} style={{ flex: 1 }} />
             <Stat label="Invested" value={tot ? inr(tot.invested) : '–'} note="Cost of the current holdings" style={{ flex: 1 }} />
             <Stat label="Unrealised Gain" value={tot ? sinr(tot.gain) : '–'} color={tot ? signCol(tot.gain) : C.ink}
               delta={tot && tot.gainPct != null ? pct(tot.gainPct) : ''} deltaNeg={!!tot && tot.gainPct < 0} style={{ flex: 1 }} />
             <Stat label="Holdings" value={tot ? String(tot.count) : '–'}
-              note={(data.accounts || []).length + ((data.accounts || []).length === 1 ? ' account' : ' accounts')} style={{ flex: 0.8 }} />
+              note={(data.accounts || []).length + ((data.accounts || []).length === 1 ? ' account' : ' accounts')} style={{ flex: 1 }} />
           </Row>
 
           {!items.length && !q ? (

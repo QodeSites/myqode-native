@@ -249,16 +249,16 @@ function HeadlineBanner({ hero, cells }) {
   const Div = () => <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(239,236,211,0.14)' }} />;
   return (
     <DarkCard style={{ flexDirection: 'row', flexWrap: 'wrap', paddingVertical: 24, paddingHorizontal: 0 }}>
-      <View style={{ flex: 1.4, minWidth: 260, paddingHorizontal: 24, justifyContent: 'center' }}>
+      {!!hero && <View style={{ flex: 1.4, minWidth: 260, paddingHorizontal: 24, justifyContent: 'center' }}>
         <Label c={C.gold}>{hero.label}</Label>
         <FitAmt w={700} s={38} min={20} c={hero.color ? onDark(hero.color) : C.cream} style={{ marginTop: 6, letterSpacing: -0.8 }}>{hero.value || '–'}</FitAmt>
         <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 10 }} />
         {!!hero.note && <Tx s={12} c="rgba(239,236,211,0.6)" style={{ marginTop: 8, whiteSpace: 'nowrap' }}>{hero.note}</Tx>}
-      </View>
-      {cells.map(c => (
+      </View>}
+      {cells.map((c, i) => (
         <React.Fragment key={c.label}>
-          <Div />
-          <View style={{ flex: 1, paddingHorizontal: 22, justifyContent: 'center' }}>
+          {(hero || i > 0) && <Div />}
+          <View style={{ flex: 1, minWidth: 200, paddingHorizontal: 22, paddingVertical: hero ? 0 : 4, justifyContent: 'center' }}>
             <Label c="rgba(239,236,211,0.75)">{c.label}</Label>
             <FitAmt w={700} s={25} min={15} c={onDark(c.color)} style={{ marginTop: 8, letterSpacing: -0.4 }}>{c.value || '–'}</FitAmt>
             {!!c.note && <Tx s={12} c="rgba(239,236,211,0.6)" style={{ marginTop: 4 }}>{c.note}</Tx>}
@@ -270,21 +270,24 @@ function HeadlineBanner({ hero, cells }) {
 }
 
 // Dashboard headline: current value, invested, total returns and CAGR. TWRR / IRR / 1-year live on Performance.
+// The earlier portal's four tiles, with the same figures: amount invested (net, the gross under it), current value,
+// total returns and the return since inception as "Returns %" (absolute, not annualised).
 function Summary({ V }) {
   const ret = V.tiles[0] || {}, si = V.tiles[1] || {};
-  const cagr = (V.keyMetrics || []).find(k => k.label === 'CAGR');
   const inv = V.invested || {};
+  // Four separate cards (the earlier portal's layout), not one dark banner.
+  const tiles = [
+    { label: 'Amount Invested', value: inv.net, note: inv.gross && inv.gross !== inv.net ? 'Gross ' + inv.gross : null },
+    { label: 'Current Value', value: V.heroValue, note: V.asOf ? 'As of ' + V.asOf : null },
+    { label: 'Total Returns', value: ret.value, color: ret.color, note: 'Absolute returns' },
+    { label: 'Returns %', value: si.value, color: si.color, note: 'Absolute returns' },
+  ];
   return (
-    <HeadlineBanner hero={{ label: 'Current Value', value: V.heroValue, note: V.sinceLbl }} cells={[
-      // Net, not gross: current value − net invested = total returns, the figure beside it.
-      { label: 'Net Invested', value: inv.net },
-      { label: 'Total Returns', value: ret.value, color: ret.color, note: si.value && si.value !== '–' ? si.value + ' since inception' : null },
-      cagr && cagr.value !== '–' ? { label: 'CAGR', value: cagr.value, color: cagr.color, note: 'Since inception' }
-        : { label: 'Return Since Inception', value: si.value, color: si.color, note: 'Shown as CAGR after a year' },
-    ]} />
+    <Grid min={220} gap={16}>
+      {tiles.map(t => <Stat key={t.label} label={t.label} value={t.value || '–'} color={t.color} note={t.note} accent={C.green} />)}
+    </Grid>
   );
 }
-
 function NavPanel({ V, height = 250, style }) {
   // Returns under the period buttons: the portfolio growth at the point under the pointer, else at the latest date —
   // the tooltip's "Portfolio Growth", computed the same way (growthAt).
@@ -523,7 +526,7 @@ function PnlPanel({ V, style, wide }) {
 }
 
 // Trailing returns and drawdown in one compact table: periods across, the portfolio and its benchmark down.
-const TRAIL_PERIODS = ['1W', '10D', '1M', '3M', '6M', '1Y', '3Y'];
+const TRAIL_PERIODS = ['1D', '1W', '10D', '1M', '3M', '6M', '1Y', '3Y'];
 const trailCol = v => (!v || v === '–' ? C.ink3 : numOf(v) < 0 ? C.red : C.pos);
 function TrailingPanel({ V, style }) {
   const at = p => (V.trailing || []).find(r => r.p === p) || {};
@@ -714,7 +717,7 @@ function MetricCol({ V, rows, title }) {
             <Tx s={11.5} c={C.ink3} style={{ marginTop: 2 }} numberOfLines={1}>{r.note}</Tx>
           </View>
           <View style={col}><Amt w={600} s={14.5} numberOfLines={1} c={r.pc || C.ink}>{r.pf}</Amt></View>
-          <View style={bcol}><Amt s={13.5} numberOfLines={1} c={r.bc || C.ink2}>{r.bm}</Amt></View>
+          <View style={bcol}><Amt s={13.5} numberOfLines={1} c={r.bc || C.ink2}>{r.bm}</Amt>{!!r.bnote && <Tx s={10.5} c={C.ink3} numberOfLines={1} adjustsFontSizeToFit>{r.bnote}</Tx>}</View>
         </View>
       ))}
     </View>
