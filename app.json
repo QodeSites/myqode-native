@@ -54,7 +54,7 @@
         }
       ],
       "package": "com.qodeinvest.myqode",
-      "versionCode": 54,
+      "versionCode": 55,
       "googleServicesFile": "./google-services.json"
     },
     "web": {
