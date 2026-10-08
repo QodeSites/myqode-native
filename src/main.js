@@ -1475,20 +1475,25 @@ export default class MyQode extends React.Component {
         const si = irrPeriod(S.irr, 'SI');
         const mon = ym => { const [y, mo] = String(ym || '').split('-'); return mo ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+mo - 1] + ' ' + y : ''; };
         const under = m.cagr == null ? 'Shown after a full year' : null;
+        // Under a year the server annualises the return since inception for alpha / Sharpe / Sortino (from 3 months:
+        // lib/portfolioMetrics.ts ANNUALISE_MIN_DAYS); the note says so. CAGR itself still waits for a full year.
+        const mo = Math.max(1, Math.round((m.years || 0) * 12));
+        const annNote = m.annualised ? `Annualised from ${mo} month${mo > 1 ? 's' : ''}` : null;
+        const wait = 'Shown after 3 months';
         return [
           { label: 'CAGR', value: pc(m.cagr), color: m.cagr == null ? C.muted : c(m.cagr), note: under || `${m.years} years since inception` },
           { label: 'XIRR', value: si && si.irr != null ? fmtIrr(si) : '–', color: si && si.irr != null ? c(si.irr) : C.muted, note: 'Money-weighted, since inception' },
-          { label: 'Sharpe Ratio', value: m.sharpe == null ? '–' : m.sharpe.toFixed(2), color: C.ink, note: m.sharpe == null ? under : `Risk-free rate ${(m.riskFree * 100).toFixed(2)}%` },
+          { label: 'Sharpe Ratio', value: m.sharpe == null ? '–' : m.sharpe.toFixed(2), color: C.ink, note: m.sharpe == null ? (m.years < 1 ? wait : under) : annNote || `Risk-free rate ${(m.riskFree * 100).toFixed(2)}%` },
           { label: 'Max Drawdown', value: plain(m.maxDrawdown), color: m.maxDrawdown ? red : C.muted, note: 'Deepest fall from a peak' },
           { label: 'Volatility (ann.)', value: plain(m.volatility), color: C.ink, note: 'Annualised, daily returns' },
-          { label: 'Alpha vs ' + titleCase(m.benchmark), value: pc(m.alpha), color: m.alpha == null ? C.muted : c(m.alpha), note: m.alpha == null ? under : 'CAGR above the benchmark' },
+          { label: 'Alpha vs ' + titleCase(m.benchmark), value: pc(m.alpha), color: m.alpha == null ? C.muted : c(m.alpha), note: m.alpha == null ? (m.years < 1 ? wait : under) : annNote ? annNote + ', above the benchmark' : 'CAGR above the benchmark' },
           { label: 'Beta', value: m.beta == null ? '–' : m.beta.toFixed(2), color: C.ink, note: 'Against ' + titleCase(m.benchmark) },
           { label: 'Best Month', value: m.bestMonth ? pc(m.bestMonth.ret) : '–', color: m.bestMonth ? c(m.bestMonth.ret) : C.muted, note: m.bestMonth ? mon(m.bestMonth.month) : '' },
         ];
       })(),
       // The Performance page's Metrics, since inception, the portfolio beside its benchmark (lib/portfolioMetrics.ts),
       // each with its explanation (def: qodeinvest.com's strategy dashboard wording): three return measures (XIRR,
-      // alpha, best month), then seven risk measures. Ratios need a full year of history.
+      // alpha, best month), then seven risk measures. Under a year the ratios use the annualised return since inception (from 3 months).
       riskMetrics: (() => {
         const m = S.metrics; if (!m) return [];
         const b = m.bench || {}, bn = titleCase(m.benchmark || benchName);
@@ -1496,7 +1501,11 @@ export default class MyQode extends React.Component {
         const n2 = x => (x == null ? '–' : (x < 0 ? '−' : '') + Math.abs(x).toFixed(2));
         const cap = x => (x == null ? '–' : x.toFixed(2) + '%');
         const sg = x => (x == null ? C.muted : x < 0 ? red : green);
-        const young = m.years < 1 ? 'Shown after a full year' : null;
+        // Under a year: alpha / Sharpe / Sortino from the annualised return since inception (lib/portfolioMetrics.ts),
+        // shown from 3 months, with a note saying so; the information ratio from 3 months too.
+        const young = m.years < 1 ? 'Shown after 3 months' : null;
+        const mo = Math.max(1, Math.round((m.years || 0) * 12));
+        const ann = m.annualised ? `Annualised from ${mo} month${mo > 1 ? 's' : ''}` : null;
         const spc = x => (x == null ? '–' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x * 100).toFixed(2) + '%');
         const mon = ym => { const [y, mo] = String(ym || '').split('-'); return mo ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+mo - 1] + ' ' + y : ''; };
         const xi = irrPeriod(S.irr, 'SI');
@@ -1505,8 +1514,8 @@ export default class MyQode extends React.Component {
         return [
           { u: '%', k: 'XIRR', note: 'Per year (p.a.), money-weighted, since inception', pf: xi && xi.irr != null ? fmtIrr(xi).replace(/\s*p\.a\.$/i, '') : '–', pc: xi && xi.irr != null ? sg(xi.irr) : C.muted, bm: '–',
             def: 'XIRR is your own yearly return, taking into account when you added or withdrew money. Unlike the NAV-based figures, it reflects the timing and size of your investments. Example: money added just before a rally earns a higher XIRR than the same amount added just after it.' },
-          { u: '%', k: 'Alpha vs ' + bn, note: m.alpha == null && young ? young : 'CAGR above the benchmark', pf: spc(m.alpha), pc: sg(m.alpha), bm: '–',
-            def: `Alpha is how much more (or less) the portfolio earned a year than ${bn} over the same dates: its CAGR minus the benchmark's. Example: a portfolio compounding at 15% while the benchmark compounded at 11% has an alpha of +4%.` },
+          { u: '%', k: 'Alpha vs ' + bn, note: m.alpha == null && young ? young : ann ? ann + ', above the benchmark' : 'CAGR above the benchmark', pf: spc(m.alpha), pc: sg(m.alpha), bm: '–',
+            def: `Alpha is how much more (or less) the portfolio earned a year than ${bn} over the same dates: its CAGR minus the benchmark's. Example: a portfolio compounding at 15% while the benchmark compounded at 11% has an alpha of +4%. For an account under a year old, both returns since inception are annualised the same way first.` },
           { u: '%', k: 'Upside Capture', note: `% of ${bn}'s gains on its up days`, pf: cap(m.upsideCapture), pc: m.upsideCapture == null ? C.muted : m.upsideCapture >= 100 ? green : C.ink, bm: '–',
             def: `Upside Capture measures how much of ${bn}'s gains the portfolio captured on the days the benchmark rose. Above 100% means it did better than the benchmark in rising markets. Example: 110% means that when the benchmark gained 10% over its up days, the portfolio gained about 11%.` },
           { u: '%', k: 'Downside Capture', note: `% of ${bn}'s losses on its down days`, pf: cap(m.downsideCapture), pc: m.downsideCapture == null ? C.muted : m.downsideCapture <= 100 ? green : red, bm: '–',
@@ -1514,11 +1523,11 @@ export default class MyQode extends React.Component {
           // Best Month is only in Monthly Returns (monthRows), not here: removed 8 Oct 2026.
           { u: '%', k: 'Volatility', note: 'Annualised, from daily returns', pf: pc1(m.volatility), bm: pc1(b.volatility),
             def: 'Volatility measures how widely returns move around their average, expressed on an annualised basis (standard deviation). Lower volatility means a smoother, more consistent ride. Example: an annualised volatility of 12% means returns have typically varied by about ±12% around the average in a year; a portfolio at 18% has seen larger swings than one at 12%.' },
-          { k: 'Information Ratio', note: m.informationRatio == null ? 'Shown after 12 months' : 'Alpha generated per unit of tracking error', pf: n2(m.informationRatio), pc: sg(m.informationRatio), bm: '–',
+          { k: 'Information Ratio', note: m.informationRatio == null ? 'Shown after 3 months' : 'Alpha generated per unit of tracking error', pf: n2(m.informationRatio), pc: sg(m.informationRatio), bm: '–',
             def: 'The Information Ratio measures how consistently the portfolio beats its benchmark: the alpha (return above the benchmark) divided by the tracking error (how much its returns differ from the benchmark\'s). Higher signals reliable, repeatable outperformance rather than one-off luck. Example: 4% a year of alpha with 5% tracking error gives 0.8; above 0.5 is generally regarded as good.' },
-          { k: 'Sharpe Ratio', note: m.sharpe == null && young ? young : 'Excess return per unit of total risk (6.5% RF)', pf: n2(m.sharpe), pc: sg(m.sharpe), bm: n2(b.sharpe), bc: sg(b.sharpe),
+          { k: 'Sharpe Ratio', note: m.sharpe == null && young ? young : ann ? ann + ' · 6.5% RF' : 'Excess return per unit of total risk (6.5% RF)', pf: n2(m.sharpe), pc: sg(m.sharpe), bm: n2(b.sharpe), bc: sg(b.sharpe),
             def: 'The Sharpe Ratio measures the return earned above the risk-free rate (6.5% a year) for each unit of total risk, where risk is the volatility of returns. Higher means more reward for the risk taken. Example: a portfolio returning 16% with 12% volatility has a Sharpe of about (16 − 6.5) ÷ 12 ≈ 0.79; above 1.0 is generally considered strong.' },
-          { k: 'Sortino Ratio', note: m.sortino == null && young ? young : 'Excess return per unit of downside risk', pf: n2(m.sortino), pc: sg(m.sortino), bm: n2(b.sortino), bc: sg(b.sortino),
+          { k: 'Sortino Ratio', note: m.sortino == null && young ? young : ann || 'Excess return per unit of downside risk', pf: n2(m.sortino), pc: sg(m.sortino), bm: n2(b.sortino), bc: sg(b.sortino),
             def: 'The Sortino Ratio refines the Sharpe Ratio by counting only downside volatility (losses) and ignoring upside swings, which benefit investors. Higher means stronger returns relative to the risk of losing money. Example: two portfolios with the same Sharpe can have very different Sortino values; the one whose swings come mostly from up days scores higher.' },
           { k: 'Beta', note: `Sensitivity to ${bn}'s daily moves`, pf: m.beta == null ? '–' : m.beta.toFixed(2), bm: '1.00',
             def: `Beta measures how much the portfolio tends to move for a given move in ${bn}, from their daily returns. 1.0 moves in line with the benchmark; above 1.0 swings more; below 1.0 swings less. Example: a Beta of 0.6 means that when the benchmark moved 1% in a day, the portfolio has on average moved about 0.6% the same way.` },
