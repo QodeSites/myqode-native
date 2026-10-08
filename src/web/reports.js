@@ -22,6 +22,7 @@ import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransacti
 import { track } from '../api/track';
 
 import { userMessage } from '../errors';
+import { splitGains, isBusiness, BUSINESS_NOTE } from '../businessIncome';
 import { useUnrealised } from '../unrealised';
 import { latestDate, monthEnds, earliestDate, asOfHint } from '../reportDates';
 // ── formatting (the app-wide formatters; only quantity and period headers are local, as on the phone) ────────
@@ -139,8 +140,8 @@ function PdfBtn({ make, xlsx, name, disabled }) {
   );
 }
 
-// One muted line under the toolbar: "As of … · period · 128 entries · Records from …", then the "Computed by
-// Qode" badge and a small "How this is computed" disclosure when the report was computed rather than supplied.
+// One muted line under the toolbar: "As of … · period · 128 entries · Records from …", then a small "How this is
+// computed" disclosure when the report was computed rather than supplied (no "Computed by Qode" tag, removed 8 Oct 2026).
 function StatusLine({ parts, computed, note }) {
   const [open, setOpen] = useState(false);
   const text = (parts || []).filter(Boolean).join(' · ');
@@ -148,7 +149,6 @@ function StatusLine({ parts, computed, note }) {
     <View style={{ marginTop: 12, marginBottom: 14 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 6, minHeight: 20 }}>
         {!!text && <Tx s={12.5} c={C.ink2} lh={1.5}>{text}</Tx>}
-        {!!computed && <Pill label="Computed by Qode" tone="warn" />}
         {!!note && (
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen(o => !o)}
             style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, opacity: hovered ? 0.7 : 1 })}>
@@ -167,6 +167,7 @@ const recordsPart = cov => (cov && cov.from ? `Records from ${fmtDate(cov.from)}
 // One compact summary card per report: evenly spaced figures split by hairlines, a small muted label (with an
 // optional muted suffix such as an entry count) above a medium figure that shrinks rather than truncates.
 // items: [{ label, value, color, note }].
+// Each card: label, ⓘ and the figure; no side note ("In this period", "On holdings as of …"), dropped 8 Oct 2026.
 function SummaryStrip({ items, style }) {
   const list = (items || []).filter(Boolean);
   if (!list.length) return null;
@@ -178,7 +179,6 @@ function SummaryStrip({ items, style }) {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0, minHeight: 18 }}>
             <Tx w={600} s={11.5} c={C.ink3} numberOfLines={1} style={{ flexShrink: 0 }}>{it.label}</Tx>
             {!!it.info && <InfoTip label={it.label} text={it.info} />}
-            {!!it.note && <Tx s={11} c={C.ink3} numberOfLines={1} style={{ flexShrink: 1, opacity: 0.85 }}>{it.note}</Tx>}
           </View>
           <FitAmt w={600} s={16} min={11} c={it.color || C.ink} style={{ marginTop: 4 }}>{it.value}</FitAmt>
         </View>
@@ -236,11 +236,12 @@ const cellTx = (v, extra) => <Tx s={13} numberOfLines={2} {...extra}>{v}</Tx>;
 const cellAmt = (v, c = C.ink, w) => <Amt s={13} c={c} w={w} style={{ textAlign: 'right' }}>{v}</Amt>;
 
 // Short-term / long-term tag (Pill would sentence-case "LT" into "Lt").
-const TermTag = ({ term }) => {
-  const lt = term === 'LT';
+// A derivatives lot is business income, not a short-term gain (src/businessIncome.js): tagged "F&O".
+const TermTag = ({ term, category }) => {
+  const lt = term === 'LT', fo = isBusiness(category);
   return (
-    <View style={{ backgroundColor: lt ? C.posTint : C.goldTint, borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6 }}>
-      <Tx w={600} s={11} c={lt ? C.pos : C.goldText}>{term}</Tx>
+    <View style={{ backgroundColor: fo ? C.track : lt ? C.posTint : C.goldTint, borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6 }}>
+      <Tx w={600} s={11} c={fo ? C.ink2 : lt ? C.pos : C.goldText}>{fo ? 'F&O' : term}</Tx>
     </View>
   );
 };
@@ -452,7 +453,8 @@ function CapitalGains({ accountId, ids, rk, account }) {
   const L = usePaged(offset => (all
     ? loadCapitalGainsAll(ids, (id, o) => reports.capitalGains(id, { ...(byFy ? o : q), term: term || undefined, export: 1, limit: 5000 }), { ...q, term: term || undefined })
     : reports.capitalGains(accountId, { ...q, term: term || undefined, limit: 50, offset })), [accountId, q.fy, q.from, q.to, term, rk]);
-  const h = L.head, s = h && h.summary;
+  // Derivatives taken out of short term and the realised total, shown as business income (src/businessIncome.js).
+  const h = L.head, s = splitGains(h && h.summary);
   const cov = useCoverage(h);
   const exportData = async () => (all ? h : reports.capitalGains(accountId, { ...(byFy ? { fy: h.fy } : q), term: term || undefined, export: 1, limit: 5000 }));
   const makePdf = async () => (all ? capitalGainsAllPdf(h) : capitalGainsPdf(await exportData(), accountId));
@@ -470,7 +472,7 @@ function CapitalGains({ accountId, ids, rk, account }) {
   const cols = withAcct(all, [
     { key: 'sec', label: 'Security', flex: 2.2, render: l => (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <TermTag term={l.term} />
+        <TermTag term={l.term} category={l.category} />
         <Tx w={600} s={13} numberOfLines={2} style={{ flex: 1 }}>{l.security}</Tx>
       </View>
     ) },
@@ -486,7 +488,8 @@ function CapitalGains({ accountId, ids, rk, account }) {
     { key: 'category', label: 'Category', flex: 2.4, render: c => cellTx(c.category) },
     { key: 'st', label: 'Short term', right: true, render: c => cellAmt(sinr(c.st || 0), gainColor(c.st)) },
     { key: 'lt', label: 'Long term', right: true, render: c => cellAmt(sinr(c.lt || 0), gainColor(c.lt)) },
-    { key: 'tot', label: 'Total', right: true, render: c => cellAmt(sinr((c.st || 0) + (c.lt || 0)), gainColor((c.st || 0) + (c.lt || 0)), 600) },
+    ...(s && s.hasBusiness ? [{ key: 'biz', label: 'Business income', right: true, render: c => cellAmt(sinr(c.business || 0), gainColor(c.business)) }] : []),
+    { key: 'tot', label: 'Total', right: true, render: c => { const t = (c.st || 0) + (c.lt || 0) + (c.business || 0); return cellAmt(sinr(t), gainColor(t), 600); } },
   ];
   const empty = !L.loading && !L.err && !L.items.length ? (h && !h.asOf && !cov ? `No capital gains report is available for ${all ? 'these accounts' : 'this account'} yet.`
     : !byFy && outsideCoverage(shownRange, cov) ? outsideMsg(cov)
@@ -515,10 +518,11 @@ function CapitalGains({ accountId, ids, rk, account }) {
       stats={s ? [
         { label: 'Short term', value: sinr(s.st), color: gainColor(s.st), info: CG_INFO.st },
         { label: 'Long term', value: sinr(s.lt), color: gainColor(s.lt), info: CG_INFO.lt },
-        { label: 'Realised gains', value: sinr(s.total), color: gainColor(s.total), note: 'In this period', info: CG_INFO.realised },
-        { label: 'Unrealised gains', value: U.gain != null ? sinr(U.gain) : U.loading ? '…' : '–', color: U.gain != null ? gainColor(U.gain) : C.ink3, info: CG_INFO.unrealised,
-          note: U.asOf ? 'On holdings as of ' + fmtDate(U.asOf) : 'On current holdings' },
-      ] : null}>
+        { label: 'Realised gains', value: sinr(s.total), color: gainColor(s.total), info: CG_INFO.realised },
+        { label: 'Unrealised gains', value: U.gain != null ? sinr(U.gain) : U.loading ? '…' : '–', color: U.gain != null ? gainColor(U.gain) : C.ink3, info: CG_INFO.unrealised },
+        // Derivatives: business income, taxed at the slab rate, so a card of its own (src/businessIncome.js)
+        s.hasBusiness && { label: 'Business income', value: sinr(s.business), color: gainColor(s.business), info: BUSINESS_NOTE },
+      ].filter(Boolean) : null}>
       <CombinedNote h={h} />
       {s && s.byCategory && s.byCategory.length > 0 && (
         <Panel title="By category" sub={all ? 'Realised gain split by asset category, summed across accounts' : 'Realised gain split by asset category'} pad={0}>
@@ -804,8 +808,8 @@ function Factsheet({ accountId, ids, names, rk, account }) {
   );
 
   const stats = [
-    { label: 'Portfolio value', value: inr(d.portfolioValue), note: d.valueDate ? 'on ' + fmtDate(d.valueDate) : null, info: FS_INFO.value },
-    { label: 'Profit or loss', value: sinr(d.profitLoss), color: gainColor(d.profitLoss), note: d.inceptionDate ? 'since ' + fmtDate(d.inceptionDate) : null, info: FS_INFO.pl },
+    { label: 'Portfolio value', value: inr(d.portfolioValue), info: FS_INFO.value },
+    { label: 'Profit or loss', value: sinr(d.profitLoss), color: gainColor(d.profitLoss), info: FS_INFO.pl },
     { label: 'Contribution', value: inr(d.contribution), info: FS_INFO.contribution },
     { label: 'Withdrawal', value: inr(d.withdrawal), info: FS_INFO.withdrawal },
   ];
@@ -1046,7 +1050,7 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
         { label: 'Total expenses', value: inr(d.pnl.expenseTotal), info: PLBS_INFO.expenses },
         { label: 'Surplus', value: sinr(d.pnl.surplus), color: gainColor(d.pnl.surplus), info: PLBS_INFO.surplus },
         { label: 'Unrealised, net', value: sinr(d.unrealised.net), color: gainColor(d.unrealised.net), info: PLBS_INFO.unrealised },
-        ...(r.portfolioValue != null ? [{ label: 'Portfolio value', value: inr(r.portfolioValue), note: 'on ' + fmtDate(d.to), info: PLBS_INFO.value }] : []),
+        ...(r.portfolioValue != null ? [{ label: 'Portfolio value', value: inr(r.portfolioValue), info: PLBS_INFO.value }] : []),
       ]}>
       {!!(d.omitted && d.omitted.length) && <Tx s={12.5} c={C.red} lh={1.5}>Not included (not available to this login): {d.omitted.join(', ')}.</Tx>}
       <PlbsStatements d={d} />

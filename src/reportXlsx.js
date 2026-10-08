@@ -3,11 +3,14 @@
 // with a "Summary" sheet (what the statement is, whose, the period, the totals), then the figures as plain numbers
 // and dates (YYYY-MM-DD) that Excel can sort and sum. "All accounts" statements (src/combine.js) get an Account
 // column. Plain JS with no React Native imports except in saveXlsx, so node can load the builders.
-import * as XLSX from 'xlsx';
+// xlsx-js-style is SheetJS with cell styles (the free SheetJS build can't write colours), so the workbooks carry
+// Qode's colours: see style() below.
+import * as XLSX from 'xlsx-js-style';
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { track } from './api/track';
+import { splitGains, BUSINESS_NOTE } from './businessIncome';
 
 const num = v => (v == null || v === '' || isNaN(+v) ? null : +v);
 const day = d => (d ? String(d).slice(0, 10) : '');
@@ -20,7 +23,64 @@ function sheet(rows, widths) {
   return ws;
 }
 const book = () => XLSX.utils.book_new();
-const add = (wb, ws, title) => XLSX.utils.book_append_sheet(wb, ws, String(title).replace(/[\\/?*[\]:]/g, ' ').slice(0, 31));
+
+// Qode's colours, as in the app (src/ui.js) and the PDFs (src/screens/reportPdf.js): column headers dark green with
+// cream text, the title in green over a gold rule, section rows on a gold tint, totals bold over a green rule, and
+// figures with thousands separators, negatives in red.
+const Q = { green: '02422B', cream: 'EFECD3', gold: 'DABD38', muted: '37584F', goldTint: 'F5EDC8', hair: 'DCD8C0', neg: 'C62828' };
+const FONT = 'Calibri';
+const font = (o = {}) => ({ name: FONT, sz: 11, color: { rgb: o.c || '002017' }, bold: !!o.b, ...(o.sz ? { sz: o.sz } : {}) });
+const fill = rgb => ({ patternType: 'solid', fgColor: { rgb } });
+const line = rgb => ({ style: 'thin', color: { rgb } });
+// Amounts and percentages to 2 decimals; counts (#, entries, quantity, days held) as whole numbers when they are.
+const COUNT = /^(#|Entries|Quantity|Days held)$/;
+const numFmt = (v, head) => (COUNT.test(head || '') && Number.isInteger(v) ? '#,##0;[Red]-#,##0' : '#,##0.00;[Red]-#,##0.00');
+const TOTAL = /^(Total\b|Surplus for the period|Net unrealised gain \/ loss$|Ending$)/;
+function style(ws, isSummary) {
+  if (!ws['!ref']) return ws;
+  const R = XLSX.utils.decode_range(ws['!ref']), last = R.e.c;
+  const at = (r, c) => XLSX.utils.encode_cell({ r, c });
+  const get = (r, c) => ws[at(r, c)];
+  const put = (r, c) => ws[at(r, c)] || (ws[at(r, c)] = { t: 's', v: '' });   // a blank cell, so a band fills the row
+  const heads = []; for (let c = 0; c <= last; c++) { const h = get(R.s.r, c); heads[c] = h ? String(h.v) : ''; }   // first-row labels
+  for (let r = R.s.r; r <= R.e.r; r++) {
+    const cells = []; for (let c = 0; c <= last; c++) { const x = get(r, c); if (x && x.v !== '' && x.v != null) cells.push(c); }
+    if (!cells.length) continue;
+    const first = get(r, 0), label = first && typeof first.v === 'string' ? first.v : '';
+    if (isSummary) {
+      if (r === 0) {   // the title, across both columns over a gold rule
+        for (let c = 0; c <= last; c++) put(r, c).s = { font: font({ b: true, sz: 14, c: Q.green }), border: { bottom: { style: 'medium', color: { rgb: Q.gold } } } };
+        if (last > 0) ws['!merges'] = [...(ws['!merges'] || []), { s: { r: 0, c: 0 }, e: { r: 0, c: last } }];
+        continue;
+      }
+      if (first) first.s = { font: font({ b: true, c: Q.muted }), alignment: { vertical: 'top' } };
+      for (let c = 1; c <= last; c++) { const x = get(r, c); if (x) x.s = { font: font(), alignment: { wrapText: true, vertical: 'top', horizontal: x.t === 'n' ? 'right' : 'left' }, ...(x.t === 'n' ? { numFmt: numFmt(x.v) } : {}) }; }
+      continue;
+    }
+    const head = r === 0 || cells.some(c => get(r, c).v === 'Amount (₹)');
+    const section = !head && cells.length === 1 && cells[0] === 0 && typeof first.v === 'string';
+    const total = !head && !section && TOTAL.test(label);
+    if (head || section) {
+      for (let c = 0; c <= last; c++) {
+        put(r, c).s = head
+          ? { font: font({ b: true, c: Q.cream }), fill: fill(Q.green), alignment: { vertical: 'center', wrapText: true, horizontal: c && get(r, c).v ? 'center' : 'left' }, border: { right: line(Q.green) } }
+          : { font: font({ b: true, c: Q.green }), fill: fill(Q.goldTint) };
+      }
+      continue;
+    }
+    for (let c = 0; c <= last; c++) {
+      const x = get(r, c); if (!x && !total) continue;
+      const y = x || put(r, c);
+      y.s = { font: font({ b: total }), border: total ? { top: line(Q.green) } : { bottom: line(Q.hair) },
+        alignment: { vertical: 'top', horizontal: y.t === 'n' ? 'right' : 'left' }, ...(y.t === 'n' ? { numFmt: numFmt(y.v, heads[c]) } : {}) };
+    }
+  }
+  return ws;
+}
+const add = (wb, ws, title) => {
+  const tab = String(title).replace(/[\\/?*[\]:]/g, ' ').slice(0, 31);
+  XLSX.utils.book_append_sheet(wb, style(ws, /Summary$/.test(tab)), tab);
+};
 // The Summary sheet: [label, value] pairs, blank rows between groups.
 const summary = (title, pairs) => sheet([[title], [], ...pairs.map(p => (p ? [p[0], p[1] == null ? '' : p[1]] : []))], [34, 44]);
 const who = (accountId, r) => (accountId
@@ -48,15 +108,17 @@ export function transactionsXlsx(r, accountId, groupLabel) {
 
 // ── Capital gains ─────────────────────────────────────────────────────────────────────────────────────────
 export function capitalGainsXlsx(r, accountId) {
-  const A = !accountId, S = r.summary || {};
+  const A = !accountId, S = splitGains(r.summary) || {};   // derivatives apart, as business income (src/businessIncome.js)
   const wb = book();
   add(wb, summary('Statement of Capital Gain / Loss', [
     ...who(accountId, r), ['As of', day(r.asOf)], ['Period', r.fy ? `Financial year ${r.fy}` : period(r.from, r.to)], null,
     ['Short term (₹)', num(S.st)], ['Long term (₹)', num(S.lt)], ['Long term, effective (₹)', num(S.ltTaxable)], ['Total realised (₹)', num(S.total)],
+    ...(S.hasBusiness ? [['Business income, derivatives (₹)', num(S.business)], ['Business income', BUSINESS_NOTE]] : []),
     ...failed(r),
   ]), 'Summary');
-  const cats = (S.byCategory || []).map(c => [c.category, num(c.st), num(c.lt), num(c.ltTaxable), (c.st || 0) + (c.lt || 0)]);
-  if (cats.length) add(wb, sheet([['Category', 'Short term (₹)', 'Long term (₹)', 'Long term, effective (₹)', 'Total (₹)'], ...cats], [28, 16, 16, 22, 16]), 'By category');
+  const B = !!S.hasBusiness;
+  const cats = (S.byCategory || []).map(c => [c.category, num(c.st), num(c.lt), num(c.ltTaxable), ...(B ? [num(c.business)] : []), (c.st || 0) + (c.lt || 0) + (c.business || 0)]);
+  if (cats.length) add(wb, sheet([['Category', 'Short term (₹)', 'Long term (₹)', 'Long term, effective (₹)', ...(B ? ['Business income (₹)'] : []), 'Total (₹)'], ...cats], [28, 16, 16, 22, ...(B ? [20] : []), 16]), 'By category');
   const head = [...(A ? ['Account'] : []), 'Category', 'Security', 'Type', 'Sale date', 'Quantity', 'Sale rate (₹)', 'Sale amount (₹)', 'Purchase date', 'Purchase rate (₹)', 'Purchase amount (₹)', 'Effective cost (₹)', 'Days held', 'Term', 'Realised gain (₹)', 'Effective LT gain (₹)'];
   const rows = (r.items || []).map(l => [...(A ? [l.account] : []), l.category || '', l.security, l.securityType || '', day(l.saleDate), num(l.qty), num(l.saleRate), num(l.saleAmount),
     day(l.purchaseDate), num(l.purchaseRate), num(l.purchaseAmount), num(l.cost), num(l.daysHeld), l.term || '', num(l.gain), l.term === 'LT' ? num(l.ltTaxable != null ? l.ltTaxable : l.gain) : null]);

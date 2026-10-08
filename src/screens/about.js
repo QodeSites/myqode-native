@@ -162,14 +162,15 @@ export function ReportsReviews() {
 
 // ── Strategy Snapshot ─────────────────────────────────────────────────────────
 // Colours: myQode/lib/strategyConfig.ts STRATEGY_COLORS + the snapshot page's gradient ends.
+// dashboard: the strategy's public Performance Dashboard on qodeinvest.com.
 const STRATS = [
-  { code: 'QAW', title: 'Qode All Weather (QAW)™', color: '#008455', accent: '#001E13', benchmark: 'NIFTY 50',
+  { code: 'QAW', dashboard: 'https://qodeinvest.com/strategies/qode-all-weather/dashboard', title: 'Qode All Weather (QAW)™', color: '#008455', accent: '#001E13', benchmark: 'NIFTY 50',
     desc: 'Qode All Weather (QAW) is a multi-asset portfolio crafted to deliver consistent long-term performance without timing the markets. This robust framework ensures strong probability of outperforming large cap indices over longer horizons.',
     pills: ['Large cap Alpha', 'Highest Sharpe*', 'Smart Asset Mix', 'Downside Cushion'] },
-  { code: 'QTF', title: 'Qode Tactical Fund (QTF)™', color: '#550E0E', accent: '#360404', benchmark: 'NIFTY MIDCAP 150',
+  { code: 'QTF', dashboard: 'https://qodeinvest.com/strategies/qode-tactical-fund/dashboard', title: 'Qode Tactical Fund (QTF)™', color: '#550E0E', accent: '#360404', benchmark: 'NIFTY MIDCAP 150',
     desc: 'Qode Tactical Fund harnesses the power of momentum, systematically allocating to the strongest market trends while avoiding laggards. This allows the strategy to capture upside faster and deliver higher long-term returns.',
     pills: ['Momentum Driven', 'Tactical Rebalance', 'Regime Switch', 'Hedge Overlay*'] },
-  { code: 'QGF', title: 'Qode Growth Fund (QGF)™', color: '#0A3452', accent: '#051E31', benchmark: 'NIFTY SMLCAP 250',
+  { code: 'QGF', dashboard: 'https://qodeinvest.com/strategies/qode-growth-fund/dashboard', title: 'Qode Growth Fund (QGF)™', color: '#0A3452', accent: '#051E31', benchmark: 'NIFTY SMLCAP 250',
     desc: 'Qode Growth Fund (QGF) is a factor-based small-cap strategy designed to outperform over long periods. The strategy identifies fundamentally strong, high-growth businesses using a disciplined quantitative model.',
     pills: ['Quantitative Strategy', 'Small cap focused', 'Multifactor Model', 'Growth Investing'] },
 ];
@@ -229,6 +230,8 @@ export function StrategySnapshot({ V }) {
                   <CTA label="DOWNLOAD" onPress={() => openUrl(p.download)} style={{ flex: 1, paddingVertical: 11 }} />
                 </View>
               )}
+              {/* qodeinvest.com's public dashboard, opened in the browser (as on the web) */}
+              {!!s.dashboard && <CTA label="PERFORMANCE DASHBOARD" outline onPress={() => openUrl(s.dashboard)} style={{ marginTop: 8, paddingVertical: 11 }} />}
             </View>
           </Card>
         );

@@ -4,6 +4,7 @@
 // Each builder returns { html, landscape } for savePdf (src/screens/partner.js); iOS supplies the page margins.
 
 import { transactionsSummary, capitalGainsSummary, expensesSummary, factsheetSummary, pnlSummary } from '../reportSummary.js';
+import { splitGains, isBusiness, BUSINESS_NOTE } from '../businessIncome.js';
 
 const K = {
   ink: '#002017', green: '#02422B', gold: '#DABD38', cream: '#EFECD3', card: '#F7F5E9', muted: '#37584F',
@@ -304,8 +305,11 @@ function cgPeriod(r) {
 }
 // Summary tiles and one section per category. A: with an Account column (all accounts).
 function cgBody(r, A, afterTiles = '') {
-  const S = r.summary || { st: 0, lt: 0, ltTaxable: 0, total: 0 };
-  const sum = tiles([[r.fy ? `FY ${r.fy} · Short term` : 'Short term', inr(S.st), cls(S.st)], ['Long term', inr(S.lt), cls(S.lt)], ['Long term (effective)', inr(S.ltTaxable), cls(S.ltTaxable)], ['Total realised', inr(S.total), cls(S.total)]]);
+  // Derivatives are business income, not capital gains (src/businessIncome.js): their own tile and a note.
+  const S = splitGains(r.summary) || { st: 0, lt: 0, ltTaxable: 0, total: 0 };
+  const sum = tiles([[r.fy ? `FY ${r.fy} · Short term` : 'Short term', inr(S.st), cls(S.st)], ['Long term', inr(S.lt), cls(S.lt)], ['Long term (effective)', inr(S.ltTaxable), cls(S.ltTaxable)], ['Total realised', inr(S.total), cls(S.total)],
+    ...(S.hasBusiness ? [['Business income (F&O)', inr(S.business), cls(S.business)]] : [])])
+    + (S.hasBusiness ? `<p class="note">${esc(BUSINESS_NOTE)}</p>` : '');
   const cats = [];
   for (const l of r.items) { const c = l.category || 'Other'; let g = cats.find(x => x.c === c); if (!g) cats.push(g = { c, lots: [] }); g.lots.push(l); }
   const colg = '<colgroup>' + (A ? [7, 15, 6, 6, 7, 8, 6, 7, 8, 8, 4, 7, 6, 5] : [19, 6, 7, 7, 8, 6, 7, 8, 8, 4, 8, 6, 6]).map(w => `<col style="width:${w}%">`).join('') + '</colgroup>';
@@ -326,7 +330,7 @@ function cgBody(r, A, afterTiles = '') {
     const quarters = `<h3>Quarter-wise summary · ${esc(g.c)}</h3>
       <table class="fixed"><colgroup><col style="width:13%">${QUARTERS.map(() => '<col style="width:10%">').join('')}<col style="width:10%"><col style="width:12%"><col style="width:15%"></colgroup>
       <thead><tr><th></th>${QUARTERS.map(q => `<th class="r">${q}</th>`).join('')}<th class="r">Total</th><th class="r">Sale value</th><th class="r">Effective cost</th></tr></thead><tbody>
-      <tr class="z"><td><b>Short term</b></td>${Q.st.map(v => `<td class="r ${cls(v)}">${nf(v)}</td>`).join('')}<td class="r ${cls(T.st)}"><b>${nf(T.st)}</b></td><td class="r">${nf(T.sale)}</td><td class="r">${nf(T.cost)}</td></tr>
+      <tr class="z"><td><b>${isBusiness(g.c) ? 'Business income' : 'Short term'}</b></td>${Q.st.map(v => `<td class="r ${cls(v)}">${nf(v)}</td>`).join('')}<td class="r ${cls(T.st)}"><b>${nf(T.st)}</b></td><td class="r">${nf(T.sale)}</td><td class="r">${nf(T.cost)}</td></tr>
       <tr class="z"><td><b>Long term</b></td>${Q.lt.map(v => `<td class="r ${cls(v)}">${nf(v)}</td>`).join('')}<td class="r ${cls(T.eff)}"><b>${nf(T.eff)}</b></td><td></td><td></td></tr></tbody></table>
       <p class="note">Based on effective gain (after grandfathering / indexation). Quarters follow the advance-tax instalment dates.</p>`;
     return `${gi ? '<div class="pb"></div>' : ''}<h3>${esc(g.c)}</h3><table class="fixed">${head2}<tbody>${rows}
@@ -426,10 +430,11 @@ export function transactionsAllPdf(r, groupLabel) {
 export function capitalGainsAllPdf(r) {
   const head = header('Statement of Capital Gain / Loss', r.asOf, [...allFields(r), ['Period', cgPeriod(r)]],
     r.fy ? `Financial year ${r.fy}` : periodLine(r.from, r.to));
-  const byCat = (r.summary && r.summary.byCategory) || [];
-  const cats = byCat.length ? `<h3>By category · all accounts</h3><table class="fixed"><colgroup><col><col style="width:16%"><col style="width:16%"><col style="width:16%"><col style="width:16%"></colgroup>
-    <thead><tr><th>Category</th><th class="r">Short term</th><th class="r">Long term</th><th class="r">Long term (effective)</th><th class="r">Total</th></tr></thead><tbody>
-    ${byCat.map(c => `<tr class="z"><td>${esc(c.category)}</td><td class="r ${cls(c.st)}">${nf(c.st)}</td><td class="r ${cls(c.lt)}">${nf(c.lt)}</td><td class="r">${nf(c.ltTaxable)}</td><td class="r ${cls((c.st || 0) + (c.lt || 0))}">${nf((c.st || 0) + (c.lt || 0))}</td></tr>`).join('')}</tbody></table>` : '';
+  const SS = splitGains(r.summary), byCat = (SS && SS.byCategory) || [], B = SS && SS.hasBusiness;
+  const tot = c => (c.st || 0) + (c.lt || 0) + (c.business || 0);
+  const cats = byCat.length ? `<h3>By category · all accounts</h3><table class="fixed"><colgroup><col>${(B ? [13, 13, 13, 13, 13] : [16, 16, 16, 16]).map(w => `<col style="width:${w}%">`).join('')}</colgroup>
+    <thead><tr><th>Category</th><th class="r">Short term</th><th class="r">Long term</th><th class="r">Long term (effective)</th>${B ? '<th class="r">Business income</th>' : ''}<th class="r">Total</th></tr></thead><tbody>
+    ${byCat.map(c => `<tr class="z"><td>${esc(c.category)}</td><td class="r ${cls(c.st)}">${nf(c.st)}</td><td class="r ${cls(c.lt)}">${nf(c.lt)}</td><td class="r">${nf(c.ltTaxable)}</td>${B ? `<td class="r ${cls(c.business)}">${nf(c.business)}</td>` : ''}<td class="r ${cls(tot(c))}">${nf(tot(c))}</td></tr>`).join('')}</tbody></table>` : '';
   return { html: page(true, head, failedNote(r) + cgBody({ ...r, hasMore: false }, true, cats) + (r.truncated ? '<p class="note">Showing the latest 5,000 lots per account.</p>' : ''), capitalGainsSummary(r, true)), landscape: true };
 }
 

@@ -502,15 +502,15 @@ function PnlPanel({ V, style, wide }) {
           options={years.map((y, i) => ({ id: i, label: y.label === 'All Years' ? 'All years' : y.label }))} onPick={i => years[i].pick()} />}
       </View>}>
       {view === 'table' ? (
-        // Each column is as wide as its widest figure (centred under its month); the table scrolls sideways when they
-        // don't all fit, the Year column taking any spare width.
+        // Every month (or quarter) and the Total share the width equally, filled or not; the table scrolls sideways
+        // once they would go below the width a figure needs (wider for rupees).
         <View style={{ borderWidth: 1, borderColor: C.line, borderRadius: 10, overflow: 'clip' }}>
           <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ flexGrow: 1 }}>
           <View style={{ flex: 1 }}>
           <Table key={unit + seg} dense sticky={false} padX={12} rows={(seg ? V.pnlGridQ : V.pnlGrid) || []} empty="No figures yet." cols={[
-            { key: 'year', label: 'Year', flex: 1, minW: 76, render: r => <Tx w={600} s={13}>{r.year}</Tx> },
-            ...(seg ? ['Q1', 'Q2', 'Q3', 'Q4'] : MONTH_SHORT).map((m, i) => ({ key: m, label: m, right: true, center: true, render: r => <Amt s={12.5} c={(inr ? r.rcolors : r.colors)[i]}>{(inr ? r.rcells : r.cells)[i]}</Amt> })),
-            { key: 'total', label: 'Total', right: true, center: true, render: r => <Amt w={700} s={13} c={inr ? r.rtcolor : r.tcolor}>{inr ? r.rtotal : r.total}</Amt> },
+            { key: 'year', label: 'Year', w: 84, render: r => <Tx w={600} s={13}>{r.year}</Tx> },
+            ...(seg ? ['Q1', 'Q2', 'Q3', 'Q4'] : MONTH_SHORT).map((m, i) => ({ key: m, label: m, right: true, center: true, grow: true, minW: inr ? 104 : 80, render: r => <Amt s={12.5} c={(inr ? r.rcolors : r.colors)[i]}>{(inr ? r.rcells : r.cells)[i]}</Amt> })),
+            { key: 'total', label: 'Total', right: true, center: true, grow: true, minW: inr ? 104 : 80, render: r => <Amt w={700} s={13} c={inr ? r.rtcolor : r.tcolor}>{inr ? r.rtotal : r.total}</Amt> },
           ]} />
           </View>
           </ScrollView>
@@ -681,7 +681,7 @@ function MonthlyPanel({ V }) {
   );
 }
 
-// Metrics: ten measures (V.riskMetrics: return, then risk) in two columns of five, the portfolio beside its
+// Metrics: V.riskMetrics (% measures, then ratios) in two columns, the portfolio beside its
 // benchmark, each with an ⓘ explanation.
 function MetricsPanel({ V, style }) {
   const rows = V.riskMetrics || [];

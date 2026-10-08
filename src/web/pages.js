@@ -545,23 +545,28 @@ function Strategies({ V }) {
                   <Tx w={700} s={14} c="#fff" style={{ marginTop: 2 }}>{s.benchmark}</Tx>
                 </View>
               </LinearGradient>
-              <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 320, minWidth: 0, padding: 24 }}>
+              {/* Description, then the four pillars in a 2 × 2 grid, then the links: one column, no empty space beside it */}
+              <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 420, minWidth: 0, padding: 24, gap: 18 }}>
                 <Body s={14}>{s.desc}</Body>
-              </View>
-              <View style={{ flexGrow: 0, flexShrink: 0, flexBasis: 300, padding: 24, borderLeftWidth: 1, borderColor: C.line, gap: 9 }}>
-                <Tx w={600} s={12} c={C.ink3} style={{ marginBottom: 2 }}>Core Pillars</Tx>
-                {s.pills.map((t, i) => (
-                  <View key={t} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: s.color, alignItems: 'center', justifyContent: 'center' }}>
-                      <Tx w={700} s={11.5} c="#fff">{i + 1}</Tx>
-                    </View>
-                    <Tx w={600} s={13.5}>{titleCase(t)}</Tx>
+                <View>
+                  <Tx w={600} s={12} c={C.ink3} style={{ marginBottom: 10 }}>Core Pillars</Tx>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 10 }}>
+                    {s.pills.map((t, i) => (
+                      <View key={t} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexBasis: '50%', minWidth: 200, paddingRight: 12 }}>
+                        <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: s.color, alignItems: 'center', justifyContent: 'center' }}>
+                          <Tx w={700} s={11.5} c="#fff">{i + 1}</Tx>
+                        </View>
+                        <Tx w={600} s={13.5}>{titleCase(t)}</Tx>
+                      </View>
+                    ))}
                   </View>
-                ))}
-                {!!p && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-                    <Btn small kind="outline" label="View Presentation" onPress={() => openUrl(p.view)} />
-                    <Btn small label="Download" onPress={() => openUrl(p.download)} />
+                </View>
+                {(!!p || !!s.dashboard) && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 'auto', paddingTop: 16, borderTopWidth: 1, borderColor: C.line, flexWrap: 'wrap' }}>
+                    {!!p && <Btn small kind="outline" label="View Presentation" onPress={() => openUrl(p.view)} />}
+                    {!!p && <Btn small label="Download" onPress={() => openUrl(p.download)} />}
+                    {/* qodeinvest.com's public dashboard; Linking opens it in a new tab on the web */}
+                    {!!s.dashboard && <Btn small kind="outline" label="Performance Dashboard" onPress={() => openUrl(s.dashboard)} />}
                   </View>
                 )}
               </View>

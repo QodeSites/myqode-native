@@ -2,6 +2,8 @@
 // what the figures mean before the raw tables. Each function takes the same answer the report screen already has
 // and returns an array of sentences (empty when there is nothing to say). Figures here are rounded for reading;
 // the tables below keep the exact amounts.
+import { splitGains } from './businessIncome.js';
+
 const MS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const day = iso => (iso ? `${+String(iso).slice(8, 10)} ${MS[+String(iso).slice(5, 7) - 1]} ${String(iso).slice(0, 4)}` : '');
 const num = v => (v == null || isNaN(v) ? 0 : +v);
@@ -43,13 +45,14 @@ export function transactionsSummary(h, all) {
 }
 
 export function capitalGainsSummary(h, all) {
-  const s = h && h.summary;
+  const s = splitGains(h && h.summary);   // derivatives apart, as business income (businessIncome.js)
   if (!s) return [];
   const when = h.fy ? `In FY ${h.fy}` : span(h.from, h.to);
   const total = num(s.total), st = num(s.st), lt = num(s.lt);
-  if (!total && !st && !lt) return [`${when}, no holdings were sold in ${who(all)}, so there are no capital gains to report.`];
+  if (!total && !st && !lt && !s.hasBusiness) return [`${when}, no holdings were sold in ${who(all)}, so there are no capital gains to report.`];
   const out = [`${when}, sales in ${who(all)} realised a net ${gainWord(total)} of ${money(total)}.`];
   out.push(`Short-term ${gainWord(st)}: ${money(st)}. Long-term ${gainWord(lt)}: ${money(lt)}${s.ltTaxable != null && Math.round(num(s.ltTaxable)) !== Math.round(lt) ? `, or ${money(s.ltTaxable)} after grandfathering` : ''}.`);
+  if (s.hasBusiness) out.push(`Derivatives (futures and options) made a ${gainWord(s.business)} of ${money(num(s.business))}. This is business income, not a capital gain, so it is taxed at the investor's slab rate and is left out of the figures above.`);
   out.push('Only holdings that were sold count here; gains on holdings still held are not taxed until they are sold.');
   return out;
 }

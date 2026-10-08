@@ -143,15 +143,7 @@ export default function DesktopDocuments({ V }) {
                 )}
             </>
           )}
-          {/* Policies live on their own page (Trust & Security → Risk Management & Controls); the summary panel was dropped. */}
-          <Pressable accessibilityRole="link" onPress={() => V.openPage('risk')} style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 18, borderRadius: 10, borderWidth: 1, borderColor: hovered ? C.green : C.line, backgroundColor: C.card })}>
-            <DocIcon s={16} c={C.green} />
-            <View style={{ flex: 1 }}>
-              <Tx w={600} s={13.5} c={C.green}>Qode policies</Tx>
-              <Tx s={12.5} c={C.ink3} style={{ marginTop: 2 }}>Hedging, liquidity, rebalancing, concentration and referral policies, on Risk Management & Controls</Tx>
-            </View>
-            <Tx w={600} s={13} c={C.green}>View policies ›</Tx>
-          </Pressable>
+          {/* Policies live only on Support → Risk Management & Controls; the link here was removed 8 Oct 2026. */}
         </View>
       </Row>
     </View>

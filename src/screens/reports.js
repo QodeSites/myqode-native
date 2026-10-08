@@ -25,6 +25,7 @@ import { track } from '../api/track';
 
 import { userMessage } from '../errors';
 import { useUnrealised } from '../unrealised';
+import { splitGains, isBusiness, BUSINESS_NOTE } from '../businessIncome';
 import { latestDate, monthEnds, earliestDate, asOfHint } from '../reportDates';
 // ── formatting ────────────────────────────────────────────────────────────────────────────────────────────
 // Money, percentages and dates use the app-wide formatters (src/adapt.js) so Reports matches every other screen.
@@ -300,18 +301,17 @@ const Controls = ({ account, period, pdf }) => (
   </View>
 );
 
-// One muted line: "As of … · period · 128 entries · Records from …", with a "Computed by Qode" tag and a
-// "How this is computed" toggle when the report was computed rather than supplied by Nuvama.
+// One muted line: "As of … · period · 128 entries · Records from …", with a "How this is computed" toggle when the
+// report was computed rather than supplied by Nuvama (no "Computed by Qode" tag, removed 8 Oct 2026).
 function StatusLine({ parts, computed, note }) {
   const [open, setOpen] = useState(false);
   const text = (parts || []).filter(Boolean).join(' · ');
-  if (!text && !computed) return null;
+  if (!text && !note) return null;
   return (
     <View style={{ marginTop: 10, marginLeft: 2 }}>
       {!!text && <Tx s={11} c={C.gray} lh={1.5}>{text}</Tx>}
-      {(!!computed || !!note) && (
+      {!!note && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 }}>
-          {!!computed && <Badge label="COMPUTED BY QODE" color={C.muted} />}
           {!!note && <Pressable onPress={() => setOpen(o => !o)} hitSlop={8}><Tx w={700} s={11} c={C.green}>{open ? 'Hide details' : 'How this is computed'}</Tx></Pressable>}
         </View>
       )}
@@ -507,7 +507,8 @@ function CapitalGains({ accountId, ids, rk, account }) {
   const L = usePaged(offset => (all
     ? loadCapitalGainsAll(ids, (id, o) => reports.capitalGains(id, { ...(range ? q : o), term: term || undefined, export: 1, limit: 5000 }), { ...q, term: term || undefined })
     : reports.capitalGains(accountId, { ...q, term: term || undefined, limit: 50, offset })), [accountId, fy, range && range.from, range && range.to, term, rk]);
-  const h = L.head, s = h && h.summary;
+  // Derivatives taken out of short term and the realised total, shown as business income (src/businessIncome.js).
+  const h = L.head, s = splitGains(h && h.summary);
   const U = useUnrealised(all ? ids : [accountId]);   // unrealised: on what is held now, whatever the period
   const exportData = async () => { const d = all ? h : await reports.capitalGains(accountId, { ...(range ? rangeQuery(range) : { fy: h.fy }), term: term || undefined, export: 1, limit: 5000 }); return range ? withRange(d, range) : d; };
   const makePdf = async () => (all ? capitalGainsAllPdf(await exportData()) : capitalGainsPdf(await exportData(), accountId));
@@ -537,12 +538,14 @@ function CapitalGains({ accountId, ids, rk, account }) {
           { label: 'LONG TERM', value: signed(s.lt), color: gainColor(s.lt), info: CG_INFO.lt },
           { label: 'REALISED GAINS', value: signed(s.total), color: gainColor(s.total), info: CG_INFO.realised },
           { label: 'UNREALISED GAINS', value: U.gain != null ? signed(U.gain) : U.loading ? '…' : '–', color: U.gain != null ? gainColor(U.gain) : C.muted, info: CG_INFO.unrealised },
+          // Derivatives: business income, taxed at the slab rate, so a tile of its own (src/businessIncome.js)
+          s.hasBusiness && { label: 'BUSINESS INCOME (F&O)', value: signed(s.business), color: gainColor(s.business), info: BUSINESS_NOTE },
         ]} footer={s.byCategory.length > 1 && (
             <View style={{ paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderColor: C.hairline, gap: 8 }}>
               {s.byCategory.map(c => (
                 <View key={c.category} style={{ flexDirection: 'row', gap: 10 }}>
                   <Tx s={11} c={C.muted} style={{ flex: 1 }} numberOfLines={2}>{c.category}</Tx>
-                  <Amt s={11.5} c={gainColor((c.st || 0) + (c.lt || 0))}>{signed((c.st || 0) + (c.lt || 0))}</Amt>
+                  <Amt s={11.5} c={gainColor((c.st || 0) + (c.lt || 0) + (c.business || 0))}>{signed((c.st || 0) + (c.lt || 0) + (c.business || 0))}</Amt>
                 </View>
               ))}
             </View>
@@ -563,7 +566,7 @@ function CapitalGains({ accountId, ids, rk, account }) {
               </View>
               <View style={{ alignItems: 'flex-end', gap: 4 }}>
                 <Amt s={12.5} c={gainColor(l.gain)}>{signed(l.gain)}</Amt>
-                <Badge label={l.term} align="flex-end" />
+                <Badge label={isBusiness(l.category) ? 'F&O' : l.term} align="flex-end" />
               </View>
             </Row>
           ))}
