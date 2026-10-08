@@ -481,7 +481,8 @@ export default class MyQode extends React.Component {
       const k = scope.kind;
       if (k === 'local-family' || k === 'local-owner') {   // local-owner: an owner's open accounts (adapt.js)
         // one raw-history call per member, combined locally
-        const got = await Promise.allSettled(scope.members.map(id => portfolio.history(id)));
+        // an owner's open accounts are measured against NIFTY 50 together, like every combined view
+        const got = await Promise.allSettled(scope.members.map(id => portfolio.history(id, k === 'local-owner' ? 'NIFTY 50' : undefined)));
         if (seq !== this.seq) return;
         const fam = combineFamily(got.map(x => (x.status === 'fulfilled' ? x.value : null)));
         if (!fam || got.some(x => x.status === 'rejected')) {

@@ -86,7 +86,7 @@ export const portfolio = {
   monthlyPl: (accountId, kind = 'account') => call(pfx(kind) + 'monthly-pl', { query: { accountId } }, () => demo.monthlyPl(accountId)),
   quarterlyPl: (accountId, kind = 'account') => call(pfx(kind) + 'quarterly-pl', { query: { accountId } }, () => demo.quarterlyPl(accountId)),
   // Raw Nuvama + Orbis + benchmark rows for ONE strategy account (legacy Orbis views are built in src/webcalc.js).
-  history: accountId => call('/portfolio/history', { query: { accountId } }, () => ({ accountId, nuvama: [], orbis: [], orbisMetrics: null, benchmark: [] })),
+  history: (accountId, benchmark) => call('/portfolio/history', { query: { accountId, ...(benchmark ? { benchmark } : {}) } }, () => ({ accountId, nuvama: [], orbis: [], orbisMetrics: null, benchmark: [] })),
   cashflow: (accountId, kind = 'account') => call(pfx(kind) + 'cashflow', { query: { accountId } }, () => demo.cashflow(accountId)),
   // Security-level holdings (stocks, ETFs, mutual funds, derivatives, cash) of strategy accounts, combined across
   // them: accounts = one code, an array of codes, or omitted for every account on the token. See lib/securities.ts.
