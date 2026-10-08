@@ -83,14 +83,10 @@ export function buildScopes(snap, codes) {
       // owner's full history, including accounts that have since closed — a single account does not.
       value: num(o.totalValue) || 0, accounts, closedAccounts: closedOf(o), hiddenAccounts: hiddenOf(o),
       // not authorised for the owner aggregate → fall back to the owner's first strategy account.
-      // An owner with a closed account (not QFH) is shown as his OPEN accounts only (decided 8 Oct 2026): the owner
-      // aggregate still carries the closed accounts' history, and a switch from them counts as outside money there,
-      // so it disagreed with the open account (QGF00133: ₹1.28 Cr in the account, ₹1.25 Cr for the owner). One open
-      // account: the owner view is that account; several: combined on the device from their histories (local-owner).
-      ...(!can(o.id) ? { kind: 'account', id: accounts[0] ? String(accounts[0].id) : String(o.id) }
-        : !closedOf(o).length ? { kind: 'owner' }
-        : accounts.length === 1 ? { kind: 'account', id: String(accounts[0].id), ownerView: true }
-        : { kind: 'local-owner', id: 'o:' + o.id, members: accounts.map(a => String(a.id)), ownerView: true }),
+      // The owner view is the owner aggregate: the sum of ALL his accounts, closed ones included — as Nuvama's
+      // per-account fact sheets add up and as the old portal shows (Yogita Agrawal: ₹7,12,39,963.44 with her closed
+      // QLF149's −₹23,656). An "open accounts only" view (8 Oct 2026, kind 'local-owner') was reverted the same day.
+      ...(can(o.id) ? { kind: 'owner' } : { kind: 'account', id: accounts[0] ? String(accounts[0].id) : String(o.id) }),
       groupId: o.groupId,
     };
   }).filter(o => o.accounts.length > 0);
