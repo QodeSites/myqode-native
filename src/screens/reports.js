@@ -469,6 +469,8 @@ function Transactions({ accountId, ids, rk, account }) {
         <Strip items={[
           { label: 'MONEY IN', value: signed(h.moneyIn), color: gainColor(h.moneyIn), info: TXN_INFO.moneyIn },
           { label: 'MONEY OUT', value: h.moneyOut ? '−' + inr(h.moneyOut) : inr(0), info: TXN_INFO.moneyOut },
+          // switches with the client's other Qode accounts, net (as the web): only when there are any
+          Math.abs((+h.switchIn || 0) - (+h.switchOut || 0)) >= 0.5 && { label: 'SWITCHES', value: signed((+h.switchIn || 0) - (+h.switchOut || 0)), color: gainColor((+h.switchIn || 0) - (+h.switchOut || 0)), info: TXN_INFO.switches },
           // trades left out of the totals; income and charges under the names on the filter chips (TXN_GROUPS)
           ...h.summary.filter(s => s.group !== 'money' && s.group !== 'trades').map(s => ({ label: (((TXN_GROUPS.find(g => g[0] === s.group) || [])[1]) || s.label).toUpperCase(), value: inr(s.amount), info: s.group === 'income' ? TXN_INFO.income : TXN_INFO.fees })),
         ]} />

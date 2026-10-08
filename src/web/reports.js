@@ -423,9 +423,13 @@ function Transactions({ accountId, ids, rk, account }) {
       stats={h && h.asOf ? [
         { label: 'Money in', value: sinr(h.moneyIn), color: gainColor(h.moneyIn), info: TXN_INFO.moneyIn },
         { label: 'Money out', value: h.moneyOut ? '−' + inr(h.moneyOut) : inr(0), info: TXN_INFO.moneyOut },
+        // Switches with the client's other Qode accounts (net), only when there are any: Money in − Money out +
+        // this = the amount invested on the Overview (QGF00240: ₹12,00,000 + ₹25,57,610.01). Across all accounts
+        // the two legs cancel, so the card goes. Added 8 Oct 2026.
+        Math.abs(n0(h.switchIn) - n0(h.switchOut)) >= 0.5 && { label: 'Switches', value: sinr(n0(h.switchIn) - n0(h.switchOut)), color: gainColor(n0(h.switchIn) - n0(h.switchOut)), info: TXN_INFO.switches },
         sumItem('income', 'Dividend/Interest', TXN_INFO.income),
         sumItem('charges', 'Fees', TXN_INFO.fees),
-      ] : null}>
+      ].filter(Boolean) : null}>
       <CombinedNote h={h} />
       <FilterRow left={<Chips small value={group} options={TXN_GROUPS} onChange={setGroup} />}
         right={<Input value={Q.text} onChangeText={Q.setText} placeholder="Search transactions, e.g. Custody Charges" style={{ width: 340, maxWidth: '100%' }}
@@ -541,6 +545,8 @@ function CapitalGains({ accountId, ids, rk, account }) {
     </ReportLayout>
   );
 }
+
+const n0 = v => (v == null || isNaN(+v) ? 0 : +v);
 
 // ── Expenses ──────────────────────────────────────────────────────────────────────────────────────────────
 function Expenses({ accountId, ids, rk, account }) {

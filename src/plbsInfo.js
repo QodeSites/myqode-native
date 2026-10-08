@@ -8,6 +8,7 @@ export const TXN_INFO = {
   moneyOut: 'The total funds and securities withdrawn or transferred out of the portfolio during the selected period.',
   income: 'Income earned by the portfolio during the selected period through dividends and interest on investments and cash holdings.',
   fees: 'The total charges deducted from the portfolio during the selected period, including management, custody, brokerage and other transaction-related fees.',
+  switches: 'Money moved into this account from your other Qode accounts (a switch), less any moved out to them, during the selected period. It is your own money changing strategy, so it is shown apart from Money in; together with Money in and Money out it makes up the amount invested.',
 };
 // Capital gains (lib/reportsData.ts capitalGainsReport; unrealised from lib/securities.ts)
 export const CG_INFO = {
