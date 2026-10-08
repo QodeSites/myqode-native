@@ -572,8 +572,10 @@ export default class MyQode extends React.Component {
 
   async loadMetrics(scope, seq) {
     this.setState({ metrics: null });
-    if (!scope || scope.kind === 'local-family' || scope.kind === 'local-owner') return;
-    try { const r = await portfolio.metrics(String(scope.id)); if (seq === this.seq) this.setState({ metrics: (r && r.metrics) || null }); } catch {}
+    if (!scope) return;
+    // views combined on the device: the server combines the same ids (a comma list) the same way
+    const id = scope.kind === 'local-family' || scope.kind === 'local-owner' ? scope.members.map(String).join(',') : String(scope.id);
+    try { const r = await portfolio.metrics(id); if (seq === this.seq) this.setState({ metrics: (r && r.metrics) || null }); } catch {}
   }
 
   async loadHoldings(scope, seq) {
