@@ -12,7 +12,7 @@ test('irr display helpers', () => {
   assert.equal(fmtIrr(irrPeriod(data, '1Y')), '+11.67% p.a.');
   assert.equal(fmtIrr(irrPeriod(data, '3Y')), '–');
   assert.equal(fmtIrr(irrPeriod(data, 'SI')), '\u22125.19%');
-  assert.equal(irrLabel(irrPeriod(data, 'SI')), 'IRR (absolute)');
+  assert.equal(irrLabel(irrPeriod(data, 'SI')), 'Return on your money');
   assert.equal(irrLabel(irrPeriod(data, '1Y')), 'IRR');
   assert.equal(irrPeriod(null, '1Y'), null);
 });

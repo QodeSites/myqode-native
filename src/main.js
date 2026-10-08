@@ -1482,13 +1482,19 @@ export default class MyQode extends React.Component {
         const mo = Math.max(1, Math.round((m.years || 0) * 12));
         const annNote = m.annualised ? `Annualised from ${mo} month${mo > 1 ? 's' : ''}` : null;
         const wait = 'Shown after 3 months';
+        // Under a year (the money-weighted figure is for the period, not a year) the return rows share one basis:
+        // "Return on your money" over the period, and alpha = that minus the benchmark's on the same cash flows.
+        const per = !!(si && si.irr != null && !si.annualised);
+        const pAlpha = per && si.benchIrr != null ? (si.irr - si.benchIrr) / 100 : null;
         return [
           { label: 'CAGR', value: pc(m.cagr), color: m.cagr == null ? C.muted : c(m.cagr), note: under || `${m.years} years since inception` },
-          { label: 'XIRR', value: si && si.irr != null ? fmtIrr(si) : '–', color: si && si.irr != null ? c(si.irr) : C.muted, note: 'Money-weighted, since inception' },
+          { label: per ? 'Return on Your Money' : 'XIRR', value: si && si.irr != null ? fmtIrr(si) : '–', color: si && si.irr != null ? c(si.irr) : C.muted, note: per ? 'Since inception, over the period' : 'Money-weighted, since inception' },
           { label: 'Sharpe Ratio', value: m.sharpe == null ? '–' : m.sharpe.toFixed(2), color: C.ink, note: m.sharpe == null ? (m.years < 1 ? wait : under) : annNote || `Risk-free rate ${(m.riskFree * 100).toFixed(2)}%` },
           { label: 'Max Drawdown', value: plain(m.maxDrawdown), color: m.maxDrawdown ? red : C.muted, note: 'Deepest fall from a peak' },
           { label: 'Volatility (ann.)', value: plain(m.volatility), color: C.ink, note: 'Annualised, daily returns' },
-          { label: 'Alpha vs ' + titleCase(m.benchmark), value: pc(m.alpha), color: m.alpha == null ? C.muted : c(m.alpha), note: m.alpha == null ? (m.years < 1 ? wait : under) : annNote ? annNote + ', above the benchmark' : 'CAGR above the benchmark' },
+          per
+            ? { label: 'Alpha vs ' + titleCase(m.benchmark), value: pc(pAlpha), color: pAlpha == null ? C.muted : c(pAlpha), note: 'Over the period, on your own money' }
+            : { label: 'Alpha vs ' + titleCase(m.benchmark), value: pc(m.alpha), color: m.alpha == null ? C.muted : c(m.alpha), note: m.alpha == null ? under : 'CAGR above the benchmark' },
           { label: 'Beta', value: m.beta == null ? '–' : m.beta.toFixed(2), color: C.ink, note: 'Against ' + titleCase(m.benchmark) },
           { label: 'Best Month', value: m.bestMonth ? pc(m.bestMonth.ret) : '–', color: m.bestMonth ? c(m.bestMonth.ret) : C.muted, note: m.bestMonth ? mon(m.bestMonth.month) : '' },
         ];
@@ -1503,24 +1509,30 @@ export default class MyQode extends React.Component {
         const n2 = x => (x == null ? '–' : (x < 0 ? '−' : '') + Math.abs(x).toFixed(2));
         const cap = x => (x == null ? '–' : x.toFixed(2) + '%');
         const sg = x => (x == null ? C.muted : x < 0 ? red : green);
-        // Under a year: alpha / Sharpe / Sortino from the annualised return since inception (lib/portfolioMetrics.ts),
-        // shown from 3 months, with a note saying so; the information ratio from 3 months too.
+        // Under a year: Sharpe / Sortino annualised (lib/portfolioMetrics.ts), shown from 3 months with a note saying
+        // so; the information ratio from 3 months too. Alpha: see `per` below.
         const young = m.years < 1 ? 'Shown after 3 months' : null;
         const mo = Math.max(1, Math.round((m.years || 0) * 12));
         const ann = m.annualised ? `Annualised from ${mo} month${mo > 1 ? 's' : ''}` : null;
         const spc = x => (x == null ? '–' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x * 100).toFixed(2) + '%');
         const mon = ym => { const [y, mo] = String(ym || '').split('-'); return mo ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+mo - 1] + ' ' + y : ''; };
         const xi = irrPeriod(S.irr, 'SI');
+        // Under a year the money-weighted figure is the return over the period, not a yearly rate: the row is
+        // "Return on your money" and Alpha is that minus the benchmark's on the same cash flows, so the two rows
+        // agree. Sharpe / Sortino / IR stay annualised from daily returns, labelled (decided 8 Oct 2026).
+        const per = !!(xi && xi.irr != null && !xi.annualised);
+        const pAlpha = per && xi.benchIrr != null ? (xi.irr - xi.benchIrr) / 100 : null;
         // u: the unit (% measures, then ratios): the Returns & Risk page's two columns. In each, the measures without
         // a benchmark figure come first, those with one last.
         return [
           // Benchmark column: the same money, on the same dates, in the benchmark instead (server: lib/irr.ts benchmarkWindowIrr).
-          { u: '%', k: 'XIRR', note: xi && xi.irr != null && !xi.annualised ? 'Over the period, money-weighted, since inception' : 'Per year (p.a.), money-weighted, since inception',
+          { u: '%', k: per ? 'Return on Your Money' : 'XIRR', note: per ? 'Since inception, over the period, money-weighted' : 'Per year (p.a.), money-weighted, since inception',
             pf: xi && xi.irr != null ? fmtIrr(xi).replace(/\s*p\.a\.$/i, '') : '–', pc: xi && xi.irr != null ? sg(xi.irr) : C.muted,
             bm: xi && xi.benchIrr != null ? spc(xi.benchIrr / 100) : 'n/a', bc: xi && xi.benchIrr != null ? sg(xi.benchIrr) : C.muted, bnote: xi && xi.benchIrr != null ? null : 'Not available',
-            def: `XIRR is your own yearly return, taking into account when you added or withdrew money. Unlike the NAV-based figures, it reflects the timing and size of your investments. Example: money added just before a rally earns a higher XIRR than the same amount added just after it. The ${bn} figure is what the same money would have earned in ${bn}: each amount you invested bought the index on that day, each withdrawal sold it, and what is left is valued today.` },
-          { u: '%', k: 'Alpha vs ' + bn, note: m.alpha == null && young ? young : ann ? ann + ', above the benchmark' : 'CAGR above the benchmark', pf: spc(m.alpha), pc: sg(m.alpha), bm: '0.00%', bc: C.muted, bnote: 'By definition',
-            def: `Alpha is how much more (or less) the portfolio earned a year than ${bn} over the same dates: its CAGR minus the benchmark's. Example: a portfolio compounding at 15% while the benchmark compounded at 11% has an alpha of +4%. For an account under a year old, both returns since inception are annualised the same way first. ${bn}\'s own alpha is 0% by definition.` },
+            def: per ? `Return on your money is what your own investment has earned since you started, taking into account when you added or withdrew money. Your account is under a year old, so it is shown for the period, not as a yearly rate. The ${bn} figure is what the same money would have earned in ${bn} on the same dates.` : `XIRR is your own yearly return, taking into account when you added or withdrew money. Unlike the NAV-based figures, it reflects the timing and size of your investments. Example: money added just before a rally earns a higher XIRR than the same amount added just after it. The ${bn} figure is what the same money would have earned in ${bn}: each amount you invested bought the index on that day, each withdrawal sold it, and what is left is valued today.` },
+          { u: '%', k: 'Alpha vs ' + bn, note: per ? 'Over the period, on your own money' : m.alpha == null && young ? young : 'CAGR above the benchmark',
+            pf: spc(per ? pAlpha : m.alpha), pc: sg(per ? pAlpha : m.alpha), bm: '0.00%', bc: C.muted, bnote: 'By definition',
+            def: `Alpha is how much more (or less) the portfolio earned a year than ${bn} over the same dates: its CAGR minus the benchmark's. Example: a portfolio compounding at 15% while the benchmark compounded at 11% has an alpha of +4%. For an account under a year old it is not annualised: it is the return on your own money over the period minus what the same money earned in the benchmark. ${bn}\'s own alpha is 0% by definition.` },
           { u: '%', k: 'Upside Capture', note: `% of ${bn}'s gains on its up days`, pf: cap(m.upsideCapture), pc: m.upsideCapture == null ? C.muted : m.upsideCapture >= 100 ? green : C.ink, bm: '100.00%', bc: C.muted, bnote: 'By definition',
             def: `Upside Capture measures how much of ${bn}'s gains the portfolio captured on the days the benchmark rose. Above 100% means it did better than the benchmark in rising markets. Example: 110% means that when the benchmark gained 10% over its up days, the portfolio gained about 11%. ${bn}\'s own capture is 100% by definition.` },
           { u: '%', k: 'Downside Capture', note: `% of ${bn}'s losses on its down days`, pf: cap(m.downsideCapture), pc: m.downsideCapture == null ? C.muted : m.downsideCapture <= 100 ? green : red, bm: '100.00%', bc: C.muted, bnote: 'By definition',

@@ -11,5 +11,6 @@ export function fmtIrr(p) {
   return p.annualised ? v + ' p.a.' : v;
 }
 
-/** Short label: "IRR" (annualised) or "IRR (absolute)" for a window under a year. */
-export const irrLabel = p => (p && p.irr != null && !p.annualised ? 'IRR (absolute)' : 'IRR');
+/** Short label: "IRR" (annualised) or "Return on your money" for a window under a year. */
+// Under a year the money-weighted figure is a period return, not a yearly rate: not called IRR then (8 Oct 2026).
+export const irrLabel = p => (p && p.irr != null && !p.annualised ? 'Return on your money' : 'IRR');
