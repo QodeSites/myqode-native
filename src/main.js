@@ -490,8 +490,9 @@ export default class MyQode extends React.Component {
           if (this.stepDown(scope)) return;       // can't build the family total: fall back to the first member
           throw new Error(userMessage(e, 'We couldn’t build the family total.'));
         }
-        this.setState({ hist: fam, dv: 'nuvama' }, () => this.applyView('nuvama', true));
+        this.setState({ hist: fam, dv: 'nuvama', led: null }, () => this.applyView('nuvama', true));
         this.lastLoad = Date.now();
+        this.loadLedger(scope.members.map(id => portfolio.cashflow(String(id), 'owner')), seq);
         this.loadHoldings(scope, seq); this.loadIrr(scope, seq); this.loadMetrics(scope, seq);
         return;
       }
@@ -520,7 +521,7 @@ export default class MyQode extends React.Component {
         try { const h = await portfolio.history(legacyId); if (h && h.orbis && h.orbis.length) hist = h; } catch {}
         if (seq !== this.seq) return;
       }
-      if (hist) { this.setState({ hist }, () => this.applyView(this.state.dv, true)); this.lastLoad = Date.now(); this.loadHoldings(scope, seq); this.loadIrr(scope, seq); this.loadMetrics(scope, seq); return; }
+      if (hist) { this.setState({ hist, led: cash && cash.transactions ? cash.transactions : null }, () => this.applyView(this.state.dv, true)); this.lastLoad = Date.now(); this.loadHoldings(scope, seq); this.loadIrr(scope, seq); this.loadMetrics(scope, seq); return; }
       this.setState({ hist: null, homeD: null, homeNavs: null, d: { id: scope.id, kind: k, perf, cash, fys: buildFys(monthly), fysQ: buildFysQ(quarterly) }, navs: { [period]: { nav, dd } }, dl: false, pnlFy: 0, pnlOpen: null });
       this.lastLoad = Date.now();
       this.loadHoldings(scope, seq); this.loadIrr(scope, seq); this.loadMetrics(scope, seq);
@@ -560,6 +561,15 @@ export default class MyQode extends React.Component {
 
   // Key metrics (CAGR, Sharpe, volatility, alpha, beta, best month…) from the server's full NAV history. Optional.
   // The app-built Entire Family view has no single server id, so it has none.
+  // Views built on the device from raw history (Entire Family, Orbis accounts) only have the daily net cash figure,
+  // unlabelled and with TDS and adjustments in it. Their activity lists use the server's custodian-ledger entries
+  // instead (state.led, labelled and flagged `own`); totals still come from the history. Added 8 Oct 2026.
+  async loadLedger(calls, seq) {
+    const got = await Promise.allSettled(calls);
+    if (seq !== this.seq || got.some(x => x.status === 'rejected')) return;   // keep the history list if one fails
+    this.setState({ led: got.flatMap(x => (x.value && x.value.transactions) || []) });
+  }
+
   async loadMetrics(scope, seq) {
     this.setState({ metrics: null });
     if (!scope || scope.kind === 'local-family') return;
@@ -1288,7 +1298,7 @@ export default class MyQode extends React.Component {
     // investor did himself (`own`: first investment, top-ups, corpus deposits and withdrawals), decided 8 Oct 2026;
     // a server without the flag shows everything.
     const minorFlow = t => t.own === false;
-    const cashTx = ((S.d && S.d.cash && S.d.cash.transactions) || []).slice()
+    const cashTx = ((S.d && S.d.local && S.dv === 'nuvama' && S.led) || (S.d && S.d.cash && S.d.cash.transactions) || []).slice()   // led: loadLedger
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     const tx = t => {
       const out = t.type === 'outflow', amt = Math.abs(num(t.amount) || 0);
