@@ -1283,9 +1283,11 @@ export default class MyQode extends React.Component {
 
     // Recent activity from cashflow
     const dateFmt = fmtDate;
-    // The server sends only the custodian's intentional entries (myQode lib/ledgerFlows: corpus deposits / withdrawals,
-    // securities in / out, full switches; no TDS, fees or partial switches — decided 8 Oct 2026). Nothing is dropped here.
-    const minorFlow = () => false;
+    // The server sends the custodian's money-movement entries (myQode lib/ledgerFlows: corpus deposits / withdrawals,
+    // securities in / out, full switches; no TDS, fees or partial switches). Recent Activity shows only what the
+    // investor did himself (`own`: first investment, top-ups, corpus deposits and withdrawals), decided 8 Oct 2026;
+    // a server without the flag shows everything.
+    const minorFlow = t => t.own === false;
     const cashTx = ((S.d && S.d.cash && S.d.cash.transactions) || []).slice()
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     const tx = t => {
@@ -1464,7 +1466,7 @@ export default class MyQode extends React.Component {
       ddLine: p3.line, ddArea: p3.area, ddBench: p3.bench, hasDd: ddPts.length > 1, ddNow: ddPts.length ? ddPts[ddPts.length - 1] : 0,
       perfLine: p2.line, perfBench: p2.bench, hasBench: !!bench,
       ranges: RANGE_IDS.map(id => { const off = !this.rangeOk(id, S); return { label: id, disabled: off, pick: () => { if (!off) this.pickRange(id); }, active: S.range === id, loading: rangeLoading && S.range === id }; }),
-      // Home's recent activity and the Transactions page: the server's list as is (minorFlow drops nothing now).
+      // Home's recent activity: the investor's own movements only (minorFlow); txAll keeps the full list.
       tx3: cashTx.filter(t => !minorFlow(t)).slice(0, 3).map(tx), txRecent: cashTx.filter(t => !minorFlow(t)).map(tx),
       txAll: cashTx.map(tx), hasTx: cashTx.length > 0,
       holdings: holdRows, chartColor,
