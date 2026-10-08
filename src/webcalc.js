@@ -123,6 +123,13 @@ function trailing(data, inceptionDate, tenDDate) {
 }
 
 // NAV 10 anchor the day before inception when the first NAV isn't 10 (web: returns % card and portfolio SI).
+// Whether anchoredReturn() annualises (a year or more from its base date): the app then calls it CAGR.
+function annualisedSI(rows, anchor = true) {
+  const first = rows.find(x => n(x.nav) > 0), last = [...rows].reverse().find(x => n(x.nav) > 0);
+  if (!first || !last) return false;
+  const baseDate = new Date(first.report_date); if (anchor && n(first.nav) !== 10) baseDate.setDate(baseDate.getDate() - 1);
+  return (new Date(last.report_date) - baseDate) / DAY / 365.25 >= 1;
+}
 function anchoredReturn(rows, anchor = true) {
   const first = rows.find(x => n(x.nav) > 0), last = [...rows].reverse().find(x => n(x.nav) > 0);
   if (!first || !last) return 0;
@@ -191,7 +198,7 @@ export function perfFrom(h, view) {
   return {
     accountId: h.accountId, isClosed: false, closedAt: null, strategy: h.strategy,
     amountInvested: r2(invested), currentValue: r2(current), totalReturns: r2(current - invested),
-    returnsPercent: r2(anchoredReturn(rows, anchor)), isNegative: current - invested < 0,
+    returnsPercent: r2(anchoredReturn(rows, anchor)), returnsAnnualised: annualisedSI(rows, anchor), isNegative: current - invested < 0,
     inceptionDate: fmtDate(first.report_date), dataAsOf: fmtDate(last.report_date), grossValue: r2(current),
     trailingReturns: { portfolio: P, benchmark: B, benchmarkUnavailable: !benchIn.length },
   };

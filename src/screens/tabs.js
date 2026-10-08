@@ -385,12 +385,12 @@ export function HomeCream({ V }) {
   const ret = V.tiles[0] || {}, si = V.tiles[1] || {}, y1 = V.tiles[2] || {};
   const cagr = (V.keyMetrics || []).find(k => k.label === 'CAGR');
   // The earlier portal's four tiles, with the same figures: amount invested (net, the gross under it), current value,
-  // total returns and the return since inception as "Returns %" (absolute, not annualised).
+  // total returns and the return since inception: "Returns %" (absolute) under a year, "CAGR" from a year.
   const tiles = [
     { label: 'AMOUNT INVESTED', value: (V.invested || {}).net, color: C.ink, note: V.invested && V.invested.gross !== V.invested.net ? 'Gross ' + V.invested.gross : '' },
     { label: 'CURRENT VALUE', value: V.heroValue, color: C.ink, note: V.asOf ? 'As of ' + V.asOf : '' },
     { label: 'TOTAL RETURNS', value: ret.value, color: ret.color, note: 'Absolute returns' },
-    { label: 'RETURNS %', value: si.value, color: si.color, note: 'Absolute returns' },
+    si.annualised ? { label: 'CAGR', value: si.value, color: si.color, note: 'Since inception, a year' } : { label: 'RETURNS %', value: si.value, color: si.color, note: 'Absolute returns' },
   ];
   return (
     <Fade>

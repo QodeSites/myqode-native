@@ -1461,7 +1461,8 @@ export default class MyQode extends React.Component {
       })(),
       tiles: [
         { label: 'TOTAL RETURNS', value: this.sfmt(totalReturns), color: c(totalReturns) },
-        { label: 'RETURN (SI)', value: pct(perf && perf.returnsPercent), color: c(perf ? perf.returnsPercent : 0) },
+        // annualised: the server's returnsPercent is a CAGR once the account is a year old (returnsAnnualised)
+        { label: 'RETURN (SI)', value: pct(perf && perf.returnsPercent), color: c(perf ? perf.returnsPercent : 0), annualised: !!(perf && perf.returnsAnnualised) },
         { label: '1Y RETURN', value: pct(P.y1), color: c(P.y1 || 0) },
         { label: 'CURRENT DRAWDOWN', value: ddPct(P.currentDD), color: ddColor(P.currentDD) },
       ],
