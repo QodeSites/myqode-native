@@ -218,7 +218,7 @@ function Faq() {
   );
 }
 
-function Risk() {
+export function Risk() {
   const R = content.RISK;
   return (
     <>

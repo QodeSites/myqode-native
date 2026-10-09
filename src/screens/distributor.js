@@ -111,7 +111,7 @@ export const IconLock = ({ c, s }) => <Lucide c={c} s={s}><Rect x={3} y={11} wid
 const TABS = [
   { key: 'overview', label: 'Overview', Icon: IconDashboard },
   { key: 'investors', label: 'Investors', Icon: IconUsers },
-  { key: 'fees', label: 'Fees', Icon: IconCalculator },
+  { key: 'fees', label: 'Earnings', Icon: IconCalculator },
   { key: 'indicators', label: 'Indicators', Icon: IconLineChart },
   { key: 'more', label: 'More', Icon: IconMore },
 ];
@@ -791,7 +791,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
               </View>
               {/* Footer (web: "View account" and "SOA" buttons on each investor): View account on the left, SOA on the right */}
               <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderColor: C.hairline, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  {c.clientCode ? (
+                  {!VIEW_ACCOUNT ? null : c.clientCode ? (
                     <Pressable onPress={() => view.open(c)} hitSlop={4} accessibilityRole="button" accessibilityLabel={`View ${c.name || 'this investor'}'s account`}
                       style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingLeft: 14, paddingRight: 10, borderRadius: 999, backgroundColor: C.green,
                         shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 2,
@@ -910,12 +910,14 @@ function LinkCard({ title, sub, url }) {
   );
 }
 
+// "View account" (the investor's own app, read-only) is hidden since 9 Oct 2026; the code stays for when it returns.
+const VIEW_ACCOUNT = false;
 const MORE_ICON = { links: IconShare, decks: IconFile, policies: IconShield, ticket: IconLifeBuoy, password: IconLock };
 const MORE_ITEMS = [
   ['links', 'Onboarding Link', 'Share with a prospective investor'],
   ['decks', 'Decks', 'Download and share with prospective investors'],
-  ['policies', 'Risk & Controls', 'The policies that guide portfolio construction'],
-  ['ticket', 'Raise a Ticket', 'The partnerships team replies by email'],
+  ['policies', 'Risk Management & Controls', 'The policies that guide portfolio construction'],
+  ['ticket', 'Support', 'Raise a ticket; the partnerships team replies by email'],
   ['password', 'Change Password', 'Choose a new password for this login'],
 ];
 function More({ V, open }) {

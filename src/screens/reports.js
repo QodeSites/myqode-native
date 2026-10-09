@@ -22,6 +22,7 @@ import { transactionsXlsx, capitalGainsXlsx, expensesXlsx, factsheetXlsx, plbsXl
 import Svg, { Rect, Line } from 'react-native-svg';
 import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE } from '../combine';
 import { track } from '../api/track';
+import { REPORT_LIST, reportCall, fyOptions, currentFy, recordDates } from '../reportList';
 
 import { userMessage } from '../errors';
 import { useUnrealised } from '../unrealised';
@@ -201,7 +202,7 @@ function RangeBody({ init, onApply, onBack }) {
 
 // Period chip + sheet. value: { key, from, to } or null (capital gains by FY). head: extra choices listed first
 // (capital gains: the financial years), picked through onHead; selected overrides which choice is ticked.
-const PRESET_LONG = { fy: 'This FY', lfy: 'Last FY', '3m': 'Last 3 months', '12m': 'Last 12 months', all: 'All time', custom: 'Custom…' };
+const PRESET_LONG = { fy: 'This FY', lfy: 'Last FY', '3m': 'Last 3 months', '12m': 'Last 12 months', all: 'All time', custom: 'Custom' };
 const periodChipText = p => (!p ? '' : p.key === 'custom' ? rangeText(p.from, p.to) || 'Custom' : PRESET_LONG[p.key]);
 function PeriodChip({ value, onChange, keys = ALL_PRESETS, head = [], onHead, selected, text, sub, keysTitle, since }) {
   const [open, setOpen] = useState(false);
@@ -418,7 +419,8 @@ function useSearch(ms = 350) {
 }
 
 // ── Transactions ──────────────────────────────────────────────────────────────────────────────────────────
-const TXN_GROUPS = [['all', 'All'], ['trades', 'Trades'], ['money', 'Money in/out'], ['income', 'Dividend/Interest'], ['charges', 'Fees'], ['other', 'Other']];
+// Fees and charges list under Other (decided 9 Oct 2026), not as a chip or a tile of their own.
+const TXN_GROUPS = [['all', 'All'], ['trades', 'Trades'], ['money', 'Money in/out'], ['income', 'Dividend/Interest'], ['other', 'Other']];
 function TxnRow({ t, last }) {
   const sign = t.direction === 'in' ? '+' : t.direction === 'out' ? '−' : '';
   const detail = [t.account || null, t.security ? t.type : null, t.qty != null && t.rate != null ? `${qtyFmt(t.qty)} @ ${inr2(t.rate)}` : null, t.notes && !t.security ? t.notes : null].filter(Boolean).join(' · ');
@@ -679,7 +681,7 @@ function AsOfChip({ dates, date, coverage, onPick }) {
   const options = [
     { id: 'latest', label: 'Latest', note: latest ? dt(latest) : null },
     ...(ends.length ? [{ section: 'Month-end' }, ...ends.map(x => ({ id: x, label: dt(x) }))] : []),
-    { id: 'other', label: value === 'other' ? `Other date (${dt(date)})` : 'Pick a date…' },
+    { id: 'other', label: value === 'other' ? `Other date (${dt(date)})` : 'Custom' },
   ];
   return (
     <>
@@ -961,15 +963,14 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────────────────────────────────
-const KINDS = [['fs', 'Fact Sheet'], ['pl', 'P&L and Balance Sheet'], ['cg', 'Capital Gains'], ['txn', 'Transactions'], ['exp', 'Expenses']];
+// The report screens above (Factsheet, PnlBalanceSheet, CapitalGains, Transactions, Expenses) are no longer shown: since
+// 9 Oct 2026 the Reports tab is a download centre (ReportsPage below, src/reportList.js).
 export function ReportsPage({ V }) {
   const opts = reportAccountOptions(V);
   const singles = singleAccounts(opts);
   // "All accounts" also covers accounts that are never listed (QFH), so totals match Nuvama's statements.
   const ids = [...singles.map(o => o.id), ...((V && V.reportHidden) || []).filter(id => !singles.some(o => String(o.id) === id))];
-  const names = Object.fromEntries(singles.map(o => [o.id, o.label]));
   const [sel, setSel] = useState(null);
-  const [kind, setKind] = useState('fs');
   const [closedPick, setClosedPick] = useState(null);   // a closed account just picked: the pop-up
   const pick = id => {
     setSel(id);
@@ -978,25 +979,58 @@ export function ReportsPage({ V }) {
   };
   // "All accounts" is offered first, but the default stays the first single account.
   const accountId = sel && opts.some(o => o.id === sel) ? sel : singles[0] && singles[0].id;
-  const Body = { txn: Transactions, cg: CapitalGains, exp: Expenses, fs: Factsheet, pl: PnlBalanceSheet }[kind];
-  const account = <AccountChip options={opts} value={accountId} onPick={pick} count={singles.length} />;
+  const cur = opts.find(o => o.id === accountId);
+  const all = accountId === ALL_ID;
+  // The fact sheet's snapshot dates and the first date on record, for the pickers (the one call the Fact Sheet
+  // tab used to make on opening).
+  const H = useLoad(() => (!accountId ? Promise.resolve(null) : recordDates(all ? ids : [accountId])), [accountId, V.rk]);
+  const dates = [], cov = H.data;
+  const since = cov && cov.from;
+  // Each report's own period (src/reportList.js says how each reads it).
+  const [fsDate, setFsDate] = useState('');
+  const [pl, setPl] = useState(() => ({ key: 'fy', ...PRESETS.fy[1](new Date()) }));
+  const [txn, setTxn] = useState(ALL_TIME);
+  const [exp, setExp] = useState(ALL_TIME);
+  const [cgFy, setCgFy] = useState(currentFy());
+  const [cgRange, setCgRange] = useState(null);   // a sale-date range instead of the financial year
+  const pickCgRange = p => setCgRange(p.key === 'all' ? { key: 'all', from: undefined, to: isoOf(new Date()) } : p);
+  const fys = fyOptions(since);
+  const periods = { fs: { date: fsDate }, pl, cg: cgRange || { fy: cgFy }, txn, exp };
+  const control = {
+    fs: <AsOfChip dates={dates} date={fsDate} coverage={cov} onPick={setFsDate} />,
+    pl: <PeriodChip value={pl} onChange={setPl} since={since} sub="The P&L covers the period; the balance sheet is as of its last day." />,
+    cg: <PeriodChip value={cgRange} onChange={pickCgRange} keys={['3m', '12m', 'all', 'custom']} since={since}
+      head={[{ section: 'Financial year' }, ...fys.map(y => ({ id: 'fy:' + y, label: 'FY ' + y }))]} keysTitle="By date of sale"
+      onHead={id => { setCgRange(null); setCgFy(String(id).slice(3)); }}
+      selected={cgRange ? cgRange.key : 'fy:' + cgFy} text={cgRange ? periodChipText(cgRange) : 'FY ' + cgFy}
+      sub="Realised gains by date of sale: a financial year or any dates." />,
+    txn: <PeriodChip value={txn} onChange={setTxn} since={since} sub="By date of transaction." />,
+    exp: <PeriodChip value={exp} onChange={setExp} since={since} />,
+  };
+  // One card per report (decided 9 Oct 2026): its name, what it holds, its period chip, the Excel and PDF buttons.
+  const card = ([k, title, sub]) => {
+    const c = reportCall(k, { accountId, ids, period: periods[k] });
+    return (
+      <Card key={k} style={{ marginTop: 12, padding: 16, borderTopWidth: 3, borderTopColor: C.green }}>
+        <Tx w={700} s={14}>{title}</Tx>
+        <Tx s={11.5} c={C.muted} lh={1.45} style={{ marginTop: 2 }}>{sub}</Tx>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 12 }}>
+          {control[k]}
+          <View style={{ flex: 1, minWidth: 4 }} />
+          <PdfButton make={async () => c.pdf(await c.data())} xlsx={async () => c.xlsx(await c.data())} name={c.name} />
+        </View>
+      </Card>
+    );
+  };
   return (
     <>
-      {/* report tabs: one scrollable row */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginHorizontal: -20 }} contentContainerStyle={{ gap: 18, paddingHorizontal: 20 }}>
-        {KINDS.map(([k, l]) => {
-          const on = kind === k;
-          return (
-            <Pressable key={k} onPress={() => { setKind(k); track('event', 'report_view', { tab: k }); }} accessibilityRole="tab" accessibilityState={{ selected: on }} hitSlop={6} style={{ paddingVertical: 8 }}>
-              <Tx w={700} s={13} c={on ? C.green : C.gray}>{l}</Tx>
-              <View style={{ height: 2, borderRadius: 1, marginTop: 6, backgroundColor: on ? C.gold : 'transparent' }} />
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-      <View style={{ height: 1, backgroundColor: C.hairline, marginTop: -1 }} />
-      {/* keyed so filters and paging reset when the account or report changes */}
-      {accountId ? <Body key={kind + accountId + (accountId === ALL_ID ? ids.join(',') : '')} accountId={accountId} ids={ids} names={names} rk={V.rk} account={account} /> : <View style={{ marginTop: 16 }}><Empty>No active account found.</Empty></View>}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 4 }}>
+        {opts.length >= 2
+          ? <AccountChip options={opts} value={accountId} onPick={pick} count={singles.length} />
+          : !!cur && <Tx w={700} s={12.5} c={C.muted}>{cur.label}</Tx>}
+        <Tx s={11.5} c={C.muted}>Applies to every report</Tx>
+      </View>
+      {accountId ? REPORT_LIST.map(card) : <View style={{ marginTop: 16 }}><Empty>No active account found.</Empty></View>}
       <ClosedAccountPopup p={closedPick} onClose={() => setClosedPick(null)} />
     </>
   );

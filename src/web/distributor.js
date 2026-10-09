@@ -8,6 +8,8 @@
 // shows "Back to distributor panel", and V.partnerNav brings the distributor back to the page they left.
 // Address: /app/d/<section> (replaced as the section changes; Back is main.js's, via useBackHandler).
 import { titleCase } from '../titleCase';
+import { Risk } from './pages';
+import { Preferences } from './account';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, ScrollView, Pressable, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -44,14 +46,16 @@ const NAV = [
   { key: 'investors', label: 'Investors', Icon: IconUsers },
   { key: 'fees', label: 'Earnings', Icon: IconCalculator },
   { key: 'links', label: 'Resources', Icon: IconShare },
-  { key: 'policies', label: 'Risk and controls', Icon: IconShield },
+  { key: 'policies', label: 'Risk Management & Controls', Icon: IconShield },
   { key: 'indicators', label: 'Indicators', Icon: IconLineChart },
-  { key: 'support', label: 'Help', Icon: IconLifeBuoy },
+  { key: 'support', label: 'Support', Icon: IconLifeBuoy },
 ];
 const GROUPS = [['Your book', ['overview', 'investors', 'fees']], ['More', ['links', 'policies', 'indicators', 'support']]];
-const PARENT = { statement: 'fees', invoice: 'fees', decks: 'links', profile: 'support' };
+const PARENT = { statement: 'fees', invoice: 'fees', decks: 'links' };
 const EARNINGS_TABS = [['fees', 'Fees'], ['statement', 'Statement'], ['invoice', 'Invoice']];
-const TITLES = { overview: 'Overview', investors: 'Investors', fees: 'Earnings', statement: 'Earnings', invoice: 'Earnings', links: 'Resources', decks: 'Resources', policies: 'Risk and controls', indicators: 'Market indicators', support: 'Help', profile: 'Help' };
+const TITLES = { overview: 'Overview', investors: 'Investors', fees: 'Earnings', statement: 'Earnings', invoice: 'Earnings', links: 'Resources', decks: 'Resources', policies: 'Risk Management & Controls', indicators: 'Indicators', support: 'Support', profile: 'Profile and Settings' };
+// "View account" (the investor's own app, read-only) is hidden since 9 Oct 2026; the code stays for when it returns.
+const VIEW_ACCOUNT = false;
 const SECTIONS = ['overview', 'investors', 'fees', 'statement', 'invoice', 'links', 'decks', 'indicators', 'support', 'policies', 'profile'];
 const BASE = '/app/d/';
 const web = typeof window !== 'undefined' && typeof history !== 'undefined' && typeof location !== 'undefined';
@@ -223,16 +227,28 @@ function Sidebar({ V, active, onNav }) {
         </View>
       )}
       <AppLinks dark compact style={{ marginHorizontal: 22, marginBottom: 14 }} />
-      <View style={{ marginHorizontal: 12, borderTopWidth: 1, borderColor: 'rgba(239,236,211,0.12)', paddingTop: 14, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(218,189,56,0.16)', alignItems: 'center', justifyContent: 'center' }}>
-          <Tx w={600} s={12} c={C.gold}>{initials || 'Q'}</Tx>
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          {!!name && <Tx w={600} s={13} c={C.cream} numberOfLines={1}>{name}</Tx>}
-          <Pressable accessibilityRole="button" onPress={V.doLogout} style={({ hovered }) => ({ alignSelf: 'flex-start', opacity: hovered ? 0.7 : 1 })}>
-            <Tx w={600} s={12} c={C.gold}>Sign out</Tx>
-          </Pressable>
-        </View>
+      {/* Profile card and Sign out, as on the investor side (src/web/desktop.js) */}
+      <View style={{ marginHorizontal: 12, borderTopWidth: 1, borderColor: 'rgba(239,236,211,0.12)', paddingTop: 6, paddingBottom: 6 }}>
+        <Pressable accessibilityRole="link" accessibilityLabel="Profile and settings" accessibilityState={{ selected: active === 'profile' }}
+          onPress={() => onNav('profile')} style={({ hovered }) => ({
+            flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8,
+            backgroundColor: active === 'profile' ? 'rgba(218,189,56,0.14)' : hovered ? 'rgba(239,236,211,0.06)' : 'transparent',
+          })}>
+          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(218,189,56,0.16)', alignItems: 'center', justifyContent: 'center' }}>
+            <Tx w={600} s={12} c={C.gold}>{initials || 'Q'}</Tx>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            {!!name && <Tx w={600} s={13} c={active === 'profile' ? C.gold : C.cream} numberOfLines={1}>{name}</Tx>}
+            <Tx s={12} c={active === 'profile' ? C.gold : 'rgba(239,236,211,0.6)'}>Profile and settings</Tx>
+          </View>
+          <ChevronRight s={11} c={active === 'profile' ? C.gold : 'rgba(239,236,211,0.5)'} />
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={V.doLogout} style={({ hovered }) => ({
+          flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8,
+          backgroundColor: hovered ? 'rgba(239,236,211,0.06)' : 'transparent',
+        })}>
+          <Tx s={13} c="rgba(239,236,211,0.75)">Sign out</Tx>
+        </Pressable>
       </View>
     </LinearGradient>
   );
@@ -323,11 +339,8 @@ export default function DesktopDistributor({ V }) {
   else if (section === 'links' || section === 'decks') body = <GrowPage journey={journey} focus={section} />;
   else if (section === 'policies') body = <Policies />;
   else if (section === 'indicators') body = <Indicators />;
-  else body = (
-    <View style={{ gap: 24 }}>
-      <Support />
-      <Profile V={V} journey={journey} />
-    </View>);
+  else if (section === 'profile') body = <View style={{ gap: 20, maxWidth: 880 }}><Profile V={V} journey={journey} /><Preferences V={V} /></View>;
+  else body = <Support />;
 
   return (
     <View style={{ flex: 1, flexDirection: 'row', backgroundColor: C.cream }}>
@@ -642,7 +655,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
     { key: 'act', label: 'Actions', right: true, render: ({ c }) => (
       <View style={{ alignItems: 'flex-end' }}>
         <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
-          {c.clientCode
+          {!VIEW_ACCOUNT ? null : c.clientCode
             ? <Btn small label={view.opening === c.clientCode ? 'Opening…' : 'View account'} onPress={() => view.open(c)} disabled={!!view.opening && view.opening !== c.clientCode} />
             : <View style={{ height: 34, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, justifyContent: 'center' }}><Tx s={12} c={C.ink3}>Not in portal yet</Tx></View>}
           {!!c.clientCode && <Btn small kind="outline" label="Reports" icon={<Download s={13} c={C.ink2} />} onPress={() => setReportsFor(c)} />}
@@ -794,7 +807,7 @@ function InvestorPage({ c, status, view, onBack }) {
             <Tx s={13} c={C.ink2}>{onboarding ? sc(c.onboardingStage) : status.detail}</Tx>
           </View>
         </View>
-        {!!c.clientCode && <Btn label={view.opening === c.clientCode ? 'Opening…' : 'View account'} onPress={() => view.open(c)} />}
+        {VIEW_ACCOUNT && !!c.clientCode && <Btn label={view.opening === c.clientCode ? 'Opening…' : 'View account'} onPress={() => view.open(c)} />}
         {!!c.clientCode && <Btn kind="outline" label="Download reports" icon={<Download s={14} c={C.ink2} />} onPress={() => setReportsOpen(true)} />}
         {!!c.email && <Btn kind="outline" label={busy ? 'Fetching…' : 'Download SOA'} icon={<Download s={14} c={C.ink2} />} onPress={soa} />}
         {!!c.email && <Btn kind="outline" label="Email" icon={<MailIcon s={14} c={C.ink2} />} onPress={() => mail(c.email)} />}
@@ -1528,21 +1541,9 @@ function Support() {
 }
 
 /* ── Risk and controls ──────────────────────────────────────────────────────────────────────────────────── */
+// The investor's page itself (src/web/pages.js Risk): the same policies, the same list (decided 9 Oct 2026).
 function Policies() {
-  const R = content.RISK;
-  return (
-    <View style={{ gap: 20 }}>
-      <PageIntro sub={R.intro.join(' ') + ' Share them with prospective investors who ask how portfolios are run.'} />
-      <Grid min={340} gap={20}>
-        {R.policies.map(p => (
-          <Panel key={p.title} title={sc(p.title)} style={{ flex: 1 }}>
-            {p.body.map((t, i) => <Tx key={i} s={13} c={C.ink2} lh={1.6} style={{ marginTop: i ? 8 : 0 }}>{t}</Tx>)}
-            {!!p.pdf && <View style={{ flexDirection: 'row', marginTop: 14 }}><Btn small kind="outline" label="View policy (PDF)" icon={<DocIcon s={13} c={C.ink2} />} onPress={() => openUrl(p.pdf)} /></View>}
-          </Panel>
-        ))}
-      </Grid>
-    </View>
-  );
+  return <Risk />;
 }
 
 /* ── Profile ────────────────────────────────────────────────────────────────────────────────────────────── */
@@ -1551,7 +1552,7 @@ function Profile({ V, journey }) {
   const d = journey.data || {};
   const dist = d.distributor || {};
   return (
-    <Panel title="Your account">
+    <Panel title="Your Account">
       <KeyVals items={[
         ['Name', u.name || dist.name || 'Partner'],
         ['Email', u.email || dist.email || '–'],
@@ -1559,9 +1560,6 @@ function Profile({ V, journey }) {
         ...(d.portalClientCount != null ? [['Investor accounts in the portal', String(d.portalClientCount)]] : []),
         ...(d.totals ? [['Investors referred', String(d.totals.investors || 0)]] : []),
       ]} />
-      <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-        <Btn kind="danger" label="Sign out" onPress={V.doLogout} />
-      </View>
       {V.testMode && <Notice tone="bad" style={{ marginTop: 14 }}>Test mode is on: actions that could reach an investor are blocked.</Notice>}
     </Panel>
   );

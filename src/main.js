@@ -52,6 +52,8 @@ import { nativeFilePart } from './onboarding/file-native';
 // Uploads read the picked file with expo-file-system (see file-native.js); everything else is the module as is.
 const obApi = { ...obApiModule, uploadDocument: (id, fieldKey, file) => obApiModule.uploadDocument(id, fieldKey, file, nativeFilePart) };
 import * as obStorage from './onboarding/storage';
+import { loadPrefs, savePrefs, applyWebPrefs } from './prefs';
+import { prefetchRecordDates } from './reportList';
 import {
   accountTypeFor, accountLabelFor, accountTypeToOb, toBackendData, fromBackendData, stepIndexFor, resumeStepFor,
   lockedFieldsFor, verifiedSummary, maskAccount, docSlotsFor, resolveDocs, riskProfileFor, formatDobInput,
@@ -215,6 +217,8 @@ export default class MyQode extends React.Component {
   }
 
   componentDidMount() {
+    // Text size, high contrast and reduced motion, as saved on this device (src/prefs.js).
+    loadPrefs().then(p => { if (p && !this.unmounted) { this.setState(p); applyWebPrefs(p); } });
     this.otpRefs = [0, 1, 2, 3, 4, 5].map(() => React.createRef());
     this.obRefs = [0, 1, 2, 3, 4, 5].map(() => React.createRef());
     this.seq = 0;
@@ -642,6 +646,12 @@ export default class MyQode extends React.Component {
   // A period button is offered only when the account has that much history (a client onboarded last month sees
   // no 1Y / 3Y). SI is always there.
   rangeOk(id, S = this.state) { return rangeHasData(id, this.histDays(S)); }
+
+  // A preference changed: apply it now and save it on this device (src/prefs.js).
+  setPref = p => {
+    const next = { ts: this.state.ts, hc: this.state.hc, rm: this.state.rm, ...p };
+    this.setState(p); applyWebPrefs(next); savePrefs(next);
+  };
 
   componentDidUpdate(_, prev) {
     // A newly loaded portfolio without enough history for the chosen period falls back to Since inception.
@@ -1609,7 +1619,7 @@ export default class MyQode extends React.Component {
             def: 'The Sharpe Ratio measures the return earned above the risk-free rate (6.5% a year) for each unit of total risk, where risk is the volatility of returns. Higher means more reward for the risk taken. Example: a portfolio returning 16% with 12% volatility has a Sharpe of about (16 − 6.5) ÷ 12 ≈ 0.79; above 1.0 is generally considered strong.' },
           { k: 'Sortino Ratio', note: m.sortino == null && young ? young : ann || 'Excess return per unit of downside risk', pf: n2(m.sortino), pc: sg(m.sortino), bm: n2(b.sortino), bc: sg(b.sortino),
             def: 'The Sortino Ratio refines the Sharpe Ratio by counting only downside volatility (losses) and ignoring upside swings, which benefit investors. Higher means stronger returns relative to the risk of losing money. Example: two portfolios with the same Sharpe can have very different Sortino values; the one whose swings come mostly from up days scores higher.' },
-          { k: 'Beta', note: `Sensitivity to ${bn}'s daily moves`, pf: m.beta == null ? '–' : m.beta.toFixed(2), bm: '–',
+          { k: 'Beta', note: `Sensitivity to ${bn}'s daily moves`, pf: m.beta == null ? '–' : m.beta.toFixed(2), bm: '1.00', bc: C.muted, bnote: 'By definition',
             def: `Beta measures how much the portfolio tends to move for a given move in ${bn}, from their daily returns. 1.0 moves in line with the benchmark; above 1.0 swings more; below 1.0 swings less. Example: a Beta of 0.6 means that when the benchmark moved 1% in a day, the portfolio has on average moved about 0.6% the same way.` },
         ];
       })(),
@@ -1747,9 +1757,9 @@ export default class MyQode extends React.Component {
       openSettings: () => set({ sheet: 'settings' }),
       sheet: S.sheet,
       sheetSettings: S.sheet === 'settings',
-      tsChips: this.chips(['S', 'M', 'L', 'XL'], S.ts, i => set({ ts: i })),
+      tsChips: this.chips(['S', 'M', 'L', 'XL'], S.ts, i => this.setPref({ ts: i })),
       hcOn: S.hc, rmOn: S.rm,
-      hcToggle: () => set({ hc: !S.hc }), rmToggle: () => set({ rm: !S.rm }),
+      hcToggle: () => this.setPref({ hc: !S.hc }), rmToggle: () => this.setPref({ rm: !S.rm }),
       sheetOpen: !!S.sheet, sheetSwitch: S.sheet === 'switch',
       openSwitch: () => set({ sheet: 'switch' }), closeSheet: () => set({ sheet: null, sheetPreset: null, payRecover: null }),
       payRecover: S.payRecover || null,
@@ -2113,6 +2123,9 @@ export default class MyQode extends React.Component {
 
   render() {
     const V = this.vals();
+    // Reports' date menus: fetch each account's dates on record once the account list is known (src/reportList.js).
+    const rdKey = (V.acctOptions || []).map(o => o.id).join(',');
+    if (rdKey && rdKey !== this.rdKey && !isDemo()) { this.rdKey = rdKey; setTimeout(() => prefetchRecordDates(V), 0); }
     const U = {
       z: [0.92, 1, 1.08, 1.16][this.state.ts],
       hc: this.state.hc, rm: this.state.rm,

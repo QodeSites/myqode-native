@@ -108,11 +108,11 @@ function SettingRow({ title, sub, note, on, onPress }) {
 
 // The Display & accessibility sheet's controls (V.tsChips / hcToggle / rmToggle) inline, plus the phone's
 // biometric toggle when the device has one (V.bio is null on web, so it stays hidden there).
-function Preferences({ V }) {
+export function Preferences({ V }) {
   const ts = V.tsChips || [];
   const cur = (ts.find(ch => ch.active) || {}).label;
   return (
-    <Panel title="Security and preferences" sub="Saved on this device" pad={0}>
+    <Panel title="Preferences" sub="Saved on this device" pad={0}>
       {!!V.bio && (
         <SettingRow title={'Unlock with ' + V.bio.label} on={V.bioOn} onPress={V.bioToggle} note={V.bioNote}
           sub={V.bioOn ? 'On: asked each time the app opens' : 'Off: click to turn on'} />

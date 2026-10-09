@@ -44,8 +44,8 @@ const FAM = {
   play: { 500: 'PlayfairDisplay_500Medium', 600: 'PlayfairDisplay_600SemiBold', 700: 'PlayfairDisplay_700Bold' },
 };
 
-// High-contrast: deepen the two muted tones used for secondary text.
-const HC_MAP = { '#37584F': '#22423A', '#9CA3AF': '#6B7280' };
+// High-contrast: deepen the muted tones used for secondary text (the phone's and the web kit's).
+const HC_MAP = { '#37584F': '#22423A', '#9CA3AF': '#6B7280', '#4F5C56': '#27332D', '#86918B': '#4E5A54' };
 
 export function Tx({ f = 'lato', w = 400, s = 13, c = C.ink, ls = 0, lh, center, right, style, children, ...rest }) {
   const { z, hc } = useUI();
@@ -93,9 +93,10 @@ export function Amt({ w = 600, s = 13, c = C.ink, center, style, children, ...re
 }
 
 export function Card({ style, children, big }) {
+  const { hc } = useUI();   // high contrast: a visible edge on every card
   return (
     <View style={[{
-      backgroundColor: C.card, borderRadius: 8,
+      backgroundColor: C.card, borderRadius: 8, ...(hc ? { borderWidth: 1, borderColor: 'rgba(34,66,58,0.45)' } : null),
       shadowColor: C.ink, shadowOpacity: big ? 0.2 : 0.08, shadowRadius: big ? 15 : 3,
       shadowOffset: { width: 0, height: big ? 10 : 1 }, elevation: big ? 6 : 1,
     }, style]}>{children}</View>

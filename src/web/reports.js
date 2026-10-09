@@ -10,7 +10,7 @@ import { titleCase } from '../titleCase';
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Pressable, Platform } from 'react-native';
 import Svg, { Rect, Line, Text as SvgText } from 'react-native-svg';
-import { C, Tx, Amt, FitAmt, Card, Row, PageIntro, Panel, Btn, Chips, Tabs, Table, KeyVals, Pill, Loading, Empty, ErrorBlock, DateField, Dropdown, Input, ClosedAccountDialog, InfoTip } from './kit';
+import { C, Tx, Amt, FitAmt, Card, Row, PageIntro, Panel, Btn, Chips, Tabs, Table, KeyVals, Pill, Loading, Empty, ErrorBlock, DateField, Dropdown, Input, ClosedAccountDialog, InfoTip, Grid } from './kit';
 import { PLBS_INFO, TXN_INFO, CG_INFO, EXP_INFO, FS_INFO } from '../plbsInfo';
 import { ChevronDown, Download, Search } from '../icons';
 import { reports } from '../api';
@@ -20,6 +20,7 @@ import { transactionsXlsx, capitalGainsXlsx, expensesXlsx, factsheetXlsx, plbsXl
 import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactionsAllPdf, capitalGainsAllPdf, expensesAllPdf, factsheetAllPdf, plbsPdf } from '../screens/reportPdf';
 import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE } from '../combine';
 import { track } from '../api/track';
+import { REPORT_LIST, reportCall, fyOptions, currentFy, recordDates } from '../reportList';
 
 import { userMessage } from '../errors';
 import { splitGains, isBusiness, BUSINESS_NOTE } from '../businessIncome';
@@ -99,7 +100,7 @@ function ReportLayout({ account, period, pdf, status, stats, children }) {
 }
 
 // PDF: fetch the export (up to 5,000 rows), build the statement, hand it to savePdf (on the web: the print dialog,
-// where "Save as PDF" is offered). The print-dialog hint is the button's tooltip, and a short line after a click.
+// where "Save as PDF" is offered). The print-dialog hint is the button's tooltip (no line under the button, removed 9 Oct 2026).
 // Errors show under the button because Alert does nothing in a browser. Without `make` the button is dimmed.
 // xlsx: the same statement as an Excel workbook (src/reportXlsx.js), a second button beside the PDF one.
 const SheetIcon = ({ c }) => (
@@ -107,21 +108,20 @@ const SheetIcon = ({ c }) => (
     <Rect x={3} y={4} width={18} height={16} rx={2} /><Line x1={3} y1={10} x2={21} y2={10} /><Line x1={3} y1={15} x2={21} y2={15} /><Line x1={9} y1={4} x2={9} y2={20} />
   </Svg>
 );
-function PdfBtn({ make, xlsx, name, disabled }) {
+function PdfBtn({ make, xlsx, name, disabled, compact }) {
   const [busy, setBusy] = useState('');   // '' | 'pdf' | 'xlsx'
   const [err, setErr] = useState('');
-  const [used, setUsed] = useState(false);
   const off = disabled || !make;
   const go = async () => {
     if (busy || off) return;
-    setBusy('pdf'); setErr(''); setUsed(true);
+    setBusy('pdf'); setErr('');
     try { const doc = await make(); await savePdf(doc.html, name, { landscape: doc.landscape }); }
     catch (e) { setErr('Couldn’t create the PDF. ' + errMsg(e)); }
     finally { setBusy(''); }
   };
   const goXlsx = async () => {
     if (busy || off || !xlsx) return;
-    setBusy('xlsx'); setErr(''); setUsed(false);
+    setBusy('xlsx'); setErr('');
     try { await saveXlsx(await xlsx(), name); }
     catch (e) { setErr('Couldn’t create the Excel file. ' + errMsg(e)); }
     finally { setBusy(''); }
@@ -129,13 +129,12 @@ function PdfBtn({ make, xlsx, name, disabled }) {
   return (
     <View style={{ alignItems: 'flex-end', maxWidth: 360, flexShrink: 0 }}>
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-        {!!xlsx && <Btn kind="outline" small label={busy === 'xlsx' ? 'Preparing Excel…' : 'Download Excel'} icon={<SheetIcon c={C.green} />} onPress={goXlsx} disabled={off} busy={busy === 'xlsx'} style={{ height: 36 }} />}
+        {!!xlsx && <Btn kind="outline" small label={busy === 'xlsx' ? 'Preparing…' : compact ? 'Excel' : 'Download Excel'} icon={<SheetIcon c={C.green} />} onPress={goXlsx} disabled={off} busy={busy === 'xlsx'} style={{ height: 36 }} />}
         <WebTitle title={PDF_HINT}>
-          <Btn kind="primary" small label={busy === 'pdf' ? 'Preparing PDF…' : 'Download PDF'} icon={<Download s={14} c={C.gold} />} onPress={go} disabled={off} busy={busy === 'pdf'} style={{ height: 36 }} />
+          <Btn kind="primary" small label={busy === 'pdf' ? 'Preparing…' : compact ? 'PDF' : 'Download PDF'} icon={<Download s={14} c={C.gold} />} onPress={go} disabled={off} busy={busy === 'pdf'} style={{ height: 36 }} />
         </WebTitle>
       </View>
       {!!err && <Tx s={12} c={C.red} lh={1.45} style={{ marginTop: 6, textAlign: 'right' }}>{err}</Tx>}
-      {!err && used && <Tx s={11.5} c={C.ink3} lh={1.45} style={{ marginTop: 6, textAlign: 'right' }}>In the print dialog, choose “Save as PDF”.</Tx>}
     </View>
   );
 }
@@ -162,19 +161,20 @@ const recordsPart = cov => (cov && cov.from ? `Records from ${fmtDate(cov.from)}
 function SummaryStrip({ items, style }) {
   const list = (items || []).filter(Boolean);
   if (!list.length) return null;
+  // One card per figure, as the Overview's tiles (a single wide strip looked empty), with the same green top edge.
   return (
-    <Card style={[{ flexDirection: 'row', overflow: 'clip' }, style]}>
-      {list.map((it, i) => (
-        <View key={it.label} style={{ flex: 1, minWidth: 0, paddingVertical: 12, paddingHorizontal: 16, borderLeftWidth: i ? 1 : 0, borderColor: C.line }}>
+    <View style={[{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }, style]}>
+      {list.map(it => (
+        <Card key={it.label} style={{ flex: 1, minWidth: 180, paddingVertical: 14, paddingHorizontal: 18, borderTopWidth: 3, borderTopColor: C.green }}>
           {/* centred, not on the baseline: the ⓘ has no baseline and sat above the label */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0, minHeight: 18 }}>
-            <Tx w={600} s={11.5} c={C.ink3} numberOfLines={1} style={{ flexShrink: 0 }}>{it.label}</Tx>
+            <Tx w={600} s={12} c={C.ink3} numberOfLines={1} style={{ flexShrink: 0 }}>{it.label}</Tx>
             {!!it.info && <InfoTip label={it.label} text={it.info} />}
           </View>
-          <FitAmt w={600} s={16} min={11} c={it.color || C.ink} style={{ marginTop: 4 }}>{it.value}</FitAmt>
-        </View>
+          <FitAmt w={600} s={20} min={12} c={it.color || C.ink} style={{ marginTop: 6 }}>{it.value}</FitAmt>
+        </Card>
       ))}
-    </Card>
+    </View>
   );
 }
 
@@ -302,8 +302,8 @@ function useCoverage(head) {
   return now || cov;
 }
 
-// ── period dropdown: presets, and "Custom…" shows From / To inside the menu ──────────────────────────────
-const PERIOD_OPTS = PRESETS.map(([k, l]) => ({ id: k, label: k === 'custom' ? 'Custom…' : l }));
+// ── period dropdown: presets, and "Custom" shows From / To inside the menu ──────────────────────────────
+const PERIOD_OPTS = PRESETS.map(([k, l]) => ({ id: k, label: l, pin: k === 'custom' }));   // Custom stays in view below the list
 // A preset needs history behind it: 3M / 12M need the account to be at least that old, Last FY needs some of that
 // year on record. `since` = the first date on record; unknown → every preset is offered.
 const presetOk = (k, since) => {
@@ -329,11 +329,11 @@ function CustomDates({ R, cov }) {
 // head: extra options above the presets (capital gains: the financial years). value / onPick / text override the
 // plain preset behaviour; note: a short line under the menu (what the period applies to).
 // cov.from is the account's first date on record, except on capital gains (first sale), which passes history={false}.
-function PeriodDropdown({ R, cov, head = [], value, onPick, text, note, label = 'Period', history = true }) {
+function PeriodDropdown({ R, cov, head = [], value, onPick, text, note, label = 'Period', history = true, onToggle }) {
   const custom = R.preset === 'custom';
   return (
     <Dropdown label={label} text={text || (custom ? (R.from || R.to ? periodText(R.range) : 'Custom dates') : presetLabel(R.preset))}
-      options={[...head, ...periodOpts(history && cov ? cov.from : null)]} value={value !== undefined ? value : R.preset} onPick={onPick || R.pick} keepOpen={['custom']} menuWidth={360}>
+      options={[...head, ...periodOpts(history && cov ? cov.from : null)]} value={value !== undefined ? value : R.preset} onPick={onPick || R.pick} keepOpen={['custom']} menuWidth={360} listMax={220} onToggle={onToggle}>
       {custom || note ? (
         <View style={{ gap: 10 }}>
           {custom && <CustomDates R={R} cov={cov} />}
@@ -362,7 +362,8 @@ function useSearch(ms = 350) {
 }
 
 // ── Transactions ──────────────────────────────────────────────────────────────────────────────────────────
-const TXN_GROUPS = [['all', 'All'], ['trades', 'Trades'], ['money', 'Money in/out'], ['income', 'Dividend/Interest'], ['charges', 'Fees'], ['other', 'Other']];
+// Fees and charges list under Other (decided 9 Oct 2026), not as a chip or a tile of their own.
+const TXN_GROUPS = [['all', 'All'], ['trades', 'Trades'], ['money', 'Money in/out'], ['income', 'Dividend/Interest'], ['other', 'Other']];
 function Transactions({ accountId, ids, rk, account }) {
   const [group, setGroup] = useState('all');
   const Q = useSearch();   // what to look for: transaction type, security or details
@@ -419,7 +420,6 @@ function Transactions({ accountId, ids, rk, account }) {
         // the two legs cancel, so the card goes. Added 8 Oct 2026.
         Math.abs(n0(h.switchIn) - n0(h.switchOut)) >= 0.5 && { label: 'Switches', value: sinr(n0(h.switchIn) - n0(h.switchOut)), color: gainColor(n0(h.switchIn) - n0(h.switchOut)), info: TXN_INFO.switches },
         sumItem('income', 'Dividend/Interest', TXN_INFO.income),
-        sumItem('charges', 'Fees', TXN_INFO.fees),
       ].filter(Boolean) : null}>
       <CombinedNote h={h} />
       <FilterRow left={<Chips small value={group} options={TXN_GROUPS} onChange={setGroup} />}
@@ -652,7 +652,7 @@ const Legend = ({ color, label }) => (
 // "As of" dropdown for the fact sheet: Latest, month-ends back to the account's start, or any date
 // (src/reportDates.js). The server answers any date — Nuvama's own fact sheet where imported, otherwise computed.
 // '' means the latest.
-function AsOfDropdown({ dates, date, shown, coverage, onPick }) {
+function AsOfDropdown({ dates, date, shown, coverage, onPick, onToggle }) {
   const [custom, setCustom] = useState(false);
   const [draft, setDraft] = useState('');
   const [err, setErr] = useState('');
@@ -680,8 +680,8 @@ function AsOfDropdown({ dates, date, shown, coverage, onPick }) {
     <Dropdown label="As of" text={text} value={isCustom ? 'custom' : date || 'latest'}
       options={[{ id: 'latest', label: 'Latest', note: latest ? fmtDate(latest) : null },
         ...(ends.length ? [{ section: 'Month-end' }, ...ends.map(x => ({ id: x, label: fmtDate(x) }))] : []),
-        { id: 'custom', label: 'Pick a date…' }]}
-      onPick={pick} keepOpen={['custom']} menuWidth={340}>
+        { id: 'custom', label: 'Custom', pin: true }]}
+      onPick={pick} keepOpen={['custom']} menuWidth={340} listMax={220} onToggle={onToggle}>
       <View style={{ gap: 8 }}>
         {isCustom && <DateField label="Date" value={draft} onChangeText={edit} min={lo} max={hi} error={!!err} />}
         {!!err && <Tx s={12} c={C.red} lh={1.45}>{err}</Tx>}
@@ -1062,7 +1062,8 @@ function PnlBalanceSheet({ accountId, ids, rk, account }) {
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────────────────────────────────
-const KINDS = [['fs', 'Fact Sheet'], ['pl', 'P&L and Balance Sheet'], ['cg', 'Capital Gains'], ['txn', 'Transactions'], ['exp', 'Expenses']];
+// The report pages above (Factsheet, PnlBalanceSheet, CapitalGains, Expenses) are no longer shown: since 9 Oct 2026 the
+// Reports page is a download centre (DesktopReports below, src/reportList.js). Transactions still serves the Transactions page.
 // The Transactions page (/app/transactions): Nuvama's own ledger (buys, sells, dividends, fees, switches…) with the
 // same filters as Reports → Transactions, opening on "All accounts" when there are several.
 export function NuvamaTransactions({ V }) {
@@ -1082,9 +1083,7 @@ export default function DesktopReports({ V }) {
   const singles = singleAccounts(opts);
   // "All accounts" also covers accounts that are never listed (QFH), so totals match Nuvama's statements.
   const ids = [...singles.map(o => o.id), ...((V && V.reportHidden) || []).filter(id => !singles.some(o => String(o.id) === id))];
-  const names = Object.fromEntries(singles.map(o => [o.id, o.label]));
   const [sel, setSel] = useState(null);
-  const [kind, setKind] = useState('fs');
   const [closedPick, setClosedPick] = useState(null);   // a closed account just picked: the pop-up
   const pick = id => {
     setSel(id);
@@ -1093,14 +1092,62 @@ export default function DesktopReports({ V }) {
   };
   // "All accounts" is offered first, but the default stays the first single account.
   const accountId = sel && opts.some(o => o.id === sel) ? sel : singles[0] && singles[0].id;
-  const Body = { txn: Transactions, cg: CapitalGains, exp: Expenses, fs: Factsheet, pl: PnlBalanceSheet }[kind];
-  const account = <AccountDropdown options={opts} value={accountId} onPick={pick} count={singles.length} />;
-  // The page title ("Reports") is the top bar's heading; one short line here.
+  const cur = opts.find(o => o.id === accountId);
+  const all = accountId === ALL_ID;
+  // The dates on record (first and latest), for the pickers: one fast call per account (a one-row transactions
+  // page carries them), remembered for the session so the menus are full the moment they open.
+  const H = useOnce(() => (!accountId ? Promise.resolve(null) : recordDates(all ? ids : [accountId])), [accountId, V.rk]);
+  const dates = [], cov = H.data;
+  // Each report's own period (src/reportList.js says how each reads it).
+  const [fsDate, setFsDate] = useState('');
+  const plR = useRange('fy'), txnR = useRange('all'), expR = useRange('all'), cgR = useRange('byfy');
+  const [cgFy, setCgFy] = useState(currentFy());
+  const byFy = cgR.preset === 'byfy';
+  const fys = fyOptions(cov && cov.from);
+  const range = R => ({ key: R.preset, from: R.from, to: R.to });
+  const periods = { fs: { date: fsDate }, pl: range(plR), cg: byFy ? { fy: cgFy } : range(cgR), txn: range(txnR), exp: range(expR) };
+  // A menu open on the bottom row (Transactions, Expenses) needs room below the cards.
+  const [lowOpen, setLowOpen] = useState(false);
+  const control = {
+    fs: <AsOfDropdown dates={dates} date={fsDate} shown={null} coverage={cov} onPick={setFsDate} />,
+    pl: <PeriodDropdown R={plR} cov={cov} note="The P&L covers the period; the balance sheet is as of its last day." />,
+    cg: <PeriodDropdown R={cgR} cov={cov} label={byFy ? 'Financial year' : 'Period'} history={false}
+      head={[...fys.map(y => ({ id: 'fy:' + y, label: 'FY ' + y })), { section: 'By date of sale' }]}
+      value={byFy ? 'fy:' + cgFy : cgR.preset} text={byFy ? 'FY ' + cgFy : undefined}
+      onPick={id => { if (String(id).startsWith('fy:')) { setCgFy(id.slice(3)); cgR.setPreset('byfy'); } else cgR.pick(id, {}); }}
+      note="Realised gains by date of sale: a financial year or any dates." />,
+    txn: <PeriodDropdown R={txnR} cov={cov} note="By date of transaction." onToggle={setLowOpen} />,
+    exp: <PeriodDropdown R={expR} cov={cov} onToggle={setLowOpen} />,
+  };
+  // One card per report (decided 9 Oct 2026), three a row and all the same size: its name, what it holds, its period,
+  // Excel and PDF. Earlier cards sit
+  // above later ones so an open menu is never covered by the next card.
+  const card = ([k, title, sub], i) => {
+    const c = reportCall(k, { accountId, ids, period: periods[k] });
+    return (
+      <Card key={k} style={{ padding: 18, gap: 14, borderTopWidth: 3, borderTopColor: C.green, zIndex: 10 - i }}>
+        <View>
+          <Tx w={600} s={15}>{title}</Tx>
+          <Tx s={12.5} c={C.ink3} style={{ marginTop: 3 }}>{sub}</Tx>
+        </View>
+        <View style={{ flexDirection: 'row', zIndex: 5 }}>{control[k]}</View>
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+          <PdfBtn compact make={async () => c.pdf(await c.data())} xlsx={async () => c.xlsx(await c.data())} name={c.name} />
+        </View>
+      </Card>
+    );
+  };
+  // The page title ("Reports") is the top bar's heading.
   return (
-    <View>
-      <Tabs value={kind} options={KINDS} onChange={k => { setKind(k); track('event', 'report_view', { tab: k }); }} style={{ marginBottom: 16 }} />
-      {/* keyed so filters and paging reset when the account or report changes */}
-      {accountId ? <Body key={kind + accountId + (accountId === ALL_ID ? ids.join(',') : '')} accountId={accountId} ids={ids} names={names} rk={V.rk} account={account} /> : <Empty>No active account found.</Empty>}
+    <View style={{ gap: 16 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, zIndex: 30 }}>
+        {opts.length >= 2
+          ? <AccountDropdown options={opts} value={accountId} onPick={pick} count={singles.length} />
+          : !!cur && <Tx w={600} s={13.5} c={C.ink2}>{cur.label}</Tx>}
+        <Tx s={13} c={C.ink3}>Applies to every report below</Tx>
+      </View>
+      {/* room below the last row only while one of its menus is open, so it drops down onto the page, not past its end */}
+      {accountId ? <Grid cols={3} gap={14} style={{ paddingBottom: lowOpen ? 330 : 0 }}>{REPORT_LIST.map(card)}</Grid> : <Empty>No active account found.</Empty>}
       <ClosedAccountDialog p={closedPick} onClose={() => setClosedPick(null)} />
     </View>
   );

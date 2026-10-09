@@ -102,11 +102,28 @@ export const Row = ({ children, style, gap = 20, top }) => (
   <View style={[{ flexDirection: 'row', gap, alignItems: top ? 'flex-start' : 'stretch' }, style]}>{children}</View>
 );
 /** Wrapping grid: children get `minWidth` and grow to fill the row. */
-export const Grid = ({ children, min = 260, gap = 16, style }) => (
-  <View style={[{ flexDirection: 'row', flexWrap: 'wrap', gap }, style]}>
-    {React.Children.map(children, ch => ch && <View style={{ flexGrow: 1, flexBasis: min, minWidth: min }}>{ch}</View>)}
-  </View>
-);
+export const Grid = ({ children, min = 260, gap = 16, cols, style }) => {
+  // cols: a fixed number a row, equal widths (a 2 × 2 of four cards); otherwise as many of `min` width as fit.
+  if (cols) {
+    const kids = React.Children.toArray(children).filter(Boolean), rows = [];
+    for (let i = 0; i < kids.length; i += cols) rows.push(kids.slice(i, i + cols));
+    return (
+      <View style={[{ gap }, style]}>
+        {rows.map((r, i) => (
+          <View key={i} style={{ flexDirection: 'row', gap, zIndex: rows.length - i }}>
+            {r.map((ch, j) => <View key={j} style={{ flex: 1, minWidth: 0 }}>{ch}</View>)}
+            {Array.from({ length: cols - r.length }, (_, j) => <View key={'e' + j} style={{ flex: 1 }} />)}
+          </View>
+        ))}
+      </View>
+    );
+  }
+  return (
+    <View style={[{ flexDirection: 'row', flexWrap: 'wrap', gap }, style]}>
+      {React.Children.map(children, ch => ch && <View style={{ flexGrow: 1, flexBasis: min, minWidth: min }}>{ch}</View>)}
+    </View>
+  );
+};
 
 /** Heading inside the content area (the top bar holds the page's H1). */
 export function PageIntro({ title, sub, right }) {
@@ -230,9 +247,11 @@ export function Chips({ value, options, onChange, style, small }) {
  *  unless the id is in keepOpen (e.g. 'custom', to show extra fields). children: extra content under the options,
  *  or a function (close) => node. Clicking outside or pressing Escape closes it. Give the row it sits in a zIndex
  *  so the menu floats over what follows. */
-export function Dropdown({ label, text, options = [], value, onPick, keepOpen = [], children, width, maxWidth = 380, menuWidth = 300, align = 'left', disabled, a11yLabel, compact }) {
+export function Dropdown({ label, text, options = [], value, onPick, keepOpen = [], children, width, maxWidth = 380, menuWidth = 300, listMax = 340, align = 'left', disabled, a11yLabel, compact, onToggle }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => { if (onToggle) onToggle(open); }, [open]);   // onToggle(open): e.g. make room below while the menu is open
   const close = () => setOpen(false);
+  const toggle = () => setOpen(o => !o);
   useEffect(() => {
     if (!open || Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
     const onKey = e => { if (e.key === 'Escape') setOpen(false); };
@@ -243,7 +262,7 @@ export function Dropdown({ label, text, options = [], value, onPick, keepOpen = 
   return (
     <View style={{ zIndex: open ? 60 : 1, width, maxWidth, flexShrink: 1 }}>
       <Pressable accessibilityRole="button" accessibilityLabel={a11yLabel || label || text} accessibilityState={{ expanded: open, disabled: !!disabled }}
-        onPress={disabled ? undefined : () => setOpen(o => !o)}
+        onPress={disabled ? undefined : toggle}
         style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: compact ? 5 : 8, height: compact ? 34 : 36, paddingHorizontal: compact ? 9 : 12, borderRadius: 8, borderWidth: 1,
           backgroundColor: C.card, borderColor: open || (hovered && !disabled) ? C.green : C.line2, opacity: disabled ? 0.5 : 1, outlineStyle: 'none' })}>
         {!!label && <Tx w={600} s={12} c={C.ink3}>{titleCase(label)}</Tx>}
@@ -256,9 +275,10 @@ export function Dropdown({ label, text, options = [], value, onPick, keepOpen = 
             style={{ position: Platform.OS === 'web' ? 'fixed' : 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, cursor: 'default' }} />
           <View style={{ position: 'absolute', top: 40, [align === 'right' ? 'right' : 'left']: 0, zIndex: 1, width: menuWidth, borderWidth: 1, borderColor: C.line,
             borderRadius: 10, backgroundColor: C.card, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } }}>
-            {options.length > 0 && (
-              <ScrollView style={{ maxHeight: 340 }} contentContainerStyle={{ paddingVertical: 4 }}>
-                {options.map((o, i) => (o.section ? (
+            {/* listMax: how tall the scrolling list may grow; options with pin (e.g. Custom) stay below it, always in view */}
+            {options.some(o => !o.pin) && (
+              <ScrollView style={{ maxHeight: listMax }} contentContainerStyle={{ paddingVertical: 4 }}>
+                {options.filter(o => !o.pin).map((o, i) => (o.section ? (
                   <Tx key={'s' + i} w={600} s={11.5} c={C.ink3} style={{ paddingHorizontal: 14, paddingTop: i ? 10 : 6, paddingBottom: 4 }}>{o.section}</Tx>
                 ) : (
                   <Pressable key={String(o.id)} accessibilityRole="menuitem" accessibilityState={{ selected: o.id === value, disabled: !!o.disabled }} disabled={!!o.disabled}
@@ -272,6 +292,14 @@ export function Dropdown({ label, text, options = [], value, onPick, keepOpen = 
                 )))}
               </ScrollView>
             )}
+            {options.filter(o => o.pin).map(o => (
+              <Pressable key={String(o.id)} accessibilityRole="menuitem" accessibilityState={{ selected: o.id === value }}
+                onPress={() => { if (onPick) onPick(o.id); if (!keepOpen.includes(o.id)) close(); }}
+                style={({ hovered }) => ({ paddingVertical: 9, paddingHorizontal: 14, borderTopWidth: 1, borderColor: C.line, outlineStyle: 'none',
+                  backgroundColor: o.id === value ? C.greenTint : hovered ? C.hover : 'transparent' })}>
+                <Tx w={o.id === value ? 600 : 400} s={13} c={o.id === value ? C.green : C.ink}>{o.label}</Tx>
+              </Pressable>
+            ))}
             {!!extra && <View style={{ padding: 14, borderTopWidth: options.length ? 1 : 0, borderColor: C.line }}>{extra}</View>}
           </View>
         </>

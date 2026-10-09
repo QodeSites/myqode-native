@@ -21,13 +21,14 @@ const ICONS = {
   news: (c, s) => <L c={c} s={s}><Path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2" /><Path d="M18 14h-8M15 18h-5M10 6h8v4h-8z" /></L>,
   shield: (c, s) => <L c={c} s={s}><Path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /><Path d="m9 12 2 2 4-4" /></L>,
   layers: (c, s) => <L c={c} s={s}><Path d="m12 2 9 5-9 5-9-5 9-5Z" /><Path d="m3 12 9 5 9-5" /><Path d="m3 17 9 5 9-5" /></L>,
+  clipboard: (c, s) => <L c={c} s={s}><Rect x={8} y={2} width={8} height={4} rx={1} /><Path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><Path d="M9 12h6M9 16h6" /></L>,
   help: (c, s) => <L c={c} s={s}><Circle cx={12} cy={12} r={10} /><Path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01" /></L>,
 };
 export const NavIcon = ({ name, c, s }) => (ICONS[name] || ICONS.doc)(c, s);
 
-// Grouped by purpose (decided 7 Oct 2026): your investments, what happened, your papers, Qode itself. Support sits
-// apart at the bottom (`bottom`), above the profile card; Profile (`hidden`) is reached from that card and is listed
-// here only so the pages it covers keep it highlighted.
+// Grouped by purpose (decided 7 Oct 2026): your investments, what happened, your papers, Qode itself — which, since
+// 9 Oct 2026, also holds Account Services and Support, so every request and help page is one click from the sidebar.
+// Profile (`hidden`) is reached from the profile card and is listed here only so the pages it covers keep it highlighted.
 export const WEB_NAV = [
   { title: 'Investments', items: [
     { id: 'home', label: 'Overview', tab: 'home', icon: 'dashboard' },
@@ -43,12 +44,11 @@ export const WEB_NAV = [
     { id: 'risk', label: 'Risk Management & Controls', page: 'risk', icon: 'shield' },
   ] },
   { title: 'Qode', items: [
+    { id: 'services', label: 'Account Services', tab: 'services', icon: 'clipboard' },
     { id: 'about', label: 'About Qode', page: 'about', icon: 'info', covers: ['philosophy', 'foundation', 'team', 'cadence'] },
     { id: 'strategies', label: 'Strategy', page: 'strategies', icon: 'layers' },
     { id: 'insights', label: 'Insights & Events', page: 'insights', icon: 'news' },
-  ] },
-  { title: 'Help', bottom: true, items: [
-    { id: 'support', label: 'Support', page: 'support', icon: 'help', covers: ['services', 'faq', 'grievance', 'voice', 'referral'] },
+    { id: 'support', label: 'Support', page: 'support', icon: 'help', covers: ['faq', 'grievance', 'voice', 'referral'] },
   ] },
   { title: 'Profile', hidden: true, items: [
     { id: 'account', label: 'Profile', tab: 'more', icon: 'user', covers: ['family', 'guide', 'nuvama', 'notifications', 'privacy', 'terms', 'cancellation', 'admin'] },

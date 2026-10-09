@@ -743,8 +743,8 @@ function Grievance({ V }) {
   );
 }
 
-/* ── Risk management ───────────────────────────────────────────────────────────────────────────────────── */
-function Risk() {
+/* ── Risk management (also the distributor's Risk Management & Controls page: src/web/distributor.js) ───────────────────────────────────────────────────────────────────────────────────── */
+export function Risk() {
   const R = content.RISK;
   return (
     <View>
@@ -784,8 +784,8 @@ const HUBS = {
     eyebrow: 'Support', title: 'We’re here to help.',
     text: 'Raise a request, find an answer or reach Investor Relations. We will get back to you in 24 hrs.',
     actions: [['request', 'Raise a request'], ['team', 'Contact Investor Relations']],   // request: the pop-up of request types
+    // Account Services has its own sidebar item (Qode group) since 9 Oct 2026, so it is not repeated here: four cards, 2 × 2.
     items: [
-      ['services', 'clipboard', 'Account Services', 'Top-ups, withdrawals, switches, SIPs and other requests'],
       ['faq', 'message', 'FAQs & Glossary', 'Answers to common questions, and the terms we use'],
       ['grievance', 'mail', 'Escalation and Grievance Redressal', 'If something isn’t resolved'],
       ['voice', 'user', 'Your Voice Matters', 'Tell us how we’re doing'],
@@ -810,7 +810,7 @@ function Hub({ V, k }) {
           </View>
         )}
       </DarkCard>
-      <Grid min={320} gap={16}>
+      <Grid min={320} gap={16} cols={k === 'support' ? 2 : undefined}>
         {items.map(([key, icon, title, sub]) => (
           <Pressable key={key} accessibilityRole="link" onPress={() => go(key)} style={{ flex: 1 }}>
             {({ hovered }) => (

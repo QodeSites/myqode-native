@@ -8,6 +8,7 @@
 //   Policies         app/(protected)/trust/risk-managment-and-controls/page.tsx (the web links partners there)
 // Figures come from /api/mobile/distributor/* which call the web's own routes, so they are identical.
 import React, { useState, useMemo, useEffect } from 'react';
+import { Risk } from './pages';
 import { View, Pressable, ScrollView, TextInput, Linking, Modal, Dimensions, PanResponder } from 'react-native';
 import Svg, { Path, Rect, Line, Text as SvgText } from 'react-native-svg';
 import * as Sharing from 'expo-sharing';
@@ -1332,19 +1333,12 @@ export function Ticket({ onBack }) {
 }
 
 // ── Risk & controls (web links partners to the investor policies page) ───────
+// The investor's screen itself (src/screens/pages.js Risk): the same policies, the same list (decided 9 Oct 2026).
 export function Policies({ onBack }) {
-  const R = content.RISK;
   return (
     <Fade>
       <BackRow label="More" onPress={onBack} />
-      {R.intro.map((t, i) => <Tx key={i} s={12.5} c={C.muted} lh={1.5}>{t}</Tx>)}
-      {R.policies.map(p => (
-        <Card key={p.title} style={{ padding: 16, marginTop: 14 }}>
-          <Tx f="play" w={600} s={17}>{p.title}</Tx>
-          {p.body.map((t, i) => <Tx key={i} s={12.5} c={C.muted} lh={1.6} style={{ marginTop: 8 }}>{t}</Tx>)}
-          {!!p.pdf && <CTA label="VIEW POLICY (PDF)" outline onPress={() => openUrl(p.pdf)} style={{ marginTop: 12, paddingVertical: 11 }} />}
-        </Card>
-      ))}
+      <Risk />
     </Fade>
   );
 }
