@@ -269,6 +269,8 @@ function HeadlineBanner({ hero, cells }) {
   );
 }
 
+// "₹2,90,348.24 transferred in from strategy switch", the amount bold (V.switchNote parts)
+const switchLine = (parts, s, c) => (parts || []).map((x, i) => <React.Fragment key={i}>{x.t}<Tx w={700} s={s} c={c}>{x.b}</Tx>{x.e}</React.Fragment>);
 // Dashboard headline: current value, invested, total returns and CAGR. TWRR / IRR / 1-year live on Performance.
 // The earlier portal's four tiles, with the same figures: amount invested (net, the gross under it), current value,
 // total returns and the return since inception as "Returns %", noted "CAGR" from a year, "Absolute returns" before
@@ -278,7 +280,7 @@ function Summary({ V }) {
   const inv = V.invested || {};
   // Four separate cards (the earlier portal's layout), not one dark banner.
   const tiles = [
-    { label: 'Amount Invested', value: inv.net, note: inv.gross ? 'Gross: ' + inv.gross : null },   // gross always, as the old portal
+    { label: inv.label || 'Amount Invested', value: inv.net, note: inv.sub || (inv.gross ? 'Gross: ' + inv.gross : null), extra: V.switchNote ? switchLine(V.switchNote, 12, C.ink2) : null },   // gross always, as the old portal
     { label: 'Current Value', value: V.heroValue, note: V.asOf ? 'As of ' + V.asOf : null },
     { label: 'Total Returns', value: ret.value, color: ret.color, note: 'Absolute returns' },
     // as the old portal: titled Returns %, its note says CAGR once the account is a year old (the figure is then
@@ -288,9 +290,8 @@ function Summary({ V }) {
   return (
     <View style={{ gap: 8 }}>
       <Grid min={220} gap={16}>
-        {tiles.map(t => <Stat key={t.label} label={t.label} value={t.value || '–'} color={t.color} note={t.note} accent={C.green} />)}
+        {tiles.map(t => <Stat key={t.label} label={t.label} value={t.value || '–'} color={t.color} note={t.note} extra={t.extra} accent={C.green} />)}
       </Grid>
-      {!!V.ownerClosedNote && <Tx s={12.5} c={C.ink3} lh={1.5}>{V.ownerClosedNote}</Tx>}
     </View>
   );
 }
@@ -370,7 +371,7 @@ function RecentTx({ V, n = 9, style, height }) {
   const fit = fitH ? { height: fitH, paddingVertical: 0 } : null;
   const measure = i => (i === 0 && !rowH ? e => setRowH(e.nativeEvent.layout.height) : undefined);
   return (
-    <Panel title="Recent Activity" right={<TextLink label="View all" onPress={V.goServicesTx} />} pad={0} style={[{ flex: 1 }, height ? { height } : null, style]}
+    <Panel title="Recent Activity" sub={V.txTotals || undefined} right={<TextLink label="View all" onPress={V.goServicesTx} />} pad={0} style={[{ flex: 1 }, height ? { height } : null, style]}
       bodyStyle={height ? { flex: 1, minHeight: 0 } : null}>
       {/* No visible scrollbar: it took ~15px inside the card, so the amounts sat closer to the edge than the icons. */}
       <ScrollView style={height ? { flex: 1 } : null} scrollEnabled={!!height} showsVerticalScrollIndicator={false} onLayout={height ? e => setVpH(e.nativeEvent.layout.height) : undefined}>
@@ -388,8 +389,8 @@ function RecentTx({ V, n = 9, style, height }) {
       ))}
       {list.length ? list.map((t, i) => (
         <View key={i} onLayout={measure(pending.length + i)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 20, borderTopWidth: 1, borderColor: C.line, ...fit }}>
-          <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: numOf(t.amt) < 0 ? C.redTint : C.posTint, alignItems: 'center', justifyContent: 'center' }}>
-            <Tx w={600} s={14} c={numOf(t.amt) < 0 ? C.red : C.pos}>{numOf(t.amt) < 0 ? '↑' : '↓'}</Tx>
+          <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: t.neutral ? C.track : numOf(t.amt) < 0 ? C.redTint : C.posTint, alignItems: 'center', justifyContent: 'center' }}>
+            <Tx w={600} s={14} c={t.neutral ? C.ink3 : numOf(t.amt) < 0 ? C.red : C.pos}>{t.neutral ? '⇄' : numOf(t.amt) < 0 ? '↑' : '↓'}</Tx>
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Tx w={600} s={13} numberOfLines={1}>{t.title}</Tx>
@@ -550,6 +551,8 @@ function TrailingPanel({ V, style }) {
   return (
     <Panel title="Trailing Returns" sub={'Against ' + V.benchName} pad={0} style={style}>
       <Table dense cols={cols} rows={rows} empty="Not enough history yet." />
+      {/* how every return here is measured (8 Oct 2026) */}
+      {rows.length > 0 && <Tx s={12} c={C.ink3} lh={1.5} style={{ paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderColor: C.line }}><Tx w={700} s={12} c={C.ink2}>Returns: </Tx>All returns are calculated using NAV-based methodology. Periods under 1 year show absolute returns, while those over 1 year use CAGR.</Tx>}
     </Panel>
   );
 }

@@ -43,8 +43,8 @@ export const WEB_NAV = [
     { id: 'risk', label: 'Risk Management & Controls', page: 'risk', icon: 'shield' },
   ] },
   { title: 'Qode', items: [
-    { id: 'strategies', label: 'Strategy', page: 'strategies', icon: 'layers' },
     { id: 'about', label: 'About Qode', page: 'about', icon: 'info', covers: ['philosophy', 'foundation', 'team', 'cadence'] },
+    { id: 'strategies', label: 'Strategy', page: 'strategies', icon: 'layers' },
     { id: 'insights', label: 'Insights & Events', page: 'insights', icon: 'news' },
   ] },
   { title: 'Help', bottom: true, items: [

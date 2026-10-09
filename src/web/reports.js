@@ -28,7 +28,7 @@ import { latestDate, monthEnds, earliestDate, asOfHint } from '../reportDates';
 // ── formatting (the app-wide formatters; only quantity and period headers are local, as on the phone) ────────
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const monthLabel = d => `${MON[+d.slice(5, 7) - 1]} ${d.slice(0, 4)}`;
-const qtyFmt = v => (v == null ? '' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 4 }));
+const qtyFmt = v => (v == null ? '' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }));  // 2 decimals everywhere (8 Oct 2026)
 const gainColor = v => (v != null && Math.round(v * 100) > 0 ? C.pos : v != null && Math.round(v * 100) < 0 ? C.red : C.ink);
 // Nuvama's period headers: "1m" → "1M", "Since 13/11/24" → "Since 13 Nov 2024".
 const periodLabel = p => String(p).replace(/^(\d+)([a-z])$/i, (_, n, u) => n + u.toUpperCase())
@@ -140,24 +140,15 @@ function PdfBtn({ make, xlsx, name, disabled }) {
   );
 }
 
-// One muted line under the toolbar: "As of … · period · 128 entries · Records from …", then a small "How this is
-// computed" disclosure when the report was computed rather than supplied (no "Computed by Qode" tag, removed 8 Oct 2026).
-function StatusLine({ parts, computed, note }) {
-  const [open, setOpen] = useState(false);
+// One muted line under the toolbar: "As of … · period · 128 entries · Records from …". No "Computed by Qode" tag
+// (removed 8 Oct 2026) and no "How this is computed" note (removed 9 Oct 2026); computed / note are ignored.
+function StatusLine({ parts }) {
   const text = (parts || []).filter(Boolean).join(' · ');
   return (
     <View style={{ marginTop: 12, marginBottom: 14 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 6, minHeight: 20 }}>
         {!!text && <Tx s={12.5} c={C.ink2} lh={1.5}>{text}</Tx>}
-        {!!note && (
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen(o => !o)}
-            style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, opacity: hovered ? 0.7 : 1 })}>
-            <Tx w={600} s={12} c={C.green}>How this is computed</Tx>
-            <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}><ChevronDown s={9} c={C.green} /></View>
-          </Pressable>
-        )}
       </View>
-      {open && !!note && <Tx s={12} c={C.ink2} lh={1.55} style={{ marginTop: 8, maxWidth: 860, padding: 12, borderRadius: 8, backgroundColor: C.subtle }}>{note}</Tx>}
     </View>
   );
 }
@@ -712,7 +703,8 @@ function PerfPanel({ d }) {
         <Tx w={x.mine ? 600 : 400} s={12.5} numberOfLines={2} style={{ flex: 1 }}>{x.name}</Tx>
       </View>
     ) },
-    ...periods.map((p, j) => ({ key: 'p' + j, label: periodLabel(p), right: true, render: x => cellAmt(pct(x.vals[j]), x.mine ? gainColor(x.vals[j]) : C.ink2, 600) })),
+    // every period the same width, filled or not (8 Oct 2026); the name takes twice a period's share
+    ...periods.map((p, j) => ({ key: 'p' + j, label: periodLabel(p), right: true, center: true, grow: true, flex: 1, minW: 120, render: x => cellAmt(pct(x.vals[j]), x.mine ? gainColor(x.vals[j]) : C.ink2, 600) })),
   ];
   return (
     <Panel title="Performance (TWRR)" sub="Time-weighted, after management fees and other expenses. Returns over one year are annualised." pad={0}>
@@ -845,7 +837,6 @@ function Factsheet({ accountId, ids, names, rk, account }) {
               <Tx s={12} c={C.ink3} style={{ marginTop: 3 }}>
                 {[`As of ${fmtDate(x.asOf)}`, `Value ${inr(x.portfolioValue)}`, `Profit or loss ${sinr(x.profitLoss)}`, x.inceptionDate ? `since ${fmtDate(x.inceptionDate)}` : null].filter(Boolean).join(', ')}
               </Tx>
-              {!!(x.computed && x.note) && <Tx s={12} c={C.ink3} lh={1.5} style={{ marginTop: 6 }}>{x.note}</Tx>}
             </View>
             <PerfPanel d={x} />
             <Row top>

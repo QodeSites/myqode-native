@@ -106,7 +106,7 @@ export function HoldingsList({ V }) {
             <Amt s={22} center style={{ marginTop: 6 }}>{inr(tot.value)}</Amt>
             {/* Three equal columns split by hairlines, each centred: label, figure, then the gain badge under the gain. */}
             <View style={{ flexDirection: 'row', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderColor: C.hairline }}>
-              <SumCol label="INVESTED">
+              <SumCol label="COST OF HOLDINGS">   {/* not "Invested": what today's holdings cost to buy (9 Oct 2026) */}
                 <Amt s={13} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{inr(tot.invested)}</Amt>
               </SumCol>
               <SumCol label="UNREALISED GAIN" divider>
@@ -140,7 +140,7 @@ export function HoldingsList({ V }) {
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Tx w={700} s={13} numberOfLines={1}>{i.security}</Tx>
                     <Tx s={11} c={C.muted} numberOfLines={1} style={{ marginTop: 2 }}>
-                      {[i.sector, i.qty != null ? Number(i.qty).toLocaleString('en-IN', { maximumFractionDigits: 3 }) + ' units' : null].filter(Boolean).join(' · ')}
+                      {[i.sector, i.qty != null ? Number(i.qty).toLocaleString('en-IN', { maximumFractionDigits: 2 }) + ' units' : null].filter(Boolean).join(' · ')}
                     </Tx>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>

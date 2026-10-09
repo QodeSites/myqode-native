@@ -37,7 +37,7 @@ export const money = n => {
   if (n == null || isNaN(n)) return '–';
   const abs = Math.abs(n), sign = n < 0 ? '−' : '';
   if (abs >= 10000000) return `${sign}₹${(abs / 10000000).toFixed(2)} Cr`;
-  if (abs >= 100000) return `${sign}₹${(abs / 100000).toFixed(1)} L`;
+  if (abs >= 100000) return `${sign}₹${(abs / 100000).toFixed(2)} L`;   // 2 decimals everywhere (8 Oct 2026)
   return `${sign}₹${abs.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 };
 export const formatDate = iso => { if (!iso) return '–'; const d = new Date(iso); return isNaN(d.getTime()) ? '–' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); };

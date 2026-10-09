@@ -155,7 +155,7 @@ export function Delta({ text, neg, zero, s = 12, style }) {
 }
 
 /** KPI tile: label, large figure, optional note or delta. */
-export function Stat({ label, value, color = C.ink, note, delta, deltaNeg, style, icon, accent = C.gold }) {   // accent: the top edge
+export function Stat({ label, value, color = C.ink, note, extra, delta, deltaNeg, style, icon, accent = C.gold }) {   // accent: the top edge; extra: a wrapping line under the note
   return (
     <Card style={[{ flexGrow: 1, paddingVertical: 16, paddingHorizontal: 18, justifyContent: 'flex-start', borderTopWidth: 2.5, borderTopColor: accent }, style]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -169,6 +169,7 @@ export function Stat({ label, value, color = C.ink, note, delta, deltaNeg, style
           {!!note && <Tx s={12} c={C.ink3} numberOfLines={1} style={{ flexShrink: 1 }}>{note}</Tx>}
         </View>
       )}
+      {!!extra && <Tx s={12} c={C.ink3} lh={1.45} style={{ marginTop: 4 }}>{extra}</Tx>}
     </Card>
   );
 }

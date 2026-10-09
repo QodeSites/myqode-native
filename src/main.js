@@ -1269,7 +1269,10 @@ export default class MyQode extends React.Component {
     // amount show ₹0 (a closing often leaves a few rupees behind in the custodian's value).
     const closed = !!(scope && scope.kind === 'account' && scope.closed === true);
     const value = closed ? 0 : perf ? perf.currentValue : scope ? scope.value : 0;
-    const totalReturns = perf ? perf.totalReturns : 0;
+    // an account that received switch profit shows the member's own money as invested (Net Investment), so its returns
+    // are measured from it too: value − net investment, the same as the owner page (QGF00133 ₹22,28,731.74)
+    const switchGainHere = perf && scope && scope.kind === 'account' && num(perf.switchGain) >= 0.5 && perf.netInvestment != null ? num(perf.switchGain) : 0;
+    const totalReturns = perf ? perf.totalReturns + switchGainHere : 0;
 
     // NAV chart (the API series is rebased to 100; plotted below in real NAV terms)
     // While a newly picked range is still loading, keep drawing the last range that has data — the charts never
@@ -1303,8 +1306,33 @@ export default class MyQode extends React.Component {
     const minorFlow = t => t.own === false;
     const cashTx = ((S.d && S.d.local && S.dv === 'nuvama' && S.led) || (S.d && S.d.cash && S.d.cash.transactions) || []).slice()   // led: loadLedger
       .sort((a, b) => new Date(b.date) - new Date(a.date));
+    // On an all-accounts page (owner, family), a Switch Out and a Switch In of the same amount on the same day are one
+    // movement between the client's own strategies: shown as a single grey "Moved" line (8 Oct 2026, Gaurav review).
+    // A single account keeps its Switch In / Out (there the money really came in or went out).
+    const movesMerged = list => {
+      if (!scope || scope.kind === 'account') return list;
+      const isSw = (t, dir) => new RegExp('^switch ' + dir + '\\b', 'i').test(String(t.label || ''));
+      const used = new Set(), out = [];
+      list.forEach((t, i) => {
+        if (used.has(i)) return;
+        if (isSw(t, 'out') || isSw(t, 'in')) {
+          const j = list.findIndex((u, k) => k !== i && !used.has(k) && u.date === t.date && (isSw(t, 'out') ? isSw(u, 'in') : isSw(u, 'out'))
+            && Math.abs(Math.abs(num(u.amount) || 0) - Math.abs(num(t.amount) || 0)) < 1);
+          if (j >= 0) {
+            used.add(i); used.add(j);
+            const from = isSw(t, 'out') ? t : list[j], to = isSw(t, 'out') ? list[j] : t;
+            out.push({ date: t.date, type: 'move', label: 'Moved between your strategies', detail: (from.detail || '') + ' → ' + (to.detail || ''), amount: Math.abs(num(t.amount) || 0) });
+            return;
+          }
+        }
+        out.push(t);
+      });
+      return out;
+    };
     const tx = t => {
       const out = t.type === 'outflow', amt = Math.abs(num(t.amount) || 0);
+      // a switch between the client's own strategies, on an all-accounts page: one grey line, no plus or minus
+      if (t.type === 'move') return { title: t.label, sub: dateFmt(t.date) + (t.detail ? ' · ' + t.detail : ''), amt: this.fmt(amt), color: C.muted, neutral: true, status: 'COMPLETED', stColor: C.green };
       return {
         // label / detail: the custodian's entry type and the strategy (myQode lib/ledgerFlows)
         title: t.label || (out ? 'Withdrawal' : 'Invested'), sub: dateFmt(t.date) + (t.detail ? ' · ' + t.detail : ''),
@@ -1454,6 +1482,9 @@ export default class MyQode extends React.Component {
       // every day's money in, before withdrawals and tax) and the net. Dashboard / Performance show net, gross under it.
       invested: (() => {
         if (closed) return { gross: this.fmt(0), net: this.fmt(0), note: null };   // closed: nothing stays invested
+        // switch profit carried in (see switchNote): Amount Invested = net investment (as the main page), Gross under it
+        if (perf && scope && scope.kind === 'account' && num(perf.switchGain) >= 0.5 && perf.netInvestment != null)
+          return { net: this.fmt(perf.netInvestment), gross: this.fmt(perf.grossInvested != null ? perf.grossInvested : perf.amountInvested), note: null };   // same Amount Invested as the main page; Gross under it; the switch line explains the gap
         const gross = perf && perf.grossInvested != null ? perf.grossInvested : flows.inflow;
         const net = perf ? perf.amountInvested : flows.inflow - flows.outflow;
         const note = gross - net >= 0.5 ? 'Net of withdrawals ' + this.fmt(net) : null;
@@ -1481,7 +1512,18 @@ export default class MyQode extends React.Component {
       perfLine: p2.line, perfBench: p2.bench, hasBench: !!bench,
       ranges: RANGE_IDS.map(id => { const off = !this.rangeOk(id, S); return { label: id, disabled: off, pick: () => { if (!off) this.pickRange(id); }, active: S.range === id, loading: rangeLoading && S.range === id }; }),
       // Home's recent activity: the investor's own movements only (minorFlow); txAll keeps the full list.
-      tx3: cashTx.filter(t => !minorFlow(t)).slice(0, 3).map(tx), txRecent: cashTx.filter(t => !minorFlow(t)).map(tx),
+      tx3: movesMerged(cashTx.filter(t => !minorFlow(t))).slice(0, 3).map(tx), txRecent: movesMerged(cashTx.filter(t => !minorFlow(t))).map(tx),
+      // the totals of that list, in small under its heading: "In ₹1,27,90,326.00 · Out ₹0.00" (8 Oct 2026)
+      txTotals: (() => {
+        // all-accounts views (owner, family): a switch between the client's own accounts never left Qode — it shows as
+        // Switch Out on one and Switch In on another — so it stays out of the totals (In then ≈ Gross, In − Out ≈ Amount
+        // Invested); on a single account it is real money in or out, so it counts there
+        const combined = !!scope && scope.kind !== 'account';
+        const xs = cashTx.filter(t => !minorFlow(t) && !(combined && /^switch (in|out)\b/i.test(String(t.label || '')))); if (!xs.length) return '';
+        const amt = t => (t.type === 'outflow' ? -Math.abs(num(t.amount) || 0) : num(t.amount) || 0);
+        const inn = xs.reduce((s, t) => s + Math.max(0, amt(t)), 0), out = xs.reduce((s, t) => s + Math.max(0, -amt(t)), 0);
+        return 'In ' + this.fmt(inn) + ' · Out ' + this.fmt(out);
+      })(),
       txAll: cashTx.map(tx), hasTx: cashTx.length > 0,
       holdings: holdRows, chartColor,
       // IRR (money-weighted) beside TWRR: [{ period, label, value, color }] for SI / 1Y / 3Y when available.
@@ -1493,23 +1535,26 @@ export default class MyQode extends React.Component {
         const si = irrPeriod(S.irr, 'SI');
         const mon = ym => { const [y, mo] = String(ym || '').split('-'); return mo ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+mo - 1] + ' ' + y : ''; };
         const under = m.cagr == null ? 'Shown after a full year' : null;
-        // Under a year the server annualises the return since inception for alpha / Sharpe / Sortino (from 3 months:
+        // Under a year the server annualises the return since inception for alpha / Sharpe / Sortino (from 1 month:
         // lib/portfolioMetrics.ts ANNUALISE_MIN_DAYS); the note says so. CAGR itself still waits for a full year.
         const mo = Math.max(1, Math.round((m.years || 0) * 12));
         const annNote = m.annualised ? `Annualised from ${mo} month${mo > 1 ? 's' : ''}` : null;
-        const wait = 'Shown after 3 months';
+        const wait = 'Shown after 1 month';
         // Under a year (the money-weighted figure is for the period, not a year) the return rows share one basis:
         // "Return on your money" over the period, and alpha = that minus the benchmark's on the same cash flows.
         const per = !!(si && si.irr != null && !si.annualised);
-        const pAlpha = per && si.benchIrr != null ? (si.irr - si.benchIrr) / 100 : null;
+        // Alpha = the return row minus the benchmark's on the same cash flows, from day one (9 Oct 2026): over the period
+        // under a year, a year once annualised; the CAGR-based figure only when the money-weighted ones are missing
+        const mwAlpha = si && si.irr != null && si.benchIrr != null ? (si.irr - si.benchIrr) / 100 : null;
+        const alphaNote = mwAlpha == null ? null : si.annualised ? 'Per year, on your own money' : 'Over the period, on your own money';
         return [
           { label: 'CAGR', value: pc(m.cagr), color: m.cagr == null ? C.muted : c(m.cagr), note: under || `${m.years} years since inception` },
           { label: per ? 'Return on Your Money' : 'XIRR', value: si && si.irr != null ? fmtIrr(si) : '–', color: si && si.irr != null ? c(si.irr) : C.muted, note: per ? 'Since inception, over the period' : 'Money-weighted, since inception' },
           { label: 'Sharpe Ratio', value: m.sharpe == null ? '–' : m.sharpe.toFixed(2), color: C.ink, note: m.sharpe == null ? (m.years < 1 ? wait : under) : annNote || `Risk-free rate ${(m.riskFree * 100).toFixed(2)}%` },
           { label: 'Max Drawdown', value: plain(m.maxDrawdown), color: m.maxDrawdown ? red : C.muted, note: 'Deepest fall from a peak' },
           { label: 'Volatility (ann.)', value: plain(m.volatility), color: C.ink, note: 'Annualised, daily returns' },
-          per
-            ? { label: 'Alpha vs ' + titleCase(m.benchmark), value: pc(pAlpha), color: pAlpha == null ? C.muted : c(pAlpha), note: 'Over the period, on your own money' }
+          mwAlpha != null
+            ? { label: 'Alpha vs ' + titleCase(m.benchmark), value: pc(mwAlpha), color: c(mwAlpha), note: alphaNote }
             : { label: 'Alpha vs ' + titleCase(m.benchmark), value: pc(m.alpha), color: m.alpha == null ? C.muted : c(m.alpha), note: m.alpha == null ? under : 'CAGR above the benchmark' },
           { label: 'Beta', value: m.beta == null ? '–' : m.beta.toFixed(2), color: C.ink, note: 'Against ' + titleCase(m.benchmark) },
           { label: 'Best Month', value: m.bestMonth ? pc(m.bestMonth.ret) : '–', color: m.bestMonth ? c(m.bestMonth.ret) : C.muted, note: m.bestMonth ? mon(m.bestMonth.month) : '' },
@@ -1517,7 +1562,7 @@ export default class MyQode extends React.Component {
       })(),
       // The Performance page's Metrics, since inception, the portfolio beside its benchmark (lib/portfolioMetrics.ts),
       // each with its explanation (def: qodeinvest.com's strategy dashboard wording): three return measures (XIRR,
-      // alpha, best month), then seven risk measures. Under a year the ratios use the annualised return since inception (from 3 months).
+      // alpha, best month), then seven risk measures. Under a year the ratios use the annualised return since inception (from 1 month).
       riskMetrics: (() => {
         const m = S.metrics; if (!m) return [];
         const b = m.bench || {}, bn = titleCase(m.benchmark || benchName);
@@ -1525,9 +1570,9 @@ export default class MyQode extends React.Component {
         const n2 = x => (x == null ? '–' : (x < 0 ? '−' : '') + Math.abs(x).toFixed(2));
         const cap = x => (x == null ? '–' : x.toFixed(2) + '%');
         const sg = x => (x == null ? C.muted : x < 0 ? red : green);
-        // Under a year: Sharpe / Sortino annualised (lib/portfolioMetrics.ts), shown from 3 months with a note saying
-        // so; the information ratio from 3 months too. Alpha: see `per` below.
-        const young = m.years < 1 ? 'Shown after 3 months' : null;
+        // Under a year: Sharpe / Sortino annualised (lib/portfolioMetrics.ts), shown from 1 month with a note saying
+        // so; the information ratio from 1 month too. Alpha: see `per` below.
+        const young = m.years < 1 ? 'Shown after 1 month' : null;
         const mo = Math.max(1, Math.round((m.years || 0) * 12));
         const ann = m.annualised ? `Annualised from ${mo} month${mo > 1 ? 's' : ''}` : null;
         const spc = x => (x == null ? '–' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x * 100).toFixed(2) + '%');
@@ -1537,18 +1582,20 @@ export default class MyQode extends React.Component {
         // "Return on your money" and Alpha is that minus the benchmark's on the same cash flows, so the two rows
         // agree. Sharpe / Sortino / IR stay annualised from daily returns, labelled (decided 8 Oct 2026).
         const per = !!(xi && xi.irr != null && !xi.annualised);
-        const pAlpha = per && xi.benchIrr != null ? (xi.irr - xi.benchIrr) / 100 : null;
+        // Alpha = the return row (XIRR / return on your money) minus the benchmark's on the same cash flows, from day one
+        // (9 Oct 2026), so it is exactly the gap a client sees between the two columns of that row
+        const mwAlpha = xi && xi.irr != null && xi.benchIrr != null ? (xi.irr - xi.benchIrr) / 100 : null;
         // u: the unit (% measures, then ratios): the Returns & Risk page's two columns. In each, the measures without
         // a benchmark figure come first, those with one last.
         return [
           // Benchmark column: the same money, on the same dates, in the benchmark instead (server: lib/irr.ts benchmarkWindowIrr).
           { u: '%', k: per ? 'Return on Your Money' : 'XIRR', note: per ? 'Since inception, over the period, money-weighted' : 'Per year (p.a.), money-weighted, since inception',
             pf: xi && xi.irr != null ? fmtIrr(xi).replace(/\s*p\.a\.$/i, '') : '–', pc: xi && xi.irr != null ? sg(xi.irr) : C.muted,
-            bm: xi && xi.benchIrr != null ? spc(xi.benchIrr / 100) : 'n/a', bc: xi && xi.benchIrr != null ? sg(xi.benchIrr) : C.muted, bnote: xi && xi.benchIrr != null ? null : 'Not available',
+            bm: xi && xi.benchIrr != null ? spc(xi.benchIrr / 100) : '–', bc: xi && xi.benchIrr != null ? sg(xi.benchIrr) : C.muted,   // '–' when missing, as every other row
             def: per ? `Return on your money is what your own investment has earned since you started, taking into account when you added or withdrew money. Your account is under a year old, so it is shown for the period, not as a yearly rate. The ${bn} figure is what the same money would have earned in ${bn} on the same dates.` : `XIRR is your own yearly return, taking into account when you added or withdrew money. Unlike the NAV-based figures, it reflects the timing and size of your investments. Example: money added just before a rally earns a higher XIRR than the same amount added just after it. The ${bn} figure is what the same money would have earned in ${bn}: each amount you invested bought the index on that day, each withdrawal sold it, and what is left is valued today.` },
-          { u: '%', k: 'Alpha vs ' + bn, note: per ? 'Over the period, on your own money' : m.alpha == null && young ? young : 'CAGR above the benchmark',
-            pf: spc(per ? pAlpha : m.alpha), pc: sg(per ? pAlpha : m.alpha), bm: '–',
-            def: `Alpha is how much more (or less) the portfolio earned a year than ${bn} over the same dates: its CAGR minus the benchmark's. Example: a portfolio compounding at 15% while the benchmark compounded at 11% has an alpha of +4%. For an account under a year old it is not annualised: it is the return on your own money over the period minus what the same money earned in the benchmark. ${bn}\'s own alpha is 0% by definition.` },
+          { u: '%', k: 'Alpha vs ' + bn, note: mwAlpha != null ? (xi.annualised ? 'Per year, on your own money' : 'Over the period, on your own money') : m.alpha == null && young ? young : 'CAGR above the benchmark',
+            pf: spc(mwAlpha != null ? mwAlpha : m.alpha), pc: sg(mwAlpha != null ? mwAlpha : m.alpha), bm: '–',
+            def: `Alpha is how much more (or less) your own money earned than the same money would have in ${bn}: the return in the row above minus ${bn}'s, with every amount you added or withdrew invested in ${bn} on the same dates. Under a year both are for the period; from a year, both are per year (XIRR). Example: your money earned 18% a year and the same money in ${bn} 12% a year, so alpha is +6%.` },
           { u: '%', k: 'Upside Capture', note: `% of ${bn}'s gains on its up days`, pf: cap(m.upsideCapture), pc: m.upsideCapture == null ? C.muted : m.upsideCapture >= 100 ? green : C.ink, bm: '100.00%', bc: C.muted,
             def: `Upside Capture measures how much of ${bn}'s gains the portfolio captured on the days the benchmark rose. Above 100% means it did better than the benchmark in rising markets. Example: 110% means that when the benchmark gained 10% over its up days, the portfolio gained about 11%. ${bn}\'s own capture is 100% by definition.` },
           { u: '%', k: 'Downside Capture', note: `% of ${bn}'s losses on its down days`, pf: cap(m.downsideCapture), pc: m.downsideCapture == null ? C.muted : m.downsideCapture <= 100 ? green : red, bm: '100.00%', bc: C.muted,
@@ -1556,7 +1603,7 @@ export default class MyQode extends React.Component {
           // Best Month is only in Monthly Returns (monthRows), not here: removed 8 Oct 2026.
           { u: '%', k: 'Volatility', note: 'Annualised, from daily returns', pf: pc1(m.volatility), bm: pc1(b.volatility),
             def: 'Volatility measures how widely returns move around their average, expressed on an annualised basis (standard deviation). Lower volatility means a smoother, more consistent ride. Example: an annualised volatility of 12% means returns have typically varied by about ±12% around the average in a year; a portfolio at 18% has seen larger swings than one at 12%.' },
-          { k: 'Information Ratio', note: m.informationRatio == null ? 'Shown after 3 months' : 'Alpha generated per unit of tracking error', pf: n2(m.informationRatio), pc: sg(m.informationRatio), bm: '–',
+          { k: 'Information Ratio', note: m.informationRatio == null ? 'Shown after 1 month' : 'Alpha generated per unit of tracking error', pf: n2(m.informationRatio), pc: sg(m.informationRatio), bm: '–',
             def: 'The Information Ratio measures how consistently the portfolio beats its benchmark: the alpha (return above the benchmark) divided by the tracking error (how much its returns differ from the benchmark\'s). Higher signals reliable, repeatable outperformance rather than one-off luck. Example: 4% a year of alpha with 5% tracking error gives 0.8; above 0.5 is generally regarded as good. It is measured against ' + bn + ' itself, so there is no benchmark figure.' },
           { k: 'Sharpe Ratio', note: m.sharpe == null && young ? young : ann ? ann + ' · 6.5% RF' : 'Excess return per unit of total risk (6.5% RF)', pf: n2(m.sharpe), pc: sg(m.sharpe), bm: n2(b.sharpe), bc: sg(b.sharpe),
             def: 'The Sharpe Ratio measures the return earned above the risk-free rate (6.5% a year) for each unit of total risk, where risk is the volatility of returns. Higher means more reward for the risk taken. Example: a portfolio returning 16% with 12% volatility has a Sharpe of about (16 − 6.5) ÷ 12 ≈ 0.79; above 1.0 is generally considered strong.' },
@@ -1729,13 +1776,13 @@ export default class MyQode extends React.Component {
       dismissClosed: () => { const sc = this.curScope(); if (sc) set({ closedSeen: { ...(this.state.closedSeen || {}), [sc.id]: true } }); },
       // An owner view with closed accounts: its figures are the owner total, closed accounts included (as the
       // accounts' fact sheets add up and the old portal shows), so it says so under the headline cards.
-      ownerClosedNote: (() => {
-        const cl = scope && scope.kind === 'owner' ? scope.closedAccounts || [] : [];
-        if (!cl.length) return '';
-        const names = [...new Set(cl.map(a => a.strategyName || a.id))];
-        const list = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0];
-        const days = [...new Set(cl.map(a => a.closedOn).filter(Boolean))];
-        return `Includes your closed ${list} account${cl.length > 1 ? 's' : ''}${days.length === 1 ? ' (closed ' + fmtDate(days[0]) + ')' : ''}: their money in and out, and what they earned, count here.`;
+      // An account that received profit from the member's other Qode accounts through a strategy switch (performance
+      // API switchGain > 0): its first card reads "Amount Invested" = the net investment (as the main page), "Gross" under it (the
+      // switch at what the money originally cost), and the profit that came in with the switch (QGF00133: ₹1,27,90,326
+      // / ₹1,24,99,322.62 / ₹2,90,348.24). Decided 8 Oct 2026.
+      switchNote: (() => {
+        if (!perf || !scope || scope.kind !== 'account' || !(num(perf.switchGain) >= 0.5)) return null;
+        return [{ t: '', b: this.fmt(num(perf.switchGain)), e: ' transferred in from strategy switch' }];
       })(),
       closedNote: scope && scope.kind === 'account' && scope.closed === true ? `This account was closed${scope.closedOn ? ' on ' + fmtDate(scope.closedOn) : ''} after a full withdrawal. Figures are as of closing.` : '',
       hasFamily: !!family,

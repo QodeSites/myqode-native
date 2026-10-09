@@ -33,7 +33,7 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 const dt = fmtDate;
 const monthLabel = d => `${MON[+d.slice(5, 7) - 1]} ${d.slice(0, 4)}`;
 const inr2 = v => inr(v);   // rates: same 2-decimal money format
-const qtyFmt = v => (v == null ? '' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 4 }));
+const qtyFmt = v => (v == null ? '' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }));  // 2 decimals everywhere (8 Oct 2026)
 const signed = sinr;
 const gainColor = v => (v != null && Math.round(v * 100) > 0 ? C.pos : v != null && Math.round(v * 100) < 0 ? C.red : C.ink);
 // Nuvama's period headers: "1m" → "1M", "Since 13/11/24" → "Since 13 Nov 2024".
@@ -301,21 +301,14 @@ const Controls = ({ account, period, pdf }) => (
   </View>
 );
 
-// One muted line: "As of … · period · 128 entries · Records from …", with a "How this is computed" toggle when the
-// report was computed rather than supplied by Nuvama (no "Computed by Qode" tag, removed 8 Oct 2026).
-function StatusLine({ parts, computed, note }) {
-  const [open, setOpen] = useState(false);
+// One muted line: "As of … · period · 128 entries · Records from …". No "Computed by Qode" tag (8 Oct 2026) and no
+// "How this is computed" note (9 Oct 2026); computed / note are ignored.
+function StatusLine({ parts }) {
   const text = (parts || []).filter(Boolean).join(' · ');
-  if (!text && !note) return null;
+  if (!text) return null;
   return (
     <View style={{ marginTop: 10, marginLeft: 2 }}>
-      {!!text && <Tx s={11} c={C.gray} lh={1.5}>{text}</Tx>}
-      {!!note && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 }}>
-          {!!note && <Pressable onPress={() => setOpen(o => !o)} hitSlop={8}><Tx w={700} s={11} c={C.green}>{open ? 'Hide details' : 'How this is computed'}</Tx></Pressable>}
-        </View>
-      )}
-      {open && !!note && <Tx s={11} c={C.muted} lh={1.5} style={{ marginTop: 6 }}>{note}</Tx>}
+      <Tx s={11} c={C.gray} lh={1.5}>{text}</Tx>
     </View>
   );
 }
@@ -821,7 +814,6 @@ function Factsheet({ accountId, ids, names, rk, account }) {
             <SectionLabel style={{ marginTop: 22 }}>{String(names[id] || id).toUpperCase()}</SectionLabel>
             {x && x.asOf ? (
               <>
-                {!!(x.computed && x.note) && <Tx s={11} c={C.muted} lh={1.5} style={{ marginBottom: 8, marginLeft: 2 }}>{x.note}</Tx>}
                 <Strip style={{ marginTop: 0 }} items={sheetStrip(x)}
                   footer={<Tx s={10.5} c={C.muted} style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderColor: RULE }}>As of {dt(x.asOf)} · since inception {dt(x.inceptionDate)}</Tx>} />
                 <SheetSections d={x} />

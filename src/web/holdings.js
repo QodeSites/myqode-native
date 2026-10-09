@@ -14,7 +14,7 @@ import { titleCase } from '../titleCase';
 
 import { userMessage } from '../errors';
 const signCol = v => (v == null ? C.ink3 : v < 0 ? C.red : v > 0 ? C.pos : C.ink2);
-const qtyFmt = v => (v == null ? '–' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 3 }));
+const qtyFmt = v => (v == null ? '–' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }));  // 2 decimals everywhere (8 Oct 2026)
 const priceFmt = v => (v == null ? '–' : inr(v));
 const short = name => String(name || '');   // full strategy names ("Qode Growth Fund"), as the owner asked
 // Sector colours: brand green first, then muted tones that stay apart from each other.
@@ -221,7 +221,9 @@ export default function DesktopHoldings({ V }) {
         <View style={{ gap: 20, opacity: loading ? 0.55 : 1 }}>
           <Row>
             <Stat label="Current Value" value={tot ? inr(tot.value) : '–'} note={data.asOf ? 'Holdings as of ' + fmtDate(data.asOf) : ''} style={{ flex: 1 }} />
-            <Stat label="Invested" value={tot ? inr(tot.invested) : '–'} note="Cost of the current holdings" style={{ flex: 1 }} />
+            {/* Not "Invested": that word means the client's own money (Overview). This is what today's holdings cost to buy,
+                which includes profit already booked and reinvested (9 Oct 2026). */}
+            <Stat label="Cost of Holdings" value={tot ? inr(tot.invested) : '–'} note="What today's holdings cost to buy" style={{ flex: 1 }} />
             <Stat label="Unrealised Gain" value={tot ? sinr(tot.gain) : '–'} color={tot ? signCol(tot.gain) : C.ink}
               delta={tot && tot.gainPct != null ? pct(tot.gainPct) : ''} deltaNeg={!!tot && tot.gainPct < 0} style={{ flex: 1 }} />
             <Stat label="Holdings" value={tot ? String(tot.count) : '–'}

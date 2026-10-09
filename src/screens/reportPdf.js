@@ -18,7 +18,7 @@ const nf = (v, dp = 2) => {
   return (r < 0 ? '−' : '') + Math.abs(r).toLocaleString('en-IN', { minimumFractionDigits: dp, maximumFractionDigits: dp });
 };
 const inr = (v, dp = 2) => (v == null || isNaN(v) ? '–' : (+(+v).toFixed(dp) < 0 ? '−' : '') + '₹' + nf(Math.abs(v), dp));
-const qty = v => (v == null ? '' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 4 }));
+const qty = v => (v == null ? '' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }));   // 2 decimals everywhere
 const pc = v => (v == null || isNaN(v) ? '–' : (+(+v).toFixed(2) < 0 ? '−' : '') + Math.abs(+v).toFixed(2) + '%');
 const MS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MON = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -254,7 +254,7 @@ function statementBody(r, withAccount) {
     const cash = /^Cash|^Fixed/i.test(t.assetClass || '');   // cash and deposit entries: the amount only
     return sec + `<tr class="z"><td class="wrap">${esc(t.type)}</td>${withAccount ? `<td class="wrap">${esc(t.account)}</td>` : ''}<td>${ds(t.date)}</td><td>${ds(t.settleDate)}</td>
       <td class="wrap">${esc(t.security || t.notes || '')}</td><td>${esc(t.exchange || '')}</td><td class="r">${!cash && t.qty != null ? nf(t.qty, 3) : ''}</td>
-      <td class="r">${!cash && t.rate != null ? nf(t.rate, 4) : ''}</td><td class="r">${!cash && t.brokerage != null ? (+t.brokerage).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : ''}</td><td class="r">${!cash && t.stt != null ? nf(t.stt) : ''}</td>
+      <td class="r">${!cash && t.rate != null ? nf(t.rate, 2) : ''}</td><td class="r">${!cash && t.brokerage != null ? (+t.brokerage).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}</td><td class="r">${!cash && t.stt != null ? nf(t.stt) : ''}</td>
       <td class="r">${nf(settleAmt(t))}</td></tr>`;
   }).join('');
   // summary per transaction type, in the order the types first appear
@@ -322,8 +322,8 @@ function cgBody(r, A, afterTiles = '') {
       const st = l.term === 'ST' ? l.gain : 0, lt = l.term === 'LT' ? l.gain : 0, eff = l.term === 'LT' ? (l.ltTaxable != null ? l.ltTaxable : l.gain) : 0;
       T.sale += l.saleAmount || 0; T.pur += l.purchaseAmount || 0; T.cost += l.cost || 0; T.st += st; T.lt += lt; T.eff += eff;
       if (l.saleDate) { const q = quarterOf(l.saleDate); Q.st[q] += st; Q.lt[q] += eff; }
-      return `<tr class="z">${A ? `<td class="wrap">${esc(l.account)}</td>` : ''}<td class="wrap">${esc(l.security)}</td><td>${ds(l.saleDate)}</td><td class="r">${qty(l.qty)}</td><td class="r">${l.saleRate != null ? nf(l.saleRate, 4) : ''}</td>
-        <td class="r">${nf(l.saleAmount)}</td><td>${ds(l.purchaseDate)}</td><td class="r">${l.purchaseRate != null ? nf(l.purchaseRate, 4) : ''}</td><td class="r">${nf(l.purchaseAmount)}</td>
+      return `<tr class="z">${A ? `<td class="wrap">${esc(l.account)}</td>` : ''}<td class="wrap">${esc(l.security)}</td><td>${ds(l.saleDate)}</td><td class="r">${qty(l.qty)}</td><td class="r">${l.saleRate != null ? nf(l.saleRate, 2) : ''}</td>
+        <td class="r">${nf(l.saleAmount)}</td><td>${ds(l.purchaseDate)}</td><td class="r">${l.purchaseRate != null ? nf(l.purchaseRate, 2) : ''}</td><td class="r">${nf(l.purchaseAmount)}</td>
         <td class="r">${nf(l.cost)}</td><td class="r">${l.daysHeld != null ? l.daysHeld : ''}</td>
         <td class="r ${cls(st)}">${nf(st)}</td><td class="r ${cls(lt)}">${nf(lt)}</td><td class="r">${nf(eff)}</td></tr>`;
     }).join('');

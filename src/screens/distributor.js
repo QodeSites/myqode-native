@@ -69,12 +69,12 @@ export const STATUS_TEXT = { ...STATUS_COLOR, smallfunded: '#3F8F68', opened: '#
 const shortStrategy = n => String(n || '').trim();   // strategies are always named in full ("Qode All Weather")
 
 // Number and date formats are the web's own (distributors/page.tsx money() / formatDate()), so every figure reads
-// the same on both: crores always 2 decimals, lakhs 1 decimal, below a lakh whole rupees.
+// the same on both: crores and lakhs 2 decimals (8 Oct 2026), below a lakh whole rupees.
 const inr = n => {
   if (n == null || isNaN(n)) return '–';
   const abs = Math.abs(n), sign = n < 0 ? '−' : '';
   if (abs >= 10000000) return `${sign}₹${(abs / 10000000).toFixed(2)} Cr`;
-  if (abs >= 100000) return `${sign}₹${(abs / 100000).toFixed(1)} L`;
+  if (abs >= 100000) return `${sign}₹${(abs / 100000).toFixed(2)} L`;   // 2 decimals everywhere (8 Oct 2026)
   return `${sign}₹${abs.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 };
 // Exact amount, to the paisa, shown under a rounded headline so nothing is hidden by rounding.

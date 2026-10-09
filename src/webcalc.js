@@ -99,16 +99,18 @@ const anchorsAt10 = view => view !== 'orbis' && view !== 'consolidated';
 
 const isMonthEnd = d => { const x = new Date(d); x.setDate(x.getDate() + 1); return x.getMonth() !== d.getMonth(); };
 
-// web: calculateTrailingReturnsForData. data = [{nav, date}] ASC.
+// web: calculateTrailingReturnsForData (1W / 10D now on calendar days). data = [{nav, date}] ASC. tenDDate: unused.
 function trailing(data, inceptionDate, tenDDate) {
   if (!data.length) return {};
   const latest = data[data.length - 1], latestDate = new Date(latest.date);
   const closest = t => { for (let i = data.length - 1; i >= 0; i--) if (new Date(data[i].date) <= t) return data[i]; return null; };
   const target = m => { const t = new Date(latestDate); if (isMonthEnd(latestDate)) t.setMonth(t.getMonth() - m + 1, 0); else t.setMonth(t.getMonth() - m); return t; };
   const out = {};
-  const w = data[data.length - 1 - 5];
+  // 1W / 10D on calendar days (9 Oct 2026, as the server): the value on or before 7 / 10 days before the latest date
+  const back = n => { const t = new Date(latestDate); t.setDate(t.getDate() - n); return t; };
+  const w = closest(back(7));
   out.w1 = w ? r2((latest.nav / w.nav - 1) * 100) : null;
-  const p10 = tenDDate ? data.find(x => key(x.date) === tenDDate) : data[data.length - 1 - 10];
+  const p10 = closest(back(10));
   out.d10 = p10 ? r2((latest.nav / p10.nav - 1) * 100) : null;
   [['m1', 1], ['m3', 3], ['m6', 6], ['y1', 12], ['y3', 36]].forEach(([k, m]) => {
     const p = closest(target(m));

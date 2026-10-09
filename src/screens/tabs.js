@@ -43,6 +43,7 @@ export function Tile({ t }) {
           and shrink to fit on the phone (the web has no shrink-to-fit, so the smaller start covers it there) */}
       <Amt s={String(t.value || '').length > 13 ? 14 : 16} c={t.color} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={{ marginTop: 6 }}>{t.value}</Amt>
       {!!t.note && <Tx s={10.5} c={C.muted} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ marginTop: 3 }}>{t.note}</Tx>}
+      {!!t.extra && <Tx s={10} c={C.muted} lh={1.4} style={{ marginTop: 3 }}>{t.extra}</Tx>}
     </Card>
   );
 }
@@ -375,6 +376,7 @@ export function TrailingCard({ V }) {
           </View>
         ))}
       </View>
+      <Tx s={11} c={C.muted} lh={1.5} style={{ marginTop: 10 }}><Tx w={700} s={11} c={C.ink}>Returns: </Tx>All returns are calculated using NAV-based methodology. Periods under 1 year show absolute returns, while those over 1 year use CAGR.</Tx>
     </Card>
   );
 }
@@ -387,7 +389,9 @@ export function HomeCream({ V }) {
   // The earlier portal's four tiles, with the same figures: amount invested (net, the gross under it), current value,
   // total returns and the return since inception: "Returns %" (absolute) under a year, "CAGR" from a year.
   const tiles = [
-    { label: 'AMOUNT INVESTED', value: (V.invested || {}).net, color: C.ink, note: V.invested && V.invested.gross ? 'Gross: ' + V.invested.gross : '' },
+    { label: ((V.invested || {}).label || 'Amount Invested').toUpperCase(), value: (V.invested || {}).net, color: C.ink, note: V.invested && (V.invested.sub || (V.invested.gross ? 'Gross: ' + V.invested.gross : '')),
+      // money moved in from the client's other Qode accounts, amounts bold (V.switchNote)
+      extra: V.switchNote ? V.switchNote.map((x, i) => <React.Fragment key={i}>{x.t}<Tx w={700} s={10} c={C.ink}>{x.b}</Tx>{x.e}</React.Fragment>) : null },
     { label: 'CURRENT VALUE', value: V.heroValue, color: C.ink, note: V.asOf ? 'As of ' + V.asOf : '' },
     { label: 'TOTAL RETURNS', value: ret.value, color: ret.color, note: 'Absolute returns' },
     { label: 'RETURNS %', value: si.value, color: si.color, note: si.annualised ? 'CAGR' : 'Absolute returns' },   // as the old portal
@@ -399,7 +403,6 @@ export function HomeCream({ V }) {
         {tiles.map(t => <Tile key={t.label} t={t} />)}
       </Grid2>
       <Tx s={11} c={C.gray} style={{ marginTop: 10, marginLeft: 2 }}>As of {V.asOf}</Tx>
-      {!!V.ownerClosedNote && <Tx s={11} c={C.gray} lh={1.5} style={{ marginTop: 4, marginLeft: 2 }}>{V.ownerClosedNote}</Tx>}
       <NavCard V={V} style={{ marginTop: 16 }} />
       <UccNotice visible={V.showUcc} onClose={V.dismissUcc} />
       <PushOfferCard V={V} />
@@ -407,7 +410,10 @@ export function HomeCream({ V }) {
       <PnlCard V={V} />
       <TrailingCard V={V} />
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 16, marginBottom: 8, marginHorizontal: 2 }}>
-        <Tx w={700} s={11} ls={0.12} c={C.muted}>TRANSACTIONS</Tx>
+        <View>
+          <Tx w={700} s={11} ls={0.12} c={C.muted}>TRANSACTIONS</Tx>
+          {!!V.txTotals && <Tx s={10.5} c={C.gray} style={{ marginTop: 2 }}>{V.txTotals}</Tx>}
+        </View>
         <Pressable onPress={V.goServicesTx}><Tx w={700} s={12} c={C.green}>View all</Tx></Pressable>
       </View>
       <PendingRows V={V} />
