@@ -14,6 +14,10 @@ const signCol = v => (v == null || v === 0 ? C.muted : v < 0 ? C.red : C.pos);
 const BARS = ['#02422B', '#DABD38', '#2F6F5E', '#8A700C', '#5B8A7A', '#B89A2E'];
 const PAGE = 30;
 const short = name => String(name || '');   // full strategy names ("Qode All Weather"), everywhere
+// Quantity in the words of what is held (12 Oct 2026): an investor read "units" on her stocks as a pooled fund. Shares
+// sit in the investor's own demat, so stocks and ETFs are "shares"; only mutual funds are "units".
+const QTY_WORD = { Stocks: 'shares', ETFs: 'shares', 'Mutual funds': 'units', Derivatives: 'qty' };
+const qtyText = i => (i.qty == null ? null : `${Number(i.qty).toLocaleString('en-IN', { maximumFractionDigits: 2 })} ${QTY_WORD[i.assetClass] || 'qty'}`);
 
 function SumCol({ label, divider, children }) {
   return (
@@ -140,7 +144,7 @@ export function HoldingsList({ V }) {
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Tx w={700} s={13} numberOfLines={1}>{i.security}</Tx>
                     <Tx s={11} c={C.muted} numberOfLines={1} style={{ marginTop: 2 }}>
-                      {[i.sector, i.qty != null ? Number(i.qty).toLocaleString('en-IN', { maximumFractionDigits: 2 }) + ' units' : null].filter(Boolean).join(' · ')}
+                      {[i.sector, qtyText(i)].filter(Boolean).join(' · ')}
                     </Tx>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
