@@ -200,10 +200,16 @@ function EyeIcon({ off, c = C.muted, s = 20 }) {
 export function Field({ label, value, onChangeText, placeholder, secure, numeric, s = 15, style, prefix, autoFocus, autoCapitalize, multiline, keyboardType, error, maxLength, hint }) {
   const { z } = useUI();
   const [shown, setShown] = useState(false);   // password fields: eye toggles between hidden and visible
+  // Focus shows as the field's own green line (or box), never the browser's dark outline (removed 13 Oct 2026).
+  // A multi-line field is a light box with room inside, so the text never touches its edge.
+  const [focus, setFocus] = useState(false);
+  const line = error ? C.red : focus ? C.green : C.mutedBorder;
   return (
     <View style={style}>
       {label ? <Tx w={700} s={10} ls={0.12} c={C.gray}>{label}</Tx> : null}
-      <View style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: error ? 1.5 : 1, borderColor: error ? C.red : C.mutedBorder }}>
+      <View style={multiline
+        ? { flexDirection: 'row', alignItems: 'flex-start', marginTop: 8, borderWidth: error || focus ? 1.5 : 1, borderColor: line, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 }
+        : { flexDirection: 'row', alignItems: 'center', borderBottomWidth: error || focus ? 1.5 : 1, borderColor: line }}>
         {prefix ? <Tx s={15} c={C.muted} style={{ marginRight: 8 }}>{prefix}</Tx> : null}
         <TextInput
           value={value}
@@ -217,10 +223,13 @@ export function Field({ label, value, onChangeText, placeholder, secure, numeric
           autoCapitalize={autoCapitalize}
           autoCorrect={false}
           maxLength={maxLength}
+          onFocus={() => setFocus(true)}
+          onBlur={() => setFocus(false)}
           style={{
             flex: 1, fontFamily: 'Lato_400Regular', fontSize: s * z, color: C.ink,
             paddingVertical: 8, paddingHorizontal: 0, minWidth: 0,
             ...(multiline ? { minHeight: 84, textAlignVertical: 'top' } : null),
+            ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : null),
           }}
         />
         {secure ? (
