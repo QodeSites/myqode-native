@@ -118,7 +118,7 @@ export function SwitchForm({ onClose, preferName }) {
   const toList = STRATS.filter(s => !fromList.includes(s) && to[s]);
   const splitNeeded = toList.length > 1;   // one target simply receives everything moving out
   const toFixed = s => { const c = to[s]; if (!c || c.rest) return 0; return c.pct != null ? Math.round(outTotal * c.pct) / 100 : digits(c.custom); };
-  const toLimit = s => Math.max(0, outTotal - toList.filter(x => x !== s).reduce((t, x) => t + toFixed(x), 0));
+  const toLimit = s => Math.max(0, Math.round((outTotal - toList.filter(x => x !== s).reduce((t, x) => t + toFixed(x), 0)) * 100) / 100);   // to the paisa: Zoho refuses float tails
   const toAmt = s => { const c = to[s]; if (!c) return 0; if (!splitNeeded) return outTotal; return c.rest ? toLimit(s) : Math.min(toFixed(s), toLimit(s)); };
   const totalTo = toList.reduce((t, s) => t + toAmt(s), 0);
   const balanced = Math.abs(outTotal - totalTo) <= 0.005;   // same tolerance as the server
@@ -169,7 +169,7 @@ export function SwitchForm({ onClose, preferName }) {
     setSt({ busy: true, err: '', done: null });
     try {
       const body = isFull
-        ? { switchType: 'Full Switch', from: fromList, to: toList }
+        ? { switchType: 'Full Switch', from: fromList, to: toList, toAmounts: Object.fromEntries(toList.map(s => [s, toAmt(s)])) }   // Zoho needs the To amounts on a full switch too (12 Oct 2026)
         : { switchType: 'Partial Switch', fromAmounts: Object.fromEntries(fromList.map(s => [s, fromAmt(s)])), toAmounts: Object.fromEntries(toList.map(s => [s, toAmt(s)])) };
       const r = await services.submitSwitchRequest({ investorId: inv.id, ...body });
       track('event', 'switch_request_submitted', { type: body.switchType });
