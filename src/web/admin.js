@@ -11,7 +11,7 @@ import { userMessage } from '../errors';
 const groupText = g => (g == null ? '' : String(g).replace(/\.0+$/, ''));
 import {
   fmtWhen, fmtDay, fmtAgo, fmtN, pwProblem, isEmail, userBadges, detailsText, useUserList, useUserActions, DailyBars,
-  TYPE_OPTS, STATUS_OPTS, ADMIN_TABS, useNotifAdmin, NOTE_SAMPLES, NOTE_LINKS, AUDIENCES, campaignStats, audienceText,
+  TYPE_OPTS, STATUS_OPTS, ADMIN_TABS, adminTabsFor, fixedTypeFor, useNotifAdmin, NOTE_SAMPLES, NOTE_LINKS, AUDIENCES, campaignStats, audienceText,
 } from '../screens/admin';
 
 const Badges = ({ u }) => (
@@ -376,7 +376,7 @@ export default function DesktopAdmin({ V }) {
   const who = (V.user && (V.user.name || V.user.email)) || '';
   let body;
   if (email) body = <UserDetail key={email} V={V} email={email} onBack={() => V.setAdm({ email: null })} />;
-  else if (tab === 'users') body = <UserList key="users" V={V} tick={tick} />;
+  else if (tab === 'users') body = <UserList key="users" V={V} fixedType={fixedTypeFor(V.adminRole)} tick={tick} />;
   else if (tab === 'distributors') body = <UserList key="dist" V={V} fixedType="distributor" tick={tick} />;
   else if (tab === 'audit') body = <Audit V={V} tick={tick} />;
   else if (tab === 'notifications') body = <Notifications tick={tick} />;
@@ -394,7 +394,7 @@ export default function DesktopAdmin({ V }) {
         <Btn small kind="outline" label="Sign out" onPress={V.doLogout} />
       </View>
       <View style={{ paddingHorizontal: 28, backgroundColor: C.card }}>
-        <Tabs value={email ? null : tab} options={ADMIN_TABS} onChange={k => V.setAdm({ tab: k, email: null })} style={{ borderBottomWidth: 0 }} />
+        <Tabs value={email ? null : tab} options={adminTabsFor(V.adminRole)} onChange={k => V.setAdm({ tab: k, email: null })} style={{ borderBottomWidth: 0 }} />
       </View>
       <ScrollView style={{ flex: 1, borderTopWidth: 1, borderColor: C.line }} contentContainerStyle={{ padding: 28, paddingBottom: 48 }}>
         <View style={{ maxWidth: 1480, width: '100%' }}>{body}</View>

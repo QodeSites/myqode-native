@@ -1729,7 +1729,7 @@ export default class MyQode extends React.Component {
       })),
       impersonate: this.impersonate, exitImpersonation: this.exitImpersonation,
       // admin mode
-      isAdmin: S.phase === 'admin', adm: S.adm || {}, setAdm: p => this.setState(s => ({ adm: { ...(s.adm || {}), ...p } })),
+      isAdmin: S.phase === 'admin', adminRole: (this.adminUser && this.adminUser.adminRole) || null, adm: S.adm || {}, setAdm: p => this.setState(s => ({ adm: { ...(s.adm || {}), ...p } })),
       openAsUser: this.openAsUser, backToAdmin: () => this.backToAdmin(), imp: S.imp || null, closeBackoffice: this.closeBackoffice,
       toast: m => this.toast(m),
       viewing: S.viewing, viewInvestor: this.viewInvestor, exitView: () => this.exitView(), partnerNav: this.partnerNav || null,

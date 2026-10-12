@@ -52,6 +52,12 @@ export const isEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || '').tr
 export const TYPE_OPTS = [['all', 'All'], ['investor', 'Investors'], ['distributor', 'Partners']];
 export const STATUS_OPTS = [['all', 'Any status'], ['needs-setup', 'Needs setup'], ['locked', 'Locked'], ['never', 'Never signed in']];
 export const ADMIN_TABS = [['overview', 'Overview'], ['users', 'Users'], ['distributors', 'Partners'], ['notifications', 'Notifications'], ['audit', 'Audit log']];
+// One menu per admin role (the Admins page on the web sets the role; the server enforces it on every call):
+// investors admins work on investors, partners admins on partners, super admins on everything.
+export const adminTabsFor = role => (role === 'investors' ? [['overview', 'Overview'], ['users', 'Investors'], ['notifications', 'Notifications']]
+  : role === 'partners' ? [['overview', 'Overview'], ['distributors', 'Partners']] : ADMIN_TABS);
+/** The user type an admin's list is limited to (investors / partners admins), or null for everyone. */
+export const fixedTypeFor = role => (role === 'investors' ? 'investor' : role === 'partners' ? 'distributor' : null);
 
 // Notifications composer (phone and desktop). Samples fill the form with one of each automated kind, to try them
 // on your own phone before PUSH_LIVE=1.
@@ -713,7 +719,7 @@ export function AdminConsole({ V }) {
             </View>
           )}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 22, marginTop: 16 }}>
-            {ADMIN_TABS.map(([k, l]) => {
+            {adminTabsFor(V.adminRole).map(([k, l]) => {
               const on = tab === k;
               return (
                 <Pressable key={k} onPress={() => (on && !email ? null : go(k))} accessibilityRole="tab" accessibilityState={{ selected: on }}
@@ -727,7 +733,7 @@ export function AdminConsole({ V }) {
         <View style={{ marginTop: -46 }}><CurveCap height={44} /></View>
         <View style={{ backgroundColor: C.cream, paddingHorizontal: 20, minHeight: 420 }}>
           {email ? <UserDetail key={email} V={V} email={email} onBack={() => V.setAdm({ email: null })} />
-            : tab === 'users' ? <UserList key="users" V={V} endRef={endRef} tick={tick} />
+            : tab === 'users' ? <UserList key="users" V={V} fixedType={fixedTypeFor(V.adminRole)} endRef={endRef} tick={tick} />
             : tab === 'distributors' ? <UserList key="dist" V={V} fixedType="distributor" endRef={endRef} tick={tick} />
             : tab === 'audit' ? <AuditList V={V} tick={tick} />
             : tab === 'notifications' ? <NotifList tick={tick} />
