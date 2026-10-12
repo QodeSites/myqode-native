@@ -6,6 +6,7 @@
 //   Links      = distributors/referrals      (onboarding links for individuals / non-individuals)
 // Status wording is lib/distributorVocabulary.ts verbatim (Zoho's own values + a one-line meaning).
 // Data: /api/mobile/distributor/{journey,strategy-aum}, which re-check the distributor role server-side.
+import { InsightsList } from './pages';
 import React, { useState, useMemo, useEffect } from 'react';
 import { View, Pressable, ScrollView, TextInput, Share, Linking, RefreshControl, Dimensions, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -207,6 +208,8 @@ export function DistributorShell({ V }) {
           {tab === 'more' && sub && sub.kind === 'links' && <><BackRow label="More" onPress={() => setSub(null)} /><Links journey={journey} inner /></>}
           {tab === 'more' && sub && sub.kind === 'policies' && <Policies onBack={() => setSub(null)} />}
           {tab === 'more' && sub && sub.kind === 'ticket' && <Ticket onBack={() => setSub(null)} />}
+          {tab === 'more' && sub && sub.kind === 'insights' && <><BackRow label="More" onPress={() => setSub(null)} /><InsightsList tabs={[['Newsletters', 'newsletters'], ['Perspectives', 'perspectives']]} /></>}
+          {tab === 'more' && sub && sub.kind === 'events' && <><BackRow label="More" onPress={() => setSub(null)} /><InsightsList tabs={[['Events', 'events']]} /></>}
           {tab === 'more' && sub && sub.kind === 'password' && <ChangePassword onBack={() => setSub(null)} />}
         </View>
       </KeyboardScroll>
@@ -913,11 +916,13 @@ function LinkCard({ title, sub, url }) {
 
 // "View account" (the investor's own app, read-only) is hidden since 9 Oct 2026; the code stays for when it returns.
 const VIEW_ACCOUNT = false;
-const MORE_ICON = { links: IconShare, decks: IconFile, policies: IconShield, ticket: IconLifeBuoy, password: IconLock };
+const MORE_ICON = { links: IconShare, decks: IconFile, policies: IconShield, insights: IconFile, events: IconFile, ticket: IconLifeBuoy, password: IconLock };
 const MORE_ITEMS = [
   ['links', 'Onboarding Link', 'Share with a prospective investor'],
   ['decks', 'Decks', 'Download and share with prospective investors'],
   ['policies', 'Risk Management & Controls', 'The policies that guide portfolio construction'],
+  ['insights', 'Insights', 'Newsletters and perspectives from the investment team'],
+  ['events', 'Events', 'Event material and recordings'],
   ['ticket', 'Support', 'Raise a ticket; the partnerships team replies by email'],
   ['password', 'Change Password', 'Choose a new password for this login'],
 ];

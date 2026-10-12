@@ -86,21 +86,23 @@ function Family() {
   ));
 }
 
-function Insights() {
-  const tabs = [['Newsletters', 'newsletters'], ['Perspectives', 'perspectives']];
-  const [tab, setTab] = useState('newsletters');
+// Investors: Newsletters · Perspectives · Events on "Insights & Events"; partners: Insights and Events from More
+// (12 Oct 2026). tabs: [label, engagement key].
+function Insights() { return <InsightsList tabs={[['Newsletters', 'newsletters'], ['Perspectives', 'perspectives'], ['Events', 'events']]} />; }
+export function InsightsList({ tabs }) {
+  const [tab, setTab] = useState(tabs[0][1]);
   const list = useLoad(() => engagement[tab](), [tab]);
   const items = (list.data && list.data.items) || [];
   return (
     <>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
+      {tabs.length > 1 && <View style={{ flexDirection: 'row', gap: 8 }}>
         {tabs.map(([l, k]) => (
           <Pressable key={k} onPress={() => setTab(k)} style={{
             flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 999, borderWidth: 1,
             borderColor: tab === k ? C.green : C.mutedBorder35, backgroundColor: tab === k ? C.green : 'transparent',
           }}><Tx w={700} s={11} c={tab === k ? C.cream : C.muted}>{l}</Tx></Pressable>
         ))}
-      </View>
+      </View>}
       <View style={{ marginTop: 16 }}>
         {list.loading && <Loading />}
         {!!list.err && <ErrorBox msg={list.err} onRetry={list.reload} />}

@@ -2,7 +2,7 @@
 // phone pages, laid out with the web design system (./kit): articles in a reading column with a sticky
 // "On this page" rail, tables for tabular data, multi-column grids for everything else.
 import { titleCase } from '../titleCase';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Pressable, Image, Linking, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { C, Tx, Amt, Card, Row, Grid, Label, Panel, Stat, DarkCard, Btn, Chips, Tabs, Table, KeyVals, TextLink, Pill, Loading, Empty, ErrorBlock, Dialog, sentence } from './kit';
@@ -211,13 +211,18 @@ function PdfPreview({ url, title }) {
   });
 }
 const DocIconSm = () => <Tx s={12} c={C.ink3}>PDF</Tx>;
-function Insights() {
-  const [tab, setTab] = useState('newsletters');
+// Newsletters, perspectives and events (PDFs from /engagement/*). Investors get all three as tabs on "Insights &
+// Events"; partners get Insights (newsletters, perspectives) and Events as menu items of their own (12 Oct 2026).
+export const INSIGHT_TABS = [['newsletters', 'Newsletters'], ['perspectives', 'Perspectives'], ['events', 'Events']];
+function Insights() { return <InsightsList tabs={INSIGHT_TABS} />; }
+export function InsightsList({ tabs }) {
+  const [tab, setTab] = useState(tabs[0][0]);
+  useEffect(() => { if (!tabs.some(t => t[0] === tab)) setTab(tabs[0][0]); }, [tabs.map(t => t[0]).join()]);   // eslint-disable-line react-hooks/exhaustive-deps
   const list = useLoad(() => engagement[tab](), [tab]);
   const items = (list.data && list.data.items) || [];
   return (
     <View>
-      <Tabs value={tab} options={[['newsletters', 'Newsletters'], ['perspectives', 'Perspectives']]} onChange={setTab} style={{ marginBottom: 18 }} />
+      {tabs.length > 1 && <Tabs value={tab} options={tabs} onChange={setTab} style={{ marginBottom: 18 }} />}
       {list.loading && <Loading rows={5} />}
       {!!list.err && <ErrorBlock msg={list.err} onRetry={list.reload} />}
       {!list.loading && !list.err && !items.length && <Empty>Nothing published here yet.</Empty>}

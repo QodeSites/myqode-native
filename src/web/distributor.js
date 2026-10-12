@@ -8,7 +8,7 @@
 // shows "Back to distributor panel", and V.partnerNav brings the distributor back to the page they left.
 // Address: /app/d/<section> (replaced as the section changes; Back is main.js's, via useBackHandler).
 import { titleCase } from '../titleCase';
-import { Risk } from './pages';
+import { Risk, InsightsList } from './pages';
 import { Preferences } from './account';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, ScrollView, Pressable, Linking } from 'react-native';
@@ -48,15 +48,17 @@ const NAV = [
   { key: 'links', label: 'Resources', Icon: IconShare },
   { key: 'policies', label: 'Risk Management & Controls', Icon: IconShield },
   { key: 'indicators', label: 'Indicators', Icon: IconLineChart },
+  { key: 'insights', label: 'Insights', Icon: IconFile },
+  { key: 'events', label: 'Events', Icon: IconFile },
   { key: 'support', label: 'Support', Icon: IconLifeBuoy },
 ];
-const GROUPS = [['Your book', ['overview', 'investors', 'fees']], ['More', ['links', 'policies', 'indicators', 'support']]];
+const GROUPS = [['Your book', ['overview', 'investors', 'fees']], ['More', ['links', 'policies', 'indicators', 'insights', 'events', 'support']]];
 const PARENT = { statement: 'fees', invoice: 'fees', decks: 'links' };
 const EARNINGS_TABS = [['fees', 'Fees'], ['statement', 'Statement'], ['invoice', 'Invoice']];
-const TITLES = { overview: 'Overview', investors: 'Investors', fees: 'Earnings', statement: 'Earnings', invoice: 'Earnings', links: 'Resources', decks: 'Resources', policies: 'Risk Management & Controls', indicators: 'Indicators', support: 'Support', profile: 'Profile and Settings' };
+const TITLES = { overview: 'Overview', investors: 'Investors', fees: 'Earnings', statement: 'Earnings', invoice: 'Earnings', links: 'Resources', decks: 'Resources', policies: 'Risk Management & Controls', indicators: 'Indicators', insights: 'Insights', events: 'Events', support: 'Support', profile: 'Profile and Settings' };
 // "View account" (the investor's own app, read-only) is hidden since 9 Oct 2026; the code stays for when it returns.
 const VIEW_ACCOUNT = false;
-const SECTIONS = ['overview', 'investors', 'fees', 'statement', 'invoice', 'links', 'decks', 'indicators', 'support', 'policies', 'profile'];
+const SECTIONS = ['overview', 'investors', 'fees', 'statement', 'invoice', 'links', 'decks', 'indicators', 'insights', 'events', 'support', 'policies', 'profile'];
 const BASE = '/app/d/';
 const web = typeof window !== 'undefined' && typeof history !== 'undefined' && typeof location !== 'undefined';
 const sectionFromUrl = () => {
@@ -339,6 +341,8 @@ export default function DesktopDistributor({ V }) {
   else if (section === 'links' || section === 'decks') body = <GrowPage journey={journey} focus={section} />;
   else if (section === 'policies') body = <Policies />;
   else if (section === 'indicators') body = <Indicators />;
+  else if (section === 'insights') body = <InsightsList tabs={[['newsletters', 'Newsletters'], ['perspectives', 'Perspectives']]} />;
+  else if (section === 'events') body = <InsightsList tabs={[['events', 'Events']]} />;
   else if (section === 'profile') body = <View style={{ gap: 20, maxWidth: 880 }}><Profile V={V} journey={journey} /><Preferences V={V} /></View>;
   else body = <Support />;
 
