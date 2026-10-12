@@ -1264,7 +1264,9 @@ export default class MyQode extends React.Component {
 
   vals() {
     const st = this.state, set = p => this.setState(p);
-    const homeCopy = st.tab === 'home' && st.homeD && st.d && st.homeD.id === st.d.id;
+    // The phone's Home keeps Nuvama whatever the Portfolio toggle says; the web Overview has the Data source switch
+    // itself, so it follows the chosen source like every other page (12 Oct 2026: the switch did nothing there).
+    const homeCopy = Platform.OS !== 'web' && st.tab === 'home' && st.homeD && st.d && st.homeD.id === st.d.id;
     const S = homeCopy ? { ...st, d: st.homeD, navs: st.homeNavs, dv: HOME_VIEW } : st;
     const scope = this.curScope();
     const perf = S.d && S.d.perf;

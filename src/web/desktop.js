@@ -171,12 +171,13 @@ function TopBar({ V, title }) {
     <View style={{ height: 64, paddingHorizontal: 28, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderColor: C.line, backgroundColor: C.card }}>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Tx w={600} s={19} role="heading" aria-level={1} numberOfLines={1}>{titleCase(title)}</Tx>
-        {/* whose figures these are, quietly under the title (portfolio pages): "Name · 4 accounts · Data as of …" */}
+        {/* whose figures these are, quietly under the title (portfolio pages): "Name · 4 accounts · Since … · Data as of …" */}
         {(!V.page || ['reports', 'transactions'].includes(V.page)) && (!!V.asOf || !!V.acctName) && (
           <Tx s={12} c={C.ink3} numberOfLines={1}>
             {!!V.acctName && <Tx w={600} s={12} c={C.ink2}>{V.acctName}</Tx>}
             {!!V.acctName && !!V.acctCode && '  ·  ' + V.acctCode}
-            {!!V.asOf && (V.acctName ? '  ·  ' : '') + 'Data as of ' + V.asOf}
+            {!!V.sinceLbl && (V.acctName ? '  ·  ' : '') + V.sinceLbl}
+            {!!V.asOf && (V.acctName || V.sinceLbl ? '  ·  ' : '') + 'Data as of ' + V.asOf}
           </Tx>
         )}
       </View>
