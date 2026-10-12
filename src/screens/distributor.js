@@ -353,7 +353,7 @@ export function filterInvestors(clients, status, f, q) {
       const dd = String(raw).slice(0, 10);
       return !(f.from && dd < f.from) && !(f.to && dd > f.to);
     })
-    .filter(x => !needle || [x.c.name, x.c.email, ...(x.c.strategies || [])].some(v => String(v || '').toLowerCase().includes(needle)))
+    .filter(x => !needle || [x.c.name, x.c.email, x.c.relationshipManager, ...(x.c.strategies || [])].some(v => String(v || '').toLowerCase().includes(needle)))
     .sort((a, b) => (b.c.currentValue || 0) - (a.c.currentValue || 0));
 }
 
@@ -689,7 +689,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
       {/* One compact filter card: search, then Status and Date as dropdowns (each opens a short list) */}
       <Card big style={{ marginTop: -34, paddingHorizontal: 14, paddingTop: 4, paddingBottom: clients.length ? 12 : 4 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TextInput value={q} onChangeText={setQ} placeholder="Search by name or strategy" placeholderTextColor={C.gray}
+          <TextInput value={q} onChangeText={setQ} placeholder="Search by name, strategy or RM" placeholderTextColor={C.gray}
             autoCapitalize="none" autoCorrect={false} accessibilityLabel="Search your investors" style={{ flex: 1, paddingVertical: 12, fontSize: 14, color: C.ink }} />
           {!!q && <Pressable onPress={() => setQ('')} hitSlop={10} accessibilityLabel="Clear search"><Tx w={700} s={14} c={C.muted}>✕</Tx></Pressable>}
         </View>
@@ -779,6 +779,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
                   </View>
                   {s.key === 'onboarding' && !!c.onboardingStage && <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>{c.onboardingStage}</Tx>}
                   <Tx s={11} c={C.muted} numberOfLines={2} style={{ marginTop: 3 }}>{meta || 'No details recorded yet'}</Tx>
+                  {!!c.relationshipManager && <Tx s={11} c={C.muted} numberOfLines={1} style={{ marginTop: 2 }}>RM: <Tx w={700} s={11} c={C.ink}>{c.relationshipManager}</Tx></Tx>}
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   {/* Web: today's value (— when none), then the change — or "No holdings yet" where there is no change to show */}

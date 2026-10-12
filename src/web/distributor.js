@@ -616,13 +616,14 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
     const columns = [
       { label: '#', type: 'number', width: 6 }, { label: 'Investor', width: 30 }, { label: 'Email', width: 32 }, { label: 'Mobile', width: 16 },
       { label: 'City', width: 16 }, { label: 'Status', width: 22 }, { label: 'Onboarding step', width: 26 }, { label: 'Strategies', width: 34 },
+      { label: 'Relationship manager', width: 24 },
       { label: 'Account code', width: 16 }, { label: 'Invested', type: 'money', width: 18 }, { label: 'Current value', type: 'money', width: 18 },
       { label: 'Gain / loss', type: 'money', width: 16 }, { label: 'Account opened', type: 'date', width: 15 }, { label: 'First funded', type: 'date', width: 15 },
     ];
     const data = rows.map(({ c, s }, i) => [
       i + 1, c.name || '', c.email || '', c.mobile || '', c.city || '', sc(s.label || ''),
       s.key === 'onboarding' && c.onboardingStage ? sc(c.onboardingStage) : '', (c.strategies || []).join(', '),
-      c.clientCode || '',
+      c.relationshipManager || '', c.clientCode || '',
       c.investedAmount, c.currentValue, c.currentValue != null && c.investedAmount != null ? c.currentValue - c.investedAmount : null,
       c.accountLiveDate || null, fundedDate(c) || null,
     ]);
@@ -643,6 +644,8 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {c.strategies.map(n => <View key={n} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Dot sq s={7} color={STRATEGY_COLOR[n] || C.ink3} /><Tx s={12.5}>{shortStrategy(n)}</Tx></View>)}
         </View>) : <Tx s={12.5} c={C.ink3}>–</Tx>) },
+    // The investor's RM from Zoho (RM_Name, "RM 1"); blank until it is filled in the CRM.
+    { key: 'rm', label: 'Relationship Manager', flex: 1.2, render: ({ c }) => <Tx s={12.5} c={c.relationshipManager ? C.ink : C.ink3} numberOfLines={2}>{c.relationshipManager || '–'}</Tx> },
     { key: 'value', label: 'Current value', right: true, render: ({ c }) => {
       const delta = c.currentValue != null && c.investedAmount != null ? c.currentValue - c.investedAmount : null;
       return (
@@ -720,7 +723,7 @@ function Investors({ journey, filter, setFilter, onDetail, view, onLinks }) {
           <Panel pad={0} title={rows.length === clients.length ? plural(clients.length, 'investor', 'investors') : `Showing ${rows.length} of ${clients.length}`}
             sub={'Largest holdings first' + (dupes ? `. Includes ${plural(dupes, 'duplicate record', 'duplicate records')} from the CRM` : '')}
             right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Input value={q} onChangeText={setQ} placeholder="Search by name, email or strategy" style={{ width: 300 }} />
+              <Input value={q} onChangeText={setQ} placeholder="Search by name, email, strategy or RM" style={{ width: 300 }} />
               <Btn kind="outline" label={`Export to Excel (${rows.length})`} icon={<Download s={14} c={C.ink2} />} onPress={exportExcel} disabled={!rows.length} />
             </View>}>
             {chips.length > 0 && (
