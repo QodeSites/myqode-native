@@ -8,7 +8,7 @@
 //   Policies         app/(protected)/trust/risk-managment-and-controls/page.tsx (the web links partners there)
 // Figures come from /api/mobile/distributor/* which call the web's own routes, so they are identical.
 import React, { useState, useMemo, useEffect } from 'react';
-import { Risk } from './pages';
+import { Risk } from './risk';
 import { View, Pressable, ScrollView, TextInput, Linking, Modal, Dimensions, PanResponder } from 'react-native';
 import Svg, { Path, Rect, Line, Text as SvgText } from 'react-native-svg';
 import * as Sharing from 'expo-sharing';

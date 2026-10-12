@@ -18,7 +18,7 @@ import { userMessage } from '../errors';
 const ITEMS = [
   { key: 'r-switch', title: 'Switch strategy', sub: 'Move capital between strategies' },
   { key: 'r-strategy', title: 'Ask about a strategy', sub: 'Send a question to the investment team' },
-  { key: 'r-discussion', title: 'Book a discussion', sub: 'Request a call with Investor Relations' },
+  { key: 'r-discussion', title: 'Raise Any Query', sub: 'Ask Investor Relations anything' },
   { key: 'r-account' },   // title from accountRequest(): family or account request, by role
 ];
 

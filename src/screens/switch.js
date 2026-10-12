@@ -99,7 +99,11 @@ export function SwitchForm({ onClose, preferName }) {
   // Pending requests (server: a list, each with from/to). An older server sent one request with no strategies —
   // then every strategy counts as taken, as that server enforced.
   const pendingList = !inv ? [] : Array.isArray(inv.pending) ? inv.pending : inv.pending ? [{ ...inv.pending, from: STRATS, to: [] }] : [];
-  const pendingOut = new Set(pendingList.flatMap(p => p.from || []));
+  // What Zoho's own rule refuses (server: blockedFrom / blockedPairs, 13 Oct 2026): a source with a full switch out of it
+  // already live, and a source → target pair a live plan already moves. Everything else stays open. An older server sent
+  // no blocks: then every strategy with something in progress is closed, as before.
+  const pendingOut = new Set(inv && Array.isArray(inv.blockedFrom) ? inv.blockedFrom : pendingList.flatMap(p => p.from || []));
+  const blockedPairs = new Set((inv && inv.blockedPairs) || []);
   const available = held.filter(s => !pendingOut.has(s));
   const totalInvested = STRATS.reduce((t, s) => t + (invested[s] || 0), 0);
 
@@ -115,7 +119,8 @@ export function SwitchForm({ onClose, preferName }) {
   const fromAmt = s => { const c = from[s]; if (!c) return 0; if (c.all) return invested[s] || 0; return c.pct != null ? Math.round(invested[s] * c.pct) / 100 : Math.min(digits(c.custom), invested[s]); };
   const outTotal = fromList.reduce((t, s) => t + fromAmt(s), 0);
   const allFull = fromList.length > 0 && fromList.every(s => from[s].all);
-  const toList = STRATS.filter(s => !fromList.includes(s) && to[s]);
+  const toBlocked = t => fromList.some(s => blockedPairs.has(s + '>' + t));   // a live plan already moves this source here
+  const toList = STRATS.filter(s => !fromList.includes(s) && to[s] && !toBlocked(s));
   const splitNeeded = toList.length > 1;   // one target simply receives everything moving out
   const toFixed = s => { const c = to[s]; if (!c || c.rest) return 0; return c.pct != null ? Math.round(outTotal * c.pct) / 100 : digits(c.custom); };
   const toLimit = s => Math.max(0, Math.round((outTotal - toList.filter(x => x !== s).reduce((t, x) => t + toFixed(x), 0)) * 100) / 100);   // to the paisa: Zoho refuses float tails
@@ -135,7 +140,7 @@ export function SwitchForm({ onClose, preferName }) {
     setTo(m => { const n = { ...m }; delete n[s]; return n; });
   };
   // Targets: one, or several with a split — tick and untick freely.
-  const toggleTo = s => { clearErr(); setTo(m => { const n = { ...m }; if (n[s]) delete n[s]; else n[s] = { pct: null, custom: '', rest: false }; return n; }); };
+  const toggleTo = s => { if (toBlocked(s)) return; clearErr(); setTo(m => { const n = { ...m }; if (n[s]) delete n[s]; else n[s] = { pct: null, custom: '', rest: false }; return n; }); };
   const OneAtATime = ({ side }) => (
     <View style={{ marginBottom: 10, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(218,189,56,0.45)', backgroundColor: 'rgba(218,189,56,0.08)' }}>
       <Tx s={11.5} c={C.muted} lh={1.5}>
@@ -220,7 +225,7 @@ export function SwitchForm({ onClose, preferName }) {
           {' · '}submitted {p.requestDate ? String(p.requestDate).slice(0, 10) : 'recently'}{p.switchType ? ' · ' + p.switchType : ''}
         </Tx>
       ))}
-      <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 8 }}>{available.length ? 'A strategy with a request in progress can’t be chosen again until our team has processed it. You can still switch out of another strategy.' : 'Our team will reach out once it is processed; a new request can be made after that.'}</Tx>
+      <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 8 }}>{available.length ? 'Our team will reach out once it is processed. You can make another switch meanwhile; only a move already in progress can’t be repeated.' : 'Our team will reach out once it is processed; a new request can be made after that.'}</Tx>
     </View>
   );
 
@@ -286,7 +291,7 @@ export function SwitchForm({ onClose, preferName }) {
         <Lbl>MOVING TO</Lbl>
         <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginBottom: 10 }}>Choose one strategy, or two to split the amount between them.</Tx>
         {STRATS.filter(s => !fromList.includes(s)).map(s => (
-          <Option key={s} title={`${s} · ${NAMES[s]}`} sub={invested[s] > 0 ? `You hold ${fmt0(invested[s])}` : 'New strategy for you'} on={!!to[s]} onPress={() => toggleTo(s)}>
+          <Option key={s} title={`${s} · ${NAMES[s]}`} disabled={toBlocked(s)} sub={toBlocked(s) ? 'Already moving here in a switch in progress' : invested[s] > 0 ? `You hold ${fmt0(invested[s])}` : 'New strategy for you'} on={!!to[s] && !toBlocked(s)} onPress={() => toggleTo(s)}>
             {splitNeeded
               ? <AmountPick v={to[s]} base={outTotal} limit={toLimit(s)} onChange={v => { clearErr(); setTo(m => ({ ...m, [s]: v })); }} />
               : <Tx s={11.5} c={C.muted}>Receives the full <Amt s={12} c={C.ink}>{fmt(outTotal)}</Amt>.</Tx>}

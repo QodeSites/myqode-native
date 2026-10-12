@@ -1,7 +1,7 @@
 // Services tab + request sheets. Every request posts to /api/mobile/services/* or
 // /engagement/referral, which email Investor Relations and return an inquiry id.
 import React, { useState, useEffect } from 'react';
-import { View, Pressable, ActivityIndicator, Modal, ScrollView, TextInput } from 'react-native';
+import { View, Pressable, ActivityIndicator, Modal, ScrollView, TextInput, Dimensions, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { C, Tx, Amt, Card, Sheet, Field, CTA, Fade } from '../ui';
 import { Plus, ChevronRight, ChevronDown, Copy, Check } from '../icons';
@@ -24,7 +24,7 @@ const STRATS = [['QAW', 'Qode All Weather'], ['QTF', 'Qode Tactical Fund'], ['QG
 const ITEMS = [
   { key: 'r-switch', title: 'Switch Strategy', sub: 'Move capital between strategies' },
   { key: 'r-strategy', title: 'Ask About a Strategy', sub: 'Send a question to the investment team' },
-  { key: 'r-discussion', title: 'Book a Discussion', sub: 'Request a call with Investor Relations' },
+  { key: 'r-discussion', title: 'Raise Any Query', sub: 'Ask Investor Relations anything' },
   { key: 'r-account' },   // title from accountRequest(): the web's family / account request, by role
 ];
 
@@ -312,7 +312,7 @@ export const FORMS = {
     submit: (a, v) => services.strategyInquiry({ accountId: a, question: v.q.trim() }),
   },
   'r-discussion': {
-    title: 'Book a Discussion', sub: 'Tell us what you’d like to talk about and we’ll arrange a call.', cta: 'REQUEST A CALL',
+    title: 'Raise Any Query', sub: 'Tell us your question or what you need help with. Investor Relations will get back to you within 24 hours.', cta: 'RAISE ANY QUERY',
     fields: [{ k: 't', label: 'TOPIC', kind: 'multiline', validate: x => check.text(x, { min: 5, what: 'the topic' }) }],
     submit: (a, v) => services.discussion({ accountId: a, topic: v.t.trim() }),
   },
@@ -359,13 +359,14 @@ function CountryCode({ value, onPick, error }) {
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable onPress={() => setOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(0,32,23,0.45)', justifyContent: 'center', padding: 24 }}>
-          <Pressable onPress={() => {}} style={{ maxHeight: '75%' }}>
-            <Card style={{ paddingVertical: 6, overflow: 'hidden' }}>
+          {/* a compact, centred box (not the whole page on the web): 380 wide at most, the list scrolling inside */}
+          <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 380, maxHeight: Math.min(520, Dimensions.get('window').height * 0.75), alignSelf: 'center' }}>
+            <Card style={{ paddingVertical: 6, overflow: 'hidden', flexShrink: 1 }}>
               <Tx w={700} s={10} ls={0.12} c={C.muted} style={{ paddingHorizontal: 18, paddingTop: 10 }}>COUNTRY CODE</Tx>
               <View style={{ marginHorizontal: 18, marginTop: 8, marginBottom: 4, borderBottomWidth: 1, borderColor: C.mutedBorder }}>
-                <TextInput value={q} onChangeText={setQ} placeholder="Search country or code" placeholderTextColor={C.gray} autoCorrect={false} style={{ paddingVertical: 8, fontSize: 14, color: C.ink }} />
+                <TextInput value={q} onChangeText={setQ} placeholder="Search country or code" placeholderTextColor={C.gray} autoCorrect={false} style={{ paddingVertical: 8, fontSize: 14, color: C.ink, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : null),}} />
               </View>
-              <ScrollView keyboardShouldPersistTaps="handled">
+              <ScrollView keyboardShouldPersistTaps="handled" style={{ flexShrink: 1 }}>
                 {list.map(([code, name, flag]) => {
                   const on = code === cur[0];
                   return (
