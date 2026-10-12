@@ -1,4 +1,7 @@
 Improvements in this update:
-• Holdings now show stocks and ETFs as shares (mutual funds stay as units)
+• Events: see Qode's upcoming events from the app
+• Partners now get Insights and Events too
 • Partners see each investor's relationship manager and can search by RM
+• Holdings now show stocks and ETFs as shares (mutual funds stay as units)
+• Strategy switch requests now send your exact split
 • Small fixes and performance improvements
