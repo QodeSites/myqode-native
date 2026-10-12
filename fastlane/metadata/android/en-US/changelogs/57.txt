@@ -1,0 +1,4 @@
+Improvements in this update:
+• Holdings now show stocks and ETFs as shares (mutual funds stay as units)
+• Partners see each investor's relationship manager and can search by RM
+• Small fixes and performance improvements

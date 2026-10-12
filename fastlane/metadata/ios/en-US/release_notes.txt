@@ -1,6 +1,4 @@
-The all-new myQode.
-• Your portfolio, family accounts and every strategy in one place
-• Returns and risk measures, with your own money's return compared with the same money in the benchmark
-• Recent activity that shows what you did: investments, top-ups, withdrawals and strategy switches
-• Statements, capital gains (F&O shown as business income) and fact sheets, as PDF and Excel
-• Add funds or raise a service request in a few taps
+Improvements in this update:
+• Holdings now show stocks and ETFs as shares (mutual funds stay as units)
+• Partners see each investor's relationship manager and can search by RM
+• Small fixes and performance improvements
