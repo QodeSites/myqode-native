@@ -53,6 +53,12 @@ export const auth = {
     : api('/auth/complete-otp-setup', { method: 'POST', auth: false, body: { email, otp, newPassword, confirmPassword } })),
   forgot: email => (demoOn ? mock(() => ({ success: true })) : api('/auth/forgot', { method: 'POST', auth: false, body: { email, ...(TEST_MODE ? { testRedirect: true } : {}) } })),
   me: (opts = {}) => api('/auth/me', opts),
+  // Sign-up to preview a sample portfolio: { name, email, phone } → { ok } or { existing: true, message } (an investor's
+  // email). The server records it and creates a Zoho CRM Lead for a new mobile number (myQode lib/zohoLeads.ts).
+  signup: body => api('/auth/signup', { method: 'POST', auth: false, body }),   // body also carries otp, the code from signupSendOtp
+  // A 6-digit code by SMS to the number being signed up → { ok, resendAfterSec, devOtp? } (devOtp only off production
+  // with no SMS provider). 429 with retryAfterSec when asked too often.
+  signupSendOtp: phone => api('/auth/signup/send-otp', { method: 'POST', auth: false, body: { phone } }),
   // Sign-out, for the server's sign-in log. Never throws: signing out must work offline too.
   logout: () => (demoOn ? Promise.resolve() : api('/auth/logout', { method: 'POST', body: { os: Platform.OS }, timeout: 5000 }).catch(() => {})),
 };
@@ -193,6 +199,9 @@ export const services = {
     return bankCache;
   },
   transactions: accountId => call('/services/transactions', { query: { accountId } }, () => demo.transactions()),
+  // My Requests: everything the client raised (questions, queries, requests, referrals, switches) with its
+  // live status in Zoho (myQode lib/requestTracking.ts), newest first.
+  requests: () => call('/requests', {}, () => demo.requests()),
   // These email Investor Relations only (to: investor.relations@qodeinvest.com), never the client.
   withdrawal: body => post('/services/withdrawal', body),
   switchStrategy: body => post('/services/switch', body),

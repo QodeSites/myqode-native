@@ -10,7 +10,7 @@ import { ChevronLeft, ChevronRight } from '../icons';
 import { experience, engagement, admin } from '../api';
 import * as content from '../content';
 import { Risk } from './risk';
-import { FormBody } from './services';
+import { FormBody, MyRequests } from './services';
 import { check, LIMITS } from '../validate';
 import { Foundation, ReportsReviews, StrategySnapshot, PortalGuide, Team as TeamPage, Escalation } from './about';
 import { useLoad, openUrl, fmtSize, Loading, ErrorBox, Empty, SectionLabel, LinkRow } from './kit';
@@ -320,6 +320,7 @@ export const PAGES = {
   voice: { title: 'Your Voice Matters', body: V => <VoicePage V={V} /> },
   notifications: { title: 'Notifications', body: () => <NotificationSettings /> },
   transactions: { title: 'Transactions', body: V => <CashList V={V} full /> },
+  requests: { title: 'Past Requests', body: V => <MyRequests V={V} /> },
   privacy: { title: content.LEGAL.privacy.title || 'Privacy policy', body: () => <Article data={content.LEGAL.privacy} /> },
   terms: { title: content.LEGAL.terms.title || 'Terms & conditions', body: () => <Article data={content.LEGAL.terms} /> },
   cancellation: { title: content.LEGAL.cancellation.title || 'Cancellation & refund', body: () => <Article data={content.LEGAL.cancellation} /> },

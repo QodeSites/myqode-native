@@ -900,13 +900,33 @@ export default class MyQode extends React.Component {
     catch (e) { this.setState({ devClients: [], devErr: (e.status === 404 ? 'Investor list is only available when the server runs in development.' : userMessage(e)) + ' (' + BASE_URL + ')' }); }
   };
 
-  startDemo = async () => {
-    if (this.state.busy) return;
+  // The sample portfolio (demo data), as the preview a new sign-up gets (profile: their name and email) or, with no
+  // profile, the plain demo (dev / reviewer use; the open "Explore a demo" link is gone, 13 Oct 2026).
+  // chained: called while a sign-up is still busy (doSignup), so the busy guard is skipped
+  startDemo = async (profile, chained = false) => {
+    if (this.state.busy && !chained) return;
     this.setState({ busy: true, authErr: '', authInfo: '' });
     setDemo(true);
-    this.setState({ user: { name: 'Rohan Mehta', email: 'rohan.mehta@example.com', clientCode: 'QAW0412' } });
+    const p = profile && profile.name ? profile : null;
+    this.setState({ user: { name: p ? p.name : 'Rohan Mehta', email: p ? p.email : 'rohan.mehta@example.com', clientCode: 'QAW0412', preview: !!p } });
     try { await this.loadSnapshot(); this.setState({ busy: false }); this.startApp(); }
     catch (e) { setDemo(false); this.authFail(e); }
+  };
+  // Sign-up (name, email, mobile) → the server records it and creates a Zoho CRM Lead for a new number. The screen
+  // then says our team will be in touch and links to OneView (https://oneview.qodeinvest.com/login), where the person
+  // can fetch their portfolio (decided 13 Oct 2026; no sample portfolio). An investor's email is sent to sign in
+  // instead. Returns true on success.
+  // → { ok } ; on a refusal { ok: false, code } with the server's code (OTP_WRONG / OTP_LOCKED / OTP_EXPIRED …) so the
+  // form can ask for a fresh code when this one is spent; the message itself is in authErr.
+  doSignup = async ({ name, email, phone, otp }) => {
+    if (this.state.busy) return { ok: false };
+    this.setState({ busy: true, authErr: '', authInfo: '' });
+    try {
+      const r = await auth.signup({ name, email, phone, otp });
+      if (r && r.existing) { this.setState({ busy: false, email: email || '', authInfo: r.message || 'This email already has a myQode account. Please sign in.' }); return { ok: false, code: 'EXISTING' }; }
+      this.setState({ busy: false });
+      return { ok: true };
+    } catch (e) { this.authFail(e); return { ok: false, code: e.code }; }
   };
 
   signOut = async (msg = '') => {
@@ -1410,7 +1430,7 @@ export default class MyQode extends React.Component {
       // auth
       email: S.email, pw: S.pw, onEmail: t => set({ email: noSpace(t), authErr: /\s/.test(t) ? 'Spaces aren’t allowed in your email or account code.' : '' }),
       onPw: t => set({ pw: noSpace(t), authErr: /\s/.test(t) ? 'Spaces aren’t allowed in a password.' : '' }),
-      doLogin: this.doLogin, doForgot: this.doForgot, startDemo: this.startDemo, isDemo: isDemo(),
+      doLogin: this.doLogin, doForgot: this.doForgot, doSignup: this.doSignup, signupSendOtp: phone => auth.signupSendOtp(phone), clearAuthMsg: (keepInfo = false) => { if (this.state.authErr || (!keepInfo && this.state.authInfo)) this.setState(keepInfo ? { authErr: '' } : { authErr: '', authInfo: '' }); }, startDemo: this.startDemo, isDemo: isDemo(),
       testMode: TEST_MODE && !isDemo(), devBypass: DEV_BYPASS,
       devOpen: S.devOpen, toggleDev: this.toggleDev, bypassLogin: this.bypassLogin, devErr: S.devErr, reloadDev: this.loadDevClients, apiBase: BASE_URL,
       devQ: S.devQ, onDevQ: t => set({ devQ: t }),

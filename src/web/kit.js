@@ -102,7 +102,8 @@ export const Row = ({ children, style, gap = 20, top }) => (
   <View style={[{ flexDirection: 'row', gap, alignItems: top ? 'flex-start' : 'stretch' }, style]}>{children}</View>
 );
 /** Wrapping grid: children get `minWidth` and grow to fill the row. */
-export const Grid = ({ children, min = 260, gap = 16, cols, style }) => {
+// fill: a short last row shares the width (five cards in 3 + 2) instead of leaving its empty cells.
+export const Grid = ({ children, min = 260, gap = 16, cols, fill, style }) => {
   // cols: a fixed number a row, equal widths (a 2 × 2 of four cards); otherwise as many of `min` width as fit.
   if (cols) {
     const kids = React.Children.toArray(children).filter(Boolean), rows = [];
@@ -112,7 +113,7 @@ export const Grid = ({ children, min = 260, gap = 16, cols, style }) => {
         {rows.map((r, i) => (
           <View key={i} style={{ flexDirection: 'row', gap, zIndex: rows.length - i }}>
             {r.map((ch, j) => <View key={j} style={{ flex: 1, minWidth: 0 }}>{ch}</View>)}
-            {Array.from({ length: cols - r.length }, (_, j) => <View key={'e' + j} style={{ flex: 1 }} />)}
+            {!fill && Array.from({ length: cols - r.length }, (_, j) => <View key={'e' + j} style={{ flex: 1 }} />)}
           </View>
         ))}
       </View>

@@ -1,10 +1,43 @@
 import React from 'react';
-import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
-import { C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise, KeyboardScroll, useKeyboardHeight, Wordmark } from '../ui';
+import { PhoneMaskField, C, Tx, Card, CTA, CurveCap, Field, OtpRow, Rise, KeyboardScroll, useKeyboardHeight, Wordmark } from '../ui';
 
 import { SHOW_ONBOARDING } from '../api/config';
+// The mobile number is a 10-digit Indian number (+91), in a field with a 00000 00000 mask (PhoneMaskField, src/ui.js;
+// decided 13 Oct 2026 — the SMS code goes through 2Factor, Indian numbers only). The server applies the same rule.
+// What the fields accept as they are typed: letters (with space . ' -) for the name; digits only for the number
+export const cleanName = t => t.replace(/[^A-Za-z .'’-]/g, '').replace(/\s{2,}/g, ' ');
+export const cleanPhone = t => t.replace(/\D/g, '').slice(0, 10);
+// Each check names the field and says exactly what is wrong ('' when fine).
+export const nameProblem = raw => {
+  const t = String(raw || '').trim();
+  if (!t) return 'Enter your full name.';
+  if (/[^A-Za-z .'’-]/.test(t)) return 'Your name can only have letters, spaces, dots, apostrophes and hyphens.';
+  if (t.replace(/[^A-Za-z]/g, '').length < 2) return 'Your name needs at least 2 letters.';
+  if (t.length > 80) return 'Your name can be at most 80 characters.';
+  return '';
+};
+export const emailProblem = raw => {
+  const t = String(raw || '').trim();
+  if (!t) return 'Enter your email address.';
+  if (/\s/.test(t)) return 'Your email address cannot have spaces.';
+  if ((t.match(/@/g) || []).length !== 1) return 'Your email address needs one @, like name@example.com.';
+  const [user, domain] = t.split('@');
+  if (!user) return 'Your email address needs something before the @.';
+  if (!/^[^@]+\.[A-Za-z]{2,}$/.test(domain)) return 'Your email address needs a domain after the @, like gmail.com.';
+  if (t.length > 120) return 'Your email address can be at most 120 characters.';
+  return '';
+};
+export const phoneProblem = raw => {
+  const t = String(raw || '').trim();
+  const d = t.replace(/\D/g, '');
+  if (!d) return 'Enter your 10-digit mobile number.';
+  if (d.length !== 10) return 'Enter all 10 digits of your mobile number; ' + d.length + (d.length === 1 ? ' is' : ' are') + ' filled in.';
+  if (!/^[6-9]/.test(d)) return 'A mobile number starts with 6, 7, 8 or 9.';
+  return '';
+};
 // The text links under the sign-in card are tappable on their words only (plus a little side padding), not across the
 // whole width, so a tap beside a link does nothing.
 const textLink = { alignSelf: 'center', paddingHorizontal: 10 };
@@ -31,6 +64,84 @@ function Msg({ V }) {
   );
 }
 
+// Sign-up card (13 Oct 2026, in place of the open demo link): name, email and mobile; then "our team will get back to
+// you", with the OneView login where the person can fetch their portfolio.
+const ONEVIEW_LOGIN = 'https://oneview.qodeinvest.com/login';
+function SignupCard({ V, onBack }) {
+  const [f, setF] = React.useState({ name: '', email: '', phone: '', otp: '' });
+  const [err, setErr] = React.useState('');
+  const [done, setDone] = React.useState(false);
+  // the code: sent → { to: the number it went to, wait: seconds until Resend, hint: the test server's code }
+  const [sent, setSent] = React.useState(null);
+  const [sending, setSending] = React.useState(false);
+  React.useEffect(() => { if (!sent || sent.wait <= 0) return undefined; const t = setTimeout(() => setSent(s => (s ? { ...s, wait: s.wait - 1 } : s)), 1000); return () => clearTimeout(t); }, [sent]);
+  const set = k => t => { setErr(''); V.clearAuthMsg(); setF(x => ({ ...x, [k]: t })); };   // the server's last word goes too
+  const checkDetails = () => {
+    const name = f.name.trim(), email = f.email.trim(), phone = f.phone.trim();
+    const bad = nameProblem(name) || emailProblem(email) || phoneProblem(phone);
+    if (bad) return setErr(bad) || null;
+    return { name, email, phone };
+  };
+  const sendCode = async () => {
+    const d = checkDetails(); if (!d || sending) return;
+    setSending(true);
+    try { const r = await V.signupSendOtp(d.phone); setSent({ to: d.phone, wait: r.resendAfterSec || 60, hint: r.devOtp || '' }); setF(x => ({ ...x, otp: '' })); }
+    catch (e) {
+      // sent a minute ago (e.g. the page was reloaded): that code is still valid, so ask for it
+      if (e.code === 'TOO_SOON') { setSent({ to: d.phone, wait: (e.data && e.data.retryAfterSec) || 60, hint: '' }); setErr('A code was already sent to this number a moment ago. Enter it below.'); }
+      else setErr(e.message || 'We could not send the code. Please try again.');
+    }
+    finally { setSending(false); }
+  };
+  const submit = async () => {
+    const d = checkDetails(); if (!d) return;
+    if (!sent || sent.to !== d.phone) return sendCode();   // number changed since the code went: a new code
+    if (!/^\d{6}$/.test(f.otp.trim())) return setErr('Enter the 6-digit code we sent to your mobile.');
+    const r = await V.doSignup({ ...d, otp: f.otp.trim() });
+    if (r.ok) setDone(true);
+    else if (r.code === 'OTP_LOCKED' || r.code === 'OTP_EXPIRED') { setSent(null); setF(x => ({ ...x, otp: '' })); }   // this code is spent: back to "send a code"
+  };
+  if (done) {
+    return (
+      <Card big style={{ marginTop: -30, paddingVertical: 24, paddingHorizontal: 22 }}>
+        <Tx w={700} s={11} ls={0.14} c={C.muted}>THANK YOU</Tx>
+        <Tx f="play" w={600} s={20} style={{ marginTop: 8 }}>{`Thanks, ${f.name.trim().split(/\s+/)[0]}.`}</Tx>
+        <Tx s={12.5} c={C.muted} lh={1.55} style={{ marginTop: 8 }}>Our team will get back to you shortly. Meanwhile, fetch your portfolio in OneView.</Tx>
+        <CTA label="OPEN ONEVIEW" onPress={() => Linking.openURL(ONEVIEW_LOGIN).catch(() => {})} style={{ marginTop: 20 }} />
+        <Pressable onPress={onBack} style={[{ marginTop: 14, minHeight: 32, justifyContent: 'center' }, textLink]}>
+          <Tx s={12} c={C.muted} center>Back to sign in</Tx>
+        </Pressable>
+      </Card>
+    );
+  }
+  return (
+    <Card big style={{ marginTop: -30, paddingVertical: 24, paddingHorizontal: 22 }}>
+      <Tx w={700} s={11} ls={0.14} c={C.muted}>NEW TO QODE</Tx>
+      <Tx s={12} c={C.muted} lh={1.5} style={{ marginTop: 6 }}>Leave your details and our team will get back to you.</Tx>
+      <Field label="FULL NAME" value={f.name} onChangeText={t => set('name')(cleanName(t))} placeholder="Your name" autoCapitalize="words" style={{ marginTop: 14 }} />
+      <Field label="EMAIL" value={f.email} onChangeText={t => set('email')(t.replace(/\s/g, ''))} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" style={{ marginTop: 14 }} />
+      <View style={{ marginTop: 14 }}>
+        <Tx w={700} s={10} ls={0.12} c={C.gray}>MOBILE NUMBER</Tx>
+        <PhoneMaskField variant="line" value={f.phone} onChange={t => set('phone')(cleanPhone(t))} />
+      </View>
+      {sent && sent.to === f.phone.trim() && (
+        <View style={{ marginTop: 14 }}>
+          <Field label="VERIFICATION CODE" value={f.otp} onChangeText={t => set('otp')(t.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit code" keyboardType="number-pad" maxLength={6}
+            hint={sent.hint ? `Test server: the code is ${sent.hint}` : `Sent by SMS to ${sent.to}. Valid for 10 minutes.`} />
+          <Pressable onPress={sent.wait > 0 ? undefined : sendCode} style={[{ marginTop: 8, minHeight: 28, justifyContent: 'center' }, textLink]}>
+            <Tx s={11.5} c={sent.wait > 0 ? C.gray : C.green} center>{sent.wait > 0 ? `Resend code in ${sent.wait}s` : 'Resend code'}</Tx>
+          </Pressable>
+        </View>
+      )}
+      {err ? <Tx s={12} c={C.red} lh={1.45} style={{ marginTop: 14 }}>{err}</Tx> : <Msg V={V} />}
+      <CTA label={V.authBusy || sending ? 'PLEASE WAIT…' : sent && sent.to === f.phone.trim() ? 'VERIFY AND SIGN UP' : 'SEND VERIFICATION CODE'} onPress={submit} style={{ marginTop: 22, opacity: V.authBusy || sending ? 0.6 : 1 }} />
+      <Pressable onPress={onBack} style={[{ marginTop: 14, minHeight: 32, justifyContent: 'center' }, textLink]}>
+        <Tx s={12} c={C.muted} center>Already an investor? Sign in</Tx>
+      </Pressable>
+    </Card>
+  );
+}
+
 export function Login({ V }) {
   // The sign-in card never scrolls: the dark head and the card are fixed, and only what sits below them (the DEV
   // sign-in with its client list, the demo link, a saved application, "Begin your journey") scrolls in its own
@@ -38,6 +149,7 @@ export function Login({ V }) {
   // always stays on screen.
   const kb = useKeyboardHeight();
   const headPct = kb > 0 ? 0.16 : V.devBypass && V.devOpen ? 0.26 : 0.42;
+  const [mode, setMode] = React.useState('login');   // 'login' | 'signup'
   return (
     <View style={{ flex: 1, backgroundColor: C.cream }}>
       <DarkHead pct={headPct}>
@@ -48,6 +160,7 @@ export function Login({ V }) {
         <CurveCap height={46} />
         <View style={{ backgroundColor: C.cream, paddingHorizontal: 24 }}>
           <Rise>
+            {mode === 'signup' ? <SignupCard V={V} onBack={() => { V.clearAuthMsg(true); setMode('login'); }} /> : (
             <Card big style={{ marginTop: -30, paddingVertical: 24, paddingHorizontal: 22 }}>
               <Tx w={700} s={11} ls={0.14} c={C.muted}>WELCOME BACK</Tx>
               <View style={{ marginTop: 14, flexDirection: 'row', borderWidth: 1, borderColor: 'rgba(55,88,79,0.25)', borderRadius: 999, padding: 3 }}>
@@ -63,10 +176,13 @@ export function Login({ V }) {
               <Msg V={V} />
               <CTA label={V.authBusy ? 'PLEASE WAIT…' : 'SIGN IN SECURELY'} onPress={V.doLogin} style={{ marginTop: 22, opacity: V.authBusy ? 0.6 : 1 }} />
             </Card>
+            )}
           </Rise>
-          <Pressable onPress={V.doForgot} style={[{ marginTop: 14, minHeight: 32, justifyContent: 'center' }, textLink]}>
-            <Tx s={12} c={C.muted} center>Forgot password</Tx>
-          </Pressable>
+          {mode === 'login' && (
+            <Pressable onPress={V.doForgot} style={[{ marginTop: 14, minHeight: 32, justifyContent: 'center' }, textLink]}>
+              <Tx s={12} c={C.muted} center>Forgot password</Tx>
+            </Pressable>
+          )}
         </View>
       </View>
       {/* Everything below the card scrolls on its own; the card above stays put. */}
@@ -112,9 +228,11 @@ export function Login({ V }) {
               )}
             </Card>
           )}
-          <Pressable onPress={V.startDemo} style={[{ marginTop: 14 }, textLink]}>
-            <Tx w={700} s={12} c={C.green} center>Explore a demo with sample data</Tx>
-          </Pressable>
+          {mode === 'login' && (
+            <Pressable onPress={() => { V.clearAuthMsg(); setMode('signup'); }} style={[{ marginTop: 14 }, textLink]}>
+              <Tx s={12} c={C.muted} center>New to Qode? <Tx w={700} s={12} c={C.green}>Sign up</Tx></Tx>
+            </Pressable>
+          )}
           {V.hasResume && (
             <Card style={{ marginTop: 18, padding: 16, borderWidth: 1, borderColor: C.gold45 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

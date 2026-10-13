@@ -245,6 +245,38 @@ export function Field({ label, value, onChangeText, placeholder, secure, numeric
   );
 }
 
+// The sign-up's 10-digit Indian mobile number (option E, 13 Oct 2026): looks like the form's other fields — a box on
+// the web (variant 'box'), an underline on the phone ('line') — with +91 inside and a faint 00000 00000 mask that the
+// digits fill in, spaced 5 + 5. One real TextInput lies over the field, invisible, so typing, paste, backspace and
+// the number pad behave as in a plain field; what shows is drawn from its value, with a caret after the last digit.
+export function PhoneMaskField({ value, onChange, variant = 'box', autoFocus, onSubmit, error, s = 15 }) {
+  const [focus, setFocus] = useState(false);
+  const d = String(value || '').replace(/\D/g, '').slice(0, 10);
+  const sp = t => (t.length > 5 ? t.slice(0, 5) + ' ' + t.slice(5) : t);
+  const all = sp((d + '0000000000').slice(0, 10));
+  const typed = all.slice(0, d.length + (d.length >= 5 ? 1 : 0));   // after the 5th digit the space is "typed" too
+  const line = error ? C.red : focus ? C.green : variant === 'box' ? C.mutedBorder35 : C.mutedBorder;
+  const box = variant === 'box'
+    ? { borderWidth: 1, borderRadius: 8, backgroundColor: '#fff', paddingHorizontal: 14, minHeight: 48, borderColor: line }
+    : { borderBottomWidth: error || focus ? 1.5 : 1, borderColor: line, paddingVertical: 10 };
+  return (
+    <View style={[{ flexDirection: 'row', alignItems: 'center' }, box]}>
+      <Tx s={s} c={C.muted}>+91</Tx>
+      <View style={{ width: 1, height: 20, backgroundColor: 'rgba(55,88,79,0.2)', marginHorizontal: 10 }} />
+      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+        <Tx s={s} ls={0.6} c={C.ink}>{typed}</Tx>
+        {focus && d.length < 10 && <View style={{ width: 1.5, height: s + 3, backgroundColor: C.green, marginHorizontal: 0.5 }} />}
+        <Tx s={s} ls={0.6} c="#C3C9C5">{all.slice(typed.length)}</Tx>
+      </View>
+      <TextInput value={d} onChangeText={t => onChange(t.replace(/\D/g, '').slice(0, 10))} maxLength={10}
+        keyboardType="number-pad" inputMode="numeric" autoComplete="tel-national" textContentType="telephoneNumber"
+        autoFocus={autoFocus} caretHidden onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} onSubmitEditing={onSubmit}
+        accessibilityLabel="Mobile number, 10 digits"
+        style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, opacity: 0, color: 'transparent', fontSize: 16, outlineStyle: 'none', cursor: 'text' }} />
+    </View>
+  );
+}
+
 // Six OTP boxes with auto-advance / backspace-retreat.
 export function OtpRow({ boxes }) {
   const { z } = useUI();

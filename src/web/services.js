@@ -1,10 +1,11 @@
 // Desktop Services section: the phone's Services tab (src/screens/services.js) as a desktop dashboard. A summary row
-// on top, then the activity table (online payments, SIPs and transactions) on the left and Add funds plus the
-// request list in a right-hand column. Same V, same API calls, same request sheets (RequestSheets renders them as
+// on top, then the activity table (online payments and SIPs) beside Add funds, both the same height (the table
+// scrolls inside its panel), then the request types as a 2 × 2 of cards across the page. Past requests are on
+// Support, not here (13 Oct 2026). Same V, same API calls, same request sheets (RequestSheets renders them as
 // centred dialogs on desktop), same SIP guards.
 import React, { useState, useEffect } from 'react';
-import { View, Pressable } from 'react-native';
-import { C, Tx, Amt, Row, PageIntro, Panel, Stat, DarkCard, Btn, Chips, Tabs, Table, Pill, Loading, ErrorBlock, Dialog } from './kit';
+import { View, Pressable, ScrollView } from 'react-native';
+import { C, Tx, Amt, Row, PageIntro, Panel, Stat, DarkCard, Btn, Chips, Tabs, Table, Pill, Loading, ErrorBlock, Dialog, Card, Grid } from './kit';
 import { Plus, ChevronRight, Swap } from '../icons';
 import { services, payments } from '../api';
 import { titleCase, inr, fmtDate } from '../adapt';
@@ -13,6 +14,7 @@ import { accountRequest } from '../screens/services';
 import { ContactIRLink } from './contact';
 
 import { userMessage } from '../errors';
+import { statusTone, statusLabel, requestMeta } from '../requests';
 // Same list as the phone (ITEMS in src/screens/services.js, which is not exported): withdrawals are deliberately
 // not offered in the app, and Add funds is the call to action above the list.
 const ITEMS = [
@@ -23,6 +25,7 @@ const ITEMS = [
 ];
 
 const recentJump = j => !!j && Date.now() - j < 2000;   // Home > Recent transactions > View all
+const ROW_H = 360;   // the payments panel and Add funds, side by side: fits the empty state and the dark card's text
 
 const when = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\bSept\b/, 'Sep'); };
 
@@ -64,31 +67,66 @@ export default function DesktopServices({ V }) {
         <Stat style={{ flex: 1 }} label="Next SIP charge" value={inv.loading ? '…' : upcoming ? fmtDate(upcoming) : '–'} note={upcoming ? null : 'No instalment scheduled'} />
       </Row>
 
-      <Row top>
-        <Panel title="Online payments and SIPs" pad={0} style={{ flex: 1, minWidth: 0 }}
+      {/* one height for both: the panel's body scrolls when there are many rows, Add funds never changes size */}
+      <Row style={{ height: ROW_H }}>
+        <Panel title="Online payments and SIPs" pad={0} style={{ flex: 1, minWidth: 0 }} bodyStyle={{ flex: 1, minHeight: 0 }}
           sub="Payments made here and SIP mandates, for one account. Bank transfers are under Transactions."
           right={!!V.asOf && <Tx s={12} c={C.ink3}>As of {V.asOf}</Tx>}>
-          <Investments V={V} opts={opts} accountId={accountId} onPickAccount={setSel} inv={inv} all={all} />
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
+            <Investments V={V} opts={opts} accountId={accountId} onPickAccount={setSel} inv={inv} all={all} />
+          </ScrollView>
         </Panel>
 
-        <View style={{ width: 340, gap: 20 }}>
-          <DarkCard style={{ padding: 22 }}>
-            <Tx w={600} s={13} c={C.cream60}>Add funds</Tx>
-            <Tx f="play" w={600} s={21} c={C.cream} style={{ marginTop: 6 }}>Top Up Your Investment</Tx>
-            <Tx s={13} c={C.cream60} lh={1.55} style={{ marginTop: 10 }}>
-              Pay once online, set up a SIP that debits automatically on schedule, or transfer by NEFT, RTGS or IMPS from your registered bank account.
-            </Tx>
-            <Btn kind="gold" label="Add funds" icon={<Plus s={16} c={C.ink} />} onPress={V.openAdd} style={{ marginTop: 16, alignSelf: 'flex-start' }} />
-          </DarkCard>
-
-          <Panel title="Requests and support" sub="Sent to Investor Relations" pad={0} footer={<ContactIRLink V={V} />}>
-            <View style={{ borderTopWidth: 1, borderColor: C.line }}>
-              {items.map((it, i) => <RequestRow key={it.key} it={it} last={i === items.length - 1} onPress={() => V.openReq(it.key)} />)}
-            </View>
-          </Panel>
-        </View>
+        <DarkCard style={{ width: 340, padding: 22, justifyContent: 'center' }}>
+          <Tx w={600} s={13} c={C.cream60}>Add funds</Tx>
+          <Tx f="play" w={600} s={21} c={C.cream} style={{ marginTop: 6 }}>Top Up Your Investment</Tx>
+          <Tx s={13} c={C.cream60} lh={1.55} style={{ marginTop: 10 }}>
+            Pay once online, set up a SIP that debits automatically on schedule, or transfer by NEFT, RTGS or IMPS from your registered bank account.
+          </Tx>
+          <Btn kind="gold" label="Add funds" icon={<Plus s={16} c={C.ink} />} onPress={V.openAdd} style={{ marginTop: 16, alignSelf: 'flex-start' }} />
+        </DarkCard>
       </Row>
+
+      <Panel title="Requests and support" sub="Sent to Investor Relations" footer={<ContactIRLink V={V} />}>
+        <Grid cols={2} gap={12}>
+          {items.map(it => <RequestCard key={it.key} it={it} onPress={() => V.openReq(it.key)} />)}
+        </Grid>
+      </Panel>
+
     </View>
+  );
+}
+
+// Past requests: everything the client raised, each with its status exactly as it stands in Zoho (services.requests,
+// src/requests.js). The full list is its own page (Support › Past requests, and "View all"); with \`limit\` it is the
+// overview on Account Services: the latest few and a "View all" link to the page.
+export function MyRequests({ V, limit }) {
+  const L = useLoad(() => services.requests(), [V.rk]);
+  const all = (L.data && L.data.requests) || [];
+  const list = limit ? all.slice(0, limit) : all;
+  const note = L.loading ? 'Loading your requests…' : L.err ? 'We couldn’t load your requests just now.' : !all.length ? 'Nothing raised yet. Requests you make here show up with their status.' : null;
+  const more = !!limit && all.length > 0;
+  return (
+    <Panel title="Past requests" pad={0}
+      right={more && (
+        <Pressable accessibilityRole="link" onPress={() => V.openPage('requests')} style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 4, opacity: hovered ? 0.7 : 1 })}>
+          <Tx w={600} s={13} c={C.green}>View all{all.length > list.length ? ' · ' + all.length : ''}</Tx>
+          <ChevronRight s={11} c={C.green} />
+        </Pressable>
+      )}>
+      <View style={{ borderTopWidth: 1, borderColor: C.line }}>
+        {note ? <Tx s={12.5} c={C.ink3} style={{ padding: 16 }}>{note}</Tx> : list.map((r, i) => (
+          <View key={r.id} style={{ paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: i < list.length - 1 ? 1 : 0, borderColor: C.line }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Tx w={600} s={13.5} style={{ flex: 1, minWidth: 0 }}>{r.title}</Tx>
+              {!!statusLabel(r) && <Pill label={statusLabel(r)} tone={statusTone(r)} />}
+            </View>
+            {!!r.detail && <Tx s={12.5} c={C.ink2} lh={1.5} style={{ marginTop: 3 }}>{r.detail}</Tx>}
+            <Tx s={11.5} c={C.ink3} style={{ marginTop: 4 }}>{requestMeta(r)}</Tx>
+          </View>
+        ))}
+      </View>
+    </Panel>
   );
 }
 
@@ -102,6 +140,28 @@ export function RequestPicker({ V, visible, onClose }) {
         {items.map((it, i) => <RequestRow key={it.key} it={it} last={i === items.length - 1} onPress={() => { onClose(); V.openReq(it.key); }} />)}
       </View>
     </Dialog>
+  );
+}
+
+// A request type as a card (Account Services › Requests and support, 2 × 2): icon, title, what it is for.
+function RequestCard({ it, onPress }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={it.title} onPress={onPress} style={{ flex: 1 }}>
+      {({ hovered }) => (
+        <Card style={{ padding: 18, gap: 12, flex: 1, borderColor: hovered ? C.green : C.line }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: C.greenTint, alignItems: 'center', justifyContent: 'center' }}>
+              {it.key === 'r-switch' ? <Swap s={16} c={C.green} /> : <Tx w={600} s={14} c={C.green}>{it.title.charAt(0)}</Tx>}
+            </View>
+            <ChevronRight s={14} c={hovered ? C.green : C.ink3} />
+          </View>
+          <View>
+            <Tx w={600} s={15} c={C.green}>{titleCase(it.title)}</Tx>
+            {!!it.sub && <Tx s={12.5} c={C.ink3} lh={1.5} style={{ marginTop: 3 }}>{it.sub}</Tx>}
+          </View>
+        </Card>
+      )}
+    </Pressable>
   );
 }
 

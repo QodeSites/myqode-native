@@ -17,6 +17,7 @@ import { track } from '../api/track';
 import { dayLabel } from './pay';
 
 import { userMessage } from '../errors';
+import { statusTone, statusLabel, requestMeta } from '../requests';
 const STRATS = [['QAW', 'Qode All Weather'], ['QTF', 'Qode Tactical Fund'], ['QGF', 'Qode Growth Fund']];
 
 // Withdrawals are deliberately not offered in the app (Investor Relations handles them); the API route stays.
@@ -78,6 +79,7 @@ export function ServicesCream({ V }) {
       </Card>
       <ContactIRLink V={V} style={{ marginTop: 8, marginLeft: 2 }} />
 
+
       <SectionLabel>ONLINE PAYMENTS AND SIPs</SectionLabel>
       <Investments V={V} opts={opts} accountId={accountId} onPickAccount={setSel} inv={inv} all={all} />
       <Pressable onPress={V.goServicesTx} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, marginLeft: 2 }}>
@@ -85,6 +87,41 @@ export function ServicesCream({ V }) {
       </Pressable>
       <Tx s={11} c={C.gray} style={{ marginTop: 14, marginLeft: 2 }}>As of {V.asOf}</Tx>
     </Fade>
+  );
+}
+
+// Status pill for a request: Zoho's own label, coloured by state (src/requests.js).
+const PILL = { warn: ['rgba(218,189,56,0.18)', '#7A5D00'], bad: ['rgba(239,68,68,0.12)', C.red], ok: ['rgba(2,66,43,0.10)', C.green], neutral: ['rgba(55,88,79,0.10)', C.muted] };
+function StatusPill({ r }) {
+  if (!statusLabel(r)) return null;
+  const [bg, fg] = PILL[statusTone(r)] || PILL.neutral;
+  return (
+    <View style={{ backgroundColor: bg, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 }}>
+      <Tx w={700} s={10.5} c={fg}>{statusLabel(r)}</Tx>
+    </View>
+  );
+}
+// My Requests (its own page, from the Services tab): everything the client raised, with its live status in Zoho
+// (services.requests). Reloads with the tab (V.rk).
+export function MyRequests({ V }) {
+  const L = useLoad(() => services.requests(), [V.rk]);
+  const list = (L.data && L.data.requests) || [];
+  if (L.loading) return <Card style={{ padding: 16 }}><Tx s={12} c={C.muted}>Loading your requests…</Tx></Card>;
+  if (L.err) return <Card style={{ padding: 16 }}><Tx s={12} c={C.muted}>We couldn’t load your requests just now.</Tx></Card>;
+  if (!list.length) return <Card style={{ padding: 16 }}><Tx s={12} c={C.muted}>Nothing raised yet. Requests you make here show up with their status.</Tx></Card>;
+  return (
+    <Card style={{ overflow: 'hidden' }}>
+      {list.map((r, i) => (
+        <View key={r.id} style={{ paddingVertical: 13, paddingHorizontal: 16, borderBottomWidth: i < list.length - 1 ? 1 : 0, borderColor: C.hairline }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Tx w={700} s={13} style={{ flex: 1 }}>{r.title}</Tx>
+            <StatusPill r={r} />
+          </View>
+          {!!r.detail && <Tx s={11.5} c={C.ink} lh={1.45} style={{ marginTop: 3 }}>{r.detail}</Tx>}
+          <Tx s={10.5} c={C.muted} style={{ marginTop: 4 }}>{requestMeta(r)}</Tx>
+        </View>
+      ))}
+    </Card>
   );
 }
 
@@ -343,7 +380,7 @@ const COUNTRIES = [
   ['+353', 'Ireland', '🇮🇪'], ['+27', 'South Africa', '🇿🇦'], ['+254', 'Kenya', '🇰🇪'], ['+94', 'Sri Lanka', '🇱🇰'], ['+977', 'Nepal', '🇳🇵'],
   ['+880', 'Bangladesh', '🇧🇩'], ['+92', 'Pakistan', '🇵🇰'], ['+62', 'Indonesia', '🇮🇩'], ['+66', 'Thailand', '🇹🇭'], ['+63', 'Philippines', '🇵🇭'],
 ];
-function CountryCode({ value, onPick, error }) {
+export function CountryCode({ value, onPick, error }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const cur = COUNTRIES.find(c => c[0] === value) || COUNTRIES[0];

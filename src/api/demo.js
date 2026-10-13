@@ -103,6 +103,14 @@ function trail(series, last, dds) {
 }
 
 export const demo = {
+  // My Requests, with the statuses Zoho would report
+  requests() {
+    const d = x => new Date(Date.now() - x * 86400000).toISOString();
+    return { requests: [
+      { id: 'd1', kind: 'switch', title: 'Switch Strategy', detail: 'Partial Switch: QAW → QTF', accountId: 'QAW0412', createdAt: d(2), reference: 'SP - 41', channel: 'App', status: { state: 'open', label: 'Active', updatedAt: d(1) } },
+      { id: 'd2', kind: 'strategy', title: 'Ask About a Strategy', detail: 'How does the hedge overlay work in a falling market?', accountId: 'QAW0412', createdAt: d(6), reference: '#188', channel: 'Web', status: { state: 'closed', label: 'Closed', updatedAt: d(4) } },
+    ] };
+  },
   snapshot() {
     const owners = OWNERS.map(o => ({
       id: o.id, name: o.name, email: o.name.toLowerCase().replace(/\W+/g, '.') + '@example.com', groupId: GROUP,

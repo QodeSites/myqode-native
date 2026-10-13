@@ -8,11 +8,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { C, Tx, Amt, Card, Row, Grid, Label, Panel, Stat, DarkCard, Btn, Chips, Tabs, Table, KeyVals, TextLink, Pill, Loading, Empty, ErrorBlock, Dialog, sentence } from './kit';
 import { DesktopVoice } from './voice';
 import { DesktopTransactions } from './transactions';
-import { RequestPicker } from './services';
+import { RequestPicker, MyRequests } from './services';
 import { NuvamaDetails } from './nuvama';
 import { inr, initials } from '../adapt';
 import { ChevronRight, ChevronDown, Phone, MailIcon } from '../icons';
-import { experience, engagement } from '../api';
+import { experience, engagement, services } from '../api';
 import * as content from '../content';
 import { FormBody } from '../screens/services';
 import { useLoad, openUrl, fmtSize } from '../screens/kit';
@@ -789,11 +789,13 @@ const HUBS = {
     eyebrow: 'Support', title: 'We’re here to help.',
     text: 'Raise a request, find an answer or reach Investor Relations. We will get back to you in 24 hrs.',
     actions: [['request', 'Raise a request'], ['team', 'Contact Investor Relations']],   // request: the pop-up of request types
-    // Account Services has its own sidebar item (Qode group) since 9 Oct 2026, so it is not repeated here: four cards, 2 × 2.
+    // Account Services has its own sidebar item (Qode group) since 9 Oct 2026, so it is not repeated here. Five cards,
+    // 3 + 2 (13 Oct 2026): Past Requests opens its own page, with how many are still open in Zoho as a badge.
     items: [
       ['faq', 'message', 'FAQs & Glossary', 'Answers to common questions, and the terms we use'],
-      ['grievance', 'mail', 'Escalation and Grievance Redressal', 'If something isn’t resolved'],
       ['voice', 'user', 'Your Voice Matters', 'Tell us how we’re doing'],
+      ['grievance', 'mail', 'Escalation and Grievance Redressal', 'If something isn’t resolved'],
+      ['requests', 'list', 'Past Requests', 'Everything you raised, with its status'],
       ['referral', 'trend', 'Referral Program', 'Refer an investor and earn a reward'],
     ] },
 };
@@ -802,6 +804,9 @@ function Hub({ V, k }) {
   const [pick, setPick] = useState(false);
   const go = key => (key === 'request' ? setPick(true) : key === 'services' ? (V.closePage(), V.goServices()) : V.openPage(key));
   const items = h.items.filter(([key]) => !(V.viewing && key === 'services'));
+  // Support: how many of the client's requests are still open in Zoho, for the Past Requests badge
+  const reqs = useLoad(() => (k === 'support' ? services.requests() : Promise.resolve(null)), [k, V.rk]);
+  const open = ((reqs.data && reqs.data.requests) || []).filter(r => r.status && r.status.state !== 'closed').length;
   return (
     <View style={{ gap: 20 }}>
       {!!h.actions && <RequestPicker V={V} visible={pick} onClose={() => setPick(false)} />}
@@ -815,7 +820,7 @@ function Hub({ V, k }) {
           </View>
         )}
       </DarkCard>
-      <Grid min={320} gap={16} cols={k === 'support' ? 2 : undefined}>
+      <Grid min={320} gap={16} cols={k === 'support' ? 3 : undefined} fill>
         {items.map(([key, icon, title, sub]) => (
           <Pressable key={key} accessibilityRole="link" onPress={() => go(key)} style={{ flex: 1 }}>
             {({ hovered }) => (
@@ -825,7 +830,10 @@ function Hub({ V, k }) {
                   <ChevronRight s={14} c={hovered ? C.green : C.ink3} />
                 </View>
                 <View>
-                  <Tx w={600} s={16} c={C.green}>{titleCase(title)}</Tx>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <Tx w={600} s={16} c={C.green}>{titleCase(title)}</Tx>
+                    {key === 'requests' && open > 0 && <Pill tone="warn" label={open + ' open'} />}
+                  </View>
                   <Tx s={13} c={C.ink3} lh={1.5} style={{ marginTop: 4 }}>{sub}</Tx>
                 </View>
               </Card>
@@ -859,6 +867,7 @@ export const DESKTOP_PAGES = {
   risk: { title: 'Risk Management & Controls', body: () => <Risk /> },
   voice: { title: 'Your Voice Matters', body: V => <DesktopVoice V={V} /> },
   transactions: { title: 'Transactions', body: V => <DesktopTransactions V={V} /> },
+  requests: { title: 'Past Requests', body: V => <MyRequests V={V} /> },
   privacy: { title: L.privacy.title || 'Privacy policy', body: V => <ArticlePage V={V} data={L.privacy} related={RELATED.legal} /> },
   terms: { title: L.terms.title || 'Terms and conditions', body: V => <ArticlePage V={V} data={L.terms} related={RELATED.legal} /> },
   cancellation: { title: L.cancellation.title || 'Cancellation and refund', body: V => <ArticlePage V={V} data={L.cancellation} related={RELATED.legal} /> },

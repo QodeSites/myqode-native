@@ -3,15 +3,16 @@
 // split screen: a dark-green brand panel on the left, the form centred on cream on the right. Onboarding is the
 // phone flow itself, hosted in a fixed-width right panel, so the long 8-step form isn't maintained twice.
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Pressable, ScrollView, TextInput, Animated } from 'react-native';
+import { View, Pressable, ScrollView, TextInput, Animated, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
-import { C, Tx, Card, Wordmark, useUI } from '../ui';
+import { C, Tx, Card, Wordmark, useUI, PhoneMaskField } from '../ui';
 import { FaceID, ChevronLeft } from '../icons';
 import Onboarding, { ResumeScreen } from '../screens/onboarding';
 import { ActivityIndicator } from 'react-native';
 
 import { SHOW_ONBOARDING } from '../api/config';
+import { nameProblem, emailProblem, phoneProblem, cleanName, cleanPhone } from '../screens/login';
 import { AppLinks } from './kit';
 // The sign-in screens keep the brand look (green and gold on cream, Lato) with their own small controls, so the
 // dashboard's design system can change without touching them.
@@ -290,10 +291,84 @@ function ResumeCard({ V }) {
   );
 }
 
+// Sign-up (13 Oct 2026, in place of the open demo button): name, email and mobile; then "our team will get back to
+// you", with the OneView login where the person can fetch their portfolio.
+const ONEVIEW_LOGIN = 'https://oneview.qodeinvest.com/login';
+function SignUp({ V, onBack }) {
+  const [f, setF] = useState({ name: '', email: '', phone: '', otp: '' });
+  const [err, setErr] = useState('');
+  const [done, setDone] = useState(false);
+  // the code: sent → { to: the number it went to, wait: seconds until Resend, hint: the test server's code }
+  const [sent, setSent] = useState(null);
+  const [sending, setSending] = useState(false);
+  useEffect(() => { if (!sent || sent.wait <= 0) return undefined; const t = setTimeout(() => setSent(s => (s ? { ...s, wait: s.wait - 1 } : s)), 1000); return () => clearTimeout(t); }, [sent]);
+  const set = k => t => { setErr(''); V.clearAuthMsg(); setF(x => ({ ...x, [k]: t })); };   // the server's last word goes too
+  const checkDetails = () => {
+    const name = f.name.trim(), email = f.email.trim(), phone = f.phone.trim();
+    const bad = nameProblem(name) || emailProblem(email) || phoneProblem(phone);
+    if (bad) return setErr(bad) || null;
+    return { name, email, phone };
+  };
+  const sendCode = async () => {
+    const d = checkDetails(); if (!d || sending) return;
+    setSending(true);
+    try { const r = await V.signupSendOtp(d.phone); setSent({ to: d.phone, wait: r.resendAfterSec || 60, hint: r.devOtp || '' }); setF(x => ({ ...x, otp: '' })); }
+    catch (e) {
+      // sent a minute ago (e.g. the page was reloaded): that code is still valid, so ask for it
+      if (e.code === 'TOO_SOON') { setSent({ to: d.phone, wait: (e.data && e.data.retryAfterSec) || 60, hint: '' }); setErr('A code was already sent to this number a moment ago. Enter it below.'); }
+      else setErr(e.message || 'We could not send the code. Please try again.');
+    }
+    finally { setSending(false); }
+  };
+  const submit = async () => {
+    const d = checkDetails(); if (!d) return;
+    if (!sent || sent.to !== d.phone) return sendCode();   // number changed since the code went: a new code
+    if (!/^\d{6}$/.test(f.otp.trim())) return setErr('Enter the 6-digit code we sent to your mobile.');
+    const r = await V.doSignup({ ...d, otp: f.otp.trim() });
+    if (r.ok) setDone(true);
+    else if (r.code === 'OTP_LOCKED' || r.code === 'OTP_EXPIRED') { setSent(null); setF(x => ({ ...x, otp: '' })); }   // this code is spent: back to "send a code"
+  };
+  const codeStage = !!sent && sent.to === f.phone.trim();
+  if (done) {
+    return (
+      <View>
+        <Heading title={`Thanks, ${f.name.trim().split(/\s+/)[0]}.`} sub="Our team will get back to you shortly. Meanwhile, fetch your portfolio in OneView." />
+        <Btn label="Open OneView" onPress={() => Linking.openURL(ONEVIEW_LOGIN).catch(() => {})} style={{ marginTop: 22, paddingVertical: 14 }} />
+        <View style={{ marginTop: 18 }}><BackLink label="Back to sign in" onPress={onBack} /></View>
+      </View>
+    );
+  }
+  return (
+    <View>
+      <BackLink label="Back to sign in" onPress={onBack} />
+      <Heading title="New to Qode?" sub="Leave your details and our team will get back to you." />
+      <Input label="FULL NAME" value={f.name} onChangeText={t => set('name')(cleanName(t))} placeholder="Your name" autoFocus />
+      <Input label="EMAIL" value={f.email} onChangeText={t => set('email')(t.replace(/\s/g, ''))} placeholder="you@example.com" keyboardType="email-address" style={{ marginTop: 18 }} />
+      <View style={{ marginTop: 18 }}>
+        <Label style={{ marginBottom: 7 }}>MOBILE NUMBER</Label>
+        <PhoneMaskField variant="box" value={f.phone} onChange={t => set('phone')(cleanPhone(t))} onSubmit={submit} />
+      </View>
+      {codeStage && (
+        <View style={{ marginTop: 18 }}>
+          <Input label="VERIFICATION CODE" value={f.otp} onChangeText={t => set('otp')(t.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit code" keyboardType="number-pad" onSubmitEditing={submit} autoFocus
+            hint={sent.hint ? `Test server: the code is ${sent.hint}` : `Sent by SMS to ${sent.to}. Valid for 10 minutes.`} />
+          <View style={{ marginTop: 8 }}>
+            {sent.wait > 0 ? <Tx s={12} c={C.gray}>Resend code in {sent.wait}s</Tx> : <Link label="Resend code" onPress={sendCode} s={12} />}
+          </View>
+        </View>
+      )}
+      {err ? <Tx s={12} c={C.red} lh={1.45} style={{ marginTop: 14 }}>{err}</Tx> : <Msg V={V} />}
+      <Btn label={codeStage ? 'Verify and sign up' : 'Send verification code'} onPress={submit} busy={V.authBusy || sending} style={{ marginTop: 22, paddingVertical: 14 }} />
+    </View>
+  );
+}
+
 function SignIn({ V }) {
   // Forgot password is an inline sub-view: the phone's doForgot reads V.email, so it shares the email field.
   const [forgot, setForgot] = useState(false);
+  const [signup, setSignup] = useState(false);
   const partner = V.loginAs === 'distributor';
+  if (signup) return <SignUp V={V} onBack={() => { V.clearAuthMsg(true); setSignup(false); }} />;
   if (forgot) {
     return (
       <View>
@@ -325,7 +400,7 @@ function SignIn({ V }) {
         <Tx w={700} s={10} ls={0.12} c={C.gray}>OR</Tx>
         <View style={{ flex: 1, height: 1, backgroundColor: C.hairline }} />
       </View>
-      <Btn label="Explore a demo with sample data" kind="outline" onPress={V.startDemo} style={{ marginTop: 16 }} />
+      <Btn label="New to Qode? Sign up" kind="outline" onPress={() => { V.clearAuthMsg(); setSignup(true); }} style={{ marginTop: 16 }} />
       <AppLinks center style={{ marginTop: 20 }} />
       {SHOW_ONBOARDING && (
         <Pressable onPress={V.startOb} accessibilityRole="button" style={({ hovered }) => ({ marginTop: 22, alignSelf: 'center', opacity: hovered ? 0.7 : 1 })}>
