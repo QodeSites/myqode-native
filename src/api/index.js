@@ -288,6 +288,7 @@ export const distributor = {
   issueInvoice: body => api('/distributor/invoice-issue', { method: 'POST', body }),
   // Signed 5-minute link to a PDF (investor statement or deck), opened in the phone's viewer
   fileLink: body => api('/distributor/file-link', { method: 'POST', body }),
+  decks: () => api('/distributor/decks'),   // the decks on offer right now, with the month each is dated
   indicator: () => memo('indicator', 30 * MIN, () => api('/distributor/indicator', { timeout: 45000 })),
   ticket: body => api('/distributor/ticket', { method: 'POST', body }),
   // "View account": a 2-hour read-only token for one investor in the partner's own book (web: investors page).

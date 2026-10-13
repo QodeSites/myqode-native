@@ -1041,6 +1041,8 @@ export function Invoice({ period, distributorName, onBack }) {
 }
 
 // ── Decks (web: distributors/documents) ──────────────────────────────────────
+// The decks as last known: what shows until the server's list arrives (and if it cannot be fetched). The server
+// lists the newest month of each from the document store (GET /distributor/decks), so a new month needs no app update.
 export const DECKS = [
   { slug: 'corporate-overview', title: 'Corporate overview', asOf: 'August 2026' },
   { slug: 'qode-all-weather', title: 'Qode All Weather', asOf: 'August 2026', strategy: 'Qode All Weather' },
@@ -1050,7 +1052,18 @@ export const DECKS = [
   { slug: 'qode-tactical-fund', title: 'Qode Tactical Fund', asOf: 'August 2026', strategy: 'Qode Tactical Fund' },
   { slug: 'qode-tactical-fund-factsheet', title: 'Qode Tactical Fund Factsheet', asOf: 'August 2026', strategy: 'Qode Tactical Fund', kind: 'factsheet' },
 ];
+let decksNow = null;   // the server's list, kept for the session
+export function useDecks() {
+  const [list, setList] = useState(decksNow || DECKS);
+  useEffect(() => {
+    let on = true;
+    api.decks().then(r => { if (r && Array.isArray(r.decks) && r.decks.length) { decksNow = r.decks.map(d => ({ ...d, strategy: d.strategy || undefined, kind: d.kind === 'factsheet' ? 'factsheet' : undefined })); if (on) setList(decksNow); } }).catch(() => {});
+    return () => { on = false; };
+  }, []);
+  return list;
+}
 export function Decks({ onBack }) {
+  const DECKS = useDecks();
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState({});
   const get = async d => {

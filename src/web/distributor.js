@@ -30,7 +30,7 @@ import {
 import {
   money, warmPartnerData, defaultPeriod, summarise, usePeriodRows, statementDoc, invoiceFigures, invoiceHtml, savePdf, feesCsvLines,
   STRATEGY_COLOR, shortStrategy, ACCOUNT_JOURNEY, num, inrCompact, displayDate, SCHEME, SCHEME_COLOR, code3, parseBillgroup,
-  EMPTY_PROFILE, todayIst, validateProfile, DECKS, SEGMENTS, toSeries, VsiChart, RISK_OFF, RISK_ON, VSI, ddmmyyyy, TOPICS,
+  EMPTY_PROFILE, todayIst, validateProfile, useDecks, SEGMENTS, toSeries, VsiChart, RISK_OFF, RISK_ON, VSI, ddmmyyyy, TOPICS,
 } from '../screens/partner';
 import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, ErrorBlock, Empty, Btn, PageIntro, Chips, Input, KeyVals, Pill, Dialog, FitAmt, Dropdown, AppLinks } from './kit';
 import { ClientReportsDialog } from './clientReports';
@@ -1351,6 +1351,7 @@ function Links({ journey }) {
 
 /* ── Sales decks ────────────────────────────────────────────────────────────────────────────────────────── */
 function Decks() {
+  const DECKS = useDecks();   // the newest month of each deck, from the server
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState({});
   const get = async d => {
@@ -1598,6 +1599,7 @@ function GrowPage({ journey, focus }) {
     const t = setTimeout(() => { const el = document.getElementById('grow-decks'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300);
     return () => clearTimeout(t);
   }, [focus]);
+  const DECKS = useDecks();   // the newest month of each deck, from the server
   const d = journey.data, L = d && d.referralLinks;
   const copy = async (k, url) => { try { await Clipboard.setStringAsync(url); setCopied(k); setTimeout(() => setCopied(''), 1800); } catch {} };
   const get = async doc => {
