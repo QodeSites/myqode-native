@@ -155,19 +155,41 @@ export const loadExpensesAll = (ids, fetchOne, q) => settleAll(ids, fetchOne).th
 
 // ── Fact sheet ────────────────────────────────────────────────────────────────────────────────────────────
 // Returns are not additive: the combined view sums contribution, withdrawal, profit / loss and portfolio value,
-// then lists each account's own fact sheet (sheets: [{ accountId, data }], data.asOf null when none for the date).
+// then lists each account's own fact sheet (sheets: [{ accountId, data, row, closedOn }], data.asOf null when none
+// for the date). An account that closed before the combined date (data.closedOn, its sheet capped at the day before)
+// counts as of that date: value ₹0, the value it closed with added to withdrawal, contribution and profit / loss
+// frozen at closure. `row` holds the figures the By account table shows and the totals sum; `data` stays the
+// account's own (last) fact sheet for its section.
 export const FACTSHEET_NOTE = 'Returns are per account; values are summed.';
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const dmy = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]} ${MON[+m[2] - 1]} ${m[1]}` : String(s || ''); };
 export function mergeFactsheets({ ok, failed }, q = {}) {
   const has = ok.filter(o => o.data && o.data.asOf);
-  const sum = k => has.reduce((s, o) => s + n(o.data[k]), 0);
+  const asOf = maxStr(has.map(o => o.data.asOf));
+  const sheets = ok.map(o => {
+    const d = o.data || {};
+    if (!d.asOf) return { accountId: o.accountId, data: d, row: null, closedOn: null };
+    const closedOn = d.closedOn && d.asOf < asOf ? d.closedOn : null;
+    const row = { asOf: d.asOf, contribution: n(d.contribution), profitLoss: n(d.profitLoss), portfolioValue: n(d.portfolioValue), withdrawal: n(d.withdrawal) };
+    if (closedOn) { row.withdrawal += row.portfolioValue; row.portfolioValue = 0; }
+    return { accountId: o.accountId, data: d, row, closedOn };
+  });
+  const rows = sheets.filter(s => s.row);
+  const sum = k => rows.reduce((s, x) => s + x.row[k], 0);
+  const closed = sheets.filter(s => s.closedOn && !HIDDEN(s.accountId));
   const dates = [...new Set(ok.flatMap(o => o.data.dates || []))].sort().reverse();
   return {
     all: true, accounts: ok.map(o => o.accountId).filter(id => !HIDDEN(id)), failed: (failed || []).filter(f => !HIDDEN(f.accountId)), holder: holders(ok), date: q.date || null,
-    asOf: maxStr(has.map(o => o.data.asOf)), valueDate: maxStr(has.map(o => o.data.valueDate || o.data.asOf)),
+    asOf, valueDate: maxStr(has.map(o => o.data.valueDate || o.data.asOf)),
     inceptionDate: minStr(has.map(o => o.data.inceptionDate)),
     contribution: sum('contribution'), withdrawal: sum('withdrawal'), profitLoss: sum('profitLoss'), portfolioValue: sum('portfolioValue'),
     dates, coverage: union(ok.map(o => o.data.coverage)),
-    sheets: ok.map(o => ({ accountId: o.accountId, data: o.data })), note: FACTSHEET_NOTE,
+    sheets, note: FACTSHEET_NOTE,
+    closedNote: closed.map(s => `${s.accountId} closed on ${dmy(s.closedOn)}; its value is shown as withdrawn.`).join(' '),
   };
 }
+// The By account "As of" cell: the closure for an account counted as closed, else its own date.
+export const sheetAsOf = (s, fmt) => (s.closedOn ? `Closed on ${fmt(s.closedOn)}` : fmt(s.data.asOf));
+// The heading line of a closed account's own section.
+export const lastSheetLabel = (s, fmt) => (s.closedOn ? `Last fact sheet before closure · ${fmt(s.data.asOf)}` : null);
 export const loadFactsheetsAll = (ids, fetchOne, q) => settleAll(ids, fetchOne).then(r => mergeFactsheets(r, q));

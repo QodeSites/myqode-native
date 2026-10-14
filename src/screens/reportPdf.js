@@ -5,6 +5,7 @@
 
 import { transactionsSummary, capitalGainsSummary, expensesSummary, factsheetSummary, pnlSummary } from '../reportSummary.js';
 import { splitGains, isBusiness, BUSINESS_NOTE } from '../businessIncome.js';
+import { sheetAsOf, lastSheetLabel } from '../combine.js';
 
 const K = {
   ink: '#002017', green: '#02422B', gold: '#DABD38', cream: '#EFECD3', card: '#F7F5E9', muted: '#37584F',
@@ -466,12 +467,12 @@ export function factsheetAllPdf(r) {
   const sheets = r.sheets || [];
   const table = `<h3>By account</h3><table class="fixed"><colgroup><col style="width:13%"><col><col style="width:11%"><col style="width:13%"><col style="width:13%"><col style="width:12%"><col style="width:11%"></colgroup>
     <thead><tr><th>Account</th><th>Strategy</th><th>As of</th><th class="r">Portfolio value (₹)</th><th class="r">Profit / loss (₹)</th><th class="r">Contribution (₹)</th><th class="r">Withdrawal (₹)</th></tr></thead><tbody>
-    ${sheets.map(({ accountId, data: d }) => (d && d.asOf
-      ? `<tr class="z"><td>${esc(accountId)}</td><td class="wrap">${esc(strategyName(d.holder, d.strategy))}</td><td>${ds(d.asOf)}</td><td class="r">${nf(d.portfolioValue)}</td><td class="r ${cls(d.profitLoss)}">${nf(d.profitLoss)}</td><td class="r">${nf(d.contribution)}</td><td class="r">${nf(d.withdrawal)}</td></tr>`
-      : `<tr class="z"><td>${esc(accountId)}</td><td colspan="6" class="note">No fact sheet for this date.</td></tr>`)).join('')}
+    ${sheets.map(s => { const { accountId, data: d, row: x } = s; return (x
+      ? `<tr class="z"><td>${esc(accountId)}</td><td class="wrap">${esc(strategyName(d.holder, d.strategy))}</td><td class="wrap">${esc(sheetAsOf(s, ds))}</td><td class="r">${nf(x.portfolioValue)}</td><td class="r ${cls(x.profitLoss)}">${nf(x.profitLoss)}</td><td class="r">${nf(x.contribution)}</td><td class="r">${nf(x.withdrawal)}</td></tr>`
+      : `<tr class="z"><td>${esc(accountId)}</td><td colspan="6" class="note">No fact sheet for this date.</td></tr>`); }).join('')}
     <tr class="tot"><td>Total</td><td></td><td></td><td class="r">${nf(r.portfolioValue)}</td><td class="r">${nf(r.profitLoss)}</td><td class="r">${nf(r.contribution)}</td><td class="r">${nf(r.withdrawal)}</td></tr></tbody></table>
-    <p class="note">${esc(r.note || 'Returns are per account; values are summed.')}</p>`;
-  const each = sheets.filter(s => s.data && s.data.asOf).map(({ accountId, data }) => `<div class="pb"></div>${factsheetParts(data, accountId).join('')}`).join('');
+    <p class="note">${esc([r.note || 'Returns are per account; values are summed.', r.closedNote].filter(Boolean).join(' '))}</p>`;
+  const each = sheets.filter(s => s.data && s.data.asOf).map(s => `<div class="pb"></div>${s.closedOn ? `<p class="note">${esc(s.accountId)} · ${esc(lastSheetLabel(s, dl))}</p>` : ''}${factsheetParts(s.data, s.accountId).join('')}`).join('');
   return { html: page(false, head, failedNote(r) + top + table + each, factsheetSummary(r, true)), landscape: false };
 }
 

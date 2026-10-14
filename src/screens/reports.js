@@ -20,7 +20,7 @@ import { savePdf } from './partner';
 import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactionsAllPdf, capitalGainsAllPdf, expensesAllPdf, factsheetAllPdf, plbsPdf } from './reportPdf';
 import { transactionsXlsx, capitalGainsXlsx, expensesXlsx, factsheetXlsx, plbsXlsx, saveXlsx } from '../reportXlsx';
 import Svg, { Rect, Line } from 'react-native-svg';
-import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE } from '../combine';
+import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE, lastSheetLabel } from '../combine';
 import { track } from '../api/track';
 import { REPORT_LIST, reportCall, fyOptions, currentFy, recordDates } from '../reportList';
 
@@ -810,14 +810,14 @@ function Factsheet({ accountId, ids, names, rk, account }) {
         <StatusLine parts={[asOfPart(d.asOf), 'latest across accounts', `${sheets.length} accounts`]} />
         <CombinedNote h={d} />
         <Strip caption={`ALL ACCOUNTS · ${sheets.length}`} items={sheetStrip(d)}
-          footer={<Tx s={10.5} c={C.muted} style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderColor: RULE }}>{FACTSHEET_NOTE}</Tx>} />
-        {sheets.map(({ accountId: id, data: x }) => (
+          footer={<Tx s={10.5} c={C.muted} style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderColor: RULE }}>{[FACTSHEET_NOTE, d.closedNote].filter(Boolean).join(' ')}</Tx>} />
+        {sheets.map(({ accountId: id, data: x, ...s }) => (
           <View key={id}>
-            <SectionLabel style={{ marginTop: 22 }}>{String(names[id] || id).toUpperCase()}</SectionLabel>
+            <SectionLabel style={{ marginTop: 22 }}>{String(names[id] || id).toUpperCase() + (s.closedOn ? ` · CLOSED ON ${dt(s.closedOn).toUpperCase()}` : '')}</SectionLabel>
             {x && x.asOf ? (
               <>
                 <Strip style={{ marginTop: 0 }} items={sheetStrip(x)}
-                  footer={<Tx s={10.5} c={C.muted} style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderColor: RULE }}>As of {dt(x.asOf)} · since inception {dt(x.inceptionDate)}</Tx>} />
+                  footer={<Tx s={10.5} c={C.muted} style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderColor: RULE }}>{lastSheetLabel(s, dt) || `As of ${dt(x.asOf)}`} · since inception {dt(x.inceptionDate)}</Tx>} />
                 <SheetSections d={x} />
               </>
             ) : <Empty>No fact sheet for this date.</Empty>}

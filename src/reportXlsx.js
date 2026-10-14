@@ -11,6 +11,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { track } from './api/track';
 import { splitGains, BUSINESS_NOTE } from './businessIncome';
+import { sheetAsOf } from './combine';
 
 const num = v => (v == null || v === '' || isNaN(+v) ? null : +v);
 const day = d => (d ? String(d).slice(0, 10) : '');
@@ -167,11 +168,11 @@ export function factsheetXlsx(r, accountId) {
   add(wb, summary('Portfolio Fact Sheet · All accounts', [
     ...who(null, r), ['As of', day(r.asOf)], ['Requested', r.date ? day(r.date) : 'Latest'], null,
     ['Portfolio value (₹)', num(r.portfolioValue)], ['Profit / loss (₹)', num(r.profitLoss)], ['Contribution (₹)', num(r.contribution)], ['Withdrawal (₹)', num(r.withdrawal)],
-    ...(r.note ? [null, ['Note', r.note]] : []), ...failed(r),
+    ...(r.note ? [null, ['Note', [r.note, r.closedNote].filter(Boolean).join(' ')]] : []), ...failed(r),
   ]), 'Summary');
   add(wb, sheet([['Account', 'Strategy', 'As of', 'Portfolio value (₹)', 'Profit / loss (₹)', 'Contribution (₹)', 'Withdrawal (₹)'],
-    ...sheets.map(({ accountId: id, data: d }) => (d && d.asOf ? [id, d.strategy || (d.holder && d.holder.strategy) || '', day(d.asOf), num(d.portfolioValue), num(d.profitLoss), num(d.contribution), num(d.withdrawal)] : [id, 'No fact sheet for this date']))],
-    [12, 30, 12, 18, 16, 16, 16]), 'By account');
+    ...sheets.map(s => { const { accountId: id, data: d, row: x } = s; return x ? [id, d.strategy || (d.holder && d.holder.strategy) || '', sheetAsOf(s, day), num(x.portfolioValue), num(x.profitLoss), num(x.contribution), num(x.withdrawal)] : [id, 'No fact sheet for this date']; })],
+    [12, 30, 22, 18, 16, 16, 16]), 'By account');
   for (const { accountId: id, data } of sheets) if (data && data.asOf) factsheetSheets(wb, data, id, id + ' ');
   return wb;
 }

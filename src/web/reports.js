@@ -18,7 +18,7 @@ import { inr, sinr, pct, fmtDate, num } from '../adapt';
 import { savePdf } from '../screens/partner';
 import { transactionsXlsx, capitalGainsXlsx, expensesXlsx, factsheetXlsx, plbsXlsx, saveXlsx } from '../reportXlsx';
 import { transactionsPdf, capitalGainsPdf, expensesPdf, factsheetPdf, transactionsAllPdf, capitalGainsAllPdf, expensesAllPdf, factsheetAllPdf, plbsPdf } from '../screens/reportPdf';
-import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE } from '../combine';
+import { ALL_ID, reportAccountOptions, singleAccounts, failedText, loadTransactionsAll, loadCapitalGainsAll, loadExpensesAll, loadFactsheetsAll, FACTSHEET_NOTE, sheetAsOf, lastSheetLabel } from '../combine';
 import { track } from '../api/track';
 import { REPORT_LIST, reportCall, fyOptions, currentFy, recordDates } from '../reportList';
 
@@ -817,25 +817,25 @@ function Factsheet({ accountId, ids, names, rk, account }) {
     const sheets = (d.sheets || []).filter(x => !/^QFH/i.test(String(x.accountId)));
     const byCols = [
       { key: 'acct', label: 'Account', flex: 2.4, render: x => cellTx(names[x.accountId] || x.accountId, { w: 600 }) },
-      { key: 'asof', label: 'As of', flex: 1, render: x => cellTx(x.data.asOf ? fmtDate(x.data.asOf) : 'No fact sheet', { c: C.ink2 }) },
-      { key: 'val', label: 'Portfolio value', flex: 1.2, right: true, render: x => cellAmt(x.data.asOf ? inr(x.data.portfolioValue) : '–') },
-      { key: 'pl', label: 'Profit or loss', flex: 1.2, right: true, render: x => cellAmt(x.data.asOf ? sinr(x.data.profitLoss) : '–', gainColor(x.data.profitLoss), 600) },
-      { key: 'in', label: 'Contribution', flex: 1.2, right: true, render: x => cellAmt(x.data.asOf ? inr(x.data.contribution) : '–') },
-      { key: 'out', label: 'Withdrawal', flex: 1.1, right: true, render: x => cellAmt(x.data.asOf ? inr(x.data.withdrawal) : '–') },
+      { key: 'asof', label: 'As of', flex: 1, render: x => cellTx(x.row ? sheetAsOf(x, fmtDate) : 'No fact sheet', { c: x.closedOn ? C.goldText : C.ink2, w: x.closedOn ? 600 : undefined }) },
+      { key: 'val', label: 'Portfolio value', flex: 1.2, right: true, render: x => cellAmt(x.row ? inr(x.row.portfolioValue) : '–') },
+      { key: 'pl', label: 'Profit or loss', flex: 1.2, right: true, render: x => cellAmt(x.row ? sinr(x.row.profitLoss) : '–', gainColor(x.data.profitLoss), 600) },
+      { key: 'in', label: 'Contribution', flex: 1.2, right: true, render: x => cellAmt(x.row ? inr(x.row.contribution) : '–') },
+      { key: 'out', label: 'Withdrawal', flex: 1.1, right: true, render: x => cellAmt(x.row ? inr(x.row.withdrawal) : '–') },
     ];
     return (
       <ReportLayout {...head} stats={stats}
         pdf={<PdfBtn make={async () => factsheetAllPdf(d)} xlsx={async () => factsheetXlsx(d, null)} name={`Fact sheet All accounts ${d.asOf}`} />}>
         <CombinedNote h={d} />
-        <Panel title="By account" sub={FACTSHEET_NOTE} pad={0}>
+        <Panel title="By account" sub={[FACTSHEET_NOTE, d.closedNote].filter(Boolean).join(' ')} pad={0}>
           <Table cols={byCols} rows={sheets.map(x => ({ ...x, id: x.accountId }))} dense />
         </Panel>
-        {sheets.filter(x => x.data && x.data.asOf).map(({ accountId: id, data: x }) => (
+        {sheets.filter(x => x.data && x.data.asOf).map(({ accountId: id, data: x, ...s }) => (
           <View key={id} style={{ gap: 16, marginTop: 8 }}>
             <View style={{ borderTopWidth: 1, borderColor: C.line, paddingTop: 16 }}>
               <Tx w={600} s={15} c={C.green} role="heading" aria-level={3}>{names[id] || id}</Tx>
               <Tx s={12} c={C.ink3} style={{ marginTop: 3 }}>
-                {[`As of ${fmtDate(x.asOf)}`, `Value ${inr(x.portfolioValue)}`, `Profit or loss ${sinr(x.profitLoss)}`, x.inceptionDate ? `since ${fmtDate(x.inceptionDate)}` : null].filter(Boolean).join(', ')}
+                {[lastSheetLabel(s, fmtDate) || `As of ${fmtDate(x.asOf)}`, `Value ${inr(x.portfolioValue)}`, `Profit or loss ${sinr(x.profitLoss)}`, x.inceptionDate ? `since ${fmtDate(x.inceptionDate)}` : null].filter(Boolean).join(', ')}
               </Tx>
             </View>
             <PerfPanel d={x} />
