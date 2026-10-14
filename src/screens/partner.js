@@ -842,31 +842,71 @@ export function invoiceFigures(rows, sum, p) {
   const ratePct = sum.totals.sharePct || '–';
   return { taxable, tax, discount, clientCount, ratePct };
 }
-// The printable tax invoice, line for line the web's invoice sheet. Shared with src/web/distributor.js.
+// The printable tax invoice, in Qode's document style (the fee statement and payment receipt: green band, Playfair
+// headings, cream panels). The partner is the supplier and Qode the recipient, so the partner's name heads the
+// invoice and Qode appears under "Bill to". Same figures as the on-screen sheet. Shared with src/web/distributor.js.
 export function invoiceHtml({ p, period, invoiceNumber, date, tax, ratePct, clientCount, discount, distributorName }) {
   const lines = [p.addressLine1, p.addressLine2, [p.city, p.state, p.pincode].filter(Boolean).join(', ')].filter(Boolean);
-  // Line for line the web's invoice sheet: optional lines only when filled, tax labels from the computed rates.
-  const lbl = 'font-size:10px;font-weight:bold;letter-spacing:.12em;text-transform:uppercase;color:#37584F';
-  const row = (k, v) => `<tr><td class="r muted s">${k}</td><td class="r">${v}</td></tr>`;
   const pay = [p.bankAccountName, p.bankName, p.bankAccountNumber && 'A/c ' + p.bankAccountNumber, p.bankIfsc && 'IFSC ' + p.bankIfsc].filter(Boolean);
-  return `<html><head><meta charset="utf-8"><style>@page{size:A4;margin:22mm 24mm 18mm}body{font-family:Arial,sans-serif;color:#002017;margin:0;font-size:12px}table{width:100%;border-collapse:collapse}td,th{padding:7px 0;vertical-align:top}.r{text-align:right;white-space:nowrap}.muted{color:#37584F}.s{font-size:11px}.sec{padding:14px 0;border-bottom:1px solid #d9d6c3}</style></head><body>
-    <table class="sec" style="border-bottom:1px solid #d9d6c3"><tr><td style="padding-bottom:14px"><div style="${lbl}">Tax Invoice</div>
-      <div style="font-family:Georgia,serif;font-size:20px;margin-top:4px">${esc(p.legalName || distributorName || 'Your registered name')}</div>
-      <div class="muted s" style="margin-top:6px;line-height:1.5">${lines.map(esc).join('<br>')}${p.gstin ? '<br>GSTIN: ' + esc(p.gstin) : ''}${p.pan ? '<br>PAN: ' + esc(p.pan) : ''}</div></td>
-    <td class="r s" style="padding-bottom:14px;line-height:1.7"><span class="muted">Invoice no.</span> <b>${esc(invoiceNumber || '–')}</b><br><span class="muted">Date</span> <b>${esc(displayDate(date))}</b><br><span class="muted">Period</span> <b>${esc(period.label)}</b></td></tr></table>
-    <div class="sec"><div style="${lbl};margin-bottom:6px">Bill to</div><b>${esc(QODE_ENTITY.name)}</b>
-      <div class="muted s" style="margin-top:4px;line-height:1.5">${qodeAddressLines().map(esc).join('<br>')}${QODE_ENTITY.gstin ? '<br>GSTIN: ' + esc(QODE_ENTITY.gstin) : ''}<br>SEBI Registered Portfolio Manager · ${esc(QODE_ENTITY.sebiRegistration)}</div></div>
-    <div style="padding:14px 0"><table><tr style="border-bottom:1px solid #d9d6c3"><th style="text-align:left;${lbl}">Description</th><th class="r" style="${lbl}">Amount</th></tr>
-    <tr style="border-bottom:1px solid #eee"><td style="padding-right:12px">Distribution fees: ${esc(period.label)}<div class="muted s" style="margin-top:3px">${esc(ratePct)} share of fees on ${clientCount} ${clientCount === 1 ? 'client' : 'clients'}${discount > 0 ? `, net of ₹ ${inr(discount)} in discounts given to investors` : ''}. ${esc(period.startDate)} to ${esc(period.endDate)}.</div></td><td class="r">₹ ${inr(tax.taxableValue)}</td></tr>
-    ${row('Taxable value', `₹ ${inr(tax.taxableValue)}`)}
-    ${tax.treatment === 'intra_state' ? row(`CGST @ ${tax.cgstRate}%`, `₹ ${inr(tax.cgst)}`) + row(`SGST @ ${tax.sgstRate}%`, `₹ ${inr(tax.sgst)}`) : ''}
-    ${tax.treatment === 'inter_state' ? row(`IGST @ ${tax.igstRate}%`, `₹ ${inr(tax.igst)}`) : ''}
-    ${tax.treatment === 'unregistered' ? '<tr><td class="r muted s" colspan="2">No GST charged (not registered under GST)</td></tr>' : ''}
-    <tr style="border-top:2px solid #b9b6a3"><td class="r"><b>Total</b></td><td class="r" style="font-size:14px"><b>₹ ${inr(tax.total)}</b></td></tr></table>
-    <div class="muted s" style="margin-top:8px;font-style:italic">${esc(amountInWords(tax.total))}</div></div>
-    ${p.bankAccountNumber || p.bankIfsc ? `<div class="sec" style="border-top:1px solid #d9d6c3;border-bottom:0"><div style="${lbl};margin-bottom:6px">Payment details</div><div class="muted s" style="line-height:1.5">${pay.map(esc).join('<br>')}</div></div>` : ''}
-    ${p.notes ? `<div class="sec muted s" style="border-top:1px solid #d9d6c3;border-bottom:0">${esc(p.notes).replace(/\n/g, '<br>')}</div>` : ''}
-    <div class="muted" style="font-size:10.5px;border-top:1px solid #d9d6c3;padding-top:12px;line-height:1.5">Amounts are for distribution fees earned on investor portfolios managed by ${esc(QODE_ENTITY.name)} for the period stated. This invoice is raised by the partner named above.</div></body></html>`;
+  const row = (k, v, cls = '') => `<tr class="${cls}"><td class="k">${k}</td><td class="v">${v}</td></tr>`;
+  const supplier = p.legalName || distributorName || 'Your registered name';
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+    @page { size: A4; margin: 14mm 14mm 16mm; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-family: Lato, 'Helvetica Neue', Roboto, Arial, sans-serif; color: #002017; font-size: 10.5px; margin: 0; line-height: 1.5; }
+    .serif { font-family: 'Playfair Display', Georgia, 'Times New Roman', serif; }
+    table { width: 100%; border-collapse: collapse; }
+    .band td { background: #02422B; color: #EFECD3; padding: 18px 22px; vertical-align: bottom; }
+    .band .t { font-family: 'Playfair Display', Georgia, serif; color: #DABD38; font-weight: 600; font-size: 24px; line-height: 1; }
+    .band .sub { font-size: 8.5px; letter-spacing: .2em; text-transform: uppercase; margin-top: 8px; color: #EFECD3; }
+    .band .meta { text-align: right; font-size: 10px; line-height: 1.8; white-space: nowrap; }
+    .band .meta b { color: #fff; }
+    .lab { font-size: 8px; letter-spacing: .14em; text-transform: uppercase; color: #37584F; font-weight: 700; margin-bottom: 6px; }
+    .cols { border-collapse: separate; border-spacing: 12px 0; margin: 14px -12px 0; width: calc(100% + 24px); }
+    .panel { font-size: 10.5px; line-height: 1.6; background: #F7F5E9; border: 1px solid #E4DECB; border-radius: 6px; padding: 12px 14px; vertical-align: top; width: 50%; }
+    .nm { font-family: 'Playfair Display', Georgia, serif; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    .muted { color: #37584F; }
+    h3 { font-family: 'Playfair Display', Georgia, serif; color: #02422B; font-size: 13px; font-weight: 600; margin: 20px 0 6px; }
+    .items th { font-size: 8px; letter-spacing: .14em; text-transform: uppercase; color: #37584F; text-align: left; padding: 0 0 8px; border-bottom: 1px solid #D6D3C4; }
+    .items th.v, .items td.v { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .items td { padding: 9px 0; border-bottom: 1px solid #E4DECB; vertical-align: top; }
+    .items td.k { color: #37584F; text-align: right; padding-right: 18px; }
+    .items .desc { font-weight: 700; color: #002017; text-align: left; }
+    .items .why { display: block; font-weight: 400; color: #37584F; font-size: 9.5px; margin-top: 3px; }
+    .amt { margin-top: 14px; border: 2px solid #02422B; border-radius: 6px; padding: 12px 18px; }
+    .amt table td { padding: 0; }
+    .amt td { vertical-align: middle; }
+    .amt .big { font-family: 'Playfair Display', Georgia, serif; font-size: 22px; color: #02422B; text-align: right; white-space: nowrap; }
+    .note { margin-top: 12px; color: #37584F; font-size: 9.5px; }
+    .ft { margin-top: 26px; padding-top: 10px; border-top: 1px solid #E4DECB; font-size: 8.5px; color: #37584F; line-height: 1.6; }
+    .sys { font-weight: 700; color: #02422B; font-size: 9.5px; }
+  </style></head><body>
+    <table class="band"><tr>
+      <td><div class="t">Tax Invoice</div><div class="sub">Distribution fees · ${esc(period.label)}</div></td>
+      <td class="meta">Invoice no. <b>${esc(invoiceNumber || '–')}</b><br>Date <b>${esc(displayDate(date))}</b><br>Period <b>${esc(period.label)}</b></td>
+    </tr></table>
+    <table class="cols"><tr>
+      <td class="panel"><div class="lab">From</div><div class="nm">${esc(supplier)}</div>
+        ${lines.map(esc).join('<br>')}${p.gstin ? '<br>GSTIN ' + esc(p.gstin) : ''}${p.pan ? '<br>PAN ' + esc(p.pan) : ''}</td>
+      <td class="panel"><div class="lab">Bill to</div><div class="nm">${esc(QODE_ENTITY.name)}</div>
+        ${qodeAddressLines().map(esc).join('<br>')}${QODE_ENTITY.gstin ? '<br>GSTIN ' + esc(QODE_ENTITY.gstin) : ''}${QODE_ENTITY.pan ? '<br>PAN ' + esc(QODE_ENTITY.pan) : ''}
+        <br>SEBI PMS ${esc(QODE_ENTITY.sebiRegistration)}<br>Place of supply: ${esc(QODE_ENTITY.state)} (${esc(QODE_ENTITY.stateCode)})</td>
+    </tr></table>
+    <h3>Particulars</h3>
+    <table class="items">
+      <tr><th>Description</th><th class="v">Amount</th></tr>
+      <tr><td class="desc">Distribution fees: ${esc(period.label)}<span class="why">${esc(ratePct)} share of fees on ${clientCount} ${clientCount === 1 ? 'client' : 'clients'}${discount > 0 ? `, net of ₹ ${inr(discount)} in discounts given to investors` : ''}. ${esc(period.startDate)} to ${esc(period.endDate)}.</span></td><td class="v">₹ ${inr(tax.taxableValue)}</td></tr>
+      ${row('Taxable value', `₹ ${inr(tax.taxableValue)}`)}
+      ${tax.treatment === 'intra_state' ? row(`CGST @ ${tax.cgstRate}%`, `₹ ${inr(tax.cgst)}`) + row(`SGST @ ${tax.sgstRate}%`, `₹ ${inr(tax.sgst)}`) : ''}
+      ${tax.treatment === 'inter_state' ? row(`IGST @ ${tax.igstRate}%`, `₹ ${inr(tax.igst)}`) : ''}
+      ${tax.treatment === 'unregistered' ? '<tr><td class="k" colspan="2">No GST charged (not registered under GST)</td></tr>' : ''}
+    </table>
+    <div class="amt"><table><tr><td><div class="lab" style="margin:0">Total payable</div><div class="muted" style="font-style:italic;margin-top:4px">${esc(amountInWords(tax.total))}</div></td><td class="big">₹ ${inr(tax.total)}</td></tr></table></div>
+    ${pay.length ? `<h3>Payment details</h3><table class="cols" style="margin-top:0"><tr><td class="panel" style="width:100%">${pay.map(esc).join('<br>')}</td></tr></table>` : ''}
+    ${p.notes ? `<div class="note">${esc(p.notes).replace(/\n/g, '<br>')}</div>` : ''}
+    <div class="ft"><div class="sys">This is a system generated invoice.</div>
+      Amounts are for distribution fees earned on investor portfolios managed by ${esc(QODE_ENTITY.name)} for the period stated. This invoice is raised by the partner named above through myQode.</div>
+  </body></html>`;
 }
 
 export function Invoice({ period, distributorName, onBack }) {
@@ -912,7 +952,7 @@ export function Invoice({ period, distributorName, onBack }) {
       // The number is recorded; a PDF problem is reported on its own so it isn't mistaken for a failed invoice.
       try { const r = await savePdf(html(), 'Invoice ' + invoiceNumber); setState(s => ({ ...s, issuing: false, msg: `Invoice ${invoiceNumber} recorded.` + (r && r.savedTo ? ` PDF saved to ${r.savedTo}.` : '') })); }
       catch (pe) { setState(s => ({ ...s, issuing: false, msg: `Invoice ${invoiceNumber} recorded.`, err: userMessage(pe) })); }
-    } catch (x) { setState(s => ({ ...s, issuing: false, err: x.status === 409 ? userMessage(x) : 'Could not record the invoice' })); }
+    } catch (x) { setState(s => ({ ...s, issuing: false, err: x.status === 409 || x.status === 400 ? userMessage(x) : 'Could not record the invoice' })); }
   };
   const F = (k, label, props = {}) => <Field label={label} value={String(p[k] || '')} onChangeText={t => set(k, props.upper ? t.toUpperCase() : t)} error={errs[k]} style={{ marginTop: 14 }} {...props} />;
   return (
@@ -1014,7 +1054,8 @@ export function Invoice({ period, distributorName, onBack }) {
           </View>
         )}
         {!!p.notes && <Tx s={11} c={C.muted} lh={1.5} style={{ paddingTop: 12, marginTop: 12, borderTopWidth: 1, borderColor: C.hairline }}>{p.notes}</Tx>}
-        <Tx s={10.5} c={C.muted} lh={1.5} style={{ paddingTop: 12, marginTop: 12, borderTopWidth: 1, borderColor: C.hairline }}>Amounts are for distribution fees earned on investor portfolios managed by {QODE_ENTITY.name} for the period stated. This invoice is raised by the partner named above.</Tx>
+        <Tx s={10.5} w={700} c={C.green} style={{ paddingTop: 12, marginTop: 12, borderTopWidth: 1, borderColor: C.hairline }}>This is a system generated invoice.</Tx>
+        <Tx s={10.5} c={C.muted} lh={1.5} style={{ marginTop: 4 }}>Amounts are for distribution fees earned on investor portfolios managed by {QODE_ENTITY.name} for the period stated. This invoice is raised by the partner named above.</Tx>
       </Card>
       {!!state.err && <View style={{ marginTop: 12 }}><Msg tone="red" text={state.err} /></View>}
       {!!state.msg && <Tx s={12} c={C.green} style={{ marginTop: 12 }}>{state.msg}</Tx>}

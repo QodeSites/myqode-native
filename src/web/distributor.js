@@ -1212,7 +1212,7 @@ function InvoiceBody({ period, name, onIssued }) {
       // The number is recorded; a PDF problem is reported on its own so it isn't mistaken for a failed invoice.
       try { await savePdf(html(), 'Invoice ' + invoiceNumber); setSt(s => ({ ...s, issuing: false, msg: `Invoice ${invoiceNumber} recorded.` })); }
       catch (pe) { setSt(s => ({ ...s, issuing: false, msg: `Invoice ${invoiceNumber} recorded.`, err: userMessage(pe) })); }
-    } catch (x) { setSt(s => ({ ...s, issuing: false, err: x.status === 409 ? userMessage(x) : 'Could not record the invoice' })); }
+    } catch (x) { setSt(s => ({ ...s, issuing: false, err: x.status === 409 || x.status === 400 ? userMessage(x) : 'Could not record the invoice' })); }
   };
   const F = (k, label, props = {}) => <Input label={label} value={String(p[k] || '')} onChangeText={t => set(k, props.upper ? t.toUpperCase() : t)} error={errs[k]} placeholder={props.placeholder} hint={props.hint} style={{ flex: 1, minWidth: 0 }} />;
   const addr = [p.addressLine1, p.addressLine2, [p.city, p.state, p.pincode].filter(Boolean).join(', ')].filter(Boolean);
