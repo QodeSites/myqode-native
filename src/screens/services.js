@@ -17,16 +17,15 @@ import { track } from '../api/track';
 import { dayLabel } from './pay';
 
 import { userMessage } from '../errors';
-import { statusTone, statusLabel, requestMeta } from '../requests';
+import { statusTone, statusLabel, requestMeta, groupTypes, typeName } from '../requests';
 const STRATS = [['QAW', 'Qode All Weather'], ['QTF', 'Qode Tactical Fund'], ['QGF', 'Qode Growth Fund']];
 
 // Withdrawals are deliberately not offered in the app (Investor Relations handles them); the API route stays.
 // Add funds is the big card above this list, so it is not repeated here.
+// Since 15 Oct 2026: two direct items, then "What do you need help with?" (the Zoho Desk request types) for the rest.
 const ITEMS = [
   { key: 'r-switch', title: 'Switch Strategy', sub: 'Move capital between strategies' },
-  { key: 'r-strategy', title: 'Ask About a Strategy', sub: 'Send a question to the investment team' },
-  { key: 'r-discussion', title: 'Raise Any Query', sub: 'Ask Investor Relations anything' },
-  { key: 'r-account' },   // title from accountRequest(): the web's family / account request, by role
+  { key: 'referral', title: 'Referral Program', sub: 'Refer an investor and earn a reward', page: true },
 ];
 
 // Web: experience/family-account — "Raise Family Request" for a head of family, "Raise Account Request" otherwise,
@@ -38,6 +37,87 @@ export function accountRequest(user) {
         cta: 'RAISE FAMILY REQUEST', placeholder: 'Write your family request here (e.g., merge accounts, reassign owner, update family email)…' }
     : { title: 'Raise Account Request', sub: 'Update your email or personal details, join a family group, or change your account status.',
         cta: 'RAISE ACCOUNT REQUEST', placeholder: 'Write your account request here (e.g., update email, change personal details)…' };
+}
+
+// "What do you need help with?": a select row opening a sheet of the Zoho Desk request types grouped by category
+// ("Something else" last), a text box and Submit request, which raises a Desk ticket of that type for the account
+// picked on this tab (as on the web).
+function HelpPicker({ V, accountId }) {
+  const T = useLoad(() => services.requestTypes(), []);
+  const groups = groupTypes(T.data && T.data.types);
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState(null);
+  const [text, setText] = useState('');
+  const [st, setSt] = useState({ busy: false, err: '', done: null });
+  const send = async () => {
+    const m = text.trim();
+    if (!code) return setSt({ busy: false, err: 'Choose what your request is about.', done: null });
+    if (m.length < 5) return setSt({ busy: false, err: 'Please tell us a little more.', done: null });
+    if (m.length > 2000) return setSt({ busy: false, err: 'Please keep it under 2000 characters.', done: null });
+    if (!accountId) return setSt({ busy: false, err: 'No account to raise this for.', done: null });
+    setSt({ busy: true, err: '', done: null });
+    try {
+      const r = await services.helpRequest({ accountId, typeCode: code, message: m });
+      track('event', 'help_request', { type: code });
+      setText(''); setCode(null);
+      setSt({ busy: false, err: '', done: { ticket: r && r.ticket } });
+    } catch (e) { setSt({ busy: false, err: userMessage(e), done: null }); }
+  };
+  return (
+    <View style={{ paddingVertical: 14, paddingHorizontal: 16 }}>
+      <Tx w={700} s={13}>What do you need help with?</Tx>
+      {st.done ? (
+        <View style={{ marginTop: 10, padding: 14, borderRadius: 10, borderWidth: 1, borderColor: C.green, backgroundColor: 'rgba(2,66,43,0.06)' }}>
+          <Tx w={700} s={13} c={C.green}>Request received{st.done.ticket ? ' · Ticket #' + st.done.ticket : ''}</Tx>
+          <Tx s={12} c={C.muted} lh={1.5} style={{ marginTop: 5 }}>Investor Relations will get back to you within 24 hours.</Tx>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 18, marginTop: 10 }}>
+            <Pressable onPress={() => V.openPage('requests')} style={{ minHeight: 28, justifyContent: 'center' }}>
+              <Tx w={700} s={12} c={C.green}>View in Past Requests ›</Tx>
+            </Pressable>
+            <Pressable onPress={() => setSt({ busy: false, err: '', done: null })} style={{ minHeight: 28, justifyContent: 'center' }}>
+              <Tx w={700} s={12} c={C.muted}>Raise another request</Tx>
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+        <>
+          <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="What do you need help with?"
+            style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: code ? C.green : C.mutedBorder35, borderRadius: 8, paddingVertical: 11, paddingHorizontal: 12 }}>
+            <Tx s={13} c={code ? C.ink : C.gray} style={{ flex: 1 }}>{code ? typeName(groups, code) : 'Choose what your request is about'}</Tx>
+            <ChevronDown s={11} c={C.muted} />
+          </Pressable>
+          <Field multiline value={text} onChangeText={t => { setText(t); if (st.err) setSt(x => ({ ...x, err: '' })); }}
+            placeholder="Tell us a little more so Investor Relations can help faster…" error={st.err} hint={st.err || undefined} style={{ marginTop: 12 }} />
+          <CTA label={st.busy ? 'PLEASE WAIT…' : 'SUBMIT REQUEST'} onPress={st.busy ? undefined : send} style={{ marginTop: 12, opacity: st.busy ? 0.6 : 1 }} />
+        </>
+      )}
+      <Sheet visible={open} onClose={() => setOpen(false)}>
+        <ScrollView style={{ maxHeight: Dimensions.get('window').height * 0.7 }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 }}>
+          <Tx w={700} s={15} style={{ marginBottom: 6 }}>What do you need help with?</Tx>
+          {!groups.length && <Tx s={13} c={C.muted} style={{ paddingVertical: 14 }}>{T.err ? 'We couldn’t load the request types. Please try again shortly.' : 'Loading…'}</Tx>}
+          {groups.filter(g => g.label).map((g, gi) => (
+            <View key={g.category || 'other'}>
+              {g.items.map(t => (
+                <Pressable key={t.code} onPress={() => { setCode(t.code); setOpen(false); if (st.err) setSt(x => ({ ...x, err: '' })); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderColor: C.hairline }}>
+                  <Tx w={t.code === code ? 700 : 400} s={13.5} c={t.code === code ? C.green : C.ink} style={{ flex: 1 }}>{t.name}</Tx>
+                  {t.code === code && <Check s={15} />}
+                </Pressable>
+              ))}
+            </View>
+          ))}
+        </ScrollView>
+        {/* "Something else" (I6) stays in view under the list */}
+        {groups.filter(g => !g.label).flatMap(g => g.items).map(t => (
+          <Pressable key={t.code} onPress={() => { setCode(t.code); setOpen(false); if (st.err) setSt(x => ({ ...x, err: '' })); }}
+            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, marginHorizontal: 20, marginBottom: 10, borderTopWidth: 1, borderColor: C.mutedBorder35 }}>
+            <Tx w={t.code === code ? 700 : 600} s={13.5} c={C.green} style={{ flex: 1 }}>{t.name}</Tx>
+            {t.code === code ? <Check s={15} /> : <ChevronRight />}
+          </Pressable>
+        ))}
+      </Sheet>
+    </View>
+  );
 }
 
 export function ServicesCream({ V }) {
@@ -64,10 +144,10 @@ export function ServicesCream({ V }) {
       </Pressable>
       <SectionLabel>REQUESTS & SUPPORT</SectionLabel>
       <Card style={{ overflow: 'hidden' }}>
-        {ITEMS.map(it => (it.key === 'r-account' ? { ...it, ...accountRequest(V.user) } : it)).map((it, i) => (
-          <Pressable key={it.key} onPress={() => V.openReq(it.key)} style={{
+        {ITEMS.map((it, i) => (
+          <Pressable key={it.key} onPress={() => (it.page ? V.openPage(it.key) : V.openReq(it.key))} style={{
             flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, minHeight: 52,
-            borderBottomWidth: i < ITEMS.length - 1 ? 1 : 0, borderColor: C.hairline,
+            borderBottomWidth: 1, borderColor: C.hairline,
           }}>
             <View style={{ flex: 1 }}>
               <Tx w={700} s={13}>{it.title}</Tx>
@@ -76,6 +156,7 @@ export function ServicesCream({ V }) {
             <ChevronRight />
           </Pressable>
         ))}
+        <HelpPicker V={V} accountId={accountId} />
       </Card>
       <ContactIRLink V={V} style={{ marginTop: 8, marginLeft: 2 }} />
 

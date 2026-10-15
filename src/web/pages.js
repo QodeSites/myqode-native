@@ -8,10 +8,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { C, Tx, Amt, Card, Row, Grid, Label, Panel, Stat, DarkCard, Btn, Chips, Tabs, Table, KeyVals, TextLink, Pill, Loading, Empty, ErrorBlock, Dialog, sentence } from './kit';
 import { DesktopVoice } from './voice';
 import { DesktopTransactions } from './transactions';
-import { RequestPicker, MyRequests } from './services';
+import { RequestPicker, MyRequests, SupportRequests } from './services';
 import { NuvamaDetails } from './nuvama';
 import { inr, initials } from '../adapt';
-import { ChevronRight, ChevronDown, Phone, MailIcon } from '../icons';
+import { ChevronRight, ChevronDown, Phone, MailIcon, Plus } from '../icons';
 import { experience, engagement, services } from '../api';
 import * as content from '../content';
 import { FormBody } from '../screens/services';
@@ -789,14 +789,13 @@ const HUBS = {
     eyebrow: 'Support', title: 'We’re here to help.',
     text: 'Raise a request, find an answer or reach Investor Relations. We will get back to you in 24 hrs.',
     actions: [['request', 'Raise a request'], ['team', 'Contact Investor Relations']],   // request: the pop-up of request types
-    // Account Services has its own sidebar item (Qode group) since 9 Oct 2026, so it is not repeated here. Five cards,
-    // 3 + 2 (13 Oct 2026): Past Requests opens its own page, with how many are still open in Zoho as a badge.
+    // 16 Oct 2026: no banner (\`bare\`). Requests and support on top, Past Requests across the page (with "Raise
+    // Ticket"), these three cards in one row, then Investor Relations.
+    bare: true,
     items: [
       ['faq', 'message', 'FAQs & Glossary', 'Answers to common questions, and the terms we use'],
       ['voice', 'user', 'Your Voice Matters', 'Tell us how we’re doing'],
       ['grievance', 'mail', 'Escalation and Grievance Redressal', 'If something isn’t resolved'],
-      ['requests', 'list', 'Past Requests', 'Everything you raised, with its status'],
-      ['referral', 'trend', 'Referral Program', 'Refer an investor and earn a reward'],
     ] },
 };
 function Hub({ V, k }) {
@@ -804,13 +803,13 @@ function Hub({ V, k }) {
   const [pick, setPick] = useState(false);
   const go = key => (key === 'request' ? setPick(true) : key === 'services' ? (V.closePage(), V.goServices()) : V.openPage(key));
   const items = h.items.filter(([key]) => !(V.viewing && key === 'services'));
-  // Support: how many of the client's requests are still open in Zoho, for the Past Requests badge
-  const reqs = useLoad(() => (k === 'support' ? services.requests() : Promise.resolve(null)), [k, V.rk]);
-  const open = ((reqs.data && reqs.data.requests) || []).filter(r => r.status && r.status.state !== 'closed').length;
+  const support = k === 'support';
   return (
     <View style={{ gap: 20 }}>
-      {!!h.actions && <RequestPicker V={V} visible={pick} onClose={() => setPick(false)} />}
-      <DarkCard style={{ paddingVertical: 32, paddingHorizontal: 36 }}>
+      {(!!h.actions || support) && <RequestPicker V={V} visible={pick} onClose={() => setPick(false)} />}
+      {support && !V.viewing && <SupportRequests V={V} />}
+      {support && <MyRequests V={V} action={!V.viewing && <Btn small label="Raise Ticket" icon={<Plus s={14} c={C.gold} />} onPress={() => setPick(true)} />} />}
+      {!h.bare && <DarkCard style={{ paddingVertical: 32, paddingHorizontal: 36 }}>
         <Tx w={600} s={12.5} c={C.gold}>{h.eyebrow}</Tx>
         <Tx f="play" w={600} s={28} lh={1.25} c={C.cream} style={{ marginTop: 10, maxWidth: 820 }}>{h.title}</Tx>
         <Tx s={14.5} lh={1.7} c={C.cream60} style={{ marginTop: 12, maxWidth: 860 }}>{h.text}</Tx>
@@ -819,8 +818,8 @@ function Hub({ V, k }) {
             {h.actions.map(([key, label], i) => <Btn key={key} kind={i ? 'outline' : 'gold'} label={label} onPress={() => go(key)} />)}
           </View>
         )}
-      </DarkCard>
-      <Grid min={320} gap={16} cols={k === 'support' ? 3 : undefined} fill>
+      </DarkCard>}
+      <Grid min={320} gap={16} cols={support ? 3 : undefined}>
         {items.map(([key, icon, title, sub]) => (
           <Pressable key={key} accessibilityRole="link" onPress={() => go(key)} style={{ flex: 1 }}>
             {({ hovered }) => (
@@ -830,10 +829,7 @@ function Hub({ V, k }) {
                   <ChevronRight s={14} c={hovered ? C.green : C.ink3} />
                 </View>
                 <View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <Tx w={600} s={16} c={C.green}>{titleCase(title)}</Tx>
-                    {key === 'requests' && open > 0 && <Pill tone="warn" label={open + ' open'} />}
-                  </View>
+                  <Tx w={600} s={16} c={C.green}>{titleCase(title)}</Tx>
                   <Tx s={13} c={C.ink3} lh={1.5} style={{ marginTop: 4 }}>{sub}</Tx>
                 </View>
               </Card>
@@ -841,7 +837,6 @@ function Hub({ V, k }) {
           </Pressable>
         ))}
       </Grid>
-      {k === 'support' && <ContactCard code={V.user && V.user.clientCode} />}
     </View>
   );
 }

@@ -5,23 +5,21 @@
 // centred dialogs on desktop), same SIP guards.
 import React, { useState, useEffect } from 'react';
 import { View, Pressable, ScrollView } from 'react-native';
-import { C, Tx, Amt, Row, PageIntro, Panel, Stat, DarkCard, Btn, Chips, Tabs, Table, Pill, Loading, ErrorBlock, Dialog, Card, Grid } from './kit';
+import { C, Tx, Amt, Row, PageIntro, Panel, Stat, DarkCard, Btn, Chips, Tabs, Table, Pill, Loading, ErrorBlock, Dialog, Card, Grid, Input, Dropdown } from './kit';
 import { Plus, ChevronRight, Swap } from '../icons';
 import { services, payments } from '../api';
 import { titleCase, inr, fmtDate } from '../adapt';
 import { useLoad } from '../screens/kit';
-import { accountRequest } from '../screens/services';
 import { ContactIRLink } from './contact';
 
 import { userMessage } from '../errors';
-import { statusTone, statusLabel, requestMeta } from '../requests';
-// Same list as the phone (ITEMS in src/screens/services.js, which is not exported): withdrawals are deliberately
-// not offered in the app, and Add funds is the call to action above the list.
+import { statusTone, statusLabel, requestMeta, groupTypes, typeName } from '../requests';
+import { track } from '../api/track';
+// Same as the phone (ITEMS in src/screens/services.js): two direct cards, then "What do you need help with?"
+// (the Zoho Desk request types) for everything else. Withdrawals are deliberately not offered.
 const ITEMS = [
   { key: 'r-switch', title: 'Switch strategy', sub: 'Move capital between strategies' },
-  { key: 'r-strategy', title: 'Ask about a strategy', sub: 'Send a question to the investment team' },
-  { key: 'r-discussion', title: 'Raise Any Query', sub: 'Ask Investor Relations anything' },
-  { key: 'r-account' },   // title from accountRequest(): family or account request, by role
+  { key: 'referral', title: 'Referral Program', sub: 'Refer an investor and earn a reward', page: true, icon: 'R' },
 ];
 
 const recentJump = j => !!j && Date.now() - j < 2000;   // Home > Recent transactions > View all
@@ -49,7 +47,6 @@ export default function DesktopServices({ V }) {
   const status = !inv.loading && inv.data ? inv.data[0] : null;
   const all = status ? [...(status.active || []), ...(status.completed || [])] : [];
   const n = x => (inv.loading ? '…' : String(x));
-  const items = ITEMS.map(it => (it.key === 'r-account' ? { ...it, ...accountRequest(V.user) } : it));
 
   // Summary figures, all from the same investment-status response the table shows.
   const sips = all.filter(i => i.paymentType === 'SIP');
@@ -87,20 +84,38 @@ export default function DesktopServices({ V }) {
         </DarkCard>
       </Row>
 
-      <Panel title="Requests and support" sub="Sent to Investor Relations" footer={<ContactIRLink V={V} />}>
-        <Grid cols={2} gap={12}>
-          {items.map(it => <RequestCard key={it.key} it={it} onPress={() => V.openReq(it.key)} />)}
-        </Grid>
-      </Panel>
 
     </View>
+  );
+}
+
+// Requests and support (on the Support page since 16 Oct 2026; was on Account Services): the two direct actions as
+// cards, and "What do you need help with?" (Desk tickets) beside them. With several accounts, a chooser picks the one
+// the request is raised for.
+export function SupportRequests({ V }) {
+  const opts = V.acctOptions || [];
+  const [sel, setSel] = useState(null);
+  const accountId = sel && opts.some(o => o.id === sel) ? sel : opts[0] && opts[0].id;
+  return (
+    // overflow visible: the type menu may reach past the panel's foot, over Past Requests
+    <Panel title="Requests and support" sub="Sent to Investor Relations" footer={<ContactIRLink V={V} />} style={{ overflow: 'visible', zIndex: 5 }}
+      right={opts.length > 1 ? <Chips small value={accountId} onChange={setSel} options={opts.map(o => [o.id, o.label])} /> : null}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 24 }}>
+        <View style={{ flexGrow: 1, flexBasis: 300, gap: 12 }}>
+          {ITEMS.map(it => <RequestCard key={it.key} it={it} onPress={() => (it.page ? V.openPage(it.key) : V.openReq(it.key))} />)}
+        </View>
+        <View style={{ flexGrow: 1.4, flexBasis: 380, borderLeftWidth: 1, borderColor: C.line, paddingLeft: 24 }}>
+          <HelpPicker V={V} accountId={accountId} />
+        </View>
+      </View>
+    </Panel>
   );
 }
 
 // Past requests: everything the client raised, each with its status exactly as it stands in Zoho (services.requests,
 // src/requests.js). The full list is its own page (Support › Past requests, and "View all"); with \`limit\` it is the
 // overview on Account Services: the latest few and a "View all" link to the page.
-export function MyRequests({ V, limit }) {
+export function MyRequests({ V, limit, action }) {
   const L = useLoad(() => services.requests(), [V.rk]);
   const all = (L.data && L.data.requests) || [];
   const list = limit ? all.slice(0, limit) : all;
@@ -108,13 +123,14 @@ export function MyRequests({ V, limit }) {
   const more = !!limit && all.length > 0;
   return (
     <Panel title="Past requests" pad={0}
-      right={more && (
+      right={action || more && (
         <Pressable accessibilityRole="link" onPress={() => V.openPage('requests')} style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: 4, opacity: hovered ? 0.7 : 1 })}>
           <Tx w={600} s={13} c={C.green}>View all{all.length > list.length ? ' · ' + all.length : ''}</Tx>
           <ChevronRight s={11} c={C.green} />
         </Pressable>
       )}>
-      <View style={{ borderTopWidth: 1, borderColor: C.line }}>
+      {/* a long list scrolls inside the panel (about five requests in view), so the page keeps its length */}
+      <ScrollView style={{ borderTopWidth: 1, borderColor: C.line, maxHeight: limit ? undefined : 520 }}>
         {note ? <Tx s={12.5} c={C.ink3} style={{ padding: 16 }}>{note}</Tx> : list.map((r, i) => (
           <View key={r.id} style={{ paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: i < list.length - 1 ? 1 : 0, borderColor: C.line }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -125,25 +141,80 @@ export function MyRequests({ V, limit }) {
             <Tx s={11.5} c={C.ink3} style={{ marginTop: 4 }}>{requestMeta(r)}</Tx>
           </View>
         ))}
-      </View>
+      </ScrollView>
     </Panel>
   );
 }
 
-// Support > "Raise a Request": the same list in a pop-up; picking a type opens its form (V.openReq).
-export function RequestPicker({ V, visible, onClose }) {
-  const items = ITEMS.map(it => (it.key === 'r-account' ? { ...it, ...accountRequest(V.user) } : it));
-  return (
-    <Dialog visible={visible} onClose={onClose} title="Raise a Request" width={520}>
-      <Tx s={13.5} c={C.ink3} lh={1.6} style={{ marginBottom: 12 }}>What would you like to do? Investor Relations replies within 24 hours.</Tx>
-      <View style={{ borderWidth: 1, borderColor: C.line, borderRadius: 12, overflow: 'hidden' }}>
-        {items.map((it, i) => <RequestRow key={it.key} it={it} last={i === items.length - 1} onPress={() => { onClose(); V.openReq(it.key); }} />)}
+// "What do you need help with?" beside the request cards: the request types from Zoho Desk in a dropdown grouped by
+// category ("Something else" last), a text box, and Submit request, which raises a Desk ticket of that type
+// (services.helpRequest, typeCode) for the account picked on this page. Then a confirmation with the ticket number.
+const HELP_H = 260;   // the block's fixed height, so the panel does not jump between choosing, writing and done
+// menuRoom: make room below while the type menu is open (in the pop-up, whose edge would cut it off); on the page the
+// menu simply lies over what follows, so the panel and the cards beside it never change size.
+function HelpPicker({ V, accountId, onDone, menuRoom }) {
+  const T = useLoad(() => services.requestTypes(), []);
+  const groups = groupTypes(T.data && T.data.types);
+  const [code, setCode] = useState(null);
+  const [text, setText] = useState('');
+  const [st, setSt] = useState({ busy: false, err: '', done: null });
+  const [menu, setMenu] = useState(false);   // the type menu is open: room below so no box (or pop-up) cuts it off
+  const send = async () => {
+    const m = text.trim();
+    if (!code) return setSt({ busy: false, err: 'Choose what your request is about.', done: null });
+    if (m.length < 5) return setSt({ busy: false, err: 'Please tell us a little more.', done: null });
+    if (m.length > 2000) return setSt({ busy: false, err: 'Please keep it under 2000 characters.', done: null });
+    if (!accountId) return setSt({ busy: false, err: 'No account to raise this for.', done: null });
+    setSt({ busy: true, err: '', done: null });
+    try {
+      const r = await services.helpRequest({ accountId, typeCode: code, message: m });
+      track('event', 'help_request', { type: code });
+      setText(''); setCode(null);
+      setSt({ busy: false, err: '', done: { ticket: r && r.ticket } });
+    } catch (e) { setSt({ busy: false, err: userMessage(e), done: null }); }
+  };
+  if (st.done) {
+    return (
+      <View style={{ minHeight: HELP_H }}>
+        <Tx w={600} s={15} c={C.green}>What do you need help with?</Tx>
+        <View style={{ marginTop: 12, padding: 18, borderRadius: 10, borderWidth: 1, borderColor: C.green, backgroundColor: C.greenTint }}>
+          <Tx w={600} s={14.5} c={C.green}>Request received{st.done.ticket ? ' · Ticket #' + st.done.ticket : ''}</Tx>
+          <Tx s={13} c={C.ink2} lh={1.55} style={{ marginTop: 6 }}>Investor Relations will get back to you within 24 hours.</Tx>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 20, marginTop: 12 }}>
+            {/* the request's status lives in Past Requests (Support), straight from Zoho */}
+            <Pressable accessibilityRole="link" onPress={() => { if (onDone) onDone(); V.openPage('requests'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              {({ hovered }) => <><Tx w={600} s={13} c={C.green} style={{ textDecorationLine: hovered ? 'underline' : 'none' }}>View in Past Requests</Tx><ChevronRight s={11} c={C.green} /></>}
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => (onDone ? onDone() : setSt({ busy: false, err: '', done: null }))}>
+              {({ hovered }) => <Tx w={600} s={13} c={C.ink2} style={{ textDecorationLine: hovered ? 'underline' : 'none' }}>{onDone ? 'Close' : 'Raise another request'}</Tx>}
+            </Pressable>
+          </View>
+        </View>
       </View>
-    </Dialog>
+    );
+  }
+  // "Something else" (I6, the last group, no header) is pinned under the scrolling list, so it is always in view
+  // one plain list, no category headings (16 Oct 2026), still in category order
+  const options = groups.flatMap(g => g.items.map(t => ({ id: t.code, label: t.name, ...(g.label ? {} : { pin: true }) })));
+  return (
+    <View style={{ minHeight: HELP_H, paddingBottom: menu && menuRoom ? 190 : 0 }}>
+      <Tx w={600} s={15} c={C.green}>What do you need help with?</Tx>
+      {/* the menu opens over the text box below it: this row sits above it */}
+      <View style={{ marginTop: 12, zIndex: 5 }}>
+        <Dropdown text={code ? typeName(groups, code) : 'Choose what your request is about'} value={code} onPick={c => { setCode(c); if (st.err) setSt(x => ({ ...x, err: '' })); }}
+          options={options} width="100%" maxWidth={720} menuWidth={460} listMax={300} stretch height={44} onToggle={setMenu} a11yLabel="What do you need help with?"
+          empty={T.err ? 'We couldn’t load the request types. Please try again shortly.' : 'Loading…'} />
+      </View>
+      <View style={{ marginTop: 12, zIndex: 1 }}>
+        <Input multiline value={text} onChangeText={t => { setText(t); if (st.err) setSt(x => ({ ...x, err: '' })); }}
+          placeholder="Tell us a little more so Investor Relations can help faster…" error={st.err} boxHeight={120} />
+        <Btn label="Submit request" onPress={send} busy={st.busy} style={{ marginTop: 12, alignSelf: 'flex-start', paddingHorizontal: 22 }} />
+      </View>
+    </View>
   );
 }
 
-// A request type as a card (Account Services › Requests and support, 2 × 2): icon, title, what it is for.
+// A request type as a card (Account Services › Requests and support): icon, title, what it is for.
 function RequestCard({ it, onPress }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={it.title} onPress={onPress} style={{ flex: 1 }}>
@@ -151,7 +222,7 @@ function RequestCard({ it, onPress }) {
         <Card style={{ padding: 18, gap: 12, flex: 1, borderColor: hovered ? C.green : C.line }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: C.greenTint, alignItems: 'center', justifyContent: 'center' }}>
-              {it.key === 'r-switch' ? <Swap s={16} c={C.green} /> : <Tx w={600} s={14} c={C.green}>{it.title.charAt(0)}</Tx>}
+              {it.key === 'r-switch' ? <Swap s={16} c={C.green} /> : <Tx w={600} s={14} c={C.green}>{it.icon || it.title.charAt(0)}</Tx>}
             </View>
             <ChevronRight s={14} c={hovered ? C.green : C.ink3} />
           </View>
@@ -162,6 +233,16 @@ function RequestCard({ it, onPress }) {
         </Card>
       )}
     </Pressable>
+  );
+}
+
+// Support > "Raise a Request": the same form in a pop-up, for the first account.
+export function RequestPicker({ V, visible, onClose }) {
+  const first = (V.acctOptions || [])[0];
+  return (
+    <Dialog visible={visible} onClose={onClose} title="Raise a Request" width={560}>
+      {visible && <HelpPicker V={V} accountId={first && first.id} onDone={onClose} menuRoom />}
+    </Dialog>
   );
 }
 

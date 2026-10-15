@@ -48,7 +48,7 @@ export const WEB_NAV = [
     { id: 'about', label: 'About Qode', page: 'about', icon: 'info', covers: ['philosophy', 'foundation', 'team', 'cadence'] },
     { id: 'strategies', label: 'Strategy', page: 'strategies', icon: 'layers' },
     { id: 'insights', label: 'Insights & Events', page: 'insights', icon: 'news' },
-    { id: 'support', label: 'Support', page: 'support', icon: 'help', covers: ['faq', 'grievance', 'voice', 'referral', 'requests'] },
+    { id: 'support', label: 'Support', page: 'support', icon: 'help', covers: ['faq', 'grievance', 'voice', 'requests', 'referral'] },
   ] },
   { title: 'Profile', hidden: true, items: [
     { id: 'account', label: 'Profile', tab: 'more', icon: 'user', covers: ['family', 'guide', 'nuvama', 'notifications', 'privacy', 'terms', 'cancellation', 'admin'] },

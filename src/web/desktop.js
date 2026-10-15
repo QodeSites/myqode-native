@@ -804,7 +804,7 @@ function ContentPage({ V }) {
   if (!pg) return null;
   const it = navItem(V.page), hub = webNavFor(V.page);
   const g = hub && hub.id !== V.page ? hub : null;   // the hub this page sits under (About Qode, Support, Profile)
-  const toHub = () => (g.tab === 'more' ? (V.closePage(), V.goMore()) : V.openPage(g.page));
+  const toHub = () => (g.tab === 'more' ? (V.closePage(), V.goMore()) : g.tab === 'services' ? (V.closePage(), V.goServices()) : V.openPage(g.page));   // Referral Program sits under Account Services (a tab)
   return (
     <View style={wide ? null : { maxWidth: 920 }}>
       {!(hub && hub.id === V.page) && <View accessibilityRole="navigation" aria-label="Breadcrumb" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>

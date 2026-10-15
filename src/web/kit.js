@@ -248,26 +248,32 @@ export function Chips({ value, options, onChange, style, small }) {
  *  unless the id is in keepOpen (e.g. 'custom', to show extra fields). children: extra content under the options,
  *  or a function (close) => node. Clicking outside or pressing Escape closes it. Give the row it sits in a zIndex
  *  so the menu floats over what follows. */
-export function Dropdown({ label, text, options = [], value, onPick, keepOpen = [], children, width, maxWidth = 380, menuWidth = 300, listMax = 340, align = 'left', disabled, a11yLabel, compact, onToggle }) {
+export function Dropdown({ label, text, options = [], value, onPick, keepOpen = [], children, width, maxWidth = 380, menuWidth = 300, listMax = 340, align = 'left', disabled, a11yLabel, compact, onToggle, stretch, empty, height }) {
+  // stretch: the text fills the field and the chevron sits at its right edge (a full-width form field); height: the
+  // field's height; empty: what the open menu says while there are no options yet (e.g. still loading)
   const [open, setOpen] = useState(false);
+  const root = useRef(null);
   useEffect(() => { if (onToggle) onToggle(open); }, [open]);   // onToggle(open): e.g. make room below while the menu is open
   const close = () => setOpen(false);
   const toggle = () => setOpen(o => !o);
   useEffect(() => {
     if (!open || Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
     const onKey = e => { if (e.key === 'Escape') setOpen(false); };
+    // a click anywhere outside the dropdown closes it (the backdrop below can sit under other panels' layers)
+    const onDown = e => { const n = root.current; if (n && n.contains && !n.contains(e.target)) setOpen(false); };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onDown, true);
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('mousedown', onDown, true); };
   }, [open]);
   const extra = typeof children === 'function' ? children(close) : children;
   return (
-    <View style={{ zIndex: open ? 60 : 1, width, maxWidth, flexShrink: 1 }}>
+    <View ref={root} style={{ zIndex: open ? 60 : 1, width, maxWidth, flexShrink: 1 }}>
       <Pressable accessibilityRole="button" accessibilityLabel={a11yLabel || label || text} accessibilityState={{ expanded: open, disabled: !!disabled }}
         onPress={disabled ? undefined : toggle}
-        style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: compact ? 5 : 8, height: compact ? 34 : 36, paddingHorizontal: compact ? 9 : 12, borderRadius: 8, borderWidth: 1,
+        style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', gap: compact ? 5 : 8, height: height || (compact ? 34 : 36), paddingHorizontal: compact ? 9 : 12, borderRadius: 8, borderWidth: 1,
           backgroundColor: C.card, borderColor: open || (hovered && !disabled) ? C.green : C.line2, opacity: disabled ? 0.5 : 1, outlineStyle: 'none' })}>
         {!!label && <Tx w={600} s={12} c={C.ink3}>{titleCase(label)}</Tx>}
-        <Tx w={600} s={13} numberOfLines={1} style={{ flexShrink: 1 }}>{text}</Tx>
+        <Tx w={600} s={13} numberOfLines={1} style={stretch ? { flex: 1, minWidth: 0 } : { flexShrink: 1 }}>{text}</Tx>
         <ChevronDown s={10} c={C.ink2} />
       </Pressable>
       {open && (
@@ -276,6 +282,7 @@ export function Dropdown({ label, text, options = [], value, onPick, keepOpen = 
             style={{ position: Platform.OS === 'web' ? 'fixed' : 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, cursor: 'default' }} />
           <View style={{ position: 'absolute', top: 40, [align === 'right' ? 'right' : 'left']: 0, zIndex: 1, width: menuWidth, borderWidth: 1, borderColor: C.line,
             borderRadius: 10, backgroundColor: C.card, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } }}>
+            {!options.length && !!empty && <Tx s={13} c={C.ink3} style={{ padding: 14 }}>{empty}</Tx>}
             {/* listMax: how tall the scrolling list may grow; options with pin (e.g. Custom) stay below it, always in view */}
             {options.some(o => !o.pin) && (
               <ScrollView style={{ maxHeight: listMax }} contentContainerStyle={{ paddingVertical: 4 }}>
@@ -327,18 +334,18 @@ export function Tabs({ value, options, onChange, style }) {
 }
 
 /** Labelled text field. */
-export function Input({ label, value, onChangeText, placeholder, secure, error, hint, right, multiline, keyboardType, autoFocus, onSubmitEditing, style }) {
+export function Input({ label, value, onChangeText, placeholder, secure, error, hint, right, multiline, keyboardType, autoFocus, onSubmitEditing, style, boxHeight }) {   // boxHeight: a taller multi-line box
   const [focus, setFocus] = useState(false);
   return (
     <View style={style}>
       {!!label && <Tx w={600} s={12.5} c={C.ink2} style={{ marginBottom: 6 }}>{sentence(label)}</Tx>}
       <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 8, backgroundColor: C.card,
-        borderColor: error ? C.red : focus ? C.green : C.line2, paddingHorizontal: 12, minHeight: multiline ? 110 : 44,
+        borderColor: error ? C.red : focus ? C.green : C.line2, paddingHorizontal: 12, minHeight: multiline ? (boxHeight || 110) : 44,
         shadowColor: C.green, shadowOpacity: focus ? 0.12 : 0, shadowRadius: 0, shadowOffset: { width: 0, height: 0 }, outlineWidth: focus ? 3 : 0, outlineColor: 'rgba(2,66,43,0.12)', outlineStyle: 'solid' }}>
         <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={C.ink3}
           secureTextEntry={secure} multiline={multiline} keyboardType={keyboardType} autoFocus={autoFocus} autoCapitalize="none"
           onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} onSubmitEditing={onSubmitEditing}
-          style={{ flex: 1, alignSelf: 'stretch', minHeight: multiline ? 96 : 42, width: '100%', paddingVertical: 10, fontSize: 14, lineHeight: 20, backgroundColor: 'transparent', borderWidth: 0, color: C.ink, fontFamily: 'Inter_400Regular', outlineStyle: 'none', textAlignVertical: multiline ? 'top' : 'center' }} />
+          style={{ flex: 1, alignSelf: 'stretch', minHeight: multiline ? (boxHeight || 110) - 14 : 42, width: '100%', paddingVertical: 10, fontSize: 14, lineHeight: 20, backgroundColor: 'transparent', borderWidth: 0, color: C.ink, fontFamily: 'Inter_400Regular', outlineStyle: 'none', textAlignVertical: multiline ? 'top' : 'center' }} />
         {right}
       </View>
       {!!(error || hint) && <Tx s={12} c={error ? C.red : C.ink3} style={{ marginTop: 6 }}>{error || hint}</Tx>}

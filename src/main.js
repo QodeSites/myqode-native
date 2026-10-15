@@ -2147,7 +2147,7 @@ export default class MyQode extends React.Component {
     const V = this.vals();
     // Reports' date menus: fetch each account's dates on record once the account list is known (src/reportList.js).
     const rdKey = (V.acctOptions || []).map(o => o.id).join(',');
-    if (rdKey && rdKey !== this.rdKey && !isDemo()) { this.rdKey = rdKey; setTimeout(() => prefetchRecordDates(V), 0); }
+    if (rdKey && rdKey !== this.rdKey && !isDemo()) { this.rdKey = rdKey; setTimeout(() => { prefetchRecordDates(V); services.requestTypes().catch(() => {}); }, 0); }   // + the support form's request types
     const U = {
       z: [0.92, 1, 1.08, 1.16][this.state.ts],
       hc: this.state.hc, rm: this.state.rm,

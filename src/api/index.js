@@ -191,6 +191,10 @@ export const notifications = {
   savePrefs: body => call('/notifications/prefs', { method: 'PUT', body }, () => ({ money: true, portfolio: true, reading: true, updates: true, ...body })),
 };
 
+// The support form's request types (services.requestTypes): fetched in the background after sign-in and kept 10
+// minutes (as the server does), so a type changed in Zoho Desk (e.g. made staff-only) drops out without a reload.
+let typesP = null, typesAt = 0;
+
 export const services = {
   // Qode's own bank account: static on the server. Cached after the first fetch so the Add Funds sheet is instant.
   bankDetails: () => {
@@ -202,6 +206,17 @@ export const services = {
   // My Requests: everything the client raised (questions, queries, requests, referrals, switches) with its
   // live status in Zoho (myQode lib/requestTracking.ts), newest first.
   requests: () => call('/requests', {}, () => demo.requests()),
+  // "What do you need help with?" (Account Services): { accountId, typeCode, message } → a Zoho Desk ticket with that
+  // request type (none → a general query) → { success, inquiry_id, ticket }
+  // The request types for the support form, from Zoho Desk (GET /api/request-types, public, cached 10 min there):
+  // { types: [{ id, code, name, category }] }. Demo: none (the form then sends no type).
+  requestTypes: () => {
+    if (isDemo()) return Promise.resolve({ types: [] });
+    if (typesP && Date.now() - typesAt > 10 * 60_000) typesP = null;
+    if (!typesP) { typesAt = Date.now(); typesP = api('/request-types', { auth: false, base: '/api' }).catch(e => { typesP = null; throw e; }); }
+    return typesP;
+  },
+  helpRequest: body => (isDemo() ? Promise.resolve({ success: true, inquiry_id: 'DEMO-HELP' }) : api('/services/help-request', { method: 'POST', body })),
   // These email Investor Relations only (to: investor.relations@qodeinvest.com), never the client.
   withdrawal: body => post('/services/withdrawal', body),
   switchStrategy: body => post('/services/switch', body),

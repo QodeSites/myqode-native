@@ -1,7 +1,8 @@
 // Desktop "Profile and settings" (the sidebar's user card; address /app/account): the phone's profile and settings
 // from src/screens/more.js as a page. Left column: profile, security and display preferences, admin tools and the
-// session. Right column: help (a link to Investor Relations on Your Team at Qode) and the legal pages. The investor
-// menu itself is in the sidebar (NAV_GROUPS, src/nav.js). Same V and the same handlers as the phone.
+// session. Right column: your accounts and the legal pages. Below both, Investor Relations' contact details (moved
+// here from Support, 16 Oct 2026). The investor menu itself is in the sidebar (NAV_GROUPS, src/nav.js). Same V and the
+// same handlers as the phone.
 import { titleCase } from '../titleCase';
 import React from 'react';
 import { View, Pressable, Linking } from 'react-native';
@@ -9,7 +10,7 @@ import { C, Tx, Card, Row, PageIntro, Panel, Btn, Chips, Pill, Loading } from '.
 import { ChevronRight, Phone, MailIcon } from '../icons';
 import { initials } from '../adapt';
 import { LEGAL_LINKS } from '../nav';
-import { ContactIRLink } from './contact';
+import { ContactCard } from './contact';
 import { useRmName } from '../rmName';
 
 export default function DesktopAccount({ V }) {
@@ -33,9 +34,6 @@ export default function DesktopAccount({ V }) {
               {[['family', 'Account Mapping'], ['guide', 'Login To Nuvama']].map(([key, label], i) => <ListRow key={key} first={i === 0} label={label} onPress={() => V.openPage(key)} />)}
             </View>
           </Panel>
-          <Panel title="Need help?" sub="Questions about your account, reports or a request">
-            <ContactIRLink V={V} />
-          </Panel>
           <Panel title="Legal" pad={0}>
             <View style={{ borderTopWidth: 1, borderColor: C.line }}>
               {LEGAL_LINKS.map(([key, label], i) => <ListRow key={key} first={i === 0} label={label} onPress={() => V.openPage(key)} />)}
@@ -43,6 +41,7 @@ export default function DesktopAccount({ V }) {
           </Panel>
         </View>
       </Row>
+      <ContactCard code={V.user && V.user.clientCode} />
     </View>
   );
 }
