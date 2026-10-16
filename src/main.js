@@ -1543,7 +1543,9 @@ export default class MyQode extends React.Component {
       ddLine: p3.line, ddArea: p3.area, ddBench: p3.bench, hasDd: ddPts.length > 1, ddNow: ddPts.length ? ddPts[ddPts.length - 1] : 0,
       perfLine: p2.line, perfBench: p2.bench, hasBench: !!bench,
       ranges: RANGE_IDS.map(id => { const off = !this.rangeOk(id, S); return { label: id, disabled: off, pick: () => { if (!off) this.pickRange(id); }, active: S.range === id, loading: rangeLoading && S.range === id }; }),
-      // Home's recent activity: the investor's own movements only (minorFlow); txAll keeps the full list.
+      // Home's recent activity and the Transactions list: the investor's own movements only (minorFlow). Custodian
+      // bookkeeping (sweeps of ₹60, ₹100 test credits, share re-typing pairs) is left out of both (16 Oct 2026); the
+      // money-in / money-out totals still come from the server's full figures (flowTotals).
       tx3: movesMerged(cashTx.filter(t => !minorFlow(t))).slice(0, 3).map(tx), txRecent: movesMerged(cashTx.filter(t => !minorFlow(t))).map(tx),
       // the totals of that list, in small under its heading: "In ₹1,27,90,326.00 · Out ₹0.00" (8 Oct 2026)
       txTotals: (() => {
@@ -1556,7 +1558,7 @@ export default class MyQode extends React.Component {
         const inn = xs.reduce((s, t) => s + Math.max(0, amt(t)), 0), out = xs.reduce((s, t) => s + Math.max(0, -amt(t)), 0);
         return 'In ' + this.fmt(inn) + ' · Out ' + this.fmt(out);
       })(),
-      txAll: cashTx.map(tx), hasTx: cashTx.length > 0,
+      txAll: cashTx.filter(t => !minorFlow(t)).map(tx), hasTx: cashTx.some(t => !minorFlow(t)),
       holdings: holdRows, chartColor,
       // IRR (money-weighted) beside TWRR: [{ period, label, value, color }] for SI / 1Y / 3Y when available.
       // Key metrics grid (Performance): server figures + the money-weighted IRR since inception as XIRR
