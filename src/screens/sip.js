@@ -19,8 +19,9 @@ import { savePendingPayment, clearPendingPayment, hintFromReturnUrl, autoReturn 
 import { track } from '../api/track';
 
 import { userMessage } from '../errors';
+// Amounts (16 Oct 2026): ₹50,000 or ₹1,00,000, or a custom amount above ₹1,00,000 (the server enforces the same).
 const CHIPS = [50000, 100000];
-const MIN = 50000, MAX = 500000;
+const CUSTOM_ABOVE = 100000, MAX = 500000;
 const FREQS = [['monthly', 'Monthly'], ['quarterly', 'Quarterly'], ['yearly', 'Yearly']];
 const fmt = v => inr(Number(v || 0));
 const Lbl = ({ children, style }) => <Tx w={700} s={10} ls={0.12} c={C.gray} style={[{ marginTop: 18 }, style]}>{children}</Tx>;
@@ -105,6 +106,7 @@ export function SetupSip({ V, onDone, recover }) {
   const opts = V.acctOptions;
   const [acct, setAcct] = useState(opts[0] && opts[0].id);
   const [amt, setAmt] = useState(0);
+  const [custom, setCustom] = useState(false);   // the Custom chip: the investor types an amount above ₹1,00,000
   const [freq, setFreq] = useState('monthly');
   const [from, setFromRaw] = useState(defaultStart);
   const [until, setUntil] = useState(() => defaultEnd(defaultStart()));   // optional end: defaults to 10 years
@@ -157,7 +159,8 @@ export function SetupSip({ V, onDone, recover }) {
 
   const start = async () => {
     if (st.busy) return;
-    if (!amt || amt < MIN) return set({ err: `Enter at least ${fmt(MIN)}.` });
+    if (!amt) return set({ err: custom ? `Enter an amount above ${fmt(CUSTOM_ABOVE)}.` : 'Choose an amount.' });
+    if (custom && amt <= CUSTOM_ABOVE) return set({ err: `A custom amount must be above ${fmt(CUSTOM_ABOVE)}. Or choose ${CHIPS.map(fmt).join(' or ')}.` });
     if (amt > MAX) return set({ err: `SIP amount is capped at ${fmt(MAX)} per cycle.` });
     set({ busy: true, err: '' });
     let sub;
@@ -228,14 +231,20 @@ export function SetupSip({ V, onDone, recover }) {
     <View>
       {opts.length > 1 && <><Lbl style={{ marginTop: 14 }}>ACCOUNT</Lbl><AccountChips options={opts} value={acct} onPick={setAcct} /></>}
       <Lbl style={{ marginTop: 14 }}>AMOUNT PER CYCLE</Lbl>
-      <Field value={amt ? amt.toLocaleString('en-IN') : ''} onChangeText={t => { const n = parseInt(t.replace(/\D/g, '') || '0', 10); setAmt(Math.min(n, MAX)); set({ err: n > MAX ? `SIP amount is capped at ${fmt(MAX)} per cycle. Amount set to the maximum.` : '' }); }} numeric s={26} prefix="₹" />
-      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-        {CHIPS.map(v => (
-          <Pressable key={v} onPress={() => { setAmt(v); set({ err: '' }); }} style={{ flex: 1, minWidth: 0, alignItems: 'center', borderWidth: 1, borderColor: C.greenBorder, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 6 }}>
-            <Amt s={12} c={C.green} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{fmt(v)}</Amt>
-          </Pressable>
-        ))}
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+        {[...CHIPS, 'custom'].map(v => {
+          const on = v === 'custom' ? custom : !custom && amt === v;
+          return (
+            <Pressable key={v} onPress={() => { if (v === 'custom') { setCustom(true); setAmt(0); } else { setCustom(false); setAmt(v); } set({ err: '' }); }} style={{ flex: 1, minWidth: 0, alignItems: 'center', borderWidth: 1, borderColor: on ? C.green : C.greenBorder, backgroundColor: on ? C.green : 'transparent', borderRadius: 999, paddingVertical: 10, paddingHorizontal: 6 }}>
+              {v === 'custom' ? <Tx w={700} s={12} c={on ? C.cream : C.green}>Custom</Tx> : <Amt s={12} c={on ? C.cream : C.green} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{fmt(v)}</Amt>}
+            </Pressable>
+          );
+        })}
       </View>
+      {custom && <>
+        <Field value={amt ? amt.toLocaleString('en-IN') : ''} onChangeText={t => { const n = parseInt(t.replace(/\D/g, '') || '0', 10); setAmt(Math.min(n, MAX)); set({ err: n > MAX ? `SIP amount is capped at ${fmt(MAX)} per cycle. Amount set to the maximum.` : '' }); }} numeric s={26} prefix="₹" placeholder="Above 1,00,000" style={{ marginTop: 12 }} />
+        <Tx s={11} c={C.gray} style={{ marginTop: 6 }}>Above {fmt(CUSTOM_ABOVE)}, up to {fmt(MAX)} per cycle.</Tx>
+      </>}
       <Lbl>FREQUENCY</Lbl>
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
         {FREQS.map(([id, label]) => (
@@ -263,8 +272,8 @@ export function SetupSip({ V, onDone, recover }) {
           )}
       </View>
       {!!st.err && <Tx s={12} c={C.red} lh={1.45} style={{ marginTop: 12 }}>{st.err}</Tx>}
-      <Tx s={11} c={C.gray} lh={1.5} style={{ marginTop: 12 }}>You'll authorise a recurring mandate on Razorpay's secure page (UPI Autopay or net banking) and be brought back here. Razorpay then debits automatically each cycle. No app interaction needed. Minimum {fmt(MIN)}, maximum {fmt(MAX)} per cycle.{isDemo() ? ' Demo: no real mandate is created.' : ''}</Tx>
-      <CTA label={st.busy ? 'PLEASE WAIT…' : 'AUTHORISE SIP OF ' + fmt(amt)} onPress={start} style={{ marginTop: 16, opacity: st.busy ? 0.6 : 1 }} />
+      <Tx s={11} c={C.gray} lh={1.5} style={{ marginTop: 12 }}>You'll authorise a recurring mandate on Razorpay's secure page (UPI Autopay or net banking) and be brought back here. Razorpay then debits automatically each cycle. No app interaction needed. {CHIPS.map(fmt).join(' or ')}, or a custom amount above {fmt(CUSTOM_ABOVE)} (up to {fmt(MAX)}) per cycle.{isDemo() ? ' Demo: no real mandate is created.' : ''}</Tx>
+      <CTA label={st.busy ? 'PLEASE WAIT…' : amt ? 'AUTHORISE SIP OF ' + fmt(amt) : 'AUTHORISE SIP'} onPress={start} style={{ marginTop: 16, opacity: st.busy ? 0.6 : 1 }} />
     </View>
   );
 }
