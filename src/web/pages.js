@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { C, Tx, Amt, Card, Row, Grid, Label, Panel, Stat, DarkCard, Btn, Chips, Tabs, Table, KeyVals, TextLink, Pill, Loading, Empty, ErrorBlock, Dialog, sentence } from './kit';
 import { DesktopVoice } from './voice';
 import { DesktopTransactions } from './transactions';
-import { RequestPicker, MyRequests, SupportRequests } from './services';
+import { RequestPicker, MyRequests } from './services';
 import { NuvamaDetails } from './nuvama';
 import { inr, initials } from '../adapt';
 import { ChevronRight, ChevronDown, Phone, MailIcon, Plus } from '../icons';
@@ -789,26 +789,55 @@ const HUBS = {
     eyebrow: 'Support', title: 'We’re here to help.',
     text: 'Raise a request, find an answer or reach Investor Relations. We will get back to you in 24 hrs.',
     actions: [['request', 'Raise a request'], ['team', 'Contact Investor Relations']],   // request: the pop-up of request types
-    // 16 Oct 2026: no banner (\`bare\`). Requests and support on top, Past Requests across the page (with "Raise
-    // Ticket"), these three cards in one row, then Investor Relations.
+    // 16 Oct 2026: no banner (\`bare\`). Past Requests on top (with "Raise Ticket", the only way to raise a ticket
+    // here), then Switch Strategy and Referral Program as two cards across the page (\`actionsRow\`), then these three.
     bare: true,
+    actionsRow: [
+      ['r-switch', 'swap', 'Switch Strategy', 'Move capital between strategies'],
+      ['referral', 'trend', 'Referral Program', 'Refer an investor and earn a reward'],
+    ],
     items: [
       ['faq', 'message', 'FAQs & Glossary', 'Answers to common questions, and the terms we use'],
       ['voice', 'user', 'Your Voice Matters', 'Tell us how we’re doing'],
       ['grievance', 'mail', 'Escalation and Grievance Redressal', 'If something isn’t resolved'],
     ] },
 };
+// A hub's card: icon, title and line, the whole card a link.
+function HubCard({ icon, title, sub, onPress }) {
+  return (
+    <Pressable accessibilityRole="link" onPress={onPress} style={{ flex: 1 }}>
+      {({ hovered }) => (
+        <Card style={{ padding: 22, gap: 14, borderColor: hovered ? C.green : C.line, flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <IconChip name={icon} />
+            <ChevronRight s={14} c={hovered ? C.green : C.ink3} />
+          </View>
+          <View>
+            <Tx w={600} s={16} c={C.green}>{titleCase(title)}</Tx>
+            <Tx s={13} c={C.ink3} lh={1.5} style={{ marginTop: 4 }}>{sub}</Tx>
+          </View>
+        </Card>
+      )}
+    </Pressable>
+  );
+}
+
 function Hub({ V, k }) {
   const h = HUBS[k];
   const [pick, setPick] = useState(false);
+  const [raised, setRaised] = useState(0);   // bumps when a ticket is raised from the pop-up: Past Requests reloads
   const go = key => (key === 'request' ? setPick(true) : key === 'services' ? (V.closePage(), V.goServices()) : V.openPage(key));
   const items = h.items.filter(([key]) => !(V.viewing && key === 'services'));
   const support = k === 'support';
   return (
     <View style={{ gap: 20 }}>
-      {(!!h.actions || support) && <RequestPicker V={V} visible={pick} onClose={() => setPick(false)} />}
-      {support && !V.viewing && <SupportRequests V={V} />}
-      {support && <MyRequests V={V} action={!V.viewing && <Btn small label="Raise Ticket" icon={<Plus s={14} c={C.gold} />} onPress={() => setPick(true)} />} />}
+      {(!!h.actions || support) && <RequestPicker V={V} visible={pick} onClose={() => setPick(false)} onRaised={() => setRaised(n => n + 1)} />}
+      {support && <MyRequests V={V} reload={raised} action={!V.viewing && <Btn small label="Raise Ticket" icon={<Plus s={14} c={C.gold} />} onPress={() => setPick(true)} />} />}
+      {!!h.actionsRow && !V.viewing && (
+        <Grid gap={16} cols={h.actionsRow.length}>
+          {h.actionsRow.map(([key, icon, title, sub]) => <HubCard key={key} icon={icon} title={title} sub={sub} onPress={() => (key === 'r-switch' ? V.openReq(key) : V.openPage(key))} />)}
+        </Grid>
+      )}
       {!h.bare && <DarkCard style={{ paddingVertical: 32, paddingHorizontal: 36 }}>
         <Tx w={600} s={12.5} c={C.gold}>{h.eyebrow}</Tx>
         <Tx f="play" w={600} s={28} lh={1.25} c={C.cream} style={{ marginTop: 10, maxWidth: 820 }}>{h.title}</Tx>
@@ -820,22 +849,7 @@ function Hub({ V, k }) {
         )}
       </DarkCard>}
       <Grid min={320} gap={16} cols={support ? 3 : undefined}>
-        {items.map(([key, icon, title, sub]) => (
-          <Pressable key={key} accessibilityRole="link" onPress={() => go(key)} style={{ flex: 1 }}>
-            {({ hovered }) => (
-              <Card style={{ padding: 22, gap: 14, borderColor: hovered ? C.green : C.line, flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <IconChip name={icon} />
-                  <ChevronRight s={14} c={hovered ? C.green : C.ink3} />
-                </View>
-                <View>
-                  <Tx w={600} s={16} c={C.green}>{titleCase(title)}</Tx>
-                  <Tx s={13} c={C.ink3} lh={1.5} style={{ marginTop: 4 }}>{sub}</Tx>
-                </View>
-              </Card>
-            )}
-          </Pressable>
-        ))}
+        {items.map(([key, icon, title, sub]) => <HubCard key={key} icon={icon} title={title} sub={sub} onPress={() => go(key)} />)}
       </Grid>
     </View>
   );

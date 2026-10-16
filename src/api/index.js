@@ -216,7 +216,8 @@ export const services = {
     if (!typesP) { typesAt = Date.now(); typesP = api('/request-types', { auth: false, base: '/api' }).catch(e => { typesP = null; throw e; }); }
     return typesP;
   },
-  helpRequest: body => (isDemo() ? Promise.resolve({ success: true, inquiry_id: 'DEMO-HELP' }) : api('/services/help-request', { method: 'POST', body })),
+  // body.requestKey: the same key on a resend makes it the same request (the server answers it once). 45 s: Desk can be slow.
+  helpRequest: body => (isDemo() ? Promise.resolve({ success: true, inquiry_id: 'DEMO-HELP' }) : api('/services/help-request', { method: 'POST', body, timeout: 45000 })),
   // These email Investor Relations only (to: investor.relations@qodeinvest.com), never the client.
   withdrawal: body => post('/services/withdrawal', body),
   switchStrategy: body => post('/services/switch', body),

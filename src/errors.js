@@ -16,7 +16,8 @@ export const MSG = {
 };
 
 // Words and shapes that only appear in technical text (exception names, HTTP phrases, code identifiers, URLs).
-const TECH = /\b(exception|undefined|null|NaN|stack|sql|econn\w*|enotfound|etimedout|typeerror|referenceerror|syntaxerror|rangeerror|internal server( error)?|forbidden|unauthori[sz]ed|bad request|json|fetch|aborted?|promise|function|object|cannot read|is not a|unexpected token|network request failed|status code|errno|eacces)\b|[{}<>\[\]=`|\\]|https?:\/\/|\(\d{3}\)|\b\d{3}\b(?= *(error|status))|\w+_\w+/i;
+// Service names and plumbing (Zoho, OAuth, tokens, rate limits, 16 Oct 2026) never reach a client either.
+const TECH = /\b(exception|undefined|null|NaN|stack|sql|econn\w*|enotfound|etimedout|typeerror|referenceerror|syntaxerror|rangeerror|internal server( error)?|forbidden|unauthori[sz]ed|bad request|json|fetch|aborted?|promise|function|object|cannot read|is not a|unexpected token|network request failed|status code|errno|eacces|zoho|razorpay|cashfree|nuvama api|oauth|token refresh|rate limit|refresh(?:es)? paused)\b|[{}<>\[\]=`|\\]|https?:\/\/|\(\d{3}\)|\b\d{3}\b(?= *(error|status))|\w+_\w+/i;
 // Code identifiers (accountId, fetchOrder): case-sensitive, so ordinary words never match.
 const CAMEL = /\b[a-z]+[A-Z][A-Za-z]*\b/;
 // Brand and product words with inner capitals that are fine to show.

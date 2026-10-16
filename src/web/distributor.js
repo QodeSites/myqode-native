@@ -32,7 +32,7 @@ import {
   STRATEGY_COLOR, shortStrategy, ACCOUNT_JOURNEY, num, inrCompact, displayDate, SCHEME, SCHEME_COLOR, code3, parseBillgroup,
   EMPTY_PROFILE, todayIst, validateProfile, useDecks, SEGMENTS, toSeries, VsiChart, RISK_OFF, RISK_ON, VSI, ddmmyyyy, TOPICS,
 } from '../screens/partner';
-import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, ErrorBlock, Empty, Btn, PageIntro, Chips, Input, KeyVals, Pill, Dialog, FitAmt, Dropdown, AppLinks } from './kit';
+import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, ErrorBlock, Empty, Btn, PageIntro, Chips, Input, KeyVals, Pill, Dialog, FitAmt, Dropdown, AppLinks, useSidenavScrollbar } from './kit';
 import { ClientReportsDialog } from './clientReports';
 
 import { userMessage } from '../errors';
@@ -196,6 +196,7 @@ function BarRow({ color, label, sub, value, count, pct, onPress }) {
 
 /* ── frame ──────────────────────────────────────────────────────────────────────────────────────────────── */
 function Sidebar({ V, active, onNav }) {
+  useSidenavScrollbar();   // the menu's thin gold scroll line (kit)
   const name = (V.user && V.user.name) || '';
   const initials = String(name).split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
   return (
@@ -203,7 +204,7 @@ function Sidebar({ V, active, onNav }) {
       <View style={{ paddingHorizontal: 22 }}><Wordmark s={28} c={C.cream} /></View>
       <Tx s={11.5} c="rgba(239,236,211,0.55)" style={{ paddingHorizontal: 22, marginTop: 2 }}>Qode Advisors LLP · Partner</Tx>
       <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 12, marginLeft: 22 }} />
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ marginTop: 18, paddingHorizontal: 12, gap: 14, paddingBottom: 12 }}>
+      <ScrollView dataSet={{ sidenav: '1' }} style={{ flex: 1 }} contentContainerStyle={{ marginTop: 18, paddingHorizontal: 12, gap: 14, paddingBottom: 12 }}>
         {GROUPS.map(([g, keys]) => (
           <View key={g}>
             <Tx w={600} s={11.5} c="rgba(239,236,211,0.45)" style={{ paddingHorizontal: 10, marginBottom: 4 }}>{g}</Tx>

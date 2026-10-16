@@ -14,7 +14,7 @@
 // Full Switch; anything else is sent as a Partial Switch with amounts.
 // Data: GET/POST /api/mobile/services/switch-request. On the dev server the request is validated but not created.
 import React, { useState } from 'react';
-import { View, Pressable } from 'react-native';
+import { View, Pressable, ActivityIndicator } from 'react-native';
 import { C, Tx, Amt, Field, CTA, useBackHandler } from '../ui';
 import { inr, initials } from '../adapt';
 import { Check, ChevronDown } from '../icons';
@@ -182,7 +182,14 @@ export function SwitchForm({ onClose, preferName }) {
     } catch (x) { setSt({ busy: false, err: userMessage(x), done: null }); }
   };
 
-  if (info.loading) return <View style={{ marginTop: 16 }}><Loading rows={2} h={60} /></View>;
+  // a visible spinner and what is happening (the skeleton blocks were the sheet's own colour, so it looked empty)
+  if (info.loading) return (
+    <View style={{ marginTop: 18, paddingVertical: 28, alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(55,88,79,0.15)' }}>
+      <ActivityIndicator color={C.green} />
+      <Tx w={700} s={13} style={{ marginTop: 12 }}>Getting your switch details</Tx>
+      <Tx s={12} c={C.muted} lh={1.5} center style={{ marginTop: 4, paddingHorizontal: 16 }}>Checking your holdings and any switch already in progress. This takes a few seconds.</Tx>
+    </View>
+  );
   if (info.err) return <View style={{ marginTop: 16 }}><ErrorBox msg={info.err} onRetry={info.reload} /></View>;
   if (!inv) return <Tx s={12.5} c={C.muted} lh={1.6} style={{ marginTop: 16 }}>{(data && data.message) || 'We could not find your investor record. Please contact Investor Relations.'}</Tx>;
 
@@ -225,12 +232,12 @@ export function SwitchForm({ onClose, preferName }) {
           {' · '}submitted {p.requestDate ? String(p.requestDate).slice(0, 10) : 'recently'}{p.switchType ? ' · ' + p.switchType : ''}
         </Tx>
       ))}
-      <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 8 }}>{available.length ? 'Our team will reach out once it is processed. You can make another switch meanwhile; only a move already in progress can’t be repeated.' : 'Our team will reach out once it is processed; a new request can be made after that.'}</Tx>
+      <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 8 }}>Only one switch can be in progress at a time. Our team will reach out once it is processed; you can make a new request after that.</Tx>
     </View>
   );
 
-  // Every strategy held is already in a request: nothing to choose.
-  if (held.length > 0 && available.length === 0) {
+  // One switch at a time (16 Oct 2026): while a request is in progress for this investor, no new one — just show it.
+  if (pendingList.length > 0) {
     return (
       <View>
         {investorCard}

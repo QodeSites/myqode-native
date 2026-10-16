@@ -103,6 +103,23 @@ export const Row = ({ children, style, gap = 20, top }) => (
 );
 /** Wrapping grid: children get `minWidth` and grow to fill the row. */
 // fill: a short last row shares the width (five cards in 3 + 2) instead of leaving its empty cells.
+// The sidebar menu's scroll line: thin, gold, on the right edge, only when the menu overflows. Put
+// dataSet={{ sidenav: '1' }} on the menu's ScrollView and call useSidenavScrollbar() once in the sidebar.
+export function useSidenavScrollbar() {
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined' || document.getElementById('qode-sidenav-css')) return;
+    const el = document.createElement('style');
+    el.id = 'qode-sidenav-css';
+    el.textContent = [
+      '[data-sidenav="1"]{scrollbar-width:thin;scrollbar-color:#DABD38 transparent}',
+      '[data-sidenav="1"]::-webkit-scrollbar{width:3px}',
+      '[data-sidenav="1"]::-webkit-scrollbar-track{background:transparent}',
+      '[data-sidenav="1"]::-webkit-scrollbar-thumb{background:#DABD38;border-radius:2px}',
+    ].join('');
+    document.head.appendChild(el);
+  }, []);
+}
+
 export const Grid = ({ children, min = 260, gap = 16, cols, fill, style }) => {
   // cols: a fixed number a row, equal widths (a 2 × 2 of four cards); otherwise as many of `min` width as fit.
   if (cols) {

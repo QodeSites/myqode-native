@@ -54,6 +54,7 @@ const ICON = {
   trend: 'M3 17l6-6 4 4 8-8 M15 7h6v6',
   user: 'M12 12a4 4 0 100-8 4 4 0 000 8z M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5',
   list: 'M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01',   // Past Requests (Support)
+  swap: 'M4 8h15 M15 4l4 4-4 4 M20 16H5 M9 12l-4 4 4 4',   // Switch Strategy (Support)
 };
 const LineIcon = ({ name, c = C.green, s = 18 }) => (
   <Svg width={s} height={s} viewBox="0 0 24 24" fill="none"><Path d={ICON[name]} stroke={c} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" /></Svg>

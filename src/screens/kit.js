@@ -21,6 +21,19 @@ export function useLoad(fn, deps = []) {
   return { ...st, reload: () => setTick(t => t + 1) };
 }
 
+// A list that keeps itself current while on screen: every \`ms\` it fetches again quietly and returns the newer answer
+// (the first load and its skeleton stay with useLoad). Stops when the screen goes away.
+export function useQuietRefresh(fn, data, ms = 30000) {
+  const [fresh, setFresh] = useState(null);
+  useEffect(() => { setFresh(null); }, [data]);   // a full reload wins
+  useEffect(() => {
+    let dead = false;
+    const t = setInterval(() => { Promise.resolve().then(fn).then(d => { if (!dead) setFresh(d); }).catch(() => {}); }, ms);
+    return () => { dead = true; clearInterval(t); };
+  }, []);
+  return fresh || data;
+}
+
 export function openUrl(url) {
   if (!url) {
     Alert.alert(isDemo() ? 'Sample document' : 'Unavailable', isDemo() ? 'Sign in with a real account to open your documents.' : 'This file has no link right now. Please try again.');

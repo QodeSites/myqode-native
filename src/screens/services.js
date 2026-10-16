@@ -1,13 +1,13 @@
 // Services tab + request sheets. Every request posts to /api/mobile/services/* or
 // /engagement/referral, which email Investor Relations and return an inquiry id.
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Pressable, ActivityIndicator, Modal, ScrollView, TextInput, Dimensions, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { C, Tx, Amt, Card, Sheet, Field, CTA, Fade } from '../ui';
+import { C, Tx, Amt, Card, Sheet, Field, CTA, Fade, Skel } from '../ui';
 import { Plus, ChevronRight, ChevronDown, Copy, Check } from '../icons';
 import { services, payments, documents, isDemo } from '../api';
 import { titleCase, inr, fmtDate, fmtD } from '../adapt';
-import { useLoad, SectionLabel, AccountChips, Loading, ErrorBox } from './kit';
+import { useLoad, useQuietRefresh, SectionLabel, AccountChips, Loading, ErrorBox } from './kit';
 import { PayOnline } from './pay';
 import { clean, check, LIMITS } from '../validate';
 import { SetupSip } from './sip';
@@ -17,7 +17,7 @@ import { track } from '../api/track';
 import { dayLabel } from './pay';
 
 import { userMessage } from '../errors';
-import { statusTone, statusLabel, requestMeta, groupTypes, typeName } from '../requests';
+import { statusTone, statusLabel, requestMeta, groupTypes, typeName, newRequestKey, SLOW_REQUEST, isSlow } from '../requests';
 const STRATS = [['QAW', 'Qode All Weather'], ['QTF', 'Qode Tactical Fund'], ['QGF', 'Qode Growth Fund']];
 
 // Withdrawals are deliberately not offered in the app (Investor Relations handles them); the API route stays.
@@ -49,6 +49,7 @@ function HelpPicker({ V, accountId }) {
   const [code, setCode] = useState(null);
   const [text, setText] = useState('');
   const [st, setSt] = useState({ busy: false, err: '', done: null });
+  const reqKey = useRef(newRequestKey());   // this submission's key (kept across a resend)
   const send = async () => {
     const m = text.trim();
     if (!code) return setSt({ busy: false, err: 'Choose what your request is about.', done: null });
@@ -57,11 +58,12 @@ function HelpPicker({ V, accountId }) {
     if (!accountId) return setSt({ busy: false, err: 'No account to raise this for.', done: null });
     setSt({ busy: true, err: '', done: null });
     try {
-      const r = await services.helpRequest({ accountId, typeCode: code, message: m });
+      const r = await services.helpRequest({ accountId, typeCode: code, message: m, requestKey: reqKey.current });
+      reqKey.current = newRequestKey();   // went through: the next request is a new one
       track('event', 'help_request', { type: code });
       setText(''); setCode(null);
       setSt({ busy: false, err: '', done: { ticket: r && r.ticket } });
-    } catch (e) { setSt({ busy: false, err: userMessage(e), done: null }); }
+    } catch (e) { setSt({ busy: false, err: isSlow(e) ? SLOW_REQUEST : userMessage(e), done: null }); }
   };
   return (
     <View style={{ paddingVertical: 14, paddingHorizontal: 16 }}>
@@ -92,14 +94,15 @@ function HelpPicker({ V, accountId }) {
         </>
       )}
       <Sheet visible={open} onClose={() => setOpen(false)}>
-        <ScrollView style={{ maxHeight: Dimensions.get('window').height * 0.7 }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 }}>
+        <ScrollView style={{ maxHeight: Dimensions.get('window').height * 0.7 }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 0 }}>
           <Tx w={700} s={15} style={{ marginBottom: 6 }}>What do you need help with?</Tx>
           {!groups.length && <Tx s={13} c={C.muted} style={{ paddingVertical: 14 }}>{T.err ? 'We couldn’t load the request types. Please try again shortly.' : 'Loading…'}</Tx>}
-          {groups.filter(g => g.label).map((g, gi) => (
+          {groups.filter(g => g.label).map((g, gi, all) => (
             <View key={g.category || 'other'}>
-              {g.items.map(t => (
+              {/* no line under the last row: the pinned Something else row brings its own */}
+              {g.items.map((t, ti) => (
                 <Pressable key={t.code} onPress={() => { setCode(t.code); setOpen(false); if (st.err) setSt(x => ({ ...x, err: '' })); }}
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderColor: C.hairline }}>
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: gi === all.length - 1 && ti === g.items.length - 1 ? 0 : 1, borderColor: C.hairline }}>
                   <Tx w={t.code === code ? 700 : 400} s={13.5} c={t.code === code ? C.green : C.ink} style={{ flex: 1 }}>{t.name}</Tx>
                   {t.code === code && <Check s={15} />}
                 </Pressable>
@@ -182,12 +185,32 @@ function StatusPill({ r }) {
     </View>
   );
 }
+// Past Requests' loading skeleton: rows shaped like the requests (title and status pill, detail, meta line), pulsing.
+function RequestSkeleton({ rows = 4 }) {
+  const bar = { backgroundColor: 'rgba(55,88,79,0.12)' };
+  return (
+    <View accessibilityLabel="Loading your requests">
+      {Array.from({ length: rows }, (_, i) => (
+        <View key={i} style={{ paddingVertical: 13, paddingHorizontal: 16, borderBottomWidth: i < rows - 1 ? 1 : 0, borderColor: C.hairline }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <Skel h={14} style={[bar, { width: ['42%', '30%', '50%', '36%'][i % 4], borderRadius: 4 }]} />
+            <Skel h={20} style={[bar, { width: 64, borderRadius: 999 }]} />
+          </View>
+          <Skel h={12} style={[bar, { width: ['68%', '55%', '74%', '48%'][i % 4], marginTop: 9, borderRadius: 4 }]} />
+          <Skel h={10} style={[bar, { width: '28%', marginTop: 8, borderRadius: 4 }]} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 // My Requests (its own page, from the Services tab): everything the client raised, with its live status in Zoho
 // (services.requests). Reloads with the tab (V.rk).
 export function MyRequests({ V }) {
   const L = useLoad(() => services.requests(), [V.rk]);
-  const list = (L.data && L.data.requests) || [];
-  if (L.loading) return <Card style={{ padding: 16 }}><Tx s={12} c={C.muted}>Loading your requests…</Tx></Card>;
+  const data = useQuietRefresh(() => services.requests(), L.data);   // statuses changed meanwhile, every 30 s
+  const list = (data && data.requests) || [];
+  if (L.loading) return <Card style={{ overflow: 'hidden' }}><RequestSkeleton /></Card>;
   if (L.err) return <Card style={{ padding: 16 }}><Tx s={12} c={C.muted}>We couldn’t load your requests just now.</Tx></Card>;
   if (!list.length) return <Card style={{ padding: 16 }}><Tx s={12} c={C.muted}>Nothing raised yet. Requests you make here show up with their status.</Tx></Card>;
   return (

@@ -17,7 +17,7 @@ import { DESKTOP_PAGES } from './pages';
 import { SwitchSheet, SettingsSheet, NotifsSheet } from '../screens/sheets';
 import { UccNotice } from '../screens/ucc';
 import { ddPct, pct, inr, fmtDate, initials } from '../adapt';
-import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, Btn, PageIntro, Chips, Tabs, Delta, BarList, KeyVals, sentence, FitAmt, AppLinks, Dropdown, ClosedAccountDialog, InfoTip as KitInfoTip } from './kit';
+import { C, Tx, Amt, Card, Row, Grid, Panel, Stat, DarkCard, Label, TextLink, Table, Loading, Btn, PageIntro, Chips, Tabs, Delta, BarList, KeyVals, sentence, FitAmt, AppLinks, Dropdown, ClosedAccountDialog, InfoTip as KitInfoTip, useSidenavScrollbar } from './kit';
 // NuvamaDetails now lives only on the Login To Nuvama page (src/web/pages.js), not on Overview
 import DesktopHoldings from './holdings';
 import DesktopReports from './reports';
@@ -107,6 +107,7 @@ function Sidebar({ V, activeId, onNav }) {
     );
   };
   const shown = sec => sec.items.filter(it => !(V.viewing && it.id === 'support'));
+  useSidenavScrollbar();
   return (
     <LinearGradient colors={['#02422B', '#002017', '#000000']} locations={[0, 0.6, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.4, y: 1 }} style={{ width: 264, paddingTop: 20, paddingBottom: 12 }}>
       <View style={{ paddingHorizontal: 22, flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
@@ -114,8 +115,8 @@ function Sidebar({ V, activeId, onNav }) {
       </View>
       <Tx s={11.5} c={CREAM(0.55)} style={{ paddingHorizontal: 22, marginTop: 2 }}>Qode Advisors LLP · PMS</Tx>
       <View style={{ width: 34, height: 2, backgroundColor: C.gold, marginTop: 12, marginLeft: 22 }} />
-      {/* Sized to fit a laptop screen without scrolling; no scrollbar either way (a very short window still scrolls by wheel). */}
-      <ScrollView style={{ flex: 1, marginTop: 6 }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+      {/* Sized to fit a laptop screen without scrolling; on a shorter window a thin gold scroll line shows on the right (kit useSidenavScrollbar). */}
+      <ScrollView dataSet={{ sidenav: '1' }} style={{ flex: 1, marginTop: 6 }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 8 }}>
         {WEB_NAV.filter(sec => !sec.hidden && !sec.bottom).map(sec => (
           <View key={sec.title} accessibilityRole="navigation" aria-label={sec.title} style={{ marginTop: 12 }}>
             <Tx w={700} s={11} ls={0.14} c={CREAM(0.45)} style={{ paddingHorizontal: 12, marginBottom: 3 }}>{sec.title.toUpperCase()}</Tx>

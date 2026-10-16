@@ -251,6 +251,7 @@ export function Field({ label, value, onChangeText, placeholder, secure, numeric
 // the number pad behave as in a plain field; what shows is drawn from its value, with a caret after the last digit.
 export function PhoneMaskField({ value, onChange, variant = 'box', autoFocus, onSubmit, error, s = 15 }) {
   const [focus, setFocus] = useState(false);
+  const input = useRef(null);
   const d = String(value || '').replace(/\D/g, '').slice(0, 10);
   const sp = t => (t.length > 5 ? t.slice(0, 5) + ' ' + t.slice(5) : t);
   const all = sp((d + '0000000000').slice(0, 10));
@@ -260,7 +261,8 @@ export function PhoneMaskField({ value, onChange, variant = 'box', autoFocus, on
     ? { borderWidth: 1, borderRadius: 8, backgroundColor: '#fff', paddingHorizontal: 14, minHeight: 48, borderColor: line }
     : { borderBottomWidth: error || focus ? 1.5 : 1, borderColor: line, paddingVertical: 10 };
   return (
-    <View style={[{ flexDirection: 'row', alignItems: 'center' }, box]}>
+    // a tap anywhere on the field focuses the input (iOS: belt and braces with the near-invisible input below)
+    <Pressable onPress={() => input.current && input.current.focus()} accessible={false} style={[{ flexDirection: 'row', alignItems: 'center' }, box]}>
       <Tx s={s} c={C.muted}>+91</Tx>
       <View style={{ width: 1, height: 20, backgroundColor: 'rgba(55,88,79,0.2)', marginHorizontal: 10 }} />
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
@@ -268,12 +270,15 @@ export function PhoneMaskField({ value, onChange, variant = 'box', autoFocus, on
         {focus && d.length < 10 && <View style={{ width: 1.5, height: s + 3, backgroundColor: C.green, marginHorizontal: 0.5 }} />}
         <Tx s={s} ls={0.6} c="#C3C9C5">{all.slice(typed.length)}</Tx>
       </View>
-      <TextInput value={d} onChangeText={t => onChange(t.replace(/\D/g, '').slice(0, 10))} maxLength={10}
+      <TextInput ref={input} value={d} onChangeText={t => onChange(t.replace(/\D/g, '').slice(0, 10))} maxLength={10}
         keyboardType="number-pad" inputMode="numeric" autoComplete="tel-national" textContentType="telephoneNumber"
         autoFocus={autoFocus} caretHidden onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} onSubmitEditing={onSubmit}
         accessibilityLabel="Mobile number, 10 digits"
-        style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, opacity: 0, color: 'transparent', fontSize: 16, outlineStyle: 'none', cursor: 'text' }} />
-    </View>
+        selectionColor="transparent"
+        // opacity 0.02, not 0: iOS ignores touches on a view below 1% opacity, so a 0 input could never be tapped there.
+        // Its text is transparent anyway, so nothing of it shows.
+        style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, opacity: 0.02, color: 'transparent', fontSize: 16, outlineStyle: 'none', cursor: 'text' }} />
+    </Pressable>
   );
 }
 

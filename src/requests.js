@@ -7,7 +7,10 @@ import { fmtDate } from './adapt';
 // state → how the status pill reads: open (gold), on hold (red), closed (green). The label is exactly Zoho's status;
 // a request Zoho could not be read for has no status (null) and shows no pill — never a word of our own.
 export const STATUS_TONE = { open: 'warn', on_hold: 'bad', closed: 'ok' };
-export const statusTone = r => STATUS_TONE[r && r.status && r.status.state] || 'neutral';
+// Zoho Desk's own status colours (16 Oct 2026): Open grey, On Hold and Unverified orange, Closed green; Escalated red,
+// so it never looks like Open. Any other status falls back to its state above.
+const DESK_TONE = { open: 'neutral', 'on hold': 'warn', unverified: 'warn', escalated: 'bad', closed: 'ok' };
+export const statusTone = r => DESK_TONE[String((r && r.status && r.status.label) || '').trim().toLowerCase()] || STATUS_TONE[r && r.status && r.status.state] || 'neutral';
 export const statusLabel = r => (r && r.status && r.status.label) || '';
 // "What do you need help with?" (Account Services and Support's pop-up): the request types from Zoho Desk
 // (services.requestTypes → GET /api/request-types), shown grouped by category in A–N order, codes in number order
@@ -27,6 +30,12 @@ export function groupTypes(types) {
   if (other) groups.push({ category: '', label: '', items: [{ ...other, name: 'Something else' }] });
   return groups;
 }
+// One key per submission of the request form, sent as requestKey: pressing Submit again after a slow answer reuses it,
+// so the server treats it as the same request; a new key only after a request went through.
+export const newRequestKey = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+// What the form says when the answer is slow or the connection drops: the ticket may already be raised.
+export const SLOW_REQUEST = 'This is taking longer than usual, and your request may already have reached us. Check Past Requests before sending it again; pressing Submit again is safe and will not create a second request.';
+export const isSlow = e => !!e && (e.code === 'TIMEOUT' || e.code === 'OFFLINE' || e.status >= 500);
 export const typeName = (groups, code) => { for (const g of groups || []) { const t = g.items.find(x => x.code === code); if (t) return t.name; } return ''; };
 
 // "Ask About a Strategy · QAW00186 · 12 Oct 2026 · Web"
