@@ -19,8 +19,8 @@ import { savePendingPayment, clearPendingPayment, hintFromReturnUrl, autoReturn 
 import { track } from '../api/track';
 
 import { userMessage } from '../errors';
-const CHIPS = [5000, 10000, 25000, 50000];
-const MIN = 100, MAX = 500000;
+const CHIPS = [50000, 100000];
+const MIN = 50000, MAX = 500000;
 const FREQS = [['monthly', 'Monthly'], ['quarterly', 'Quarterly'], ['yearly', 'Yearly']];
 const fmt = v => inr(Number(v || 0));
 const Lbl = ({ children, style }) => <Tx w={700} s={10} ls={0.12} c={C.gray} style={[{ marginTop: 18 }, style]}>{children}</Tx>;
