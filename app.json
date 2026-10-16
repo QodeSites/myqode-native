@@ -2,7 +2,7 @@
   "expo": {
     "name": "myQode",
     "slug": "myqode-native",
-    "version": "1.3.3",
+    "version": "1.3.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -54,7 +54,7 @@
         }
       ],
       "package": "com.qodeinvest.myqode",
-      "versionCode": 58,
+      "versionCode": 59,
       "googleServicesFile": "./google-services.json"
     },
     "web": {

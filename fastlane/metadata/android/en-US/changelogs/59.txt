@@ -1,0 +1,7 @@
+Improvements in this update:
+• New Support page: raise a request by type and track its status
+• Sign up with a one-time code
+• SIP amounts updated: start from ₹50,000
+• Fact sheet: closed accounts are shown correctly in All accounts
+• Partners: decks by month and a cleaner invoice
+• Small fixes and performance improvements
