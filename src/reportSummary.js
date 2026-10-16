@@ -16,6 +16,8 @@ export const money = v => {
   return '₹' + a.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 const pctTxt = v => `${Math.abs(num(v)).toFixed(2)}%`;
+// A capital gains range with no start ("All time"): from the first sale on record.
+export const cgFrom = r => (r && (r.from || (!r.fy && r.to && r.coverage ? r.coverage.from : null))) || null;
 const span = (from, to) => (from && to ? `Between ${day(from)} and ${day(to)}` : from ? `Since ${day(from)}` : to ? `Up to ${day(to)}` : 'Across all records');
 const gainWord = v => (num(v) >= 0 ? 'gain' : 'loss');
 const who = all => (all ? 'these accounts' : 'this account');
@@ -47,7 +49,7 @@ export function transactionsSummary(h, all) {
 export function capitalGainsSummary(h, all) {
   const s = splitGains(h && h.summary);   // derivatives apart, as business income (businessIncome.js)
   if (!s) return [];
-  const when = h.fy ? `In FY ${h.fy}` : span(h.from, h.to);
+  const when = h.fy ? `In FY ${h.fy}` : span(cgFrom(h), h.to);
   const total = num(s.total), st = num(s.st), lt = num(s.lt);
   if (!total && !st && !lt && !s.hasBusiness) return [`${when}, no holdings were sold in ${who(all)}, so there are no capital gains to report.`];
   const out = [`${when}, sales in ${who(all)} realised a net ${gainWord(total)} of ${money(total)}.`];

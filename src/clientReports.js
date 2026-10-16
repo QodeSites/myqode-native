@@ -161,7 +161,7 @@ export async function buildReport(rep, sel) {
   if (kind === 'capitalGains') {
     // By financial year (Nuvama's statement), or by sale date for a range. "All time": every sale on record.
     const byFy = !!p.fy && (sel.period || '').startsWith('fy:');
-    const q = byFy ? { fy: p.fy } : { from: p.from || '2000-01-01', to: p.to || undefined };
+    const q = byFy ? { fy: p.fy } : { from: p.from || undefined, to: p.to || todayIso() };
     // Asked for a year with no sales, the server answers with the latest year that has some; that is not this year.
     const onlyFy = d => (byFy && d && d.fy !== p.fy ? { ...d, fy: p.fy, summary: null, items: [] } : d);
     if (all) {

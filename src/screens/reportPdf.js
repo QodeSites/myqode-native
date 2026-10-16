@@ -3,7 +3,7 @@
 // zebra rows. The content follows the custodian's (Nuvama WealthSpectrum) statements clients already know.
 // Each builder returns { html, landscape } for savePdf (src/screens/partner.js); iOS supplies the page margins.
 
-import { transactionsSummary, capitalGainsSummary, expensesSummary, factsheetSummary, pnlSummary } from '../reportSummary.js';
+import { cgFrom, transactionsSummary, capitalGainsSummary, expensesSummary, factsheetSummary, pnlSummary } from '../reportSummary.js';
 import { splitGains, isBusiness, BUSINESS_NOTE } from '../businessIncome.js';
 import { sheetAsOf, lastSheetLabel } from '../combine.js';
 
@@ -294,7 +294,7 @@ const quarterOf = iso => {
 };
 export function capitalGainsPdf(r, accountId) {
   const head = header('Statement of Capital Gain / Loss', r.asOf, [...acctFields(accountId, r.holder), ['Period', cgPeriod(r)]],
-    r.fy ? `Financial year ${r.fy}` : periodLine(r.from, r.to));
+    r.fy ? `Financial year ${r.fy}` : periodLine(cgFrom(r), r.to));
   return { html: page(true, head, cgBody(r), capitalGainsSummary(r, false)), landscape: true };
 }
 // Period text of a capital gains answer: by financial year (fy set) or by a sale-date range (fy null, from / to set).
@@ -302,7 +302,7 @@ function cgPeriod(r) {
   const from = r.fy ? `${r.fy.slice(0, 4)}-04-01` : null, fyEnd = r.fy ? `${+r.fy.slice(0, 4) + 1}-03-31` : null;
   const to = r.asOf && fyEnd && r.asOf < fyEnd ? r.asOf : fyEnd;
   const range = !r.fy && (r.from || r.to);
-  return from ? `${dl(from)} to ${dl(to)}` : range ? `${r.from ? dl(r.from) : 'Earliest'} to ${dl(r.to || r.asOf)}` : '';
+  return from ? `${dl(from)} to ${dl(to)}` : range ? `${cgFrom(r) ? dl(cgFrom(r)) : 'Earliest'} to ${dl(r.to || r.asOf)}` : '';
 }
 // Summary tiles and one section per category. A: with an Account column (all accounts).
 function cgBody(r, A, afterTiles = '') {
@@ -430,7 +430,7 @@ export function transactionsAllPdf(r, groupLabel) {
 
 export function capitalGainsAllPdf(r) {
   const head = header('Statement of Capital Gain / Loss', r.asOf, [...allFields(r), ['Period', cgPeriod(r)]],
-    r.fy ? `Financial year ${r.fy}` : periodLine(r.from, r.to));
+    r.fy ? `Financial year ${r.fy}` : periodLine(cgFrom(r), r.to));
   const SS = splitGains(r.summary), byCat = (SS && SS.byCategory) || [], B = SS && SS.hasBusiness;
   const tot = c => (c.st || 0) + (c.lt || 0) + (c.business || 0);
   const cats = byCat.length ? `<h3>By category · all accounts</h3><table class="fixed"><colgroup><col>${(B ? [13, 13, 13, 13, 13] : [16, 16, 16, 16]).map(w => `<col style="width:${w}%">`).join('')}</colgroup>

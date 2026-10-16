@@ -442,7 +442,7 @@ function CapitalGains({ accountId, ids, rk, account }) {
   // which overrides the FY on the server. "All time" as a range starts from the earliest possible date.
   const R = useRange('byfy');
   const byFy = R.preset === 'byfy' || (R.preset === 'custom' && !R.from && !R.to);
-  const q = byFy ? { fy: fy || undefined } : R.preset === 'all' ? { from: '1990-01-01', to: isoOf(new Date()) } : { from: R.from, to: R.to };
+  const q = byFy ? { fy: fy || undefined } : R.preset === 'all' ? { to: isoOf(new Date()) } : { from: R.from, to: R.to };
   const all = accountId === ALL_ID;
   // All accounts: the same FY (or sale-date range) for every account; with no FY chosen, the newest year any has.
   const L = usePaged(offset => (all

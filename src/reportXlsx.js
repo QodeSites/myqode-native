@@ -11,6 +11,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { track } from './api/track';
 import { splitGains, BUSINESS_NOTE } from './businessIncome';
+import { cgFrom } from './reportSummary';
 import { sheetAsOf } from './combine';
 
 const num = v => (v == null || v === '' || isNaN(+v) ? null : +v);
@@ -112,7 +113,7 @@ export function capitalGainsXlsx(r, accountId) {
   const A = !accountId, S = splitGains(r.summary) || {};   // derivatives apart, as business income (src/businessIncome.js)
   const wb = book();
   add(wb, summary('Statement of Capital Gain / Loss', [
-    ...who(accountId, r), ['As of', day(r.asOf)], ['Period', r.fy ? `Financial year ${r.fy}` : period(r.from, r.to)], null,
+    ...who(accountId, r), ['As of', day(r.asOf)], ['Period', r.fy ? `Financial year ${r.fy}` : period(cgFrom(r), r.to)], null,
     ['Short term (₹)', num(S.st)], ['Long term (₹)', num(S.lt)], ['Long term, effective (₹)', num(S.ltTaxable)], ['Total realised (₹)', num(S.total)],
     ...(S.hasBusiness ? [['Business income, derivatives (₹)', num(S.business)], ['Business income', BUSINESS_NOTE]] : []),
     ...failed(r),

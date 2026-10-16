@@ -67,7 +67,7 @@ export function reportCall(k, { accountId, ids = [], period = {} }) {
     }
     case 'cg': {
       const fy = period.fy || null;
-      const q = fy ? { fy } : allTime ? { from: '1990-01-01', to: today } : fromTo;
+      const q = fy ? { fy } : allTime ? { to: today } : fromTo;
       return {
         data: () => (all ? loadCapitalGainsAll(ids, (id, o) => reports.capitalGains(id, { ...(fy ? o : q), ...EXP }), q) : reports.capitalGains(accountId, { ...q, ...EXP })),
         pdf: d => (all ? capitalGainsAllPdf(d) : capitalGainsPdf(d, accountId)), xlsx: d => capitalGainsXlsx(d, all ? null : accountId),
