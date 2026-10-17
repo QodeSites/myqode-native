@@ -310,6 +310,7 @@ export const distributor = {
   invoiceProfile: () => api('/distributor/invoice-profile'),
   saveInvoiceProfile: body => api('/distributor/invoice-profile', { method: 'PUT', body }),
   invoices: () => api('/distributor/invoice-issue'),
+  invoiceDoc: number => api('/distributor/invoice-issue', { query: { doc: number } }),   // { url }: 10-minute link to an issued invoice
   issueInvoice: body => api('/distributor/invoice-issue', { method: 'POST', body }),
   // Signed 5-minute link to a PDF (investor statement or deck), opened in the phone's viewer
   fileLink: body => api('/distributor/file-link', { method: 'POST', body }),

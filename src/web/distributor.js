@@ -91,6 +91,19 @@ const mail = to => Linking.openURL('mailto:' + to).catch(() => {});
 
 // PDFs behind a signed 5-minute link (SOA, decks): a tab is opened on the click itself so the browser does not
 // block it, then pointed at the file once the link is back.
+// An issued invoice, opened again from "Invoices you have issued" (its saved copy, behind a 10-minute link).
+async function openInvoice(number) {
+  const w = web ? window.open('', '_blank') : null;
+  try {
+    const r = await api.invoiceDoc(number);
+    if (!r || !r.url) throw new Error('no link');
+    if (w) w.location.href = r.url; else openUrl(r.url);
+  } catch (e) {
+    if (w) w.close();
+    if (web) window.alert(e && e.friendly && e.message ? e.message : 'We couldn’t open this invoice just now. Please try again.');
+  }
+}
+
 async function openFile(body, fail) {
   const w = web ? window.open('', '_blank') : null;
   try {
@@ -1155,6 +1168,7 @@ function InvoicePage({ periods, period, setPeriod, name }) {
               { key: 'amountBeforeTax', label: 'Before tax', right: true, render: r => <Amt s={13}>{inr(r.amountBeforeTax)}</Amt> },
               { key: 'taxAmount', label: 'Tax', right: true, render: r => <Amt s={13} c={C.ink2}>{inr(r.taxAmount)}</Amt> },
               { key: 'totalAmount', label: 'Total', right: true, render: r => <Amt w={600} s={13}>{inr(r.totalAmount)}</Amt> },
+              { key: 'doc', label: 'Invoice', render: r => r.hasDoc ? <TextLink label="View" onPress={() => openInvoice(r.invoiceNumber)} /> : <Tx s={12.5} c={C.ink3}>–</Tx> },
               // payment status, set by Qode (Admin → Distributor invoices); paid ones show the date and UTR
               { key: 'status', label: 'Status', render: r => (
                 <View style={{ minWidth: 0 }}>
