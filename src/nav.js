@@ -21,7 +21,7 @@ export const NAV_GROUPS = [
   { key: 'experience', title: 'Your Qode Experience', icon: 'compass', items: [
     { id: 'guide', label: 'Login To Nuvama', page: 'guide' },
     { id: 'services', label: 'Account Services', tab: 'services' },
-    { id: 'requests', label: 'Past Requests', page: 'requests' },
+    { id: 'support', label: 'Support', page: 'support', phoneOnly: true },   // Past Requests, Raise Ticket, help (web: Support in the Qode group)
     { id: 'family', label: 'Account Mapping', page: 'family' },
     { id: 'cadence', label: 'Service Cadence', page: 'cadence' },
     { id: 'nuvama', label: 'Your Details on Nuvama', page: 'nuvama', phoneOnly: true },   // web: merged into Login To Nuvama

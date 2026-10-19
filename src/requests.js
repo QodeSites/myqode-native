@@ -36,6 +36,10 @@ export const newRequestKey = () => Date.now().toString(36) + Math.random().toStr
 // What the form says when the answer is slow or the connection drops: the ticket may already be raised.
 export const SLOW_REQUEST = 'This is taking longer than usual, and your request may already have reached us. Check Past Requests before sending it again; pressing Submit again is safe and will not create a second request.';
 export const isSlow = e => !!e && (e.code === 'TIMEOUT' || e.code === 'OFFLINE' || e.status >= 500);
+// A ticket was just raised: lists of requests on screen reload now (Past Requests on the phone's Support page).
+const raisedListeners = new Set();
+export const onRequestRaised = fn => { raisedListeners.add(fn); return () => raisedListeners.delete(fn); };
+export const requestRaised = () => raisedListeners.forEach(fn => { try { fn(); } catch (e) {} });
 export const typeName = (groups, code) => { for (const g of groups || []) { const t = g.items.find(x => x.code === code); if (t) return t.name; } return ''; };
 
 // "Ask About a Strategy · QAW00186 · 12 Oct 2026 · Web"

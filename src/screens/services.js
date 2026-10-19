@@ -17,16 +17,58 @@ import { track } from '../api/track';
 import { dayLabel } from './pay';
 
 import { userMessage } from '../errors';
-import { statusTone, statusLabel, requestMeta, groupTypes, typeName, newRequestKey, SLOW_REQUEST, isSlow } from '../requests';
+import { statusTone, statusLabel, requestMeta, groupTypes, typeName, newRequestKey, SLOW_REQUEST, isSlow, onRequestRaised, requestRaised } from '../requests';
 const STRATS = [['QAW', 'Qode All Weather'], ['QTF', 'Qode Tactical Fund'], ['QGF', 'Qode Growth Fund']];
 
 // Withdrawals are deliberately not offered in the app (Investor Relations handles them); the API route stays.
 // Add funds is the big card above this list, so it is not repeated here.
-// Since 15 Oct 2026: two direct items, then "What do you need help with?" (the Zoho Desk request types) for the rest.
-const ITEMS = [
+// The Support page's rows (19 Oct 2026, as the web's Support): the two direct actions, then the help pages.
+const ACTION_ROWS = [
   { key: 'r-switch', title: 'Switch Strategy', sub: 'Move capital between strategies' },
   { key: 'referral', title: 'Referral Program', sub: 'Refer an investor and earn a reward', page: true },
 ];
+const HELP_ROWS = [
+  { key: 'faq', title: 'FAQs & Glossary', sub: 'Answers to common questions, and the terms we use' },
+  { key: 'voice', title: 'Your Voice Matters', sub: 'Tell us how we’re doing' },
+  { key: 'grievance', title: 'Escalation and Grievance Redressal', sub: 'If something isn’t resolved' },
+];
+const RowList = ({ V, rows }) => (
+  <Card style={{ overflow: 'hidden' }}>
+    {rows.map((it, i) => (
+      <Pressable key={it.key} onPress={() => (it.key.startsWith('r-') ? V.openReq(it.key) : V.openPage(it.key))} style={{
+        flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, minHeight: 52,
+        borderBottomWidth: i < rows.length - 1 ? 1 : 0, borderColor: C.hairline,
+      }}>
+        <View style={{ flex: 1 }}>
+          <Tx w={700} s={13}>{it.title}</Tx>
+          <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>{it.sub}</Tx>
+        </View>
+        <ChevronRight />
+      </Pressable>
+    ))}
+  </Card>
+);
+
+// Support (phone, 19 Oct 2026): Past Requests with "Raise Ticket", the two actions, then the help pages.
+export function SupportPage({ V }) {
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <Tx w={700} s={10} ls={0.12} c={C.gray}>PAST REQUESTS</Tx>
+        {!V.viewing && (
+          <Pressable onPress={() => V.openReq('r-ticket')} accessibilityRole="button" accessibilityLabel="Raise Ticket"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.green, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 }}>
+            <Plus s={12} c={C.gold} /><Tx w={700} s={11.5} c={C.gold}>RAISE TICKET</Tx>
+          </Pressable>
+        )}
+      </View>
+      <MyRequests V={V} />
+      {!V.viewing && <><SectionLabel>REQUESTS</SectionLabel><RowList V={V} rows={ACTION_ROWS} /></>}
+      <SectionLabel>HELP</SectionLabel>
+      <RowList V={V} rows={HELP_ROWS} />
+    </View>
+  );
+}
 
 // Web: experience/family-account — "Raise Family Request" for a head of family, "Raise Account Request" otherwise,
 // with the same examples and placeholder. The email Investor Relations receives is titled the same way.
@@ -52,14 +94,16 @@ function HelpPicker({ V, accountId }) {
   const reqKey = useRef(newRequestKey());   // this submission's key (kept across a resend)
   const send = async () => {
     const m = text.trim();
-    if (!code) return setSt({ busy: false, err: 'Choose what your request is about.', done: null });
+    // a type is needed only when there are types to choose; with none (not loaded, or none on the server) it goes as a general query
+    if (!code && groups.length) return setSt({ busy: false, err: 'Choose what your request is about.', done: null });
     if (m.length < 5) return setSt({ busy: false, err: 'Please tell us a little more.', done: null });
     if (m.length > 2000) return setSt({ busy: false, err: 'Please keep it under 2000 characters.', done: null });
     if (!accountId) return setSt({ busy: false, err: 'No account to raise this for.', done: null });
     setSt({ busy: true, err: '', done: null });
     try {
-      const r = await services.helpRequest({ accountId, typeCode: code, message: m, requestKey: reqKey.current });
+      const r = await services.helpRequest({ accountId, typeCode: code || undefined, message: m, requestKey: reqKey.current });
       reqKey.current = newRequestKey();   // went through: the next request is a new one
+      requestRaised();   // Past Requests on screen reloads
       track('event', 'help_request', { type: code });
       setText(''); setCode(null);
       setSt({ busy: false, err: '', done: { ticket: r && r.ticket } });
@@ -73,7 +117,8 @@ function HelpPicker({ V, accountId }) {
           <Tx w={700} s={13} c={C.green}>Request received{st.done.ticket ? ' · Ticket #' + st.done.ticket : ''}</Tx>
           <Tx s={12} c={C.muted} lh={1.5} style={{ marginTop: 5 }}>Investor Relations will get back to you within 24 hours.</Tx>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 18, marginTop: 10 }}>
-            <Pressable onPress={() => V.openPage('requests')} style={{ minHeight: 28, justifyContent: 'center' }}>
+            {/* in the Raise Ticket sheet on Support: close it, the ticket is in Past Requests right there */}
+            <Pressable onPress={() => { V.closeSheet(); if (V.page !== 'support') V.openPage('support'); }} style={{ minHeight: 28, justifyContent: 'center' }}>
               <Tx w={700} s={12} c={C.green}>View in Past Requests ›</Tx>
             </Pressable>
             <Pressable onPress={() => setSt({ busy: false, err: '', done: null })} style={{ minHeight: 28, justifyContent: 'center' }}>
@@ -96,7 +141,7 @@ function HelpPicker({ V, accountId }) {
       <Sheet visible={open} onClose={() => setOpen(false)}>
         <ScrollView style={{ maxHeight: Dimensions.get('window').height * 0.7 }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 0 }}>
           <Tx w={700} s={15} style={{ marginBottom: 6 }}>What do you need help with?</Tx>
-          {!groups.length && <Tx s={13} c={C.muted} style={{ paddingVertical: 14 }}>{T.err ? 'We couldn’t load the request types. Please try again shortly.' : 'Loading…'}</Tx>}
+          {!groups.length && <Tx s={13} c={C.muted} style={{ paddingVertical: 14 }}>{T.loading ? 'Loading…' : 'No categories to choose from. Just describe your request below.'}</Tx>}
           {groups.filter(g => g.label).map((g, gi, all) => (
             <View key={g.category || 'other'}>
               {/* no line under the last row: the pinned Something else row brings its own */}
@@ -145,24 +190,6 @@ export function ServicesCream({ V }) {
           <ChevronRight />
         </Card>
       </Pressable>
-      <SectionLabel>REQUESTS & SUPPORT</SectionLabel>
-      <Card style={{ overflow: 'hidden' }}>
-        {ITEMS.map((it, i) => (
-          <Pressable key={it.key} onPress={() => (it.page ? V.openPage(it.key) : V.openReq(it.key))} style={{
-            flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, minHeight: 52,
-            borderBottomWidth: 1, borderColor: C.hairline,
-          }}>
-            <View style={{ flex: 1 }}>
-              <Tx w={700} s={13}>{it.title}</Tx>
-              <Tx s={11} c={C.muted} style={{ marginTop: 2 }}>{it.sub}</Tx>
-            </View>
-            <ChevronRight />
-          </Pressable>
-        ))}
-        <HelpPicker V={V} accountId={accountId} />
-      </Card>
-      <ContactIRLink V={V} style={{ marginTop: 8, marginLeft: 2 }} />
-
 
       <SectionLabel>ONLINE PAYMENTS AND SIPs</SectionLabel>
       <Investments V={V} opts={opts} accountId={accountId} onPickAccount={setSel} inv={inv} all={all} />
@@ -208,6 +235,7 @@ function RequestSkeleton({ rows = 4 }) {
 // (services.requests). Reloads with the tab (V.rk).
 export function MyRequests({ V }) {
   const L = useLoad(() => services.requests(), [V.rk]);
+  useEffect(() => onRequestRaised(() => L.reload()), []);   // a ticket raised from the sheet shows at once
   const data = useQuietRefresh(() => services.requests(), L.data);   // statuses changed meanwhile, every 30 s
   const list = (data && data.requests) || [];
   if (L.loading) return <Card style={{ overflow: 'hidden' }}><RequestSkeleton /></Card>;
@@ -669,6 +697,14 @@ function AddFunds({ V }) {
 export function RequestSheets({ V }) {
   const k = V.sheet;
   if (k === 'r-add') return <AddFunds V={V} />;
+  if (k === 'r-ticket') {
+    const first = (V.acctOptions || [])[0];
+    return (
+      <Shell V={V} title="Raise a request" sub="Choose what it is about and tell us a little more. Investor Relations will get back to you within 24 hours.">
+        <HelpPicker V={V} accountId={first && first.id} />
+      </Shell>
+    );
+  }
   if (k === 'r-switch') {
     return (
       <Shell V={V} title="Switch strategy" sub="Tell us where you'd like to move your investment. Our team will confirm the details with you.">

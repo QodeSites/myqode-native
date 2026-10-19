@@ -151,13 +151,14 @@ function HelpPicker({ V, accountId, onDone, onRaised }) {
   const reqKey = useRef(newRequestKey());   // this submission's key (kept across a resend)
   const send = async () => {
     const m = text.trim();
-    if (!code) return setSt({ busy: false, err: 'Choose what your request is about.', done: null });
+    // a type is needed only when there are types to choose; with none (not loaded, or none on the server) it goes as a general query
+    if (!code && groups.length) return setSt({ busy: false, err: 'Choose what your request is about.', done: null });
     if (m.length < 5) return setSt({ busy: false, err: 'Please tell us a little more.', done: null });
     if (m.length > 2000) return setSt({ busy: false, err: 'Please keep it under 2000 characters.', done: null });
     if (!accountId) return setSt({ busy: false, err: 'No account to raise this for.', done: null });
     setSt({ busy: true, err: '', done: null });
     try {
-      const r = await services.helpRequest({ accountId, typeCode: code, message: m, requestKey: reqKey.current });
+      const r = await services.helpRequest({ accountId, typeCode: code || undefined, message: m, requestKey: reqKey.current });
       reqKey.current = newRequestKey();   // went through: the next request is a new one
       if (onRaised) onRaised();
       track('event', 'help_request', { type: code });
@@ -196,7 +197,7 @@ function HelpPicker({ V, accountId, onDone, onRaised }) {
       <View style={{ marginTop: 12, zIndex: 5 }}>
         <Dropdown text={code ? typeName(groups, code) : 'Choose what your request is about'} value={code} onPick={c => { setCode(c); if (st.err) setSt(x => ({ ...x, err: '' })); }}
           options={options} width="100%" maxWidth={720} menuWidth={460} listMax={HELP_LIST_MAX} stretch height={44} a11yLabel="What do you need help with?"
-          empty={T.err ? 'We couldn’t load the request types. Please try again shortly.' : 'Loading…'} />
+          empty={T.loading ? 'Loading…' : 'No categories to choose from. Just describe your request below.'} />
       </View>
       <View style={{ marginTop: 12, zIndex: 1 }}>
         <Input multiline value={text} onChangeText={t => { setText(t); if (st.err) setSt(x => ({ ...x, err: '' })); }}
