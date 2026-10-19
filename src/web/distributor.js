@@ -1219,7 +1219,7 @@ function InvoiceBody({ period, name, onIssued }) {
     setSt(s => ({ ...s, issuing: true, err: '', msg: '' }));
     if (!(await save())) { setSt(s => ({ ...s, issuing: false })); return; }
     try {
-      await api.issueInvoice({ invoiceNumber: String(invoiceNumber).trim(), invoiceDate: date, periodLabel: period.label, periodStart: period.startDate, periodEnd: period.endDate, amountBeforeTax: tax.taxableValue, taxAmount: tax.totalTax, totalAmount: tax.total, invoiceHtml: html() });   // the document goes to partnerships@ with the record
+      await api.issueInvoice({ invoiceNumber: String(invoiceNumber).trim(), invoiceDate: date, periodLabel: period.label, periodStart: period.startDate, periodEnd: period.endDate, amountBeforeTax: tax.taxableValue, taxAmount: tax.totalTax, totalAmount: tax.total, ratePct, clientCount, discount, invoiceHtml: html() });   // the server builds the PDF that goes to partnerships@ and accounts@ with the record
       const n = String(invoiceNumber).match(/(\d+)\s*$/);
       if (n) setP(o => { const q = o || base; return { ...q, lastInvoiceNumber: Math.max(Number(q.lastInvoiceNumber || 0), Number(n[1])) }; });
       setNum(null);

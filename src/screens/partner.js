@@ -904,8 +904,7 @@ export function invoiceHtml({ p, period, invoiceNumber, date, tax, ratePct, clie
     <div class="amt"><table><tr><td><div class="lab" style="margin:0">Total payable</div><div class="muted" style="font-style:italic;margin-top:4px">${esc(amountInWords(tax.total))}</div></td><td class="big">₹ ${inr(tax.total)}</td></tr></table></div>
     ${pay.length ? `<h3>Payment details</h3><table class="cols" style="margin-top:0"><tr><td class="panel" style="width:100%">${pay.map(esc).join('<br>')}</td></tr></table>` : ''}
     ${p.notes ? `<div class="note">${esc(p.notes).replace(/\n/g, '<br>')}</div>` : ''}
-    <div class="ft"><div class="sys">This is a system generated invoice.</div>
-      Amounts are for distribution fees earned on investor portfolios managed by ${esc(QODE_ENTITY.name)} for the period stated. This invoice is raised by the partner named above through myQode.</div>
+    <div class="ft"><div class="sys">This is a system generated invoice.</div></div>
   </body></html>`;
 }
 
@@ -945,7 +944,7 @@ export function Invoice({ period, distributorName, onBack }) {
     setState(s => ({ ...s, issuing: true, err: '' }));
     if (!(await save())) { setState(s => ({ ...s, issuing: false })); return; }
     try {
-      await api.issueInvoice({ invoiceNumber: String(invoiceNumber).trim(), invoiceDate: date, periodLabel: period.label, periodStart: period.startDate, periodEnd: period.endDate, amountBeforeTax: tax.taxableValue, taxAmount: tax.totalTax, totalAmount: tax.total, invoiceHtml: html() });
+      await api.issueInvoice({ invoiceNumber: String(invoiceNumber).trim(), invoiceDate: date, periodLabel: period.label, periodStart: period.startDate, periodEnd: period.endDate, amountBeforeTax: tax.taxableValue, taxAmount: tax.totalTax, totalAmount: tax.total, ratePct, clientCount, discount, invoiceHtml: html() });   // the server builds the PDF for Accounts from these
       const n = String(invoiceNumber).match(/(\d+)\s*$/);
       if (n) setP(o => ({ ...o, lastInvoiceNumber: Math.max(Number(o.lastInvoiceNumber || 0), Number(n[1])) }));
       setNum(null);
@@ -1055,7 +1054,6 @@ export function Invoice({ period, distributorName, onBack }) {
         )}
         {!!p.notes && <Tx s={11} c={C.muted} lh={1.5} style={{ paddingTop: 12, marginTop: 12, borderTopWidth: 1, borderColor: C.hairline }}>{p.notes}</Tx>}
         <Tx s={10.5} w={700} c={C.green} style={{ paddingTop: 12, marginTop: 12, borderTopWidth: 1, borderColor: C.hairline }}>This is a system generated invoice.</Tx>
-        <Tx s={10.5} c={C.muted} lh={1.5} style={{ marginTop: 4 }}>Amounts are for distribution fees earned on investor portfolios managed by {QODE_ENTITY.name} for the period stated. This invoice is raised by the partner named above.</Tx>
       </Card>
       {!!state.err && <View style={{ marginTop: 12 }}><Msg tone="red" text={state.err} /></View>}
       {!!state.msg && <Tx s={12} c={C.green} style={{ marginTop: 12 }}>{state.msg}</Tx>}
