@@ -944,7 +944,13 @@ export function Invoice({ period, distributorName, onBack }) {
     setState(s => ({ ...s, issuing: true, err: '' }));
     if (!(await save())) { setState(s => ({ ...s, issuing: false })); return; }
     try {
-      await api.issueInvoice({ invoiceNumber: String(invoiceNumber).trim(), invoiceDate: date, periodLabel: period.label, periodStart: period.startDate, periodEnd: period.endDate, amountBeforeTax: tax.taxableValue, taxAmount: tax.totalTax, totalAmount: tax.total, ratePct, clientCount, discount, invoiceHtml: html() });   // the server builds the PDF for Accounts from these
+      const res = await api.issueInvoice({ invoiceNumber: String(invoiceNumber).trim(), invoiceDate: date, periodLabel: period.label, periodStart: period.startDate, periodEnd: period.endDate, amountBeforeTax: tax.taxableValue, taxAmount: tax.totalTax, totalAmount: tax.total, ratePct, clientCount, discount, invoiceHtml: html() });   // the server builds the PDF for Accounts from these
+      // An admin viewing the partner: a test run, nothing recorded (the server's message says so and where the mails went)
+      if (res && res.test) {
+        try { await savePdf(html(), 'TEST Invoice ' + invoiceNumber); setState(s => ({ ...s, issuing: false, msg: res.message })); }
+        catch (pe) { setState(s => ({ ...s, issuing: false, msg: res.message, err: userMessage(pe) })); }
+        return;
+      }
       const n = String(invoiceNumber).match(/(\d+)\s*$/);
       if (n) setP(o => ({ ...o, lastInvoiceNumber: Math.max(Number(o.lastInvoiceNumber || 0), Number(n[1])) }));
       setNum(null);
