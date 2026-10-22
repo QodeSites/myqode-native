@@ -64,7 +64,7 @@ import { API_BASE, RESUME_HOSTS, UPLOAD } from './onboarding/config';
 import { PAGE_ALIASES, openLink } from './nav';
 import * as push from './push';
 import { setPdfSummaries } from './screens/reportPdf';
-import { userMessage } from './errors';
+import { userMessage, MSG, isFriendly } from './errors';
 // Report summaries are a web feature; the phone app shows the figures and tables only.
 setPdfSummaries(Platform.OS === 'web');
 
@@ -699,11 +699,13 @@ export default class MyQode extends React.Component {
     this.setState({ refreshing: false });
   };
 
+  // A 401 is a wrong password only when our server says so (its JSON { error }); a 401 with no body of ours comes
+  // from something in between (a dev tunnel asking for sign-in, a proxy), which is our side, not the password.
   authFail(e) {
+    const ours = !!(e.data && typeof e.data === 'object' && (e.data.error || e.data.code));
     const msg = {
-      USER_NOT_FOUND: 'We couldn’t find an account with those details.',
       ACCOUNT_CLOSED: 'This account has been closed. Please contact investor relations.',
-    }[e.code] || (e.status === 401 ? 'Incorrect password. Please try again.' : userMessage(e));
+    }[e.code] || (e.status === 401 ? (ours ? (isFriendly(e.data.error) ? e.data.error : 'Incorrect email/ID or password. Please try again.') : MSG.server) : userMessage(e));
     this.setState({ busy: false, authErr: msg });
   }
 
