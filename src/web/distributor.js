@@ -1513,7 +1513,7 @@ function Support() {
       <Panel title="Talk to us">
         <KeyVals items={[
           ['Email', <TextLink key="e" label={PARTNERSHIPS} onPress={() => mail(PARTNERSHIPS)} />],
-          ['Phone', <TextLink key="p" label="+91 93265 35470" onPress={() => Linking.openURL('tel:+919326535470').catch(() => {})} />],
+          ['Phone', <TextLink key="p" label="+91 99300 00193" onPress={() => Linking.openURL('tel:+919930000193').catch(() => {})} />],
         ]} />
       </Panel>
       <Panel title="What happens next">

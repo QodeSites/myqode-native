@@ -953,8 +953,8 @@ function More({ V, open }) {
         <Pressable onPress={() => Linking.openURL('mailto:partnerships@qodeinvest.com').catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderBottomWidth: 1, borderColor: C.hairline }}>
           <MailIcon /><Tx w={700} s={13} style={{ flex: 1 }}>partnerships@qodeinvest.com</Tx>
         </Pressable>
-        <Pressable onPress={() => Linking.openURL('tel:+919326535470').catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
-          <Phone /><Tx w={700} s={13} style={{ flex: 1 }}>+91 93265 35470</Tx>
+        <Pressable onPress={() => Linking.openURL('tel:+919930000193').catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
+          <Phone /><Tx w={700} s={13} style={{ flex: 1 }}>+91 99300 00193</Tx>
         </Pressable>
       </Card>
       <SignOutButton onPress={V.doLogout} />

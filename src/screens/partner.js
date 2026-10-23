@@ -1385,7 +1385,7 @@ export function Ticket({ onBack }) {
       </Card>
       {!!st.err && <Tx s={12} c={C.red} style={{ marginTop: 12 }}>{st.err}</Tx>}
       <CTA label={st.busy ? 'SENDING…' : 'RAISE TICKET'} onPress={submit} style={{ marginTop: 16, opacity: st.busy ? 0.6 : 1 }} />
-      <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 14 }}>Or email <Tx w={700} s={11.5} c={C.green} onPress={() => Linking.openURL('mailto:partnerships@qodeinvest.com').catch(() => {})}>partnerships@qodeinvest.com</Tx> or call <Tx w={700} s={11.5} c={C.green} onPress={() => Linking.openURL('tel:+919326535470').catch(() => {})}>+91 9326535470</Tx>.</Tx>
+      <Tx s={11.5} c={C.muted} lh={1.5} style={{ marginTop: 14 }}>Or email <Tx w={700} s={11.5} c={C.green} onPress={() => Linking.openURL('mailto:partnerships@qodeinvest.com').catch(() => {})}>partnerships@qodeinvest.com</Tx> or call <Tx w={700} s={11.5} c={C.green} onPress={() => Linking.openURL('tel:+919930000193').catch(() => {})}>+91 9930000193</Tx>.</Tx>
     </Fade>
   );
 }
