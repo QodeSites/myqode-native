@@ -1,5 +1,6 @@
 // Strategy switch request — the same model and rules as the Zoho Forms / CRM flow (Strategy_Switch_Requests):
-//   Full Switch    → whole holdings of the From strategies into ONE To strategy (no amounts)
+//   Full Switch    → whole holdings of the From strategies, into one To strategy or split across two (the split
+//                    goes to Zoho as To percentages)
 //   Partial Switch → rupee amounts out of each strategy and into each strategy; totals must match, and no From
 //                    amount may exceed that strategy's invested value (from the investor's Zoho record)
 //   A strategy can never be on both sides. A strategy that a Pending request is already switching OUT of can't
@@ -10,8 +11,8 @@
 //   1  who, and how much, is moving — the investor, the strategy to move out of, Full or Partial
 //   2  where it goes — one strategy, or two with the amount split between them
 //   3  review and confirm
-// The switch type is derived, exactly as before: every From strategy moving in full into one To strategy is a
-// Full Switch; anything else is sent as a Partial Switch with amounts.
+// The switch type is derived: every From strategy moving in full is a Full Switch (one To strategy or a split);
+// anything else is sent as a Partial Switch with amounts.
 // Data: GET/POST /api/mobile/services/switch-request. On the dev server the request is validated but not created.
 import React, { useState } from 'react';
 import { View, Pressable, ActivityIndicator } from 'react-native';
@@ -127,7 +128,10 @@ export function SwitchForm({ onClose, preferName }) {
   const toAmt = s => { const c = to[s]; if (!c) return 0; if (!splitNeeded) return outTotal; return c.rest ? toLimit(s) : Math.min(toFixed(s), toLimit(s)); };
   const totalTo = toList.reduce((t, s) => t + toAmt(s), 0);
   const balanced = Math.abs(outTotal - totalTo) <= 0.005;   // same tolerance as the server
-  const isFull = allFull && toList.length === 1;   // Full Switch in CRM terms
+  // Full Switch in CRM terms whenever the source moves in full, into one strategy or split across two (23 Oct 2026:
+  // a split full switch used to go as Partial with today's value as a fixed amount; the server sends the split to
+  // Zoho as To percentages, lib/switchPlan.ts).
+  const isFull = allFull;
 
   const clearErr = () => setSt(s => ({ ...s, err: '' }));
   // One strategy per side: picking another replaces the current one (`replaced` names it for the message).
